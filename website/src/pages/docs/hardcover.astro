@@ -10,8 +10,7 @@ import { withBase } from '../../lib/path'
   <SectionHero section="integrations" />
   <h1>Hardcover sync</h1>
   <p>
-    Link your personal <a href="https://hardcover.app" target="_blank" rel="noopener">Hardcover</a>
-    account and Tome keeps your profile up to date as you read: ratings push shortly after you
+    Link your personal <a href="https://hardcover.app" target="_blank" rel="noopener">Hardcover</a> account and Tome keeps your profile up to date as you read: ratings push shortly after you
     change them, progress goes out in batches, and finished books land with their finish date.
   </p>
   <DocsMeta />
@@ -22,10 +21,8 @@ import { withBase } from '../../lib/path'
     book-tracking site — the community-run Goodreads alternative. It's indie and supporter-funded
     rather than ad-funded, built in the open with a public roadmap, and it treats its users like
     adults: your data is yours, imports from Goodreads and StoryGraph are first-class, and there's
-    a proper <a href="https://docs.hardcover.app/api/getting-started/" target="_blank" rel="noopener">GraphQL API</a>
-    that's free for personal use — which is exactly what makes this integration possible. If you
-    track your reading anywhere public, it's the place we'd point you to: sign up at
-    <a href="https://hardcover.app" target="_blank" rel="noopener">hardcover.app</a>, follow a few
+    a proper <a href="https://docs.hardcover.app/api/getting-started/" target="_blank" rel="noopener">GraphQL API</a> that's free for personal use — which is exactly what makes this integration possible. If you
+    track your reading anywhere public, it's the place we'd point you to: sign up at <a href="https://hardcover.app" target="_blank" rel="noopener">hardcover.app</a>, follow a few
     readers, and your Tome library does the rest of the bookkeeping.
   </p>
 
@@ -41,8 +38,7 @@ import { withBase } from '../../lib/path'
 
   <h2>Linking your account</h2>
   <p>
-    Open <strong>Settings → Hardcover</strong> and paste your personal API token (the
-    <strong>Get token</strong> link takes you to the right Hardcover page). This token is yours,
+    Open <strong>Settings → Hardcover</strong> and paste your personal API token (the <strong>Get token</strong> link takes you to the right Hardcover page). This token is yours,
     per user — it is independent of the server-wide <code>TOME_HARDCOVER_TOKEN</code> the admin may
     have set for metadata fetch, and it is stored encrypted at rest.
   </p>
@@ -50,8 +46,7 @@ import { withBase } from '../../lib/path'
     <ThemedShot client:load name="settings-hardcover" alt="Settings → Hardcover: linked account, automatic sync toggle, and sync counts" />
   </div>
   <p>
-    Linking and syncing are separate switches: you can stay linked but pause pushes with the
-    <strong>Sync automatically</strong> toggle. <strong>Sync now</strong> runs a full pass on
+    Linking and syncing are separate switches: you can stay linked but pause pushes with the <strong>Sync automatically</strong> toggle. <strong>Sync now</strong> runs a full pass on
     demand.
   </p>
 
@@ -102,9 +97,8 @@ import { withBase } from '../../lib/path'
     <ThemedShot client:load name="hardcover" alt="The Hardcover page: every sync candidate with cover, state badge, and per-book actions" />
   </div>
   <p>
-    The state filters across the top show at a glance what's <strong>synced</strong>, what's
-    <strong>not matched</strong>, and what you've <strong>excluded</strong>. <strong>Group
-    series</strong> stacks volumes the same way All Books does:
+    The state filters across the top show at a glance what's <strong>synced</strong>, what's <strong>not matched</strong>, and what you've <strong>excluded</strong>. <strong>Group
+    series</strong> stacks volumes the same way the Library tab does:
   </p>
   <div class="docs-shot">
     <ThemedShot client:load name="hardcover-grouped" alt="The Hardcover page with series grouped into stacks" />
@@ -140,12 +134,11 @@ import { withBase } from '../../lib/path'
     </thead>
     <tbody>
       <tr><td><code>TOME_HARDCOVER_SYNC_ENABLED</code></td><td><code>true</code></td><td>Server-wide kill switch — when <code>false</code> the feature is hidden for everyone</td></tr>
-      <tr><td><code>TOME_HARDCOVER_TOKEN</code></td><td>—</td><td>Unrelated to sync: server-wide token for metadata fetch and wishlist series search</td></tr>
+      <tr><td><code>TOME_HARDCOVER_TOKEN</code></td><td>—</td><td>Unrelated to sync: server-wide token for metadata fetch and wishlist series search; paste it with or without the <code>Bearer</code> prefix</td></tr>
     </tbody>
   </table>
   <p>
     Everything else is per user: each person links their own token in Settings and syncs to their
-    own profile. See the full env var list in
-    <a href={withBase("/docs/configuration")}>Configuration</a>.
+    own profile. See the full env var list in <a href={withBase("/docs/configuration")}>Configuration</a>.
   </p>
 </DocsLayout>

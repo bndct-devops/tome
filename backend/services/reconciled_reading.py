@@ -169,10 +169,19 @@ def _cluster_rows(db, user_id: int, day: DayCtx,
     """
     from sqlalchemy import text
 
+    # One stats request asks for the same clusters up to ten times (totals,
+    # daily map, heatmap, sessions). The stats endpoint turns a memo on for
+    # its request in ``db.info["rr_clusters"]``; everywhere else this is off.
+    ce, ee = _epoch(cutoff), _epoch(range_end)
+    info = getattr(db, "info", None)
+    cache = info.get("rr_clusters") if isinstance(info, dict) else None
+    key = (user_id, day.tz_offset_minutes, day.tz_name, day.rollover_hours, ce, ee, book_id, min_secs)
+    if cache is not None and key in cache:
+        return cache[key]
+
     where, params = ["user_id = :uid"], {"uid": user_id,
                                          "gap": SESSION_GAP_SECONDS,
                                          "min_secs": min_secs}
-    ce, ee = _epoch(cutoff), _epoch(range_end)
     if ce is not None:
         where.append("start_time >= :ce"); params["ce"] = ce
     if ee is not None:
@@ -206,7 +215,7 @@ def _cluster_rows(db, user_id: int, day: DayCtx,
     """)
     # The day label is computed Python-side so it is DST-correct per cluster
     # (a SQL bind can only carry one fixed offset for all rows).
-    return [
+    rows = [
         SimpleNamespace(
             book_id=r.book_id,
             day=day.py_day(int(r.start)).isoformat(),
@@ -215,6 +224,9 @@ def _cluster_rows(db, user_id: int, day: DayCtx,
         )
         for r in db.execute(sql, params).all()
     ]
+    if cache is not None:
+        cache[key] = rows
+    return rows
 
 
 # ── Totals ────────────────────────────────────────────────────────────────────

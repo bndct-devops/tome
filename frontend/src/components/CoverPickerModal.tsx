@@ -1,7 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Camera, Check, ImageOff, Loader2, Search, Upload, X } from 'lucide-react'
+import { Check, ImageOff, Loader2, Search, Upload } from 'lucide-react'
 import type { BookDetail } from '@/lib/books'
 import { ModalShell } from '@/components/ModalShell'
+import { FormLabel, Input, Pill } from '@/components/page'
+import { cn } from '@/lib/utils'
 import { Trans, Plural } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 
@@ -55,9 +57,9 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
   }, [open])
 
   async function fetchCandidates(q: string) {
+    // Earlier results stay (dimmed) until the new ones land.
     setLoading(true)
     setError(null)
-    setCandidates([])
     try {
       const qs = q.trim() ? `?q=${encodeURIComponent(q.trim())}` : ''
       const r = await fetch(`${API}/api/books/${book.id}/cover-candidates${qs}`, {
@@ -68,6 +70,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
       setCandidates(data)
       if (data.length === 0) setError(t`No cover candidates found.`)
     } catch (e: unknown) {
+      setCandidates([])
       setError(e instanceof Error ? e.message : t`Failed to fetch candidates`)
     } finally {
       setLoading(false)
@@ -125,134 +128,123 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
   }
 
   return (
-    <ModalShell open={open} onClose={handleClose} className="w-full max-w-2xl">
-      <div className="bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-background z-10">
-          <div className="flex items-center gap-2 font-semibold text-sm">
-            <Camera className="h-4 w-4 text-primary" />
-            <Trans>Change Cover</Trans>
-            <span className="text-muted-foreground font-normal">— {book.title}</span>
-          </div>
-          <button onClick={handleClose} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="h-4 w-4" />
-          </button>
+    <ModalShell
+      open={open}
+      onClose={handleClose}
+      title={<Trans>Change cover</Trans>}
+      eyebrow={book.title}
+      size="lg"
+      footer={<Pill variant="quiet" onClick={handleClose}><Trans>Cancel</Trans></Pill>}
+    >
+      <div className="flex flex-col gap-6">
+        {/* Search */}
+        <div className="flex gap-2">
+          <Input
+            ref={queryRef}
+            placeholder={`${book.title}${book.author ? ` ${book.author}` : ''}`}
+            value={query}
+            onChange={e => setQuery(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && fetchCandidates(query)}
+            aria-label={t`Search covers`}
+          />
+          <Pill onClick={() => fetchCandidates(query)} disabled={loading} className="shrink-0">
+            {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+            <Trans>Search</Trans>
+          </Pill>
         </div>
 
-        <div className="p-6 space-y-5">
-          {/* Search */}
-          <div className="flex gap-2">
-            <input
-              ref={queryRef}
-              className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-              placeholder={`${book.title}${book.author ? ` ${book.author}` : ''}`}
-              value={query}
-              onChange={e => setQuery(e.target.value)}
-              onKeyDown={e => e.key === 'Enter' && fetchCandidates(query)}
-            />
-            <button
-              onClick={() => fetchCandidates(query)}
-              disabled={loading}
-              className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-            >
-              {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
-            </button>
+        {/* Candidate grid */}
+        {loading && candidates.length === 0 && (
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
           </div>
+        )}
 
-          {/* Candidate grid */}
-          {loading && (
-            <div className="flex justify-center py-8">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-            </div>
-          )}
-
-          {!loading && candidates.length > 0 && (
-            <div>
-              <p className="text-xs text-muted-foreground mb-3">
-                <Plural value={candidates.length} one="# cover found — click to apply" other="# covers found — click to apply" />
-              </p>
-              <div className="grid grid-cols-3 sm:grid-cols-4 gap-3">
-                {candidates.map((c, i) => {
-                  const isThis = applyingUrl === c.cover_url
-                  return (
-                    <button
-                      key={i}
-                      disabled={applyingUrl !== null}
-                      onClick={() => applyUrl(c.cover_url)}
-                      className="group relative rounded-lg overflow-hidden border border-border bg-muted aspect-[2/3] hover:border-primary/60 hover:shadow-md transition-all duration-200 disabled:cursor-not-allowed"
-                      title={c.label}
-                    >
-                      <img
-                        src={c.cover_url}
-                        alt={c.label}
-                        className="w-full h-full object-cover"
-                        onError={e => {
-                          const el = e.target as HTMLImageElement
-                          el.style.display = 'none'
-                          el.nextElementSibling?.classList.remove('hidden')
-                        }}
-                      />
-                      <div className="hidden absolute inset-0 flex items-center justify-center">
-                        <ImageOff className="h-6 w-6 text-muted-foreground" />
+        {candidates.length > 0 && (
+          <div className={cn('transition-opacity', loading && 'pointer-events-none opacity-50')}>
+            <p className="mb-3 text-[13px] text-muted-foreground">
+              <Plural value={candidates.length} one="# cover found, click to apply" other="# covers found, click to apply" />
+            </p>
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+              {candidates.map((c, i) => {
+                const isThis = applyingUrl === c.cover_url
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    disabled={applyingUrl !== null}
+                    onClick={() => applyUrl(c.cover_url)}
+                    className="group relative aspect-[2/3] overflow-hidden rounded-[8px] bg-secondary transition hover:ring-2 hover:ring-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
+                    style={{ boxShadow: 'var(--cover-bloom-fan)' }}
+                    title={c.label}
+                  >
+                    <img
+                      src={c.cover_url}
+                      alt={c.label}
+                      className="h-full w-full object-cover"
+                      onError={e => {
+                        const el = e.target as HTMLImageElement
+                        el.style.display = 'none'
+                        el.nextElementSibling?.classList.remove('hidden')
+                      }}
+                    />
+                    <div className="absolute inset-0 hidden items-center justify-center">
+                      <ImageOff className="h-6 w-6 text-muted-foreground" />
+                    </div>
+                    {/* Source badge */}
+                    <span className="absolute left-1.5 top-1.5 rounded-full bg-black/60 px-1.5 py-0.5 text-[12px] font-bold uppercase leading-none tracking-[0.08em] text-white">
+                      {SOURCE_BADGE[c.source] ?? c.source}
+                    </span>
+                    {/* Applying spinner / hover overlay */}
+                    {isThis ? (
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50">
+                        <Loader2 className="h-6 w-6 animate-spin text-white drop-shadow" />
                       </div>
-                      {/* Source badge */}
-                      <span className="absolute top-1 left-1 text-[9px] font-medium px-1 py-0.5 rounded bg-black/60 text-white leading-none">
-                        {SOURCE_BADGE[c.source] ?? c.source}
-                      </span>
-                      {/* Applying spinner / hover overlay */}
-                      {isThis ? (
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-                          <Loader2 className="h-6 w-6 text-white animate-spin drop-shadow" />
-                        </div>
-                      ) : (
-                        <div className="absolute inset-0 bg-primary/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                          <Check className="h-6 w-6 text-white drop-shadow" />
-                        </div>
-                      )}
-                    </button>
-                  )
-                })}
-              </div>
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center bg-primary/20 opacity-0 transition-opacity group-hover:opacity-100">
+                        <Check className="h-6 w-6 text-white drop-shadow" />
+                      </div>
+                    )}
+                  </button>
+                )
+              })}
             </div>
-          )}
-
-          {!loading && candidates.length === 0 && !error && (
-            <p className="text-xs text-muted-foreground text-center py-4"><Trans>No covers found — try a different search or use a custom URL below.</Trans></p>
-          )}
-
-          {/* Divider */}
-          <div className="flex items-center gap-3">
-            <div className="flex-1 border-t border-border" />
-            <span className="text-xs text-muted-foreground shrink-0"><Trans>or use a custom source</Trans></span>
-            <div className="flex-1 border-t border-border" />
           </div>
+        )}
 
-          {/* Custom URL */}
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2"><Trans>Custom URL</Trans></p>
+        {!loading && candidates.length === 0 && !error && (
+          <p className="py-4 text-center text-[14px] text-muted-foreground"><Trans>No covers found. Try a different search or use a custom URL below.</Trans></p>
+        )}
+
+        {/* Other sources: rows on hairlines */}
+        <div className="border-t border-border/70">
+          <div className="border-b border-border/70 py-4">
+            <FormLabel htmlFor="cover-custom-url"><Trans>Custom URL</Trans></FormLabel>
             <div className="flex gap-2">
-              <input
+              <Input
+                id="cover-custom-url"
                 type="url"
                 value={customUrl}
                 onChange={e => setCustomUrl(e.target.value)}
                 onKeyDown={e => e.key === 'Enter' && customUrl.trim() && applyUrl(customUrl.trim())}
                 placeholder="https://example.com/cover.jpg"
-                className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
               />
-              <button
+              <Pill
                 disabled={!customUrl.trim() || applyingUrl !== null}
                 onClick={() => applyUrl(customUrl.trim())}
-                className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-40 transition-all"
+                className="shrink-0"
               >
-                {applyingUrl !== null ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                {applyingUrl !== null && applyingUrl !== '__file__' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                 <Trans>Apply</Trans>
-              </button>
+              </Pill>
             </div>
           </div>
 
-          {/* File upload */}
-          <div>
-            <p className="text-xs font-medium text-muted-foreground mb-2"><Trans>Upload from device</Trans></p>
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border/70 py-4">
+            <div className="min-w-0">
+              <p className="text-[15px] text-foreground"><Trans>Upload from device</Trans></p>
+              <p className="text-[13px] text-muted-foreground"><Trans>Any image file</Trans></p>
+            </div>
             <input
               ref={fileInputRef}
               type="file"
@@ -264,25 +256,24 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
                 e.target.value = ''
               }}
             />
-            <button
+            <Pill
               disabled={applyingUrl !== null}
               onClick={() => fileInputRef.current?.click()}
-              className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-40 transition-all"
             >
-              {applyingUrl !== null
-                ? <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                : <Upload className="h-3.5 w-3.5 text-muted-foreground" />}
+              {applyingUrl === '__file__'
+                ? <Loader2 className="h-4 w-4 animate-spin" />
+                : <Upload className="h-4 w-4" />}
               <Trans>Choose file…</Trans>
-            </button>
+            </Pill>
           </div>
-
-          {error && (
-            <div className="flex items-start gap-2 text-sm text-destructive">
-              <ImageOff className="h-4 w-4 shrink-0 mt-0.5" />
-              <span>{error}</span>
-            </div>
-          )}
         </div>
+
+        {error && (
+          <div className="flex items-start gap-2 text-[14px] text-destructive">
+            <ImageOff className="mt-0.5 h-4 w-4 shrink-0" />
+            <span>{error}</span>
+          </div>
+        )}
       </div>
     </ModalShell>
   )

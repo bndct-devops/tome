@@ -9,15 +9,12 @@ import { withBase } from '../../lib/path'
   <SectionHero section="integrations" />
   <h1>API reference</h1>
   <p>
-    Every endpoint lives under <code>/api</code> and accepts either a JWT (from login) or a
-    <code>tome_*</code> bearer token. See <a href={withBase("/docs/api-tokens")}>API tokens</a>
-    for how to create one. All request/response bodies are JSON unless noted.
+    Every endpoint lives under <code>/api</code> and accepts either a JWT (from login) or a <code>tome_*</code> bearer token. See <a href={withBase("/docs/api-tokens")}>API tokens</a> for how to create one. All request/response bodies are JSON unless noted.
   </p>
   <DocsMeta />
 
   <Callout variant="info" title="Base URL">
-    All paths below are relative to your Tome instance, e.g.
-    <code>https://tome.example.com/api/books</code>.
+    All paths below are relative to your Tome instance, e.g. <code>https://tome.example.com/api/books</code>.
   </Callout>
 
   <h2>Auth</h2>

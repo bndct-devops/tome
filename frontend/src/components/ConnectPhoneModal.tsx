@@ -1,15 +1,16 @@
 // "Connect a phone": issue a pre-authorized Quick Connect code and show it as a
 // QR for the Tome app. The code is single-use, lives five minutes, and is
-// cancelled the moment this modal closes — a screenshot of the QR is worth
+// cancelled the moment this modal closes; a screenshot of the QR is worth
 // nothing once the window is gone. On a phone browser the same payload is
 // offered as an "Open in the app" link instead of a scan.
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import QRCode from 'qrcode'
-import { CheckCircle, Loader2, RefreshCw, Smartphone, X } from 'lucide-react'
+import { CheckCircle, Loader2, RefreshCw, Smartphone } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
+import { Input, Pill } from '@/components/page'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 
@@ -42,7 +43,7 @@ function originFrom(typed: string): string | null {
 const ADDRESS_KEY = 'tome.connectPhone.address'
 
 /** Deep link the app understands. Server = the origin this page is served
-    from, which is the address the phone can reach too — unless that is
+    from, which is the address the phone can reach too - unless that is
     localhost, in which case the user types the computer's network address. */
 function payloadFor(issued: Issued, server: string): string {
   const params = new URLSearchParams({
@@ -156,100 +157,96 @@ export function ConnectPhoneModal({ onClose }: { onClose: () => void }) {
   const onPhone = /iPhone|iPad|iPod|Android/i.test(navigator.userAgent)
 
   return createPortal(
-    <ModalShell open onClose={onClose} className="w-full max-w-sm">
-      <div className="rounded-xl border border-border bg-card shadow-xl">
-        <div className="flex items-center gap-2 border-b border-border px-5 py-3.5">
-          <Smartphone className="h-4 w-4 text-primary" />
-          <h2 className="font-display text-base text-foreground"><Trans>Connect a phone</Trans></h2>
-          <button
-            onClick={onClose}
-            aria-label={t`Close`}
-            className="ml-auto rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        </div>
-
-        <div className="px-5 py-4">
-          <p className="text-xs leading-relaxed text-muted-foreground">
-            <Trans>Scan this with the Tome app to sign the phone in as you. The code works once, stops after five minutes, and dies the moment you close this window.</Trans>
-          </p>
-          {APP_BETA_URL && (
-            <p className="mt-2 text-xs leading-relaxed text-muted-foreground">
-              <Trans>Tome Reader is in free beta for iPhone until 31 December 2026.</Trans>{' '}
+    <ModalShell
+      open
+      onClose={onClose}
+      size="sm"
+      title={<Trans>Connect a phone</Trans>}
+      footer={
+        !connected && !error && issued && qr ? (
+          <>
+            {onPhone && !expired && (
               <a
-                href={APP_BETA_URL}
-                target="_blank"
-                rel="noreferrer"
-                className="text-primary hover:underline"
+                href={payloadFor(issued, server ?? window.location.origin)}
+                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground hover:brightness-110"
               >
-                <Trans>Join the beta</Trans>
+                <Smartphone className="h-3.5 w-3.5" /> <Trans>Open in the Tome app</Trans>
               </a>
+            )}
+            <Pill variant={expired ? 'primary' : 'secondary'} onClick={reissue}>
+              <RefreshCw className="h-3.5 w-3.5" /> <Trans>New code</Trans>
+            </Pill>
+          </>
+        ) : undefined
+      }
+    >
+      <p className="text-[14px] leading-relaxed text-muted-foreground">
+        <Trans>Scan this with the Tome app to sign the phone in as you. The code works once, stops after five minutes, and dies the moment you close this window.</Trans>
+      </p>
+      {APP_BETA_URL && (
+        <p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
+          <Trans>Tome Reader is in free beta for iPhone until 31 December 2026.</Trans>{' '}
+          <a
+            href={APP_BETA_URL}
+            target="_blank"
+            rel="noreferrer"
+            className="text-primary hover:underline"
+          >
+            <Trans>Join the beta</Trans>
+          </a>
+        </p>
+      )}
+
+      {loopback && !connected && (
+        <div className="mt-4 space-y-2">
+          <p className="text-[13px] leading-relaxed text-warning">
+            <Trans>This page is open at {host}, which your phone cannot reach: on the phone, localhost is the phone itself. Type the address your phone can reach this computer at, or open Tome at that address instead.</Trans>
+          </p>
+          <Input
+            value={address}
+            onChange={e => updateAddress(e.target.value)}
+            placeholder="http://192.168.1.20:8080"
+            aria-label={t`Address of this computer`}
+            autoFocus
+            spellCheck={false}
+            className="font-mono text-[13px]"
+          />
+        </div>
+      )}
+
+      {connected ? (
+        <div className="flex flex-col items-center gap-2 py-8 text-[15px] text-success">
+          <CheckCircle className="h-8 w-8" />
+          <Trans>Phone connected</Trans>
+        </div>
+      ) : error ? (
+        <div className="py-6 text-center">
+          <p className="text-[13px] text-destructive">{error}</p>
+          <Pill variant="secondary" onClick={reissue} className="mt-3">
+            <RefreshCw className="h-3.5 w-3.5" /> <Trans>Try again</Trans>
+          </Pill>
+        </div>
+      ) : loopback && !server ? null : !qr || !issued ? (
+        <div className="flex items-center justify-center gap-2 py-16 text-[14px] text-muted-foreground">
+          <Loader2 className="h-4 w-4 animate-spin" /> <Trans>Loading…</Trans>
+        </div>
+      ) : (
+        <div className="mt-5 flex flex-col items-center gap-3">
+          <img
+            src={qr}
+            alt=""
+            className={cn('h-56 w-56 rounded-xl bg-white p-2 transition-all', expired && 'opacity-20 blur-[2px]')}
+          />
+          {expired ? (
+            <p className="text-[14px] text-muted-foreground"><Trans>This code has expired.</Trans></p>
+          ) : (
+            <p className="font-mono text-[15px] tracking-widest text-foreground">
+              {issued.code}
+              <span className="ml-3 tracking-normal tabular-nums text-muted-foreground">{minutes}:{seconds}</span>
             </p>
           )}
-
-          {loopback && !connected && (
-            <div className="mt-4 space-y-2">
-              <p className="text-xs leading-relaxed text-warning">
-                <Trans>This page is open at {host}, which your phone cannot reach: on the phone, localhost is the phone itself. Type the address your phone can reach this computer at, or open Tome at that address instead.</Trans>
-              </p>
-              <input
-                value={address}
-                onChange={e => updateAddress(e.target.value)}
-                placeholder="http://192.168.1.20:8080"
-                autoFocus
-                spellCheck={false}
-                className="w-full rounded-md border border-border bg-background px-3 py-1.5 font-mono text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-              />
-            </div>
-          )}
-
-          {connected ? (
-            <div className="flex flex-col items-center gap-2 py-8 text-sm text-success">
-              <CheckCircle className="h-8 w-8" />
-              <Trans>Phone connected</Trans>
-            </div>
-          ) : error ? (
-            <div className="py-6 text-center">
-              <p className="text-xs text-destructive">{error}</p>
-              <button onClick={reissue} className="mt-3 inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium hover:bg-muted">
-                <RefreshCw className="h-3.5 w-3.5" /> <Trans>Try again</Trans>
-              </button>
-            </div>
-          ) : loopback && !server ? null : !qr || !issued ? (
-            <div className="flex items-center justify-center gap-2 py-16 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" /> <Trans>Loading…</Trans>
-            </div>
-          ) : (
-            <div className="mt-4 flex flex-col items-center gap-3">
-              <img
-                src={qr}
-                alt=""
-                className={cn('h-56 w-56 rounded-lg bg-white p-2 transition-all', expired && 'opacity-20 blur-[2px]')}
-              />
-              {expired ? (
-                <p className="text-sm text-muted-foreground"><Trans>This code has expired.</Trans></p>
-              ) : (
-                <p className="font-mono text-sm tracking-widest text-foreground">
-                  {issued.code}
-                  <span className="ml-3 tracking-normal tabular-nums text-muted-foreground">{minutes}:{seconds}</span>
-                </p>
-              )}
-              {onPhone && !expired && (
-                <a
-                  href={payloadFor(issued, server ?? window.location.origin)}
-                  className="inline-flex items-center gap-1.5 rounded-md bg-primary px-3 py-1.5 text-xs font-medium text-primary-foreground hover:opacity-90"
-                >
-                  <Smartphone className="h-3.5 w-3.5" /> <Trans>Open in the Tome app</Trans>
-                </a>
-              )}
-              <button onClick={reissue} className="inline-flex items-center gap-1.5 rounded-md border border-border px-3 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted hover:text-foreground">
-                <RefreshCw className="h-3.5 w-3.5" /> <Trans>New code</Trans>
-              </button>
-            </div>
-          )}
         </div>
-      </div>
+      )}
     </ModalShell>,
     document.body,
   )

@@ -18,10 +18,10 @@ export function ProgressRow({
   return (
     <div className="flex flex-col gap-1">
       <div className="flex items-center justify-between gap-2">
-        <span className="text-xs text-foreground truncate flex-1">{label}</span>
-        <span className="text-xs text-muted-foreground shrink-0">{value}</span>
+        <span className="text-[13px] text-foreground truncate flex-1">{label}</span>
+        <span className="text-[13px] text-muted-foreground shrink-0">{value}</span>
       </div>
-      {sub && <span className="text-[10px] text-muted-foreground">{sub}</span>}
+      {sub && <span className="text-[12px] text-muted-foreground">{sub}</span>}
       <div className="h-1.5 bg-muted rounded-full overflow-hidden">
         <div
           className="h-full rounded-full transition-all"

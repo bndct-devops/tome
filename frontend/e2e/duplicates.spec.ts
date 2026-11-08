@@ -9,11 +9,11 @@ test.describe('duplicates apply-all', () => {
     await login(page)
     await page.goto('/admin')
     await page.click('button:has-text("Duplicates")')
-    await expect(page.getByText('Duplicate Detection')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Duplicates' })).toBeVisible()
   })
 
   function group(page: Page, containsText: string) {
-    return page.locator('div.rounded-xl', { hasText: containsText }).first()
+    return page.getByTestId('duplicate-group').filter({ hasText: containsText }).first()
   }
 
   test('mixed decisions apply in one pass and survive one refresh', async ({ page, request }) => {
@@ -32,7 +32,7 @@ test.describe('duplicates apply-all', () => {
     await expect(page.getByText('merge 1 group · delete 1 book (removes files) · dismiss 1 group')).toBeVisible()
 
     await page.click('button:has-text("Apply All (3)")')
-    await page.click('button:has-text("Confirm — apply 3 decisions")')
+    await page.click('button:has-text("Confirm: apply 3 decisions")')
     await expect(page.getByText('Applied 3 groups')).toBeVisible()
 
     // End state: keeper holds both Naruto files, ghost gone, Bleach dismissed
@@ -65,19 +65,19 @@ test.describe('duplicates apply-all', () => {
     // delete runs first (render order), so the merge's keeper is gone by the
     // time it executes — it must fail loudly, not silently.
     const exact = page
-      .locator('div.rounded-xl', { has: page.getByText('Exact Match'), hasText: 'Naruto Vol. 1 (copy)' })
+      .getByTestId('duplicate-group').filter({ has: page.getByText('Exact match'), hasText: 'Naruto Vol. 1 (copy)' })
       .first()
     await exact.locator('label', { hasText: /^Naruto Vol\. 1(?! \(copy\))/ }).first().locator('input[type=radio]').check()
     await exact.locator('button:has-text("Delete")').first().click()
 
     const seriesGroup = page
-      .locator('div.rounded-xl', { has: page.getByText('Same Series Volume'), hasText: 'Naruto Vol. 1 (copy)' })
+      .getByTestId('duplicate-group').filter({ has: page.getByText('Same series volume'), hasText: 'Naruto Vol. 1 (copy)' })
       .first()
     await seriesGroup.locator('label', { hasText: 'Naruto Vol. 1 (copy)' }).first().locator('input[type=radio]').check()
     await seriesGroup.locator('button:has-text("Merge")').click()
 
     await page.click('button:has-text("Apply All (2)")')
-    await page.click('button:has-text("Confirm — apply 2 decisions")')
+    await page.click('button:has-text("Confirm: apply 2 decisions")')
 
     await expect(page.getByText('Applied 1 group, 1 failed')).toBeVisible()
     await expect(page.getByText('Naruto Vol. 1 (copy):')).toBeVisible()

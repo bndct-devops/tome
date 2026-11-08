@@ -17,8 +17,7 @@ import { withBase } from '../../lib/path'
 
   <h2>How consent works</h2>
   <p>
-    Admins see a card on Home, once. It has two buttons: <strong>Show the report</strong>
-    and <strong>No thanks</strong>. The first opens the report Tome would send, generated from your
+    Admins see a card on Home, once. It has two buttons: <strong>Show the report</strong> and <strong>No thanks</strong>. The first opens the report Tome would send, generated from your
     instance right then by the same code that would send it, with one button underneath
     it: <strong>Send this report monthly</strong>. That button is the only way to turn telemetry on.
     There is no switch you can flip without having seen the report.
@@ -37,8 +36,7 @@ import { withBase } from '../../lib/path'
       it against what you approved.</li>
   </ul>
   <p>
-    To hide the question entirely, for example on a compose stack you never want asked, set
-    <code>TOME_TELEMETRY=false</code>. The card never shows and the setting is pinned off.
+    To hide the question entirely, for example on a compose stack you never want asked, set <code>TOME_TELEMETRY=false</code>. The card never shows and the setting is pinned off.
   </p>
 
   <h2>What is in the report</h2>
@@ -77,8 +75,7 @@ import { withBase } from '../../lib/path'
 }`}</code></pre>
   <p>
     Top to bottom: what runs, how big the install is, what is in it, how much it is read, which
-    features are alive. <code>install_age</code> is months since the first account was created.
-    <code>highlights</code> is a lifetime count because it describes what exists, not activity.
+    features are alive. <code>install_age</code> is months since the first account was created. <code>highlights</code> is a lifetime count because it describes what exists, not activity.
   </p>
 
   <h2>What is never in it</h2>
@@ -118,7 +115,6 @@ import { withBase } from '../../lib/path'
   <h2>Update check</h2>
   <p>
     Once a day Tome asks <code>upgrades.bndct.dev/latest.json</code> for the latest release. The
-    request carries the version number and nothing else. This is Tome's own endpoint, not GitHub.
-    <code>TOME_UPDATE_CHECK=false</code> turns it off.
+    request carries the version number and nothing else. This is Tome's own endpoint, not GitHub. <code>TOME_UPDATE_CHECK=false</code> turns it off.
   </p>
 </DocsLayout>

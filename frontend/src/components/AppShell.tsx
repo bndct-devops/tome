@@ -6,13 +6,14 @@ import { useToast } from '@/contexts/ToastContext'
 import { useSidebarLists } from '@/lib/sidebarLists'
 import { Sidebar } from '@/components/Sidebar'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
+import { ShellFrame } from '@/components/ShellFrame'
 import { UploadModal } from '@/components/UploadModal'
 import { Trans } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
 import { coverSrc } from '@/lib/covers'
 
 /**
- * The shared application shell — the same top navbar (Tome wordmark) + persistent
+ * The shared application shell - the same top navbar (Tome wordmark) + persistent
  * Sidebar (docked on desktop, drawer on mobile) that the dashboard uses, so the
  * standalone pages (Stats, Highlights, Wishlist, Bindery) get the *real* nav
  * instead of a stripped-down clone. The page renders its own content as children;
@@ -27,10 +28,13 @@ export function AppShell({
   children,
   actions,
   onUploaded,
+  sidebar,
 }: {
   children: ReactNode
   actions?: ReactNode
   onUploaded?: () => void
+  /** Replaces the app sidebar on desktop (Settings and Admin bring their section list). The phone drawer stays. */
+  sidebar?: ReactNode
 }) {
   const navigate = useNavigate()
   const { user } = useAuth()
@@ -74,7 +78,7 @@ export function AppShell({
     return () => clearTimeout(t)
   }, [searchInput])
 
-  // "/" focuses the search — same shortcut the dashboard's box advertises.
+  // "/" focuses the search - same shortcut the dashboard's box advertises.
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const tag = (e.target as HTMLElement).tagName
@@ -88,75 +92,17 @@ export function AppShell({
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [])
 
-  // Cached across page mounts (see useSidebarLists) — this refetch only
+  // Cached across page mounts (see useSidebarLists) - this refetch only
   // freshens the lists in the background, it never blanks them.
   useEffect(() => { loadLibraries(); loadSavedFilters() }, [])
 
-  // h-dvh, not h-screen: 100vh overshoots the visible area under mobile
-  // browser toolbars, leaving the page itself pannable by the overhang.
   return (
-    <div className="h-dvh bg-background flex flex-col overflow-hidden">
-      <AppHeader
-        onMenuClick={() => setMobileSidebarOpen(true)}
-        search={
-          <div className="relative flex-1 sm:max-w-md">
-            <HeaderSearch
-              value={searchInput}
-              onChange={setSearchInput}
-              onClear={() => setSearchInput('')}
-              onSubmit={submitSearch}
-              inputRef={searchInputRef}
-            />
-            {searchInput.trim() && searchPreview.length > 0 && (
-              <div className="absolute inset-x-0 top-full z-50 mt-1.5 overflow-hidden rounded-lg border border-border bg-card shadow-xl">
-                {searchPreview.map(b => (
-                  <button
-                    key={b.id}
-                    onClick={() => { setSearchInput(''); navigate(`/books/${b.id}`) }}
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-muted"
-                  >
-                    <img
-                      src={coverSrc(b.id, { w: 160 })}
-                      alt=""
-                      className="h-9 w-6 shrink-0 rounded-sm object-cover"
-                    />
-                    <span className="min-w-0">
-                      <span className="block truncate text-sm text-foreground">{b.title}</span>
-                      {b.author && (
-                        <span className="block truncate text-xs text-muted-foreground">{b.author}</span>
-                      )}
-                    </span>
-                  </button>
-                ))}
-                <button
-                  onClick={() => navigate(`/?tab=books&q=${encodeURIComponent(searchInput.trim())}`)}
-                  className="w-full border-t border-border px-3 py-2 text-left text-xs text-muted-foreground hover:bg-muted hover:text-foreground"
-                >
-                  <Trans>See all results for &quot;{searchQuery}&quot;</Trans>
-                </button>
-              </div>
-            )}
-          </div>
-        }
-        actions={actions}
-        onUploadClick={isMember(user) ? () => setUploadOpen(true) : undefined}
-      />
-
-      <UploadModal
-        isOpen={uploadOpen}
-        onClose={() => setUploadOpen(false)}
-        onDone={() => onUploaded?.()}
-        onWishMatches={(wishIds) => {
-          const n = wishIds.length
-          toast.info(plural(n, {
-            one: 'This upload satisfies # wish — review in Admin > Wishlist',
-            other: 'This upload satisfies # wishes — review in Admin > Wishlist',
-          }))
-        }}
-      />
-
-      <div className="flex flex-1 overflow-hidden">
+    <ShellFrame
+      sidebar={
+        <>
+        {sidebar}
         <Sidebar
+          desktopHidden={!!sidebar}
           libraries={libraries}
           savedFilters={savedFilters}
           activeTab="none"
@@ -167,10 +113,70 @@ export function AppShell({
           mobileOpen={mobileSidebarOpen}
           onMobileClose={() => setMobileSidebarOpen(false)}
         />
-        {/* overflow-x-hidden: see DashboardPage's main — WebKit pans pre-transform
-            layout overflow sideways; keep the app clamped to the viewport. */}
-        <main className="flex-1 overflow-y-auto overflow-x-hidden min-w-0 overscroll-contain">{children}</main>
-      </div>
-    </div>
+        </>
+      }
+      header={
+      <AppHeader
+        onMenuClick={() => setMobileSidebarOpen(true)}
+        search={
+          <div className="relative flex-1 sm:max-w-[360px]">
+            <HeaderSearch
+              value={searchInput}
+              onChange={setSearchInput}
+              onClear={() => setSearchInput('')}
+              onSubmit={submitSearch}
+              inputRef={searchInputRef}
+            />
+            {searchInput.trim() && searchPreview.length > 0 && (
+              <div className="absolute inset-x-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl bg-card shadow-lg ring-1 ring-panel-ring">
+                {searchPreview.map(b => (
+                  <button
+                    key={b.id}
+                    onClick={() => { setSearchInput(''); navigate(`/books/${b.id}`) }}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-secondary"
+                  >
+                    <img
+                      src={coverSrc(b.id, { w: 160 })}
+                      alt=""
+                      className="h-9 w-6 shrink-0 rounded-sm object-cover"
+                    />
+                    <span className="min-w-0">
+                      <span className="block truncate text-[14px] text-foreground">{b.title}</span>
+                      {b.author && (
+                        <span className="block truncate text-[13px] text-muted-foreground">{b.author}</span>
+                      )}
+                    </span>
+                  </button>
+                ))}
+                <button
+                  onClick={() => navigate(`/?tab=books&q=${encodeURIComponent(searchInput.trim())}`)}
+                  className="w-full border-t border-border/70 px-3 py-2.5 text-left text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground"
+                >
+                  <Trans>See all results for &quot;{searchQuery}&quot;</Trans>
+                </button>
+              </div>
+            )}
+          </div>
+        }
+        actions={actions}
+        onUploadClick={isMember(user) ? () => setUploadOpen(true) : undefined}
+      />
+      }
+    >
+      <UploadModal
+        isOpen={uploadOpen}
+        onClose={() => setUploadOpen(false)}
+        onDone={() => onUploaded?.()}
+        onWishMatches={(wishIds) => {
+          const n = wishIds.length
+          toast.info(plural(n, {
+            one: 'This upload satisfies # wish. Review it in Admin > Wishlist',
+            other: 'This upload satisfies # wishes. Review them in Admin > Wishlist',
+          }))
+        }}
+      />
+
+      {children}
+    </ShellFrame>
   )
 }

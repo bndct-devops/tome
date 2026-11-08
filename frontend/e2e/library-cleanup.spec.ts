@@ -15,15 +15,15 @@ test.describe('library cleanup (issue #165)', () => {
   test('dead copies are marked MISSING in the duplicates tab', async ({ page }) => {
     await page.goto('/admin')
     await page.click('button:has-text("Duplicates")')
-    await expect(page.getByText('Duplicate Detection')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Duplicates' })).toBeVisible()
     // Each scan ghost carries the badge in its exact-match group AND in the
     // overlapping same-series-volume group (2 ghosts × 2 groups).
-    await expect(page.getByText('MISSING')).toHaveCount(4)
+    await expect(page.getByText('(missing)')).toHaveCount(4)
   })
 
   test('library health lists orphans and removes them without touching real files', async ({ page, request }) => {
     await page.goto('/admin')
-    await page.click('button:has-text("Library")')
+    await page.getByRole('navigation', { name: 'Admin sections' }).getByRole('button', { name: 'Library', exact: true }).click()
     await page.click('button:has-text("Scan Library")')
 
     // Three dead entries: two whole-book ghosts + AoT's stale extra file.
@@ -33,7 +33,7 @@ test.describe('library cleanup (issue #165)', () => {
 
     // Two-step confirm, then the summary.
     await page.click('button:has-text("Remove Dead Entries")')
-    await page.click('button:has-text("Confirm — remove 4 entries")')
+    await page.click('button:has-text("Confirm: remove 4 entries")')
     await expect(page.getByText('Dead entries removed')).toBeVisible()
     await expect(page.getByText('3 book entries removed · 1 file entry removed')).toBeVisible()
     await expect(page.getByText('Orphaned entries')).not.toBeVisible()
@@ -61,10 +61,10 @@ test.describe('library cleanup (issue #165)', () => {
     // A second scan right after cleanup must find nothing to remove — and a
     // library whose files all exist shows no orphan section at all.
     await page.goto('/admin')
-    await page.click('button:has-text("Library")')
+    await page.getByRole('navigation', { name: 'Admin sections' }).getByRole('button', { name: 'Library', exact: true }).click()
     await page.click('button:has-text("Scan Library")')
     await page.click('button:has-text("Remove Dead Entries")')
-    await page.click('button:has-text("Confirm — remove 4 entries")')
+    await page.click('button:has-text("Confirm: remove 4 entries")')
     await expect(page.getByText('Dead entries removed')).toBeVisible()
 
     await page.click('button:has-text("Scan Library")')

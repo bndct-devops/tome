@@ -20,6 +20,8 @@ from datetime import datetime, timedelta
 from typing import Optional
 
 import httpx
+
+from backend.services.hardcover_token import hardcover_auth
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
@@ -60,7 +62,7 @@ async def fetch_series_latest(series_id: int) -> Optional[dict]:
             resp = await client.post(
                 HARDCOVER_URL,
                 json={"query": _VOLUMES_QUERY, "variables": {"id": series_id}},
-                headers={"authorization": token},
+                headers={"authorization": hardcover_auth(token)},
             )
             resp.raise_for_status()
             rows = resp.json().get("data", {}).get("series") or []

@@ -1,4 +1,4 @@
-// Settings → Share links: every public link you've minted, in one place —
+// Settings → Share links: every public link you've minted, in one place  - 
 // what it points at, when it expires, copy and revoke.
 import { useEffect, useState } from 'react'
 import { Book, Bookmark, Check, Copy, Layers, Trash2 } from 'lucide-react'
@@ -6,6 +6,7 @@ import { api } from '@/lib/api'
 import { cn, copyToClipboard } from '@/lib/utils'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
+import { Pill } from '@/components/page'
 
 interface ShareLinkRow {
   id: number
@@ -42,34 +43,34 @@ export function ShareLinksOverview() {
   }
 
   return (
-    <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
-      <p className="mb-4 text-xs text-muted-foreground">
-        <Trans>Every public link you&apos;ve shared — shelves, series, and books. Links show
+    <div>
+      <p className="-mt-3 mb-5 text-[14px] text-muted-foreground max-w-[70ch]">
+        <Trans>Every public link you&apos;ve shared: shelves, series, and books. Links show
         metadata, your ratings, highlights, and reading stats; never files. Revoking
         kills a link instantly.</Trans>
       </p>
       {rows === null ? (
-        <p className="animate-pulse text-xs text-muted-foreground"><Trans>Loading…</Trans></p>
+        <p className="animate-pulse text-[13px] text-muted-foreground"><Trans>Loading…</Trans></p>
       ) : rows.length === 0 ? (
-        <p className="text-xs text-muted-foreground">
+        <p className="text-[13px] text-muted-foreground">
           <Trans>Nothing shared yet. Use the share icon on a shelf, a series page, or a book page.</Trans>
         </p>
       ) : (
-        <ul className="flex flex-col gap-2">
+        <ul className="flex flex-col border-y border-border/70 divide-y divide-border/70">
           {rows.map(row => {
             const Icon = KIND_ICON[row.kind]
             return (
               <li
                 key={row.id}
                 className={cn(
-                  'flex items-center gap-2.5 rounded-lg border border-border bg-card px-3 py-2',
+                  'flex items-center gap-2.5 py-2.5',
                   row.expired && 'opacity-60',
                 )}
               >
                 <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-xs text-foreground">{row.title}</span>
-                  <span className="block text-[11px] text-muted-foreground">
+                  <span className="block truncate text-[15px] text-foreground">{row.title}</span>
+                  <span className="block text-[13px] text-muted-foreground">
                     {row.kind} · {fmtExpiry(row)}
                   </span>
                 </span>
@@ -78,25 +79,31 @@ export function ShareLinksOverview() {
                     href={`/share/${row.token}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 text-[11px] text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+                    className="shrink-0 inline-flex h-9 items-center rounded-full px-3 text-[14px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                   >
                     <Trans>Open</Trans>
                   </a>
                 )}
-                <button
+                <Pill
+                  icon
+                  variant="quiet"
                   onClick={() => copy(row)}
                   title={t`Copy link`}
-                  className="shrink-0 rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:text-foreground"
+                  aria-label={t`Copy link`}
+                  className="shrink-0"
                 >
-                  {copiedId === row.id ? <Check className="h-3 w-3 text-success" /> : <Copy className="h-3 w-3" />}
-                </button>
-                <button
+                  {copiedId === row.id ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+                </Pill>
+                <Pill
+                  icon
+                  variant="destructive"
                   onClick={() => api.delete(`/share-links/${row.id}`).then(load)}
                   title={t`Revoke link`}
-                  className="shrink-0 rounded-md border border-border p-1.5 text-muted-foreground transition-colors hover:text-destructive"
+                  aria-label={t`Revoke link`}
+                  className="shrink-0"
                 >
-                  <Trash2 className="h-3 w-3" />
-                </button>
+                  <Trash2 className="h-4 w-4" />
+                </Pill>
               </li>
             )
           })}

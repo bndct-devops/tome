@@ -5,6 +5,8 @@ import { useShiftSelect } from '@/lib/useShiftSelect'
 import { FolderOpen, ArrowRight, Loader2, Check, AlertCircle, ChevronDown, ChevronRight, Trash, FileX } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
+import { Pill } from '@/components/page'
+import { ModalShell } from '@/components/ModalShell'
 
 interface HealthIssue {
   book_id: number
@@ -107,6 +109,8 @@ export function LibraryHealthTab() {
   const [missingResult, setMissingResult] = useState<RemoveMissingResult | null>(null)
   const [dryRunResult, setDryRunResult] = useState<ReorganizeResult | null>(null)
   const [result, setResult] = useState<ReorganizeResult | null>(null)
+  // Moving files on disk asks first: the ids the user is about to move.
+  const [confirmMove, setConfirmMove] = useState<number[] | null>(null)
   const [error, setError] = useState<string | null>(null)
 
   async function purgeEmpty() {
@@ -216,12 +220,14 @@ export function LibraryHealthTab() {
 
   return (
     <div className="space-y-4">
-      <div className="rounded-xl border border-border bg-card p-4">
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h2 className="text-sm font-semibold"><Trans>Library Health</Trans></h2>
+      <div>
+        <div className="flex items-start justify-between gap-4 flex-wrap">
+          <div className="min-w-0">
+            <p className="text-[14px] text-muted-foreground max-w-[60ch]">
+              <Trans>Files whose place on disk no longer matches their series or author folder.</Trans>
+            </p>
             {healthData && (
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-[14px] text-foreground mt-1">
                 {(() => {
                   const total = healthData.total_files
                   if (healthData.misplaced_count === 0 && healthData.missing_count === 0) return t`All ${total} files are correctly placed.`
@@ -236,55 +242,53 @@ export function LibraryHealthTab() {
               </p>
             )}
           </div>
-          <div className="flex items-center gap-2 shrink-0">
+          <div className="flex items-center gap-2 flex-wrap">
             {healthData && healthData.misplaced_count > 0 && (
+
               <>
-                <button
+                <Pill
                   onClick={() => runReorganize(allFileIds, true)}
                   disabled={reorganizing}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-50"
+                  variant="secondary"
                 >
-                  <Trans>Dry Run All</Trans>
-                </button>
-                <button
-                  onClick={() => selected.size > 0
-                    ? runReorganize([...selected], false)
-                    : runReorganize(allFileIds, false)
-                  }
+                  <Trans>Dry run all</Trans>
+                </Pill>
+                <Pill
+                  onClick={() => setConfirmMove(selected.size > 0 ? [...selected] : allFileIds)}
                   disabled={reorganizing}
-                  className="px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+                  variant="primary"
                 >
                   {reorganizing
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : selected.size > 0
-                    ? (() => { const n = selected.size; return t`Reorganize Selected (${n})` })()
-                    : t`Reorganize All`
+                    ? (() => { const n = selected.size; return t`Reorganize selected (${n})` })()
+                    : t`Reorganize all`
                   }
-                </button>
+                </Pill>
               </>
             )}
-            <button
+            <Pill
               onClick={purgeEmpty}
               disabled={purging}
-              className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              variant="secondary"
               title={t`Remove folders that contain only hidden files (.DS_Store, etc.)`}
             >
               {purging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash className="w-3.5 h-3.5" />}
-              {purging ? t`Purging...` : t`Purge Empty Folders`}
-            </button>
-            <button
+              {purging ? t`Purging...` : t`Purge empty folders`}
+            </Pill>
+            <Pill
               onClick={scan}
               disabled={loading}
-              className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-50 flex items-center gap-1.5"
+              variant="secondary"
             >
               {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
-              {loading ? t`Scanning…` : t`Scan Library`}
-            </button>
+              {loading ? t`Scanning…` : t`Scan library`}
+            </Pill>
           </div>
         </div>
 
         {error && (
-          <div className="mt-3 flex items-center gap-2 text-xs text-destructive">
+          <div className="mt-3 flex items-center gap-2 text-[14px] text-destructive">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             {error}
           </div>
@@ -292,7 +296,7 @@ export function LibraryHealthTab() {
       </div>
 
       {result && (
-        <div className="rounded-xl border border-success/20 bg-success/5 p-4 text-xs space-y-1">
+        <div className="space-y-1 border-y border-border/70 py-4 text-[14px]">
           <p className="font-medium text-success flex items-center gap-1.5">
             <Check className="w-3.5 h-3.5" />
             <Trans>Reorganization complete</Trans>
@@ -311,13 +315,13 @@ export function LibraryHealthTab() {
       )}
 
       {purgeResult !== null && (
-        <div className="rounded-xl border border-success/20 bg-success/5 p-4 text-xs space-y-1">
+        <div className="space-y-1 border-y border-border/70 py-4 text-[14px]">
           <p className="font-medium text-success flex items-center gap-1.5">
             <Check className="w-3.5 h-3.5" />
             {purgeResult.length === 0 ? t`No empty folders found.` : plural(purgeResult.length, { one: 'Removed # empty folder.', other: 'Removed # empty folders.' })}
           </p>
           {purgeResult.length > 0 && (
-            <ul className="mt-1 space-y-0.5 font-mono text-muted-foreground">
+            <ul className="mt-1 space-y-0.5 font-mono text-[13px] text-muted-foreground">
               {purgeResult.map((f, i) => <li key={i}>{f}</li>)}
             </ul>
           )}
@@ -325,7 +329,7 @@ export function LibraryHealthTab() {
       )}
 
       {missingResult && (
-        <div className="rounded-xl border border-success/20 bg-success/5 p-4 text-xs space-y-1">
+        <div className="space-y-1 border-y border-border/70 py-4 text-[14px]">
           <p className="font-medium text-success flex items-center gap-1.5">
             <Check className="w-3.5 h-3.5" />
             <Trans>Dead entries removed</Trans>
@@ -352,59 +356,57 @@ export function LibraryHealthTab() {
       )}
 
       {healthData && healthData.missing.length > 0 && (
-        <div className="rounded-xl border border-destructive/20 bg-card overflow-hidden">
-          <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-3 border-b border-border bg-destructive/5">
-            <div className="flex items-center gap-2 min-w-0">
-              <FileX className="w-4 h-4 text-destructive shrink-0" />
-              <span className="text-xs font-medium whitespace-nowrap"><Trans>Orphaned entries</Trans></span>
-              <span className="text-xs text-muted-foreground truncate">
+        <div>
+          <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border/70">
+            <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
+              <FileX className="w-4 h-4 text-destructive shrink-0 self-center" />
+              <span className="text-[17px] font-semibold whitespace-nowrap"><Trans>Orphaned entries</Trans></span>
+              <span className="text-[14px] text-muted-foreground">
                 {plural(healthData.missing.length, { one: '# file in the database but missing from disk', other: '# files in the database but missing from disk' })}
               </span>
             </div>
             <div className="flex items-center gap-2 shrink-0 ml-auto">
               {confirmRemoveMissing && (
-                <button
+                <Pill
                   onClick={() => setConfirmRemoveMissing(false)}
                   disabled={removingMissing}
-                  className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors disabled:opacity-50"
+                  variant="quiet"
                 >
                   <Trans>Cancel</Trans>
-                </button>
+                </Pill>
               )}
-              <button
+              <Pill
                 onClick={() => confirmRemoveMissing ? removeMissing() : setConfirmRemoveMissing(true)}
                 disabled={removingMissing}
-                className="px-3 py-1.5 text-xs rounded-lg bg-destructive text-destructive-foreground hover:opacity-90 transition-opacity disabled:opacity-50 flex items-center gap-1.5"
-                title={t`Removes the database entries only — no files are touched`}
+                variant="destructive" className={confirmRemoveMissing ? 'bg-destructive/10 text-destructive' : undefined}
+                title={t`Removes the database entries only. No files are touched.`}
               >
                 {removingMissing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash className="w-3.5 h-3.5" />}
                 {removingMissing
                   ? t`Removing...`
                   : confirmRemoveMissing
-                  ? plural(healthData.missing.length, { one: 'Confirm — remove # entry', other: 'Confirm — remove # entries' })
-                  : t`Remove Dead Entries`}
-              </button>
+                  ? plural(healthData.missing.length, { one: 'Confirm: remove # entry', other: 'Confirm: remove # entries' })
+                  : t`Remove dead entries`}
+              </Pill>
             </div>
           </div>
-          <ul className="divide-y divide-border">
+          <ul className="divide-y divide-border/70">
             {healthData.missing.map(m => {
               const missingForBook = healthData.missing.filter(x => x.book_id === m.book_id).length
               const wholeBook = missingForBook >= m.book_file_count
               return (
-                <li key={m.file_id} className="flex items-start gap-3 px-4 py-3 text-xs">
+                <li key={m.file_id} className="flex items-start gap-3 py-3 text-[14px]">
                   <div className="min-w-0 space-y-1 flex-1">
                     <p className="font-medium truncate">
                       {m.title}
-                      {m.author && <span className="text-muted-foreground font-normal"> — {m.author}</span>}
+                      {m.author && <span className="text-muted-foreground font-normal">, {m.author}</span>}
                     </p>
-                    <p className="text-muted-foreground font-mono truncate line-through">{m.path}</p>
+                    <p className="text-[13px] text-muted-foreground font-mono truncate line-through">{m.path}</p>
                   </div>
-                  <span className="shrink-0 text-muted-foreground uppercase tracking-wide">{m.format}</span>
+                  <span className="shrink-0 text-[12px] font-bold text-muted-foreground uppercase tracking-[0.1em]">{m.format}</span>
                   <span className={cn(
-                    'shrink-0 text-[10px] px-1.5 py-0.5 rounded border',
-                    wholeBook
-                      ? 'border-destructive/30 text-destructive bg-destructive/10'
-                      : 'border-border text-muted-foreground bg-muted',
+                    'shrink-0 text-[13px]',
+                    wholeBook ? 'text-destructive' : 'text-muted-foreground',
                   )}>
                     {wholeBook ? t`book entry will be removed` : t`file entry only`}
                   </span>
@@ -416,21 +418,18 @@ export function LibraryHealthTab() {
       )}
 
       {dryRunResult && (
-        <div className="rounded-xl border border-border bg-card p-4 space-y-3">
-          <div className="flex items-center justify-between">
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3 pb-3 border-b border-border/70">
             {(() => { const n = dryRunResult.moved.length; return (
-            <p className="text-xs font-semibold">
-              <Trans>Dry Run Preview — {n} files would be moved</Trans>
+            <p className="text-[17px] font-semibold">
+              <Trans>Dry run preview: {n} files would be moved</Trans>
             </p>
             ) })()}
-            <button
-              onClick={() => setDryRunResult(null)}
-              className="text-xs text-muted-foreground hover:text-foreground"
-            >
+            <Pill variant="quiet" onClick={() => setDryRunResult(null)}>
               <Trans>Dismiss</Trans>
-            </button>
+            </Pill>
           </div>
-          <ul className="space-y-2 max-h-60 overflow-y-auto text-xs font-mono">
+          <ul className="space-y-2 max-h-60 overflow-y-auto text-[13px] font-mono">
             {dryRunResult.moved.map((m, i) => (
               <li key={i} className="space-y-0.5">
                 <p className="text-muted-foreground line-through">{m.from}</p>
@@ -441,53 +440,53 @@ export function LibraryHealthTab() {
               </li>
             ))}
           </ul>
-          <div className="flex justify-end gap-2 pt-1 border-t border-border">
-            <button
+          <div className="flex justify-end gap-2 pt-3 border-t border-border/70">
+            <Pill
               onClick={() => setDryRunResult(null)}
-              className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent transition-colors"
+              variant="quiet"
             >
               <Trans>Cancel</Trans>
-            </button>
-            <button
-              onClick={() => runReorganize(dryRunResult.moved.map(m => m.file_id), false)}
+            </Pill>
+            <Pill
+              onClick={() => setConfirmMove(dryRunResult.moved.map(m => m.file_id))}
               disabled={reorganizing}
-              className="px-3 py-1.5 text-xs rounded-lg bg-primary text-primary-foreground hover:opacity-90 transition-opacity disabled:opacity-50"
+              variant="primary"
             >
-              <Trans>Confirm & Reorganize</Trans>
-            </button>
+              <Trans>Confirm and reorganize</Trans>
+            </Pill>
           </div>
         </div>
       )}
 
       {groups.length > 0 && (
-        <div className="space-y-2">
+        <div className="border-t border-border/70">
           {groups.map((group, gi) => {
             const groupIds = group.issues.map(i => i.file_id)
             const allGroupSelected = groupIds.every(id => selected.has(id))
             const someGroupSelected = groupIds.some(id => selected.has(id))
 
             return (
-              <div key={gi} className="rounded-xl border border-border bg-card overflow-hidden">
+              <div key={gi} className="border-b border-border/70">
                 <button
                   onClick={() => toggleGroup(gi, !group.collapsed)}
-                  className="w-full flex items-center justify-between px-4 py-3 hover:bg-accent/50 transition-colors text-left"
+                  className="w-full flex items-center justify-between gap-3 px-2 -mx-2 py-3 rounded-lg hover:bg-secondary/60 transition-colors text-left"
                 >
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
                     <div
                       onClick={e => { e.stopPropagation(); toggleGroupSelect(group.issues) }}
                       className={cn(
-                        'w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer shrink-0',
+                        'w-[18px] h-[18px] rounded-[5px] ring-1 flex items-center justify-center transition-colors cursor-pointer shrink-0',
                         allGroupSelected
-                          ? 'bg-primary border-primary'
+                          ? 'bg-primary ring-primary'
                           : someGroupSelected
-                          ? 'bg-primary/50 border-primary/50'
-                          : 'border-border'
+                          ? 'bg-primary/50 ring-primary/50'
+                          : 'bg-secondary ring-border'
                       )}
                     >
                       {allGroupSelected && <Check className="w-3 h-3 text-primary-foreground" />}
                     </div>
-                    <span className="text-xs font-medium">{group.label}</span>
-                    <span className="text-xs text-muted-foreground">
+                    <span className="text-[15px] font-medium">{group.label}</span>
+                    <span className="text-[14px] text-muted-foreground">
                       {plural(group.issues.length, { one: '# file', other: '# files' })}
                       {group.folderCount > 1 && (() => { const n = group.folderCount; return t` in ${n} folders` })()}
                     </span>
@@ -498,27 +497,27 @@ export function LibraryHealthTab() {
                 </button>
 
                 {!group.collapsed && (
-                  <ul className="border-t border-border divide-y divide-border">
+                  <ul className="divide-y divide-border/70 pl-7">
                     {group.issues.map(issue => (
-                      <li key={issue.file_id} className="flex items-start gap-3 px-4 py-3">
+                      <li key={issue.file_id} className="flex items-start gap-3 py-3">
                         <div
                           onClick={e => toggleFile(issue.file_id, e.shiftKey)}
                           className={cn(
-                            'mt-0.5 w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer shrink-0',
-                            selected.has(issue.file_id) ? 'bg-primary border-primary' : 'border-border'
+                            'mt-0.5 w-[18px] h-[18px] rounded-[5px] ring-1 flex items-center justify-center transition-colors cursor-pointer shrink-0',
+                            selected.has(issue.file_id) ? 'bg-primary ring-primary' : 'bg-secondary ring-border'
                           )}
                         >
                           {selected.has(issue.file_id) && <Check className="w-3 h-3 text-primary-foreground" />}
                         </div>
-                        <div className="min-w-0 space-y-1 text-xs">
-                          <p className="font-medium truncate">{issue.title}</p>
+                        <div className="min-w-0 space-y-1 text-[13px]">
+                          <p className="text-[14px] font-medium truncate">{issue.title}</p>
                           <p className="text-muted-foreground line-through font-mono truncate">{issue.current_path}</p>
                           <p className="text-success font-mono truncate flex items-center gap-1">
                             <ArrowRight className="w-3 h-3 shrink-0" />
                             {issue.expected_path}
                           </p>
                         </div>
-                        <span className="ml-auto shrink-0 text-xs text-muted-foreground uppercase tracking-wide">{issue.format}</span>
+                        <span className="ml-auto shrink-0 text-[12px] font-bold text-muted-foreground uppercase tracking-[0.1em]">{issue.format}</span>
                       </li>
                     ))}
                   </ul>
@@ -529,10 +528,35 @@ export function LibraryHealthTab() {
         </div>
       )}
 
+      <ModalShell
+        open={confirmMove !== null}
+        onClose={() => setConfirmMove(null)}
+        size="sm"
+        title={<Trans>Move files on disk?</Trans>}
+        footer={
+          <>
+            <Pill variant="quiet" onClick={() => setConfirmMove(null)}><Trans>Cancel</Trans></Pill>
+            <Pill
+              variant="primary"
+              onClick={() => { const ids = confirmMove ?? []; setConfirmMove(null); void runReorganize(ids, false) }}
+            >
+              <Trans>Reorganize</Trans>
+            </Pill>
+          </>
+        }
+      >
+        <p className="text-[14px] text-muted-foreground">
+          {plural(confirmMove?.length ?? 0, {
+            one: '# file is moved to its expected folder in the library. Empty folders left behind are removed.',
+            other: '# files are moved to their expected folders in the library. Empty folders left behind are removed.',
+          })}
+        </p>
+      </ModalShell>
+
       {healthData && healthData.misplaced_count === 0 && healthData.missing_count === 0 && (
         <div className="flex flex-col items-center justify-center py-12 text-muted-foreground gap-2">
           <Check className="w-8 h-8 text-success" />
-          <p className="text-sm"><Trans>All files are correctly placed.</Trans></p>
+          <p className="text-[15px]"><Trans>All files are correctly placed.</Trans></p>
         </div>
       )}
     </div>

@@ -24,9 +24,9 @@ export function BacklogEstimate({ scope = DEFAULT_BACKLOG_SCOPE }: { scope?: str
     return () => { alive = false }
   }, [scope])
 
-  if (error) return <p className="text-sm text-muted-foreground text-center py-4"><Trans>Could not load this scope.</Trans></p>
-  if (!data) return <p className="text-sm text-muted-foreground text-center py-4"><Trans>Loading…</Trans></p>
-  if (data.books === 0) return <p className="text-sm text-muted-foreground text-center py-4"><Trans>No unstarted books in this scope.</Trans></p>
+  if (error) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>Could not load this scope.</Trans></p>
+  if (!data) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>Loading…</Trans></p>
+  if (data.books === 0) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No unstarted books in this scope.</Trans></p>
 
   const { pace } = data
   const usesTypeAvg = data.by_type.some(x => x.type_avg > 0)
@@ -46,16 +46,16 @@ export function BacklogEstimate({ scope = DEFAULT_BACKLOG_SCOPE }: { scope?: str
   return (
     <div className="flex flex-col gap-4">
       <div className="flex items-baseline gap-2 flex-wrap" title={describePace(pace, usesTypeAvg ? 'type_avg' : (pace.wpm ? 'words' : 'default'))}>
-        <span className="text-3xl font-semibold tabular-nums text-foreground leading-none">{formatEstimateHours(data.seconds)}</span>
+        <span className="text-3xl font-semibold text-foreground leading-none">{formatEstimateHours(data.seconds)}</span>
         {data.days != null && (
           <span className="text-sm text-muted-foreground">
             {(() => { const d = formatEstimateDays(data.days).replace(/^~/, ''); return (
-              <Trans>about <span className="text-foreground font-medium tabular-nums">{d}</span> at your pace</Trans>
+              <Trans>about <span className="text-foreground font-medium">{d}</span> at your pace</Trans>
             ) })()}
           </span>
         )}
       </div>
-      <p className="text-xs text-muted-foreground">
+      <p className="text-[13px] text-muted-foreground">
         {plural(data.books, { one: '# book', other: '# books' })} &middot; {paceNote}
         {usesTypeAvg && <Trans> &middot; books without a word count use your average for that type</Trans>}
         {data.unestimated > 0 && (() => { const n = data.unestimated; return <Trans> &middot; {n} not estimated yet</Trans> })()}

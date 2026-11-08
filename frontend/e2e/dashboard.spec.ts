@@ -4,7 +4,7 @@ import { test, expect, type Page } from '@playwright/test'
 import { seed, login, apiToken, apiGet, LIBRARY_DIR } from './helpers'
 
 async function openAllBooks(page: Page) {
-  await page.click('text=All Books')
+  await page.getByRole('button', { name: 'Library', exact: true }).first().click()
   await expect(page.getByText(/of \d+ books|^\d+ books/).first()).toBeVisible()
 }
 
@@ -14,9 +14,9 @@ test.describe('dashboard selection and bulk delete', () => {
     await login(page)
     await openAllBooks(page)
 
-    // Only the first page (60) is loaded…
-    await expect(page.getByText('60 of 134 books')).toBeVisible()
-    // …but Select selects everything that matches the filter.
+    // The header counts the whole view (only the first page of 60 is loaded)…
+    await expect(page.getByText('134 books')).toBeVisible()
+    // …and Select selects everything that matches the filter, not the loaded page.
     await page.click('button:has-text("Select")')
     await expect(page.getByText('134 selected')).toBeVisible()
   })

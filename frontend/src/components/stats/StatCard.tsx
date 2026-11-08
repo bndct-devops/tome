@@ -10,13 +10,13 @@ export function StatCard({
   sub?: string
 }) {
   return (
-    <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
+    <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5 text-muted-foreground">
         {icon}
-        <span className="text-xs">{label}</span>
+        <span className="text-[14px]">{label}</span>
       </div>
-      <p className="text-2xl font-bold text-foreground leading-tight">{value}</p>
-      {sub && <p className="text-xs text-muted-foreground">{sub}</p>}
+      <p className="font-display text-[30px] font-bold leading-none text-foreground">{value}</p>
+      {sub && <p className="text-[14px] text-muted-foreground">{sub}</p>}
     </div>
   )
 }

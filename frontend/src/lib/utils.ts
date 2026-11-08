@@ -1,8 +1,25 @@
 import { clsx, type ClassValue } from "clsx"
 import { twMerge } from "tailwind-merge"
+import { t } from "@lingui/core/macro"
 
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
+}
+
+/** Short relative time in the sync badge's style ("5m ago", "18h ago",
+ *  "yesterday", "3d ago", then the date). */
+export function shortAgo(iso: string): string {
+  const ts = new Date(iso).getTime()
+  if (Number.isNaN(ts)) return ''
+  const mins = Math.floor((Date.now() - ts) / 60_000)
+  if (mins < 1) return t`just now`
+  if (mins < 60) return t`${mins}m ago`
+  const hrs = Math.floor(mins / 60)
+  if (hrs < 24) return t`${hrs}h ago`
+  const days = Math.floor(hrs / 24)
+  if (days === 1) return t`yesterday`
+  if (days < 7) return t`${days}d ago`
+  return new Date(ts).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
 /** Format a duration given in seconds to a human-readable "Xh Ym" string. */
@@ -19,9 +36,27 @@ export function formatDate(iso: string): string {
   return new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 }
 
+/** Format an ISO date or timestamp as a medium date with the year ("Nov 7, 2026"). */
+export function formatLongDate(iso: string): string {
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(iso) ? iso + 'T00:00:00' : iso)
+  return d.toLocaleDateString(undefined, { dateStyle: 'medium' })
+}
+
+/** Drop markdown emphasis and heading markers from provider text
+ *  ("***Project Hail Mary***" -> "Project Hail Mary"). Book descriptions are
+ *  shown as plain text, so the markers would otherwise show up literally. */
+export function stripMarkdown(text: string): string {
+  return text
+    .replace(/^\s{0,3}#{1,6}\s+/gm, '')               // headings
+    .replace(/(\*{1,3})(?=\S)([^*\n]*?\S)\1/g, '$2')     // *em*, **strong**, ***both***
+    .replace(/(^|\W)(_{1,3})(?=\S)([^_\n]*?\S)\2(?!\w)/g, '$1$3') // _em_, not snake_case
+    .replace(/~~(?=\S)([^~\n]*?\S)~~/g, '$1')           // ~~strike~~
+    .replace(/^\s{0,3}(?:\*\s*){3,}$/gm, '')            // *** rules
+}
+
 /** Copy text to the clipboard, working outside secure contexts too.
  *
- * navigator.clipboard only exists on HTTPS/localhost — on a LAN-IP dev page
+ * navigator.clipboard only exists on HTTPS/localhost - on a LAN-IP dev page
  * it's undefined and a bare writeText() call dies silently. Falls back to the
  * legacy execCommand path via an invisible textarea. Returns success. */
 export async function copyToClipboard(text: string): Promise<boolean> {
@@ -45,4 +80,15 @@ export async function copyToClipboard(text: string): Promise<boolean> {
   } catch {
     return false
   }
+}
+
+/**
+ * A stored reading progress as a 0 to 100 percentage. The field holds a 0 to 1
+ * fraction (KOReader, the web reader, the app), but rows written before that
+ * convention hold 0 to 100; the same rule the server's Home endpoint uses.
+ */
+export function progressPercent(raw: number | null | undefined): number {
+  if (!raw || raw <= 0) return 0
+  const pct = raw <= 1 ? raw * 100 : raw
+  return Math.min(100, pct)
 }

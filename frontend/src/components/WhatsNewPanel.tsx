@@ -1,14 +1,15 @@
 // One-time "What's new" panel after a server upgrade. The server reports its
 // version with the release-notes entries for it (GET /meta/whats-new, parsed
 // from the changelog); we remember the last version this browser saw and show
-// the panel once when it changes. Fresh browsers/installs store silently — a
+// the panel once when it changes. Fresh browsers/installs store silently; a
 // first login should not open with a modal.
 import { useEffect, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { Minus, Plus, RefreshCw, Sparkles, Wrench, X } from 'lucide-react'
 import { api } from '@/lib/api'
 import { Trans } from '@lingui/react/macro'
-import { t } from '@lingui/core/macro'
+import { ModalShell } from '@/components/ModalShell'
+import { Pill } from '@/components/page'
+import { MessageSquare } from 'lucide-react'
 
 interface WhatsNewEntry {
   kind: string
@@ -18,32 +19,22 @@ interface WhatsNewEntry {
 interface WhatsNewResponse {
   version: string
   entries: WhatsNewEntry[]
+  feedback_url?: string | null
 }
 
 const SEEN_KEY = 'tome_seen_version'
-// Once per SPA session is enough — remounts (route changes) must not refetch.
+// Once per SPA session is enough: remounts (route changes) must not refetch.
 let checkedThisSession = false
 
 // eslint-disable-next-line lingui/no-unlocalized-strings -- changelog section keys
 const KIND_ORDER = ['Added', 'Changed', 'Fixed', 'Removed']
-
-// Per-kind visual identity — an icon chip per entry beats a wall of gray text.
-/* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map keyed by changelog sections */
-const KIND_META: Record<string, { icon: typeof Plus; chip: string }> = {
-  Added: { icon: Plus, chip: 'bg-success/15 text-success' },
-  Changed: { icon: RefreshCw, chip: 'bg-primary/15 text-primary' },
-  Fixed: { icon: Wrench, chip: 'bg-warning/15 text-warning' },
-  Removed: { icon: Minus, chip: 'bg-destructive/15 text-destructive' },
-}
-const KIND_FALLBACK = { icon: Sparkles, chip: 'bg-muted text-muted-foreground' }
-/* eslint-enable lingui/no-unlocalized-strings */
 
 // Inline `code` spans from the changelog render as code, not literal backticks.
 function renderInline(text: string): ReactNode {
   const parts = text.split(/`([^`]+)`/g)
   return parts.map((part, i) =>
     i % 2 === 1 ? (
-      <code key={i} className="rounded bg-muted px-1 py-0.5 font-mono text-[0.85em] text-foreground">
+      <code key={i} className="rounded bg-secondary px-1 py-0.5 font-mono text-[0.85em] text-foreground">
         {part}
       </code>
     ) : (
@@ -52,7 +43,7 @@ function renderInline(text: string): ReactNode {
   )
 }
 
-// Older changelog entries have no bold lead — pull "Thing: detail" apart so
+// Older changelog entries have no bold lead: pull "Thing: detail" apart so
 // every row still gets a scannable title.
 function splitEntry(e: WhatsNewEntry): { title: string; body: string } {
   if (e.title) return { title: e.title, body: e.body }
@@ -94,90 +85,62 @@ export function WhatsNewPanel() {
   const groups = KIND_ORDER.filter((k) => data.entries.some((e) => e.kind === k)).concat(
     [...new Set(data.entries.map((e) => e.kind))].filter((k) => !KIND_ORDER.includes(k)),
   )
+  const version = data.version
 
   // Portal to <body>: the header that mounts this has backdrop-blur, which
-  // makes it the containing block for fixed descendants — the overlay would
+  // makes it the containing block for fixed descendants, so the overlay would
   // center on the header bar instead of the viewport.
   return createPortal(
-    <>
-      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={dismiss} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 pointer-events-none">
-        <div className="pointer-events-auto flex max-h-[80vh] w-full max-w-lg flex-col rounded-xl border border-border bg-card shadow-xl">
-          <div className="relative shrink-0 overflow-hidden border-b border-border px-5 pb-4 pt-5">
-            {/* soft accent wash so the panel reads as an occasion, not a dialog */}
-            <div
-              className="pointer-events-none absolute inset-0"
-              style={{ background: 'radial-gradient(120% 160% at 0% 0%, color-mix(in oklab, var(--primary) 14%, transparent), transparent 55%)' }}
-            />
-            <div className="relative flex items-start gap-3">
-              <span className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-primary/15">
-                <Sparkles className="h-4.5 w-4.5 text-primary" />
-              </span>
-              <div className="min-w-0">
-                <p className="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                  <Trans>Just updated</Trans>
-                </p>
-                <h2 className="font-display text-xl leading-tight text-foreground">
-                  {(() => { const version = data.version; return <Trans>What&apos;s new in Tome {version}</Trans> })()}
-                </h2>
-              </div>
-              <button
-                onClick={dismiss}
-                aria-label={t`Dismiss`}
-                className="ml-auto rounded-md p-1 text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-          <div className="min-h-0 overflow-y-auto overscroll-contain px-5 py-4">
-            {groups.map((kind) => {
-              const meta = KIND_META[kind] ?? KIND_FALLBACK
-              const Icon = meta.icon
-              return (
-                <div key={kind} className="mb-5 last:mb-0">
-                  <h3 className="mb-2.5 flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-                    {kind}
-                    <span className="h-px flex-1 bg-border/60" />
-                  </h3>
-                  <ul className="flex flex-col gap-2">
-                    {data.entries
-                      .filter((e) => e.kind === kind)
-                      .map((e, i) => {
-                        const { title, body } = splitEntry(e)
-                        return (
-                          <li
-                            key={i}
-                            className="flex items-start gap-3 rounded-lg border border-border/60 bg-muted/30 px-3 py-2.5"
-                          >
-                            <span className={`mt-0.5 grid h-6 w-6 shrink-0 place-items-center rounded-md ${meta.chip}`}>
-                              <Icon className="h-3.5 w-3.5" />
-                            </span>
-                            <p className="min-w-0 text-sm leading-relaxed text-muted-foreground">
-                              {title && (
-                                <span className="font-semibold text-foreground">{renderInline(title)} </span>
-                              )}
-                              {renderInline(body)}
-                            </p>
-                          </li>
-                        )
-                      })}
-                  </ul>
-                </div>
-              )
-            })}
-          </div>
-          <div className="shrink-0 border-t border-border px-5 py-3 text-right">
-            <button
-              onClick={dismiss}
-              className="rounded-lg bg-primary px-3.5 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90"
+    <ModalShell
+      open
+      onClose={dismiss}
+      eyebrow={<Trans>Just updated</Trans>}
+      title={<Trans>What&apos;s new in Tome {version}</Trans>}
+      size="md"
+      footer={
+        <>
+          {data.feedback_url && (
+            <a
+              href={data.feedback_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="mr-auto inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[14px] font-medium text-muted-foreground hover:bg-surface-hover hover:text-foreground transition-colors"
             >
-              <Trans>Got it</Trans>
-            </button>
-          </div>
-        </div>
+              <MessageSquare className="h-4 w-4" />
+              <Trans>Something broken or missing?</Trans>
+            </a>
+          )}
+          <Pill variant="primary" onClick={dismiss}><Trans>Got it</Trans></Pill>
+        </>
+      }
+    >
+      <div className="flex flex-col gap-6">
+        {groups.map((kind) => (
+          <section key={kind}>
+            <h3 className="border-b border-border/70 pb-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+              {kind}
+            </h3>
+            <ul>
+              {data.entries
+                .filter((e) => e.kind === kind)
+                .map((e, i) => {
+                  const { title, body } = splitEntry(e)
+                  return (
+                    <li key={i} className="border-b border-border/70 py-3">
+                      {title && (
+                        <p className="text-[15px] font-semibold leading-snug text-foreground">{renderInline(title)}</p>
+                      )}
+                      <p className={title ? 'mt-0.5 text-[14px] leading-relaxed text-muted-foreground' : 'text-[14px] leading-relaxed text-foreground/85'}>
+                        {renderInline(body)}
+                      </p>
+                    </li>
+                  )
+                })}
+            </ul>
+          </section>
+        ))}
       </div>
-    </>,
+    </ModalShell>,
     document.body,
   )
 }

@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Star } from 'lucide-react'
+import { BookOpen, Eye, Star } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useLingui } from '@lingui/react/macro'
 import type { Book, ReadingStatus } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
-import { cn } from '@/lib/utils'
+import { cn, progressPercent } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
 import { DevicePills } from '@/components/DevicePills'
 import { coverSrc } from '@/lib/covers'
+import { coverRing } from '@/lib/tilt'
 
 /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map, not copy */
 const COLOR_CLASSES: Record<string, string> = {
@@ -37,9 +38,12 @@ interface BookCardProps {
   progressPct?: number | null
   rating?: number | null
   index?: number
-  // Home rows are usually all one format — the badge is noise there, so those
+  // Home rows are usually all one format - the badge is noise there, so those
   // callers turn it off. Library grids keep it (that's where formats differ).
   showFormatBadge?: boolean
+  /** Opens the quick look for this book. Grid view only: a small pill in the
+   *  cover's corner on hover or focus. The card click still opens the page. */
+  onQuickLook?: () => void
 }
 
 /** Compact read-only star rating for cards. Renders nothing when unrated. */
@@ -62,7 +66,7 @@ function RatingStars({ rating, size = 11 }: { rating?: number | null; size?: num
 export function BookCard({
   book, view, selected, focused, onSelect,
   onTagClick: _onTagClick, onSeriesClick, onAuthorClick,
-  readingStatus, progressPct, rating, showFormatBadge = true,
+  readingStatus, progressPct, rating, showFormatBadge = true, onQuickLook,
 }: BookCardProps) {
   const { t } = useLingui()
   const navigate = useNavigate()
@@ -93,7 +97,7 @@ export function BookCard({
   // Floor at 4% so a just-started book still shows a visible nub instead of nothing
   const barWidth =
     readingStatus === 'read' ? 100
-    : readingStatus === 'reading' ? Math.max(4, Math.round((progressPct ?? 0.15) * 100))
+    : readingStatus === 'reading' ? Math.max(4, Math.round(progressPct != null ? progressPercent(progressPct) : 15))
     : 0
   const barColor =
     readingStatus === 'read' ? 'bg-primary'
@@ -136,31 +140,31 @@ export function BookCard({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
+          <p className="text-[15px] font-medium text-foreground truncate group-hover:text-primary transition-colors">
             {book.title}
           </p>
           <div className="flex items-center gap-1.5 flex-wrap">
             {book.author && (
               <button
-                className="text-xs text-muted-foreground hover:text-primary transition-colors truncate py-1.5 -my-1.5"
+                className="text-[13px] text-muted-foreground hover:text-primary transition-colors truncate py-1.5 -my-1.5"
                 onClick={e => stop(e, () => onAuthorClick?.(book.author!))}
               >
                 {book.author}
               </button>
             )}
             {bookType && typeBadgeClass && (
-              <span className={cn('text-xs px-1.5 py-0.5 rounded-full font-medium shrink-0', typeBadgeClass)}>
+              <span className={cn('text-[13px] px-1.5 py-0.5 rounded-full font-medium shrink-0', typeBadgeClass)}>
                 {bookType.label}
               </span>
             )}
             <DevicePills bookId={book.id} size="xs" />
           </div>
         </div>
-        {/* Series stays in list view — earns its space there */}
+        {/* Series stays in list view - earns its space there */}
         <div className="hidden sm:block w-40 shrink-0">
           {book.series && (
             <button
-              className="text-xs text-primary/70 hover:text-primary transition-colors truncate w-full text-left py-1.5 -my-1.5"
+              className="text-[13px] text-primary/70 hover:text-primary transition-colors truncate w-full text-left py-1.5 -my-1.5"
               onClick={e => stop(e, () => onSeriesClick?.(book.series!))}
             >
               {book.series}{book.series_index != null ? ` #${book.series_index}` : ''}
@@ -168,7 +172,7 @@ export function BookCard({
           )}
         </div>
         <div className="hidden md:block w-12 shrink-0 text-right">
-          {book.year && <span className="text-xs text-muted-foreground">{book.year}</span>}
+          {book.year && <span className="text-[13px] text-muted-foreground">{book.year}</span>}
         </div>
         {rating ? (
           <div className="hidden sm:flex shrink-0 justify-end">
@@ -176,7 +180,7 @@ export function BookCard({
           </div>
         ) : null}
         {showFormatBadge && book.files.length > 0 && (
-          <span className="shrink-0 text-[10px] font-medium uppercase px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground">
+          <span className="shrink-0 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             {book.files[0].format}
           </span>
         )}
@@ -184,8 +188,8 @@ export function BookCard({
     )
 
     const cls = cn(
-      'group flex items-center gap-3 px-3 py-2.5 rounded-lg border bg-card transition-all duration-150 touch-feedback',
-      selected ? 'border-primary bg-primary/5' : 'border-border hover:bg-accent hover:border-primary/20',
+      'group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150 touch-feedback',
+      selected ? 'bg-primary/10' : 'hover:bg-secondary',
       focused && 'ring-2 ring-ring ring-offset-1 ring-offset-background',
       onSelect && 'select-none',
     )
@@ -242,12 +246,11 @@ export function BookCard({
       {/* Cover */}
       <div
         ref={coverDivRef}
-        className={cn(
-          'aspect-[2/3] bg-muted relative overflow-hidden rounded-xl shadow-sm group-hover:shadow-lg group-hover:shadow-accent-soft',
-          selected && 'ring-2 ring-primary ring-offset-2 ring-offset-background',
-          focused && 'ring-2 ring-ring ring-offset-2 ring-offset-background',
-        )}
-        style={{ transition: isHovering ? 'transform 0.12s ease-out, box-shadow 0.2s ease-out' : 'transform 0.3s ease-out, box-shadow 0.2s ease-out' }}
+        className="aspect-[2/3] bg-muted relative overflow-hidden rounded-[8px]"
+        style={{
+          boxShadow: coverRing(!!selected, !!focused),
+          transition: isHovering ? 'transform 0.12s ease-out' : 'transform 0.3s ease-out',
+        }}
       >
         <CoverImage
           src={coverUrl}
@@ -255,7 +258,7 @@ export function BookCard({
           iconClassName={view === 'large' ? 'w-12 h-12' : 'w-8 h-8'}
         />
 
-        {/* Shine/glare overlay — follows mouse */}
+        {/* Shine/glare overlay - follows mouse */}
         {tiltEnabled && (
           <div
             className="absolute inset-0 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
@@ -263,14 +266,14 @@ export function BookCard({
           />
         )}
 
-        {/* Format badge — top right */}
+        {/* Format badge - top right */}
         {showFormatBadge && book.files.length > 0 && (
           <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-background/70 backdrop-blur-sm text-foreground/90 border border-border/50">
             {book.files[0].format}
           </span>
         )}
 
-        {/* Selection checkbox — top left, circular */}
+        {/* Selection checkbox - top left, circular */}
         {onSelect && (
           <div className={cn(
             'absolute top-1.5 left-1.5 transition-opacity',
@@ -287,24 +290,46 @@ export function BookCard({
           </div>
         )}
 
-        {/* Quick-read button — bottom right, hover only */}
+        {/* Quick look - top left, on hover or keyboard focus. Not while
+            selecting: the selection circle owns that corner then. */}
+        {onQuickLook && !onSelect && (
+          <button
+            type="button"
+            className={cn(
+              'absolute top-1.5 left-1.5 z-30 w-8 h-8 rounded-full',
+              'flex items-center justify-center text-foreground',
+              'bg-background/75 backdrop-blur-sm hover:bg-background transition-opacity',
+              // Not a hidden tap target on touch: a tap on the corner opens the page.
+              'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+            )}
+            title={t`Quick look`}
+            aria-label={t`Quick look`}
+            onClick={e => stop(e, onQuickLook)}
+          >
+            <Eye className="w-4 h-4" />
+          </button>
+        )}
+
+        {/* Quick-read button - bottom right, hover only */}
         {hasReadableFile && (
           <button
             className={cn(
-              'absolute bottom-1.5 right-1.5 w-7 h-7 rounded-md',
-              'flex items-center justify-center',
-              'bg-background/40 backdrop-blur-sm hover:bg-background/60 transition-all',
-              'opacity-0 group-hover:opacity-100',
+              'absolute bottom-2.5 right-1.5 z-30 w-8 h-8 rounded-full',
+              'flex items-center justify-center text-foreground',
+              'bg-background/75 backdrop-blur-sm hover:bg-background transition-opacity',
+              'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
+              'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             )}
             title={t({ message: 'Read', context: 'action' })}
             aria-label={t`Read book`}
             onClick={e => stop(e, () => navigate(`/reader/${book.id}`))}
           >
-            <BookOpen className="w-3.5 h-3.5 text-foreground/90" />
+            <BookOpen className="w-4 h-4" />
           </button>
         )}
 
-        {/* Reading progress strip — bottom edge */}
+        {/* Reading progress strip - bottom edge */}
         {barWidth > 0 && (
           <div className="absolute inset-x-0 bottom-0 h-1.5 bg-background/40">
             <div
@@ -315,20 +340,14 @@ export function BookCard({
         )}
       </div>
 
-      {/* Info — bare below the cover, no border/card wrapper */}
-      <div className="flex flex-col gap-0.5 pt-2 px-0.5">
-        <p className={cn(
-          'font-medium text-foreground line-clamp-2 leading-snug transition-colors duration-150 group-hover:text-primary',
-          view === 'large' ? 'text-[13px]' : 'text-xs'
-        )}>
+      {/* Info - bare below the cover, no border/card wrapper */}
+      <div className="flex flex-col gap-0.5 pt-2.5 px-0.5">
+        <p className="text-[14px] font-medium text-foreground line-clamp-2 leading-snug transition-colors duration-150 group-hover:text-primary">
           {book.title}
         </p>
         {book.author && (
           <button
-            className={cn(
-              'text-muted-foreground line-clamp-1 text-left hover:text-primary transition-colors',
-              view === 'large' ? 'text-xs' : 'text-[10px]'
-            )}
+            className="text-[13px] text-muted-foreground line-clamp-1 text-left hover:text-primary transition-colors"
             onClick={e => stop(e, () => onAuthorClick?.(book.author!))}
           >
             {book.author}

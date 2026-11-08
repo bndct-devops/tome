@@ -25,6 +25,26 @@ router = APIRouter(prefix="/meta", tags=["meta"])
 _CHANGELOG = Path(__file__).resolve().parents[2] / "CHANGELOG.md"
 
 
+FEEDBACK_LINE = re.compile(r"^Feedback:\s*(https?://\S+)\s*$")
+
+
+def changelog_feedback_url(text: str, version: str) -> str | None:
+    """The ``Feedback: <url>`` line of the ``## [version]`` section, if any."""
+    in_section = False
+    for line in text.splitlines():
+        m = re.match(r"^## \[([^\]]+)\]", line)
+        if m:
+            if in_section:
+                break
+            in_section = m.group(1) == version
+            continue
+        if in_section:
+            fm = FEEDBACK_LINE.match(line)
+            if fm:
+                return fm.group(1)
+    return None
+
+
 def parse_changelog_section(text: str, version: str,
                             unreleased_fallback: bool = False) -> list[dict]:
     """Entries of the ``## [version]`` section. Each ``- **Title.** body``
@@ -47,6 +67,9 @@ def parse_changelog_section(text: str, version: str,
             section.append(line)
     if not section and unreleased_fallback and version != "Unreleased":
         return parse_changelog_section(text, "Unreleased")
+    # A "Feedback: <url>" line in the section (not a bullet) is the place to
+    # report problems with this release; the panel shows it next to Got it.
+    section = [l for l in section if not FEEDBACK_LINE.match(l)]
 
     entries: list[dict] = []
     kind = ""
@@ -76,8 +99,12 @@ def whats_new(current_user: User = Depends(get_current_user)) -> dict:
     try:
         text = _CHANGELOG.read_text(encoding="utf-8")
     except OSError:
-        return {"version": __version__, "entries": []}
-    return {"version": __version__, "entries": parse_changelog_section(text, __version__)}
+        return {"version": __version__, "entries": [], "feedback_url": None}
+    return {
+        "version": __version__,
+        "entries": parse_changelog_section(text, __version__),
+        "feedback_url": changelog_feedback_url(text, __version__),
+    }
 
 
 @router.get("/features")

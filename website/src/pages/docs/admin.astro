@@ -54,7 +54,7 @@ import { withBase } from '../../lib/path'
   <h3>Resolving duplicates</h3>
   <p>
     Resolution works in one pass: for each group, pick the book to keep and queue an action, then
-    apply everything with a single <strong>Apply All</strong>. Nothing happens until you confirm,
+    apply everything with a single <strong>Apply all</strong>. Nothing happens until you confirm,
     and a summary afterwards reports what was applied and anything that failed. Three actions are
     available per group:
   </p>
@@ -62,7 +62,7 @@ import { withBase } from '../../lib/path'
     <li><strong>Merge</strong> — fold the other copies into the kept book. Files, tags, library
       memberships, and reading status carry over. File entries whose file is missing from disk are
       dropped rather than carried along.</li>
-    <li><strong>Delete Others</strong> — keep the selected book and delete the other copies,
+    <li><strong>Delete others</strong> — keep the selected book and delete the other copies,
       including their files on disk. Useful when the copies really are redundant files, not
       alternate formats worth merging.</li>
     <li><strong>Dismiss</strong> — mark the group as not-a-duplicate. Dismissed pairs are stored
@@ -94,7 +94,7 @@ import { withBase } from '../../lib/path'
     or <em>file entry only</em> when the book keeps another file that still exists.
   </p>
   <p>
-    <strong>Remove Dead Entries</strong> (confirm-gated) cleans them up in one click — dead file
+    <strong>Remove dead entries</strong> (confirm-gated) cleans them up in one click — dead file
     entries are removed, and books left with no files are deleted entirely. Entries whose file
     actually exists on disk are always refused: this action only ever touches the database, never
     your files.
@@ -122,11 +122,9 @@ import { withBase } from '../../lib/path'
 
   <h2 id="type-folders">Folders and layout per book type</h2>
   <p>
-    By default every book sits directly under the library root: series in
-    <code>Series/</code>, standalones in <code>Author/</code>. Each book type can instead
+    By default every book sits directly under the library root: series in <code>Series/</code>, standalones in <code>Author/</code>. Each book type can instead
     have a <strong>Folder</strong> (<strong>Admin → Types</strong>, edit a type). Books of that
-    type are then stored one level down, for example <code>Manga/Berserk/Berserk v01.cbz</code>
-    or <code>Comics/Saga/Saga v01.cbz</code>. Leave the field empty for no folder; that is the
+    type are then stored one level down, for example <code>Manga/Berserk/Berserk v01.cbz</code> or <code>Comics/Saga/Saga v01.cbz</code>. Leave the field empty for no folder; that is the
     default for every type, so upgrading changes nothing on disk. Several types may share one
     folder, and the folder name is independent of the type's label.
   </p>
@@ -145,19 +143,14 @@ import { withBase } from '../../lib/path'
   <ul>
     <li><strong>Series first</strong> (default, the layout Tome always had): series books in a
       folder per series, <code>Myron Bolitar/Deal Breaker v01.epub</code>; other books in a folder
-      per author, <code>Harlan Coben/Tell No One (2001).epub</code>; books without either in
-      <code>Unknown/</code>.</li>
-    <li><strong>Author, then series</strong>: a folder per author with a folder per series inside,
-      <code>Harlan Coben/Myron Bolitar/Deal Breaker v01.epub</code> and
-      <code>Harlan Coben/Mickey Bolitar/Shelter v01.epub</code>; books without a series as
-      <code>Harlan Coben/Tell No One (2001).epub</code>. An author with several series stays in
+      per author, <code>Harlan Coben/Tell No One (2001).epub</code>; books without either in <code>Unknown/</code>.</li>
+    <li><strong>Author, then series</strong>: a folder per author with a folder per series inside, <code>Harlan Coben/Myron Bolitar/Deal Breaker v01.epub</code> and <code>Harlan Coben/Mickey Bolitar/Shelter v01.epub</code>; books without a series as <code>Harlan Coben/Tell No One (2001).epub</code>. An author with several series stays in
       one folder.</li>
     <li><strong>Author only</strong>: a folder per author, series books keep their volume number
       in the file name, <code>Harlan Coben/Deal Breaker v01.epub</code>.</li>
   </ul>
   <p>
-    The author presets use the first author when a book has several, and <code>Unknown</code>
-    when it has none.
+    The author presets use the first author when a book has several, and <code>Unknown</code> when it has none.
   </p>
   <p>
     <strong>Advanced: custom template.</strong> Tick it to write the path yourself. The field is
@@ -166,10 +159,7 @@ import { withBase } from '../../lib/path'
     updates as you type. The template language:
   </p>
   <ul>
-    <li>Fields: <code>{'{author}'}</code> (first author), <code>{'{series}'}</code>,
-      <code>{'{title}'}</code> (volume marker removed for series books),
-      <code>{'{index}'}</code> (<code>01</code>, <code>10.5</code>), <code>{'{year}'}</code>,
-      <code>{'{ext}'}</code> (with the dot, <code>.epub</code>).</li>
+    <li>Fields: <code>{'{author}'}</code> (first author), <code>{'{series}'}</code>, <code>{'{title}'}</code> (volume marker removed for series books), <code>{'{index}'}</code> (<code>01</code>, <code>10.5</code>), <code>{'{year}'}</code>, <code>{'{ext}'}</code> (with the dot, <code>.epub</code>).</li>
     <li>Fallback: <code>{'{series|author}'}</code> takes the first field that is not empty; the
       last item may be plain text, <code>{'{series|author|Unknown}'}</code>.</li>
     <li>Optional part: text in square brackets is kept only when every field inside it has a
@@ -183,11 +173,8 @@ import { withBase } from '../../lib/path'
   </ul>
   <p>Two examples:</p>
   <ul>
-    <li><code>{'{author}/{title}[ ({year})]{ext}'}</code> gives
-      <code>Harlan Coben/Deal Breaker (1995).epub</code>.</li>
-    <li><code>{'{author|Unknown}/[{series}/]{title}[ v{index}]{ext}'}</code> gives
-      <code>Harlan Coben/Myron Bolitar/Deal Breaker v01.epub</code> and
-      <code>Harlan Coben/Tell No One.epub</code>.</li>
+    <li><code>{'{author}/{title}[ ({year})]{ext}'}</code> gives <code>Harlan Coben/Deal Breaker (1995).epub</code>.</li>
+    <li><code>{'{author|Unknown}/[{series}/]{title}[ v{index}]{ext}'}</code> gives <code>Harlan Coben/Myron Bolitar/Deal Breaker v01.epub</code> and <code>Harlan Coben/Tell No One.epub</code>.</li>
   </ul>
   <p>
     Unticking Advanced clears the template and goes back to the selected preset.
@@ -209,9 +196,8 @@ import { withBase } from '../../lib/path'
     <li>Set the folders and layouts in <strong>Admin → Types</strong>.</li>
     <li>Check that your books have the right type (bulk-edit the book type from a selection in
       the library if needed).</li>
-    <li>Open <strong>Admin → Library</strong> (Library Health), click <strong>Dry Run All</strong>
-      and read the list of moves.</li>
-    <li>Click <strong>Reorganize All</strong> (or select some files and reorganize only those).</li>
+    <li>Open <strong>Admin → Library</strong> (Library Health), click <strong>Dry run all</strong> and read the list of moves.</li>
+    <li>Click <strong>Reorganize all</strong> (or select some files and reorganize only those).</li>
     <li>Other tools that watch the library folder (Calibre, Komga, a sync client) see the files
       at new paths and need a rescan.</li>
   </ol>
@@ -237,8 +223,7 @@ import { withBase } from '../../lib/path'
   <p>
     Restoring is deliberately two-phase: upload an archive, type <code>RESTORE</code> to arm
     it, and the swap happens at the <em>next server restart</em> — never under a live
-    database. The current database is kept alongside as
-    <code>tome.db.pre-restore-&lt;timestamp&gt;</code>, a staged restore can be cancelled any
+    database. The current database is kept alongside as <code>tome.db.pre-restore-&lt;timestamp&gt;</code>, a staged restore can be cancelled any
     time before the restart, and an invalid archive is rejected at upload. Backup downloads
     and every restore step land in the <a href="#audit-log">audit log</a>.
   </p>
@@ -246,8 +231,7 @@ import { withBase } from '../../lib/path'
   <h2>Word counts</h2>
   <p>
     Tome records each EPUB's word count, shown in the <strong>Details</strong> panel on the book
-    page. New uploads are counted automatically as they're added — the <strong>Word Counts</strong>
-    tab is only for backfilling books that were in your library before the feature existed.
+    page. New uploads are counted automatically as they're added — the <strong>Word counts</strong> tab is only for backfilling books that were in your library before the feature existed.
   </p>
   <div class="docs-shot">
     <ThemedShot client:load name="admin-word-counts" alt="The Word Counts admin tab: EPUB totals, already-counted and pending counts, and the backfill control" />
@@ -276,14 +260,13 @@ import { withBase } from '../../lib/path'
 
   <h2>Email (Send to Device)</h2>
   <p>
-    The Email tab shows SMTP status (configured or not, with host/port/from), a
-    <strong>Send test email</strong> button, every user's saved devices, and recent send history —
+    The Email tab shows SMTP status (configured or not, with host/port/from), a <strong>Send test email</strong> button, every user's saved devices, and recent send history —
     who sent which book to which device, and whether it succeeded. SMTP itself is configured via
     environment variables; see <a href={withBase("/docs/send-to-device")}>Send to Device</a>.
   </p>
   <h2 id="audit-log">Audit log</h2>
   <p>
-    <strong>Admin → Audit Log</strong> records who did what, when: user management, book
+    <strong>Admin → Audit log</strong> records who did what, when: user management, book
     deletions and uploads, metadata edits, downloads (single and bulk), credential
     lifecycles (API tokens, OPDS PINs, KOReader plugin keys, notification channels —
     never the secrets themselves), backup and restore steps, imports, and curation

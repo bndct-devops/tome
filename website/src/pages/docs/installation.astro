@@ -85,15 +85,13 @@ const nginxSnippet = `server {
   </Steps>
 
   <Callout variant="tip" title="No secret key needed up front">
-    Skip <code>TOME_SECRET_KEY</code> in your compose file — Tome auto-generates one to
-    <code>./data/secret.key</code> on first boot. Set it explicitly only if you want to manage
+    Skip <code>TOME_SECRET_KEY</code> in your compose file — Tome auto-generates one to <code>./data/secret.key</code> on first boot. Set it explicitly only if you want to manage
     rotation yourself.
   </Callout>
 
   <h2>Just want to try it?</h2>
   <p>
-    Kick the tires before committing it to your homelab. This script spins Tome up in a fresh
-    <code>~/Tome</code> folder on a free port and prints the URL — it checks Docker is installed and
+    Kick the tires before committing it to your homelab. This script spins Tome up in a fresh <code>~/Tome</code> folder on a free port and prints the URL — it checks Docker is installed and
     running, writes the compose file and volumes, starts the container, and waits until Tome actually
     answers. Upload a book, click around, decide if it's for you.
   </p>
@@ -108,22 +106,17 @@ const nginxSnippet = `server {
     is touched. Re-run it any time to update — your data and port stay put.
   </p>
   <Callout variant="tip" title="Didn't click? Remove every trace">
-    <code>cd ~/Tome && docker compose down</code> stops and removes the container.
-    <code>docker rmi ghcr.io/bndct-devops/tome:latest</code> drops the image, and
-    <code>rm -rf ~/Tome</code> deletes the data and the test books folder. Gone, no leftovers.
+    <code>cd ~/Tome && docker compose down</code> stops and removes the container. <code>docker rmi ghcr.io/bndct-devops/tome:latest</code> drops the image, and <code>rm -rf ~/Tome</code> deletes the data and the test books folder. Gone, no leftovers.
   </Callout>
   <Callout variant="warning" title="Liked it? Don't keep it on your laptop">
     The one-liner is for a quick look or a single-machine setup. For real use, run Tome on an
-    always-on box (NAS / mini-PC / spare Pi) via the compose path above, and point the
-    <code>books</code> volume at your actual library. A sleeping laptop is a poor host for KOReader
+    always-on box (NAS / mini-PC / spare Pi) via the compose path above, and point the <code>books</code> volume at your actual library. A sleeping laptop is a poor host for KOReader
     sync and OPDS.
   </Callout>
   <Callout variant="info" title="It still needs Docker installed first">
     The script runs Tome <em>inside</em> Docker — it makes Docker easy to <em>use</em>, not to
-    install. If Docker isn't present it points you at the
-    <a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a> download and stops.
-    It's a plain, un-obfuscated shell script — read it first with
-    <code>curl -fsSL https://tome.bndct.sh/install.sh | less</code> if you like.
+    install. If Docker isn't present it points you at the <a href="https://www.docker.com/products/docker-desktop/">Docker Desktop</a> download and stops.
+    It's a plain, un-obfuscated shell script — read it first with <code>curl -fsSL https://tome.bndct.sh/install.sh | less</code> if you like.
   </Callout>
 
   <h2>Volume mounts</h2>

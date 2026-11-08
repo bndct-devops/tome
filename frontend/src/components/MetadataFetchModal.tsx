@@ -3,9 +3,11 @@ import { Trans } from '@lingui/react/macro'
 import { t, msg, plural } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
-import { Loader2, Sparkles, BookOpen, ExternalLink, Check, X } from 'lucide-react'
+import { Loader2, BookOpen, ExternalLink, Check, ChevronLeft, Search } from 'lucide-react'
 import { BookAnimation } from '@/components/BookAnimation'
 import { ModalShell } from '@/components/ModalShell'
+import { Checkbox, Input, Pill } from '@/components/page'
+import { cn, stripMarkdown } from '@/lib/utils'
 import type { BookDetail, MetadataCandidate } from '@/lib/books'
 
 const API = import.meta.env.VITE_API_URL ?? ''
@@ -36,7 +38,7 @@ function candidateToFields(book: BookDetail, c: MetadataCandidate): FieldRow[] {
   return [
     { key: 'title', label: msg`Title`, current: book.title, incoming: c.title, checked: true },
     { key: 'author', label: msg`Author`, current: book.author, incoming: c.author, checked: true },
-    { key: 'description', label: msg`Description`, current: book.description, incoming: c.description, checked: true },
+    { key: 'description', label: msg`Description`, current: book.description, incoming: c.description ? stripMarkdown(c.description) : null, checked: true },
     { key: 'publisher', label: msg`Publisher`, current: book.publisher, incoming: c.publisher, checked: true },
     { key: 'year', label: msg`Year`, current: book.year?.toString() ?? null, incoming: c.year?.toString() ?? null, checked: true },
     { key: 'language', label: msg`Language`, current: book.language, incoming: c.language, checked: true },
@@ -82,9 +84,9 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
   }
 
   async function doSearch(q: string) {
+    // The previous results stay (dimmed) until the new ones land.
     setLoading(true)
     setError(null)
-    setCandidates([])
     setSourceNotice(null)
     try {
       const qs = q.trim() ? `?q=${encodeURIComponent(q)}` : ''
@@ -94,7 +96,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
       if (!r.ok) throw new Error(await r.text())
       const data: { candidates: MetadataCandidate[]; sources?: Record<string, string> } = await r.json()
 
-      // Be honest about degraded sources — "no results" used to swallow 429s.
+      // Be honest about degraded sources: "no results" used to swallow 429s.
       /* eslint-disable lingui/no-unlocalized-strings -- provider names */
       const labels: Record<string, string> = {
         hardcover: 'Hardcover', google_books: 'Google Books', open_library: 'Open Library', anilist: 'AniList',
@@ -102,17 +104,17 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
       /* eslint-enable lingui/no-unlocalized-strings */
       const degraded = Object.entries(data.sources ?? {})
         .filter(([, s]) => s === 'rate_limited' || s === 'timeout' || s === 'error')
-        .map(([k, s]) => { const name = labels[k] ?? k; return s === 'rate_limited' ? t`${name} is rate-limited — try again in a minute` : s === 'timeout' ? t`${name} timed out` : t`${name} errored` })
+        .map(([k, s]) => { const name = labels[k] ?? k; return s === 'rate_limited' ? t`${name} is rate-limited, try again in a minute` : s === 'timeout' ? t`${name} timed out` : t`${name} errored` })
       if (degraded.length) setSourceNotice(degraded.join(' · '))
 
+      setCandidates(data.candidates)
       if (data.candidates.length === 0) {
         setError(degraded.length
-          ? t`No results — but some sources were unavailable (see below); retrying may help.`
+          ? t`No results, but some sources were unavailable (see below). Retrying may help.`
           : t`No results found. Try a different search query.`)
-      } else {
-        setCandidates(data.candidates)
       }
     } catch (e: unknown) {
+      setCandidates([])
       setError(e instanceof Error ? e.message : t`Search failed`)
     } finally {
       setLoading(false)
@@ -148,7 +150,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
 
       if (checkedKeys.has('title') && selected.title) body.title = selected.title
       if (checkedKeys.has('author') && selected.author) body.author = selected.author
-      if (checkedKeys.has('description') && selected.description) body.description = selected.description
+      if (checkedKeys.has('description') && selected.description) body.description = stripMarkdown(selected.description)
       if (checkedKeys.has('publisher') && selected.publisher) body.publisher = selected.publisher
       if (checkedKeys.has('year') && selected.year != null) body.year = selected.year
       if (checkedKeys.has('language') && selected.language) body.language = selected.language
@@ -178,239 +180,216 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
     onClose()
   }
 
+  const sourceName = (src: string, short = false) =>
+    /* eslint-disable lingui/no-unlocalized-strings -- provider names */
+    src === 'hardcover' ? 'Hardcover'
+      : src === 'google_books' ? (short ? 'Google' : 'Google Books')
+        : src === 'anilist' ? 'AniList'
+          : 'Open Library'
+    /* eslint-enable lingui/no-unlocalized-strings */
+
+  const footer = step === 'diff' && selected ? (
+    <>
+      <Pill variant="quiet" onClick={handleClose}><Trans>Cancel</Trans></Pill>
+      <Pill variant="primary" onClick={applySelected} disabled={applying || fields.every(f => !f.checked)}>
+        {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+        <Trans>Apply selected</Trans>
+      </Pill>
+    </>
+  ) : (
+    <Pill variant="quiet" onClick={handleClose}><Trans>Cancel</Trans></Pill>
+  )
+
   return (
-    <ModalShell open={open} onClose={handleClose} className="w-full max-w-3xl">
-      <div className="bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft max-h-[90vh] overflow-y-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border sticky top-0 bg-background z-10">
-          <div className="flex items-center gap-2 font-semibold text-sm">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <Trans>Fetch Metadata</Trans>
-            <span className="text-muted-foreground font-normal">— {book.title}</span>
+    <ModalShell
+      open={open}
+      onClose={handleClose}
+      title={<Trans>Fetch metadata</Trans>}
+      eyebrow={book.title}
+      size="lg"
+      footer={footer}
+    >
+      {/* ── Search step ─────────────────────────────────────────── */}
+      {step === 'search' && (
+        <div className="flex flex-col gap-4">
+          <p className="text-[14px] text-muted-foreground">
+            {(() => { const title = book.title; return <Trans>Searching for: <span className="font-medium text-foreground">{title}</span></Trans> })()}
+            {book.author && <> · <span className="font-medium text-foreground">{book.author}</span></>}
+          </p>
+
+          <div className="flex gap-2">
+            <Input
+              ref={queryRef}
+              placeholder={t`Override search query (optional)…`}
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              onKeyDown={e => e.key === 'Enter' && doSearch(query)}
+              aria-label={t`Search query`}
+            />
+            <Pill onClick={() => doSearch(query)} disabled={loading} className="shrink-0">
+              {loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+              <Trans>Search</Trans>
+            </Pill>
           </div>
-          <button onClick={handleClose} className="text-muted-foreground hover:text-foreground transition-colors">
-            <X className="h-4 w-4" />
-          </button>
-        </div>
 
-        <div className="p-6 space-y-4">
-          {/* ── Search step ─────────────────────────────────────────── */}
-          {step === 'search' && (
-            <>
-              <p className="text-sm text-muted-foreground">
-                {(() => { const title = book.title; return <Trans>Searching for: <span className="font-medium text-foreground">{title}</span></Trans> })()}
-                {book.author && <> · <span className="font-medium text-foreground">{book.author}</span></>}
+          {error && <p className="text-[14px] text-destructive">{error}</p>}
+
+          {loading && candidates.length === 0 && (
+            <div className="flex flex-col items-center justify-center gap-3 py-8">
+              <BookAnimation variant="refresh" className="block h-12 w-12 text-primary" />
+              <p className="text-[14px] text-muted-foreground"><Trans>Searching…</Trans></p>
+            </div>
+          )}
+
+          {!loading && sourceNotice && (
+            <p className="text-[13px] text-warning">{sourceNotice}</p>
+          )}
+
+          {candidates.length > 0 && (
+            <div className={cn('transition-opacity', loading && 'pointer-events-none opacity-50')}>
+              <p className="mb-1 text-[13px] text-muted-foreground">
+                {plural(candidates.length, { one: '# result, pick one to review', other: '# results, pick one to review' })}
               </p>
-
-              <div className="flex gap-2">
-                <input
-                  ref={queryRef}
-                  className="flex h-9 w-full rounded-md border border-border bg-transparent px-3 py-1 text-sm placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-ring"
-                  placeholder={t`Override search query (optional)…`}
-                  value={query}
-                  onChange={e => setQuery(e.target.value)}
-                  onKeyDown={e => e.key === 'Enter' && doSearch(query)}
-                />
-                <button
-                  onClick={() => doSearch(query)}
-                  disabled={loading}
-                  className="shrink-0 flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-                >
-                  {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : t`Search`}
-                </button>
-              </div>
-
-              {error && <p className="text-sm text-destructive">{error}</p>}
-
-              {loading && (
-                <div className="flex flex-col items-center justify-center py-8 gap-3">
-                  <BookAnimation variant="refresh" className="block w-12 h-12 text-primary" />
-                  <p className="text-sm text-muted-foreground"><Trans>Searching…</Trans></p>
-                </div>
-              )}
-
-              {!loading && sourceNotice && (
-                <p className="text-xs text-amber-600 dark:text-amber-400 mb-2">{sourceNotice}</p>
-              )}
-
-              {!loading && candidates.length > 0 && (
-                <div className="space-y-2">
-                  <p className="text-xs text-muted-foreground">
-                    {plural(candidates.length, { one: '# result — pick one to review', other: '# results — pick one to review' })}
-                  </p>
-                  {candidates.map((c, i) => (
+              <ul className="border-t border-border/70">
+                {candidates.map((c, i) => (
+                  <li key={`${c.source}-${c.source_id}`} className="border-b border-border/70">
                     <button
-                      key={`${c.source}-${c.source_id}`}
-                      className="w-full text-left rounded-lg border border-border bg-card p-3 hover:bg-accent transition-colors flex gap-3"
+                      type="button"
+                      data-candidate
+                      className="-mx-3 flex w-[calc(100%+1.5rem)] gap-3.5 rounded-lg px-3 py-3 text-left transition-colors hover:bg-secondary/70 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                       onClick={() => selectCandidate(c)}
                     >
                       {c.cover_url ? (
-                        <img src={c.cover_url} alt="" className="h-20 w-14 object-cover rounded shrink-0" />
+                        <img src={c.cover_url} alt="" className="h-[72px] w-12 shrink-0 rounded-[8px] object-cover" style={{ boxShadow: 'var(--cover-bloom-fan)' }} />
                       ) : (
-                        <div className="h-20 w-14 rounded bg-muted flex items-center justify-center shrink-0">
-                          <BookOpen className="h-6 w-6 text-muted-foreground" />
+                        <div className="flex h-[72px] w-12 shrink-0 items-center justify-center rounded-[8px] bg-secondary">
+                          <BookOpen className="h-5 w-5 text-muted-foreground" />
                         </div>
                       )}
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-2">
-                          <p className="font-medium line-clamp-2">{c.title}</p>
-                          <span className="flex items-center gap-1 shrink-0">
-                            {i === 0 && (
-                              <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/15 text-primary font-medium">
-                                <Trans>Best match</Trans>
-                              </span>
-                            )}
-                            <span className="text-[10px] px-1.5 py-0.5 rounded border border-border text-muted-foreground bg-muted">
-                              {/* eslint-disable-next-line lingui/no-unlocalized-strings -- provider names */}
-                          {c.source === 'hardcover' ? 'Hardcover' : c.source === 'google_books' ? 'Google' : c.source === 'anilist' ? 'AniList' : 'OpenLib'}
-                            </span>
-                          </span>
+                        <div className="flex flex-wrap items-center gap-x-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                          <span>{sourceName(c.source)}</span>
+                          {i === 0 && <span className="text-primary"><Trans>Best match</Trans></span>}
                         </div>
-                        {c.author && <p className="text-sm text-muted-foreground mt-0.5">{c.author}</p>}
-                        {c.year && <p className="text-xs text-muted-foreground">{c.year}</p>}
+                        <p className="mt-0.5 line-clamp-2 text-[15px] font-medium text-foreground">{c.title}</p>
+                        {(c.author || c.year) && (
+                          <p className="text-[14px] text-muted-foreground">
+                            {[c.author, c.year].filter(Boolean).join(' · ')}
+                          </p>
+                        )}
                         {c.description && (
-                          <p className="text-xs text-muted-foreground line-clamp-2 mt-1">{c.description}</p>
+                          <p className="mt-1 line-clamp-2 text-[13px] text-muted-foreground">{stripMarkdown(c.description)}</p>
                         )}
                         {c.tags.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {c.tags.slice(0, 4).map(t => (
-                              <span key={t} className="text-xs bg-muted rounded px-1">{t}</span>
-                            ))}
-                            {c.tags.length > 4 && (
-                              <span className="text-xs text-muted-foreground">+{c.tags.length - 4}</span>
-                            )}
-                          </div>
+                          <p className="mt-1 truncate text-[13px] text-muted-foreground/80">
+                            {c.tags.slice(0, 4).join(' · ')}
+                            {c.tags.length > 4 && ` +${c.tags.length - 4}`}
+                          </p>
                         )}
                       </div>
                     </button>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-
-          {/* ── Diff step ───────────────────────────────────────────── */}
-          {step === 'diff' && selected && (
-            <>
-              <div className="flex items-center justify-between">
-                <button
-                  onClick={() => { setStep('search'); setSelected(null); setFields([]) }}
-                  className="text-sm text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <Trans>← Back to results</Trans>
-                </button>
-                <label className="flex items-center gap-2 text-sm font-medium cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={allChecked()}
-                    onChange={toggleAll}
-                    className="rounded border-border"
-                  />
-                  <Trans>Select all</Trans>
-                </label>
-              </div>
-
-              <div className="rounded-lg border border-border overflow-hidden">
-                {/* Header row */}
-                <div className="grid grid-cols-[24px_100px_1fr_1fr] gap-3 items-center bg-muted px-3 py-2 text-[11px] font-medium text-muted-foreground uppercase tracking-wide">
-                  <span />
-                  <span><Trans>Field</Trans></span>
-                  <span><Trans>Current</Trans></span>
-                  <span>
-                    <Trans>Incoming</Trans>
-                    <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded border border-border bg-background normal-case tracking-normal">
-                      {/* eslint-disable-next-line lingui/no-unlocalized-strings -- provider names */}
-                      {selected.source === 'hardcover' ? 'Hardcover' : selected.source === 'google_books' ? 'Google Books' : selected.source === 'anilist' ? 'AniList' : 'Open Library'}
-                    </span>
-                  </span>
-                </div>
-
-                {fields.map((f, i) => {
-                  const hasChange = !!(f.incoming && f.incoming !== f.current)
-                  return (
-                    <div
-                      key={f.key}
-                      className={[
-                        'grid grid-cols-[24px_100px_1fr_1fr] gap-3 items-start px-3 py-2.5 text-sm',
-                        i > 0 ? 'border-t border-border/50' : '',
-                        !hasChange ? 'opacity-50' : '',
-                      ].join(' ')}
-                    >
-                      <input
-                        type="checkbox"
-                        checked={f.checked}
-                        onChange={() => toggleField(f.key)}
-                        disabled={!hasChange}
-                        className="mt-0.5 rounded border-border"
-                      />
-                      <span className="font-medium text-muted-foreground text-xs mt-0.5">{i18n._(f.label)}</span>
-
-                      {/* Current value */}
-                      {f.key === 'cover' ? (
-                        <span className="text-muted-foreground text-xs italic mt-0.5">
-                          {book.cover_path ? t`Has cover` : t`No cover`}
-                        </span>
-                      ) : (
-                        <span className={`break-words line-clamp-3 text-xs ${hasChange ? 'line-through text-muted-foreground' : 'text-foreground'}`}>
-                          {f.current ?? <span className="text-muted-foreground/50 italic">—</span>}
-                        </span>
-                      )}
-
-                      {/* Incoming value */}
-                      {f.key === 'cover' ? (
-                        f.incoming ? (
-                          <div className="flex items-start gap-2">
-                            <img
-                              src={f.incoming}
-                              alt={t`New cover`}
-                              className="h-16 w-12 object-cover rounded border border-border"
-                            />
-                            <a
-                              href={f.incoming}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-primary hover:underline flex items-center gap-1 mt-0.5"
-                            >
-                              <Trans>Preview</Trans> <ExternalLink className="h-3 w-3" />
-                            </a>
-                          </div>
-                        ) : (
-                          <span className="text-muted-foreground/50 italic text-xs mt-0.5"><Trans>No cover available</Trans></span>
-                        )
-                      ) : (
-                        <span className={`break-words line-clamp-3 text-xs ${hasChange ? 'text-primary font-medium' : 'text-foreground'}`}>
-                          {f.incoming ?? <span className="text-muted-foreground/50 italic">—</span>}
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-
-              {error && <p className="text-sm text-destructive">{error}</p>}
-
-              <div className="flex justify-end gap-2 pt-1">
-                <button
-                  onClick={handleClose}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
-                >
-                  <X className="h-3.5 w-3.5" /> <Trans>Cancel</Trans>
-                </button>
-                <button
-                  onClick={applySelected}
-                  disabled={applying || fields.every(f => !f.checked)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-                >
-                  {applying
-                    ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    : <Check className="h-3.5 w-3.5" />}
-                  <Trans>Apply Selected</Trans>
-                </button>
-              </div>
-            </>
+                  </li>
+                ))}
+              </ul>
+            </div>
           )}
         </div>
-      </div>
+      )}
+
+      {/* ── Diff step ───────────────────────────────────────────── */}
+      {step === 'diff' && selected && (
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between gap-3">
+            <Pill
+              variant="quiet"
+              className="-ml-3"
+              onClick={() => { setStep('search'); setSelected(null); setFields([]) }}
+            >
+              <ChevronLeft className="h-4 w-4" />
+              <Trans>Back to results</Trans>
+            </Pill>
+            <Checkbox checked={allChecked()} onChange={toggleAll} label={<Trans>Select all</Trans>} />
+          </div>
+
+          <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:hidden">
+            {(() => { const src = sourceName(selected.source); return <Trans>Incoming from {src}</Trans> })()}
+          </p>
+
+          <div className="border-t border-border/70">
+            {/* Header row */}
+            <div className="hidden grid-cols-[24px_100px_minmax(0,1fr)_minmax(0,1fr)] items-center gap-3 border-b border-border/70 py-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground sm:grid">
+              <span />
+              <span><Trans>Field</Trans></span>
+              <span><Trans>Current</Trans></span>
+              <span className="truncate">
+                <Trans>Incoming</Trans>
+                <span className="ml-1.5 text-primary">{sourceName(selected.source)}</span>
+              </span>
+            </div>
+
+            {fields.map(f => {
+              const hasChange = !!(f.incoming && f.incoming !== f.current)
+              return (
+                <div
+                  key={f.key}
+                  className={cn(
+                    'grid grid-cols-[24px_minmax(0,1fr)] items-start gap-x-3 gap-y-1 border-b border-border/70 py-3 sm:grid-cols-[24px_100px_minmax(0,1fr)_minmax(0,1fr)]',
+                    !hasChange && 'opacity-50',
+                  )}
+                >
+                  <Checkbox
+                    checked={f.checked}
+                    onChange={() => toggleField(f.key)}
+                    disabled={!hasChange}
+                    aria-label={i18n._(f.label)}
+                  />
+                  <span className="pt-px text-[13px] font-medium text-muted-foreground">{i18n._(f.label)}</span>
+
+                  {/* Current value */}
+                  {f.key === 'cover' ? (
+                    <span className="col-start-2 text-[13px] text-muted-foreground sm:col-start-auto">
+                      {book.cover_path ? t`Has cover` : t`No cover`}
+                    </span>
+                  ) : (
+                    <span className={cn('col-start-2 line-clamp-3 break-words text-[14px] sm:col-start-auto', hasChange ? 'text-muted-foreground line-through' : 'text-foreground')}>
+                      {f.current ?? <span className="text-muted-foreground/50">-</span>}
+                    </span>
+                  )}
+
+                  {/* Incoming value */}
+                  {f.key === 'cover' ? (
+                    f.incoming ? (
+                      <div className="col-start-2 flex min-w-0 items-start gap-2.5 sm:col-start-auto">
+                        <img
+                          src={f.incoming}
+                          alt={t`New cover`}
+                          className="h-16 w-11 shrink-0 rounded-[6px] object-cover"
+                        />
+                        <a
+                          href={f.incoming}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex shrink-0 items-center gap-1 text-[13px] text-primary hover:underline"
+                        >
+                          <Trans>Preview</Trans> <ExternalLink className="h-3 w-3" />
+                        </a>
+                      </div>
+                    ) : (
+                      <span className="col-start-2 text-[13px] text-muted-foreground/60 sm:col-start-auto"><Trans>No cover available</Trans></span>
+                    )
+                  ) : (
+                    <span className={cn('col-start-2 line-clamp-3 break-words text-[14px] sm:col-start-auto', hasChange ? 'font-medium text-primary' : 'text-foreground')}>
+                      {f.incoming ?? <span className="text-muted-foreground/50">-</span>}
+                    </span>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+
+          {error && <p className="text-[14px] text-destructive">{error}</p>}
+        </div>
+      )}
     </ModalShell>
   )
 }

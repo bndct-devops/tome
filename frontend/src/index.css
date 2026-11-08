@@ -28,6 +28,10 @@
   --color-input: var(--input);
   --color-ring: var(--ring);
   --color-accent-soft: var(--accent-soft);
+  --color-frame: var(--frame);
+  --color-surface-hover: var(--surface-hover);
+  --color-panel-ring: var(--panel-ring);
+  --radius-panel: 22px;
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -47,7 +51,9 @@
   --popover-foreground: oklch(0.21 0.012 60);
   --primary: oklch(0.45 0.115 18);
   --primary-foreground: oklch(0.98 0.005 85);
-  --secondary: oklch(0.94 0.004 85);
+  /* A clear step below --frame (0.945): the header search pill sits on the
+     frame and vanished into it at 0.94. */
+  --secondary: oklch(0.925 0.005 85);
   --secondary-foreground: oklch(0.27 0.012 60);
   --muted: oklch(0.94 0.004 85);
   --muted-foreground: oklch(0.50 0.010 70);
@@ -64,9 +70,17 @@
   --rating: oklch(0.62 0.11 76);
   --border: oklch(0.90 0.005 85);
   --input: oklch(0.88 0.005 85);
-  --ring: oklch(0.45 0.115 18);
+  --ring: color-mix(in oklch, var(--foreground) 32%, transparent);  /* focus ring: neutral, never the accent (reads as an error) */
   --chart-accent: oklch(0.52 0.13 18);
   --accent-soft: oklch(0.45 0.115 18 / 0.12);
+  /* The frame behind the sidebar and header; the page content is a rounded
+     panel set into it, one step lighter (dark themes) or lighter (light themes). */
+  --frame: oklch(0.945 0.004 85);
+  --panel-ring: transparent;
+  /* One step past --secondary for hover: in the dark themes --secondary and
+     --muted are the same colour, so a secondary pill hovering to muted did
+     not change at all. */
+  --surface-hover: oklch(0.89 0.006 85);
 }
 
 /* Dark — near-neutral with a trace of warmth (not zinc, not espresso)
@@ -99,9 +113,11 @@
      read flat. 16% is still a hairline, it just survives being on a 0.21 card. */
   --border: oklch(0.95 0.008 60 / 16%);
   --input: oklch(0.95 0.008 60 / 20%);
-  --ring: oklch(0.64 0.12 22);
+  --ring: color-mix(in oklch, var(--foreground) 32%, transparent);  /* focus ring: neutral, never the accent (reads as an error) */
   --chart-accent: oklch(0.64 0.12 22);
   --accent-soft: oklch(0.64 0.12 22 / 0.16);
+  --frame: oklch(0.115 0.004 60);
+  --surface-hover: oklch(0.33 0.006 60);
 }
 
 /* Ember — the warm cappuccino dark: espresso surfaces, same rosewood accent.
@@ -116,6 +132,8 @@
   --muted-foreground: oklch(0.74 0.015 70);
   --border: oklch(0.95 0.015 60 / 16%);
   --input: oklch(0.95 0.015 60 / 20%);
+  --frame: oklch(0.13 0.012 60);
+  --surface-hover: oklch(0.35 0.016 60);
 }
 
 /* Black — true-black OLED theme, same wine identity.
@@ -128,11 +146,14 @@
   --muted: oklch(0.20 0.004 60);
   --accent: oklch(0.20 0.004 60);
   --primary: oklch(0.67 0.12 22);
-  --ring: oklch(0.67 0.12 22);
+  --ring: color-mix(in oklch, var(--foreground) 32%, transparent);  /* focus ring: neutral, never the accent (reads as an error) */
   --chart-accent: oklch(0.67 0.12 22);
   --accent-soft: oklch(0.67 0.12 22 / 0.18);
   --border: oklch(1 0 0 / 17%);
   --input: oklch(1 0 0 / 21%);
+  --frame: oklch(0 0 0);
+  --panel-ring: oklch(1 0 0 / 12%);
+  --surface-hover: oklch(0.27 0.005 60);
 }
 
 /* Amber (warm parchment) theme */
@@ -145,7 +166,8 @@
   --popover-foreground: oklch(0.17 0.022 52);
   --primary: oklch(0.50 0.155 52);
   --primary-foreground: oklch(0.99 0.003 70);
-  --secondary: oklch(0.935 0.012 70);
+  /* A clear step below --frame (0.94), as in Light. */
+  --secondary: oklch(0.918 0.014 70);
   --secondary-foreground: oklch(0.30 0.02 52);
   --muted: oklch(0.935 0.01 70);
   --muted-foreground: oklch(0.47 0.022 52);
@@ -159,9 +181,11 @@
   --rating: oklch(0.60 0.115 74);
   --border: oklch(0.89 0.012 70);
   --input: oklch(0.87 0.013 70);
-  --ring: oklch(0.50 0.155 52);
+  --ring: color-mix(in oklch, var(--foreground) 32%, transparent);  /* focus ring: neutral, never the accent (reads as an error) */
   --chart-accent: oklch(0.56 0.155 52);
   --accent-soft: oklch(0.50 0.155 52 / 0.12);
+  --frame: oklch(0.94 0.012 70);
+  --surface-hover: oklch(0.885 0.016 70);
 }
 
 /* Card stagger entrance animation */
@@ -183,6 +207,22 @@
 @keyframes fadeIn {
   from { opacity: 0; transform: translateY(6px); }
   to   { opacity: 1; transform: none; }
+}
+
+/* Settings and Admin replace the app sidebar with their own section list,
+   which slides in from the left (no fade: the frame behind it is painted). */
+@keyframes section-sidebar-in { from { transform: translateX(-16px); } to { transform: none; } }
+
+/* Quick look: the veil fades in over the page, the card scales up from the
+   centre. Both start from nothing on purpose: they are new layers over the
+   page, not content inside a painted container. */
+@keyframes quicklook-veil { from { opacity: 0; } to { opacity: 1; } }
+@keyframes quicklook-in {
+  from { opacity: 0; transform: translateY(10px) scale(0.965); }
+  to   { opacity: 1; transform: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .animate-\[quicklook-in_220ms_cubic-bezier\(0\.2\,0\.8\,0\.2\,1\)\] { animation: none; }
 }
 
 /* Focus-mode cover bloom — a soft black halo on light themes, a neutral light
@@ -369,6 +409,10 @@ html {
    Safari *tab* always allows it for accessibility). */
 html,
 body {
+  /* Onest ships tabular digits by default, which pads every "1" in running
+     text ("1 1h", "2 1%"). Proportional everywhere; columns and stat numbers
+     opt back in with the tabular-nums utility. */
+  font-variant-numeric: proportional-nums;
   /* No scroll chaining out of the document: stops the edge bounce and
      Android's pull-to-refresh. The app shell scrolls internally anyway. */
   overscroll-behavior: none;

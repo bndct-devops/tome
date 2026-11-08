@@ -31,14 +31,13 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <h2>30-second install</h2>
   <Steps>
     <li>In Tome, open <strong>Settings → KOReader</strong>.</li>
-    <li>Click <strong>Download Plugin</strong>. You'll get a <code>.koplugin</code> file pre-configured with your server URL and a fresh API key.</li>
+    <li>Click <strong>Download plugin</strong>. You'll get a <code>.koplugin</code> file pre-configured with your server URL and a fresh API key.</li>
     <li>Drop it into KOReader's <code>plugins/</code> folder.</li>
     <li>Restart KOReader. TomeSync registers itself in the wrench menu.</li>
   </Steps>
 
   <Callout variant="note" title="KOReader version">
-    Use the current KOReader release. All features need <strong>v2024.07 or newer</strong>
-    (highlights sync relies on KOReader's annotations API); metadata sync needs v2023.10 or
+    Use the current KOReader release. All features need <strong>v2024.07 or newer</strong> (highlights sync relies on KOReader's annotations API); metadata sync needs v2023.10 or
     newer. Older releases still load the plugin, with the affected entries disabled.
   </Callout>
 
@@ -54,15 +53,12 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <p>
     Every time you read, TomeSync records the session — start time, end time, pages turned,
     device. This is what powers the stats screens: streaks, time-of-day heatmaps, reading pace,
-    completion estimates. Plain KOSync only syncs <em>where</em> you stopped; TomeSync tracks
-    <em>what</em> you did to get there.
+    completion estimates. Plain KOSync only syncs <em>where</em> you stopped; TomeSync tracks <em>what</em> you did to get there.
   </p>
 
   <h3>Idle time cap</h3>
   <p>
-    Session time is counted per page turn, and any single gap is credited at most the
-    <strong>idle time cap</strong> (default 10 minutes, adjustable under
-    <strong>TomeSync → Settings → Idle time cap</strong>, including off). If the device sits
+    Session time is counted per page turn, and any single gap is credited at most the <strong>idle time cap</strong> (default 10 minutes, adjustable under <strong>TomeSync → Settings → Idle time cap</strong>, including off). If the device sits
     awake without a page turn — you fell asleep over the book, or the cover didn't put it to
     sleep — the time beyond the cap simply isn't booked, and the session ends at your last page
     turn instead of whenever the device finally suspended. This is the same approach KOReader's
@@ -112,8 +108,7 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <h3>Ratings &amp; reviews sync</h3>
   <p>
     KOReader has a native <strong>Book status</strong> screen with a 1–5 star rating and a
-    review. The plugin keeps it in step with the rating and review on Tome's book detail page,
-    <strong>both ways</strong>: rate a book on the web and it appears in KOReader the next time
+    review. The plugin keeps it in step with the rating and review on Tome's book detail page, <strong>both ways</strong>: rate a book on the web and it appears in KOReader the next time
     you open it (for a book that came from Tome); rate it in KOReader and it flows up to Tome when
     you close or suspend. Ratings are per user and private to you, and your reading status
     (reading / finished) is left untouched — that syncs separately. The plugin tracks the last
@@ -156,8 +151,7 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
 
   <h3 id="on-device">Books on the device</h3>
   <p>
-    From build 50 the plugin tells Tome which of its books are on the device, so books show an
-    <strong>On Kindle</strong> pill (named after the device) and the library filters get a row per
+    From build 50 the plugin tells Tome which of its books are on the device, so books show an <strong>On Kindle</strong> pill (named after the device) and the library filters get a row per
     device with <strong>On Kindle</strong> and <strong>Not on Kindle</strong>. Only Tome book ids are
     sent, never file names. The list goes up on launch, wake, WiFi up, Sync now and after downloads,
     and replaces the previous one, so a book you delete drops out on the next sync.
@@ -166,8 +160,7 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <h3 id="sync-code">Sync code: hand offline reading to your phone</h3>
   <p>
     Travelling, hotel WiFi with a captive portal, a device that never sees the home network: when
-    the e-reader is offline but your phone is not, <strong>TomeSync → Show sync code</strong>
-    turns everything the device could not send — sessions, positions, ratings — into a QR code on
+    the e-reader is offline but your phone is not, <strong>TomeSync → Show sync code</strong> turns everything the device could not send — sessions, positions, ratings — into a QR code on
     the e-ink screen (several pages for a long stretch, tap to turn). Scan it with the Tome app
     (Home, or Settings → KOReader) or the web UI (Settings → KOReader → Scan a sync code) and it
     lands in Tome at once, with an overview of which books were touched: cover, sessions and time,
@@ -190,15 +183,11 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     TomeSync lets you browse and download your library's series directly from KOReader — no
     browser needed.
   </p>
-  <p><strong>From the home screen</strong> (no book open): open the wrench menu →
-    <strong>TomeSync → Browse Series</strong>. A list shows every series in your library with
+  <p><strong>From the home screen</strong> (no book open): open the wrench menu → <strong>TomeSync → Browse series</strong>. A list shows every series in your library with
     book counts and authors. Tap a series to download all volumes at once.
   </p>
   <p>
-    The browser has four ways in: the series list itself, <strong>Search library…</strong>
-    (free-text over title, author, and series, with your recent searches one tap away),
-    <strong>Browse by author</strong> (the natural route to standalone books), and
-    <strong>Shelves</strong> — your saved shelves from the web app, listed with live book
+    The browser has four ways in: the series list itself, <strong>Search library…</strong> (free-text over title, author, and series, with your recent searches one tap away), <strong>Browse by author</strong> (the natural route to standalone books), and <strong>Shelves</strong> — your saved shelves from the web app, listed with live book
     counts and resolved server-side, so a "German" or "unread manga" shelf is one tap away
     on the device. All of them open the same volume list: tap to download, hold a row to set
     read status.
@@ -209,9 +198,7 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     <li><strong>Download rest of series</strong> — only volumes after your current one (based on series index).</li>
   </ul>
   <p>
-    Downloads are organized by book type and series:
-    <code>&lt;home_dir&gt;/&lt;book_type&gt;/&lt;Series Name&gt;/Vol. N — Title.ext</code>
-    (e.g. <code>books/manga/One Piece/Vol. 1 — One Piece.epub</code>).
+    Downloads are organized by book type and series: <code>&lt;home_dir&gt;/&lt;book_type&gt;/&lt;Series Name&gt;/Vol. N — Title.ext</code> (e.g. <code>books/manga/One Piece/Vol. 1 — One Piece.epub</code>).
     Format preference is epub → kepub.epub → cbz → pdf → mobi → azw3. Books already on the
     device are skipped. A live progress popup shows each download, and a summary reports
     downloaded/skipped/failed counts when finished.
@@ -231,14 +218,12 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     See <a href={withBase("/docs/configuration")}>configuration</a>.
   </Callout>
   <p>
-    On any book (or a multi-select on the dashboard), use the <strong>Send to KOReader</strong>
-    split button — the caret still offers <strong>Send via email…</strong>. There's nothing to pair:
+    On any book (or a multi-select on the dashboard), use the <strong>Send to KOReader</strong> split button — the caret still offers <strong>Send via email…</strong>. There's nothing to pair:
     it queues to your account's inbox, and every KOReader you've connected pulls from the same queue.
   </p>
   <ThemedShot client:load name="send-to-koreader" alt="The Send to KOReader split button on a book's detail page, with the email option in the dropdown" className="block" />
   <p>
-    Delivery is <strong>not instant</strong> — it's a pull, not a push. The plugin shows an
-    <strong>Inbox (N)</strong> badge in the TomeSync menu; queued books arrive the next time
+    Delivery is <strong>not instant</strong> — it's a pull, not a push. The plugin shows an <strong>Inbox (N)</strong> badge in the TomeSync menu; queued books arrive the next time
     KOReader checks in (shortly after launch), or tap <strong>Inbox</strong> to pull them now. Each
     book is filed exactly like a series download — by book type and series, or under its author for
     standalones — and marked delivered once it's on the device.
@@ -264,24 +249,20 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <h3>Reading-history backfill</h3>
   <p>
     KOReader's built-in statistics plugin records every page you dwell on — going back to long
-    before Tome existed. TomeSync can push that database to your server:
-    <strong>TomeSync → Settings → Auto-sync reading history on launch</strong>, or run it once
+    before Tome existed. TomeSync can push that database to your server: <strong>TomeSync → Settings → Auto-sync reading history on launch</strong>, or run it once
     via <strong>Sync reading history</strong>. The first sync backfills everything (chunked and
     resumable — a dropped connection just continues next time); later syncs send only new
     reading. It carries reading time and pages only, never your read/unread status.
   </p>
   <p>
     Once a book has imported history, that history becomes the source of truth for its device
-    reading: it feeds the per-page <strong>Reading intensity</strong> and
-    <strong>Time per chapter</strong> charts on the book page, and its sittings appear in the
-    <a href={withBase("/docs/stats")}>session lists</a> tagged <em>imported</em>. The plugin's
+    reading: it feeds the per-page <strong>Reading intensity</strong> and <strong>Time per chapter</strong> charts on the book page, and its sittings appear in the <a href={withBase("/docs/stats")}>session lists</a> tagged <em>imported</em>. The plugin's
     own live sessions for the same sittings are excluded from the totals so nothing is counted
     twice; reading of that book on another device that has not synced its history still counts
     through its live sessions.
   </p>
   <p>
-    The sync keeps its place per device, under the name shown in
-    <strong>TomeSync → Settings → Device name</strong>. It defaults to the device model
+    The sync keeps its place per device, under the name shown in <strong>TomeSync → Settings → Device name</strong>. It defaults to the device model
     (for example <code>KindlePaperWhite4</code>); set a name if you use several devices of the
     same kind. Renaming carries the device's imported history and sync position over.
   </p>
@@ -328,8 +309,7 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
   <h2 id="changing-servers">Changing servers &amp; switching accounts</h2>
   <p>
     The downloaded plugin comes pre-configured, but the configuration isn't locked in. From
-    plugin build 41, the connection can be changed on the device under
-    <strong>TomeSync → Settings</strong>:
+    plugin build 41, the connection can be changed on the device under <strong>TomeSync → Settings</strong>:
   </p>
   <ul>
     <li><strong>Server URL</strong> — edit this if your server moved (new LAN IP, new domain,
@@ -343,7 +323,7 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
       network change costs one attempt and nothing after that.</li>
     <li><strong>Sign in with code</strong> — connects the device to an account without typing
       any credentials. The plugin shows a short pairing code; enter it in Tome on any
-      signed-in browser under <strong>Settings → Security → Quick Connect</strong>, and the
+      signed-in browser under <strong>Settings → Account and security → Quick Connect</strong>, and the
       device receives its own API key. Codes expire after 5 minutes, and nothing changes on
       the device until pairing completes — a failed attempt never breaks a working setup.</li>
     <li><strong>Account</strong> — shows which account the device syncs as. It's decided by

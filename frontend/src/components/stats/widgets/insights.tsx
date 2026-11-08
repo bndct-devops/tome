@@ -1,4 +1,4 @@
-// Batch-2 "insights" stats widgets — lifetime, records, TBR, reading clock, language.
+// Batch-2 "insights" stats widgets - lifetime, records, TBR, reading clock, language.
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip } from 'recharts'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
@@ -17,22 +17,22 @@ const Empty = () => <p className="py-10 text-center text-sm text-muted-foregroun
 export function LifetimeTotals({ data }: { data: StatsResponse['lifetime'] }) {
   if (!data) return <Empty />
   const items: { icon: LucideIcon; label: string; value: string }[] = [
-    { icon: Clock, label: t`Total Time`, value: formatDuration(data.seconds) },
+    { icon: Clock, label: t`Total time`, value: formatDuration(data.seconds) },
     { icon: FileText, label: t`Pages`, value: data.pages.toLocaleString() },
-    { icon: BookCheck, label: t`Books Finished`, value: String(data.books_finished) },
+    { icon: BookCheck, label: t`Books finished`, value: String(data.books_finished) },
     { icon: Activity, label: t`Sessions`, value: String(data.sessions) },
-    { icon: Calendar, label: t`Active Days`, value: String(data.active_days) },
-    { icon: Flame, label: t`Longest Streak`, value: `${data.longest_streak_days}d` },
+    { icon: Calendar, label: t`Active days`, value: String(data.active_days) },
+    { icon: Flame, label: t`Longest streak`, value: `${data.longest_streak_days}d` },
   ]
   return (
-    <div className="grid h-full grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="grid h-full grid-cols-2 content-center gap-x-6 gap-y-4 sm:grid-cols-3">
       {items.map((it) => (
-        <div key={it.label} className="flex flex-col justify-center rounded-lg border border-border bg-muted/20 px-3 py-1.5">
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <it.icon className="h-3 w-3 shrink-0" />
-            <span className="truncate text-[10px]">{it.label}</span>
+        <div key={it.label} className="flex min-w-0 flex-col justify-center">
+          <div className="flex items-center gap-1.5 text-muted-foreground">
+            <it.icon className="h-3.5 w-3.5 shrink-0" />
+            <span className="truncate text-[13px]">{it.label}</span>
           </div>
-          <p className="truncate text-base font-bold leading-tight text-foreground sm:text-lg">{it.value}</p>
+          <p className="mt-1 truncate font-display text-[24px] font-bold leading-none text-foreground">{it.value}</p>
         </div>
       ))}
     </div>
@@ -40,7 +40,7 @@ export function LifetimeTotals({ data }: { data: StatsResponse['lifetime'] }) {
 }
 
 // ── Personal records ────────────────────────────────────────────────────────────
-// "Dec 10 to Mar 8, 2026" — the year only once, so the span fits the row.
+// "Dec 10 to Mar 8, 2026" - the year only once, so the span fits the row.
 const fmtSpan = (a: string | null, b: string | null) => {
   if (!a || !b) return null
   const from = new Date(a + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
@@ -66,15 +66,15 @@ export function PersonalRecords({ data, streaks }: { data: StatsResponse['record
     { icon: FileText, label: t`Most pages in a day`, value: data.most_pages_day.toLocaleString(), sub: fmtDay(data.most_pages_date) },
   ]
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col">
       {rows.map((r) => (
-        <div key={r.label} className="flex items-center gap-3 rounded-lg border border-border bg-muted/20 px-3 py-1.5">
+        <div key={r.label} className="flex items-center gap-3 border-b border-border/70 py-2 last:border-b-0">
           <r.icon className="h-4 w-4 shrink-0 text-muted-foreground" />
           <div className="min-w-0 flex-1">
-            <p className="text-xs text-muted-foreground">{r.label}</p>
-            {r.sub && <p className="truncate text-[11px] text-muted-foreground/70">{r.sub}</p>}
+            <p className="text-[14px] text-foreground">{r.label}</p>
+            {r.sub && <p className="truncate text-[13px] text-muted-foreground">{r.sub}</p>}
           </div>
-          <p className="shrink-0 text-base font-bold tabular-nums text-foreground">{r.value}</p>
+          <p className="shrink-0 text-[15px] font-bold text-foreground">{r.value}</p>
         </div>
       ))}
     </div>
@@ -89,14 +89,14 @@ export function LibraryCompletion({ data }: { data: StatsResponse['tbr'] }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
         <span className="text-2xl font-bold text-foreground">{data.pct}%</span>
-        <span className="text-xs text-muted-foreground">{(() => { const read = data.read; const owned = data.owned; return <Trans>{read} of {owned} owned read</Trans> })()}{data.reading ? (() => { const n = data.reading; return t` · ${n} reading` })() : ''}{data.want_to_read ? (() => { const n = data.want_to_read; return t` · ${n} want to read` })() : ''}</span>
+        <span className="text-[13px] text-muted-foreground">{(() => { const read = data.read; const owned = data.owned; return <Trans>{read} of {owned} owned read</Trans> })()}{data.reading ? (() => { const n = data.reading; return t` · ${n} reading` })() : ''}{data.want_to_read ? (() => { const n = data.want_to_read; return t` · ${n} want to read` })() : ''}</span>
       </div>
       <div className="flex flex-col gap-2">
         {data.by_type.map((t) => (
           <div key={t.type}>
-            <div className="mb-1 flex items-center justify-between text-xs">
+            <div className="mb-1 flex items-center justify-between text-[13px]">
               <span className="truncate font-medium text-foreground">{t.type}</span>
-              <span className="shrink-0 tabular-nums text-muted-foreground">{t.read}/{t.owned} · {t.pct}%</span>
+              <span className="shrink-0 text-muted-foreground">{t.read}/{t.owned} · {t.pct}%</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full" style={{ width: `${Math.min(t.pct, 100)}%`, backgroundColor: accent }} />
@@ -108,7 +108,7 @@ export function LibraryCompletion({ data }: { data: StatsResponse['tbr'] }) {
   )
 }
 
-// ── Reading clock — 24h radial of when you read ─────────────────────────────────
+// ── Reading clock - 24h radial of when you read ─────────────────────────────────
 export function ReadingClock({ data }: { data: StatsResponse['hour_dow_heatmap'] }) {
   const { accent, tick } = useChartColors()
   if (!data) return <Empty />
@@ -140,7 +140,7 @@ export function ReadingClock({ data }: { data: StatsResponse['hour_dow_heatmap']
           return <text key={h} x={cx + lr * Math.cos(a)} y={cy + lr * Math.sin(a) + 3} fontSize={9} fill={tick} textAnchor="middle">{h}h</text>
         })}
       </svg>
-      {(() => { const peakEnd = (peak + 1) % 24; const dur = formatDuration(total); return <p className="text-[11px] text-muted-foreground"><Trans>Peak hour: <span className="font-medium text-foreground">{peak}:00–{peakEnd}:00</span> · {dur} total</Trans></p> })()}
+      {(() => { const peakEnd = (peak + 1) % 24; const dur = formatDuration(total); return <p className="text-[12px] text-muted-foreground"><Trans>Peak hour: <span className="font-medium text-foreground">{peak}:00-{peakEnd}:00</span> · {dur} total</Trans></p> })()}
     </div>
   )
 }
@@ -154,7 +154,7 @@ export function ReadingByLanguage({ data }: { data: StatsResponse['language'] })
     return (
       <div className="flex h-full flex-col items-center justify-center gap-1">
         <p className="text-xl font-bold text-foreground">{pts[0].language}</p>
-        {(() => { const dur = formatDuration(pts[0].seconds); const books = pts[0].books; return <p className="text-xs text-muted-foreground"><Trans>{dur} · {books} books — your only language</Trans></p> })()}
+        {(() => { const dur = formatDuration(pts[0].seconds); const books = pts[0].books; return <p className="text-[13px] text-muted-foreground"><Trans>{dur} · {books} books, your only language</Trans></p> })()}
       </div>
     )
   }

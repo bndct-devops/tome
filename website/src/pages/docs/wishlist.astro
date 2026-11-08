@@ -10,8 +10,7 @@ import { withBase } from '../../lib/path'
   <SectionHero section="features" />
   <h1>Wishlist</h1>
   <p>
-    The wishlist is a reading to-do list. Members add books or whole series they
-    <em>want</em>; admins see every open wish and fulfil them as the books land. A matcher links
+    The wishlist is a reading to-do list. Members add books or whole series they <em>want</em>; admins see every open wish and fulfil them as the books land. A matcher links
     wishes to the library automatically — both when a new book is added and when a wish is created
     for something already on the shelf — so the list never goes stale.
   </p>
@@ -49,8 +48,7 @@ import { withBase } from '../../lib/path'
   </p>
 
   <Callout variant="note" title="Series search needs a Hardcover token">
-    The Series tab is powered by Hardcover's series catalogue. If the server has no
-    <code>hardcover_token</code> set, the <strong>Series</strong> tab is hidden and the dialog shows
+    The Series tab is powered by Hardcover's series catalogue. If the server has no <code>hardcover_token</code> set, the <strong>Series</strong> tab is hidden and the dialog shows
     Book search only — which still works, since book search also queries Google Books and
     OpenLibrary. See <a href={withBase("/docs/configuration")}>Configuration</a>.
   </Callout>
@@ -62,8 +60,7 @@ import { withBase } from '../../lib/path'
   <h2>Series coverage</h2>
   <p>
     A whole-series wish shows exactly how far along it is: a strip of every volume, green for the
-    ones already in the library and muted for the gaps, with the volume number on each — and an
-    <strong>"X of N"</strong> tally. When the wish came from a Hardcover series, <em>N</em> is the
+    ones already in the library and muted for the gaps, with the volume number on each — and an <strong>"X of N"</strong> tally. When the wish came from a Hardcover series, <em>N</em> is the
     real total volume count, so missing and not-yet-owned volumes both show as plain pills. Here a
     16-volume series has every volume present (16 of 16).
   </p>
@@ -84,16 +81,13 @@ import { withBase } from '../../lib/path'
   <p>
     Following starts <em>silent</em>: it primes at the series' current latest volume, so following
     a 27-volume series doesn't fire 27 alerts. When the tracker's latest volume number grows past
-    that, you get a bell notification — and an email, when SMTP is configured. Releases with a
-    known date also appear in the <strong>Upcoming releases</strong> card on the Home dashboard.
+    that, you get a bell notification — and an email, when SMTP is configured. Your follows, with
+    the latest known volume against the one you own, stay in the <strong>Following</strong> strip
+    above; a followed series' next volume with a known date is also listed under <strong>Upcoming releases</strong> on <a href={withBase("/docs/home")}>Home</a>.
   </p>
-  <figure style="margin: 1.5rem auto; max-width: 420px;">
-    <ThemedShot client:load name="home-upcoming" alt="The Home rail's Upcoming releases card: followed series with their next volume and release date" />
-  </figure>
   <Callout variant="note" title="Opt-in">
     Release detection is off by default. Set <code>TOME_RELEASE_DETECTION=true</code> (it also
-    needs your <code>TOME_HARDCOVER_TOKEN</code>); tune the poll cadence with
-    <code>TOME_RELEASE_CHECK_INTERVAL</code> (seconds, default daily). When it's off, the Follow
+    needs your <code>TOME_HARDCOVER_TOKEN</code>); tune the poll cadence with <code>TOME_RELEASE_CHECK_INTERVAL</code> (seconds, default daily). When it's off, the Follow
     button and Following strip simply don't render.
   </Callout>
 
@@ -118,13 +112,12 @@ import { withBase } from '../../lib/path'
     the matcher will surface it here automatically.
   </p>
   <div class="docs-shot">
-    <ThemedShot client:load name="wishlist-admin-fulfill" alt="Admin fulfil picker with the suggested book preselected" />
+    <ThemedShot client:load name="wishlist-admin-fulfill" alt="The admin fulfil picker, opened inline in the wish row, with the suggested book preselected" />
   </div>
 
   <Callout variant="note" title="Whole-series wishes don't close on one volume">
     A series wish stays open as volumes arrive — closing it on a single book would be wrong. The
-    requester is notified each time a matching volume lands, and the admin clicks
-    <strong>Complete</strong> when the series is fully available (or whenever they decide the want is
+    requester is notified each time a matching volume lands, and the admin clicks <strong>Complete</strong> when the series is fully available (or whenever they decide the want is
     satisfied).
   </Callout>
 
@@ -141,13 +134,10 @@ import { withBase } from '../../lib/path'
     configured</a>; if it isn't, only the in-app notice fires.
   </p>
   <p>
-    The bell only rings when you visit — for pushes the moment things happen, add an
-    <strong>outbound channel</strong> in Settings → Notifications: an
-    <a href="https://ntfy.sh">ntfy</a> topic, a Gotify server, or any plain webhook. Every
+    The bell only rings when you visit — for pushes the moment things happen, add an <strong>outbound channel</strong> in Settings → Notifications: an <a href="https://ntfy.sh">ntfy</a> topic, a Gotify server, or any plain webhook. Every
     in-app notification (wish fulfilled, new volume detected, reading goals) is delivered to
     your enabled channels; each channel has a test button and can be paused, and tokens are
-    stored server-side only. Operators can disable the whole feature with
-    <code>TOME_OUTBOUND_NOTIFY=false</code>.
+    stored server-side only. Operators can disable the whole feature with <code>TOME_OUTBOUND_NOTIFY=false</code>.
   </p>
 
   <h2>Configuration</h2>

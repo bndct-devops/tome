@@ -1,21 +1,20 @@
-import { useEffect, useLayoutEffect, useRef, useState, useCallback, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { AnimatePresence, m } from 'motion/react'
-import { Link, useSearchParams, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
+import { useSearchParams, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import {
-  BookOpen, X, Home, ChevronRight,
+  X,
   LayoutGrid, List,
-  ChevronUp, ChevronDown, SlidersHorizontal, Loader2,
+  SlidersHorizontal, Loader2,
   Library as LibraryIcon, CheckSquare, XSquare, Download, Pencil,
-  Flame, BookCheck, Clock, BookOpenCheck, Play, CheckCheck, Trash2, Settings2, Layers, Star, Quote, Moon, Shuffle, Share2,
-  Tablet,
+  Play, CheckCheck, Trash2, Settings2, Layers, Star, Share2,
+  Tablet, Check,
 } from 'lucide-react'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
-import { ModalShell } from '@/components/ModalShell'
-import { TelemetryConsentCard } from '@/components/TelemetryConsentCard'
-import { useTelemetry } from '@/lib/useTelemetry'
+import { ShellFrame } from '@/components/ShellFrame'
+import { ModalShell, isModalOpen, useEscape } from '@/components/ModalShell'
 import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { Trans, useLingui, Plural } from '@lingui/react/macro'
-import { t, plural, msg } from '@lingui/core/macro'
+import { plural, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import { useToast } from '@/contexts/ToastContext'
 import { useSidebarLists } from '@/lib/sidebarLists'
@@ -25,7 +24,6 @@ import { StarRating } from '@/components/StarRating'
 import { SeriesRating } from '@/components/SeriesRating'
 import { SeriesFollowButton } from '@/components/SeriesFollowButton'
 import { ShareModal } from '@/components/ShareShelfModal'
-import { UpcomingReleases } from '@/components/UpcomingReleases'
 import { CoverImage } from '@/components/CoverImage'
 import { HScrollRow } from '@/components/HScrollRow'
 import { Sidebar } from '@/components/Sidebar'
@@ -35,19 +33,22 @@ import { UploadModal } from '@/components/UploadModal'
 import { ManageSeriesModal } from '@/components/ManageSeriesModal'
 import { SendButton } from '@/components/SendButton'
 import { BookAnimation } from '@/components/BookAnimation'
-import { HomeGoalRings } from '@/components/stats/GoalWidget'
-import { ReadingDNACard } from '@/components/stats/ReadingDNACard'
-import type { ReadingDNA } from '@/components/stats/shared'
-import { FocusMode } from '@/components/home/FocusMode'
+import { HomeTab } from '@/components/home/HomeTab'
 import { api } from '@/lib/api'
 import type { Book, ReadingStatus, Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { useShiftSelect } from '@/lib/useShiftSelect'
-import { cn } from '@/lib/utils'
+import { cn, progressPercent } from '@/lib/utils'
 import { devicesFor, useDeviceInventories } from '@/lib/deviceBooks'
 import { describePace, formatEstimateDays, formatEstimateHours, type BacklogSummary } from '@/lib/backlog'
 import { SeriesReadingStats } from '@/components/SeriesReadingStats'
+import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
+import { QuickLook } from '@/components/QuickLook'
+import { SortMenu } from '@/components/library/SortMenu'
+import { PageBody, PageHeader, SectionTitle, Pill, Select, FormLabel, INPUT_CLASS } from '@/components/page'
+// Library / Series tab icons, kept apart from the shared import above.
+import { ArrowLeft, Eye, Upload } from 'lucide-react'
 import { coverSrc } from '@/lib/covers'
 import { preloadImages } from '@/lib/preload'
 
@@ -98,49 +99,13 @@ interface Facets {
   languages: { code: string; label: string }[]
 }
 
-interface HomeStats {
-  current_streak_days: number
-  books_finished_30d: number
-  reading_seconds_30d: number
-  pages_turned_30d: number
-}
-
-interface ActivityEntry {
-  book_id: number
-  book_title: string
-  book_cover_path: string | null
-  started_at: string
-  duration_seconds: number
-  pages_turned: number
-}
-
-interface ForgottenBook {
-  book_id: number
-  title: string
-  author: string | null
-  has_cover: boolean
-  last_read: string | null
-  days_ago: number | null
-}
-
-interface HighlightSpotlight {
-  on_this_day: boolean
-  highlight: {
-    id: number
-    book_id: number
-    book_title: string
-    book_author: string | null
-    highlighted_text: string | null
-  } | null
-}
-
 const SORT_LABELS: Record<SortField, MessageDescriptor> = {
-  title: msg`Title`, author: msg`Author`, year: msg`Year`, added_at: msg`Date Added`, rating: msg`My Rating`,
+  title: msg`Title`, author: msg`Author`, year: msg`Year`, added_at: msg`Date added`, rating: msg`My rating`,
 }
 
 // Reading-status + series-status display names, shared by filter buttons and chips.
 const READING_STATUS_LABELS: Record<string, MessageDescriptor> = {
-  unread: msg`Unread`, want_to_read: msg`Want to Read`, reading: msg`Reading`,
+  unread: msg`Unread`, want_to_read: msg`Want to read`, reading: msg`Reading`,
   read: msg({ message: 'Read', context: 'status' }), shelved: msg`Shelved`,
 }
 const MISSING_LABELS: Record<string, MessageDescriptor> = {
@@ -182,125 +147,78 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
   }
 
   return (
-    <ModalShell open={open} onClose={() => { if (!deleting) onCancel() }} className="w-full max-w-md">
-        <div className="bg-card border border-border rounded-2xl shadow-2xl shadow-accent-soft flex flex-col max-h-[80vh]">
-          {/* Header */}
-          <div className="flex items-center justify-between px-6 pt-6 pb-4 shrink-0">
-            <div className="flex items-center gap-2">
-              <Trash2 className="w-4 h-4 text-destructive" />
-              <h2 className="text-base font-semibold text-foreground">
-                <Plural value={selectedIds.size} one="Delete # book" other="Delete # books" />
-              </h2>
+    <ModalShell
+      open={open}
+      onClose={() => { if (!deleting) onCancel() }}
+      size="sm"
+      title={<Plural value={selectedIds.size} one="Delete # book" other="Delete # books" />}
+      subtitle={<Trans>This permanently removes the selected books and their files from disk. This cannot be undone.</Trans>}
+      bodyClassName="pb-2"
+      footer={
+        <>
+          {deleting && (
+            <span className="mr-auto text-[13px] text-muted-foreground">
+              <Plural value={selectedIds.size} one="Deleting # book..." other="Deleting # books..." />
+            </span>
+          )}
+          <Pill variant="quiet" onClick={onCancel} disabled={deleting}>
+            <Trans>Cancel</Trans>
+          </Pill>
+          <Pill
+            variant="destructive"
+            onClick={handleDelete}
+            disabled={deleting}
+            className="bg-destructive/10 text-destructive font-semibold"
+          >
+            {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Trash2 className="w-4 h-4" />}
+            <Plural value={selectedIds.size} one="Delete # book" other="Delete # books" />
+          </Pill>
+        </>
+      }
+    >
+      <div>
+        {selectedBooks.map(book => {
+          const primaryFile = book.files[0] ?? null
+          return (
+            <div key={book.id} className="flex items-center gap-3 py-2.5 border-b border-border/70 last:border-0">
+              <div className="relative w-8 h-12 rounded-[6px] overflow-hidden shrink-0 bg-muted">
+                <CoverImage
+                  src={book.cover_path ? coverSrc(book.id, { w: 160 }) : null}
+                  alt={book.title}
+                  iconClassName="w-3.5 h-3.5"
+                />
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[15px] font-medium text-foreground truncate leading-tight">{book.title}</p>
+                {(book.author || primaryFile) && (
+                  <p className="mt-0.5 text-[13px] text-muted-foreground truncate">
+                    {book.author}
+                    {book.author && primaryFile ? ' · ' : ''}
+                    {primaryFile && primaryFile.format.toUpperCase()}
+                    {primaryFile?.file_size ? ` · ${formatBytes(primaryFile.file_size)}` : ''}
+                  </p>
+                )}
+              </div>
             </div>
-            <button
-              onClick={onCancel}
-              disabled={deleting}
-              className="text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <X className="w-4 h-4" />
-            </button>
-          </div>
-
-          {/* Warning */}
-          <div className="px-6 pb-3 shrink-0">
-            <p className="text-xs text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
-              <Trans>This permanently removes the selected books and their files from disk. This cannot be undone.</Trans>
-            </p>
-          </div>
-
-          {/* Book list */}
-          <div className="overflow-y-auto flex-1 px-6 pb-3">
-            <div className="flex flex-col gap-1">
-              {selectedBooks.map(book => {
-                const primaryFile = book.files[0] ?? null
-                return (
-                  <div key={book.id} className="flex items-center gap-3 py-2 border-b border-border last:border-0">
-                    <div className="relative w-8 h-11 rounded overflow-hidden shrink-0 border border-border">
-                      <CoverImage
-                        src={book.cover_path ? coverSrc(book.id, { w: 160 }) : null}
-                        alt={book.title}
-                        iconClassName="w-3.5 h-3.5"
-                      />
-                    </div>
-                    <div className="min-w-0 flex-1">
-                      <p className="text-sm font-medium text-foreground truncate leading-tight">{book.title}</p>
-                      {book.author && (
-                        <p className="text-xs text-muted-foreground truncate">{book.author}</p>
-                      )}
-                      {primaryFile && (
-                        <p className="text-[10px] text-muted-foreground/70 truncate">
-                          {primaryFile.format.toUpperCase()}
-                          {primaryFile.file_size ? ` · ${formatBytes(primaryFile.file_size)}` : ''}
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                )
-              })}
-              {selectedIds.size > selectedBooks.length && (
-                <p className="text-xs text-muted-foreground py-2">
-                  {(() => { const more = selectedIds.size - selectedBooks.length; return t`…and ${more} more not shown` })()}
-                </p>
-              )}
-            </div>
-          </div>
-
-          {/* Footer */}
-          <div className="flex items-center justify-end gap-2 px-6 py-4 border-t border-border shrink-0">
-            {deleting && (
-              <span className="text-xs text-muted-foreground mr-auto">
-                <Plural value={selectedIds.size} one="Deleting # book..." other="Deleting # books..." />
-              </span>
-            )}
-            <button
-              onClick={onCancel}
-              disabled={deleting}
-              className="px-3 py-1.5 rounded-lg text-sm border border-border text-muted-foreground hover:bg-muted disabled:opacity-50 transition-colors"
-            >
-              <Trans>Cancel</Trans>
-            </button>
-            <button
-              onClick={handleDelete}
-              disabled={deleting}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-destructive text-destructive-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-            >
-              {deleting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              <Plural value={selectedIds.size} one="Delete # book" other="Delete # books" />
-            </button>
-          </div>
-        </div>
+          )
+        })}
+        {selectedIds.size > selectedBooks.length && (
+          <p className="text-[13px] text-muted-foreground py-2.5">
+            {(() => { const more = selectedIds.size - selectedBooks.length; return t`…and ${more} more not shown` })()}
+          </p>
+        )}
+      </div>
     </ModalShell>
   )
 }
 
-// Duration abbreviations go through the catalog so locales can adapt the units.
-function formatReadingTime(seconds: number): string {
-  if (seconds < 60) return t`${seconds}s`
-  const h = Math.floor(seconds / 3600)
-  const m = Math.floor((seconds % 3600) / 60)
-  if (h === 0) return t`${m}m`
-  if (m === 0) return t`${h}h`
-  return t`${h}h ${m}m`
-}
+const seriesScroll = new Map<string, number>()
 
 type StatusMap = Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }>
 
 // The library list as it was when the page was last left, so coming back
 // (from a book, Stats, anywhere) shows it at once and where it was scrolled
 // to, then refreshes it quietly. One entry: the list for one set of filters.
-// Home's sections as last shown, for the same reason: back to Home is instant,
-// and the sections refresh in place.
-let homeCache: {
-  continueReading: Book[]
-  homeStats: HomeStats | null
-  readingDna: ReadingDNA | null
-  recentlyFinished: Book[]
-  recentlyAdded: Book[]
-  activityLog: ActivityEntry[]
-  forgottenBooks: ForgottenBook[]
-  spotlight: HighlightSpotlight | null
-} | null = null
-
 let listCache: {
   key: string
   books: Book[]
@@ -321,7 +239,7 @@ export function DashboardPage() {
 
   // ── View / sort (persisted) ───────────────────────────────────────────────
   // Two view modes (grid/list) + a cover-size slider for the grid. Old installs
-  // stored 'large' | 'small' — those migrate to grid at the matching size.
+  // stored 'large' | 'small' - those migrate to grid at the matching size.
   const [view, setView] = useState<ViewPref>(() =>
     localStorage.getItem(VIEW_KEY) === 'list' ? 'list' : 'grid')
   const [gridSize, setGridSize] = useState<number>(() => {
@@ -347,7 +265,7 @@ export function DashboardPage() {
     if (v) exitSelectionMode()
   }
 
-  // ── Tab (Home / Books / Series) — derived from URL ───────────────────────
+  // ── Tab (Home / Books / Series) - derived from URL ───────────────────────
   const tab = (searchParams.get('tab') || 'home') as 'home' | 'books' | 'series'
   const [seriesList, setSeriesList] = useState<SeriesItem[]>([])
   const [seriesLoading, setSeriesLoading] = useState(false)
@@ -357,25 +275,28 @@ export function DashboardPage() {
   const [seriesDetailLoading, setSeriesDetailLoading] = useState(false)
   const [markingAllRead, setMarkingAllRead] = useState(false)
   const [contentType, setContentType] = useState<string>('volume')
-  // Series meta (status badges) — keyed by series name
+  // Series meta (status badges) - keyed by series name
   const [seriesMetaMap, setSeriesMetaMap] = useState<Record<string, SeriesStatus>>({})
   // Arcs for the currently open series detail
   const [seriesArcs, setSeriesArcs] = useState<Arc[]>([])
   // Manage series modal
   const [manageSeriesOpen, setManageSeriesOpen] = useState(false)
   const [seriesDescExpanded, setSeriesDescExpanded] = useState(false)
+  // The follow tracker's "Latest: Vol N · date" line, shown in the series header's crumb line.
+  const [followLatest, setFollowLatest] = useState<string | null>(null)
 
   function setTab(value: 'home' | 'books' | 'series') {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       if (value === 'home') next.delete('tab')
       else next.set('tab', value)
+      if (value !== 'series') next.delete('series_detail')
       return next
     })
   }
 
   function fetchSeriesMetaForList(_list: SeriesItem[]) {
-    // Single batch call — previously fired one GET per series which
+    // Single batch call - previously fired one GET per series which
     // exhausted the DB connection pool on libraries with many series.
     api.get<Record<string, SeriesStatus>>('/series/meta-map')
       .then(map => setSeriesMetaMap(map))
@@ -383,7 +304,12 @@ export function DashboardPage() {
   }
 
   function openSeriesTab() {
-    setTab('series')
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', 'series')
+      next.delete('series_detail')
+      return next
+    })
     setExpandedSeries(null)
     setSeriesDetail(null)
     setSeriesLoading(true)
@@ -420,11 +346,29 @@ export function DashboardPage() {
       .finally(() => setSeriesDetailLoading(false))
   }
 
+  // A series' detail is a URL (?tab=series&series_detail=Name), so the way
+  // back from a book returns to it. The grid pushes it, the Series crumb
+  // drops it, and this effect follows the URL either way.
+  function showSeries(name: string | null) {
+    setSearchParams(prev => {
+      const next = new URLSearchParams(prev)
+      next.set('tab', 'series')
+      if (name) next.set('series_detail', name)
+      else next.delete('series_detail')
+      return next
+    })
+  }
+
   // Auto-open series detail when navigating via ?tab=series&series_detail=Name
   useEffect(() => {
     if (tab !== 'series') return
     const detailName = searchParams.get('series_detail')
-    if (!detailName || detailName === expandedSeries) return
+    if (!detailName) {
+      if (expandedSeries) { setExpandedSeries(null); setSeriesDetail(null); setSeriesArcs([]) }
+      return
+    }
+    if (detailName === expandedSeries) return
+    if (seriesList.length > 0) { openSeriesDetail(detailName); return }
     // Load series list first, then open the detail
     setSeriesLoading(true)
     api.get<SeriesItem[]>('/books/series')
@@ -454,17 +398,24 @@ export function DashboardPage() {
     return books.find(b => b.reading_status === 'unread') ?? null
   }
 
-  function groupVolumesByArc(books: SeriesDetailBook[], arcs: Arc[]): Array<{
+  interface ArcSection {
+    /** The arc's id, null for the "Unassigned" bucket and a series without arcs. */
+    arcId: number | null
+    name: string
     label: string
     description: string | null
     volumes: SeriesDetailBook[]
-  }> {
-    if (arcs.length === 0) return [{ label: '', description: null, volumes: books }]
+  }
+
+  function groupVolumesByArc(books: SeriesDetailBook[], arcs: Arc[]): ArcSection[] {
+    if (arcs.length === 0) return [{ arcId: null, name: '', label: '', description: null, volumes: books }]
     const sorted = [...arcs].sort((a, b) => a.start_index - b.start_index)
-    const sections: Array<{ label: string; description: string | null; volumes: SeriesDetailBook[] }> = sorted.map(arc => {
+    const sections: ArcSection[] = sorted.map(arc => {
       const { name, start_index, end_index } = arc
       return {
-        label: t`${name} · Vol. ${start_index}–${end_index}`,
+        arcId: arc.id,
+        name,
+        label: t`${name} · Vol. ${start_index}-${end_index}`,
         description: arc.description ?? null,
         volumes: books.filter(v =>
           v.series_index != null &&
@@ -478,12 +429,12 @@ export function DashboardPage() {
       !sorted.some(a => v.series_index! >= a.start_index && v.series_index! <= a.end_index)
     )
     if (unassigned.length > 0) {
-      sections.push({ label: t`Unassigned`, description: null, volumes: unassigned })
+      sections.push({ arcId: null, name: '', label: t`Unassigned`, description: null, volumes: unassigned })
     }
     return sections.filter(s => s.volumes.length > 0)
   }
 
-  function SeriesStatusBadge({ status }: { status: SeriesStatus | undefined }) {
+  function SeriesStatusBadge({ status, large = false }: { status: SeriesStatus | undefined; large?: boolean }) {
     if (!status || status === 'unknown') return null
     /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
     const cls =
@@ -494,7 +445,11 @@ export function DashboardPage() {
         : /* hiatus */ 'bg-muted text-muted-foreground'
     /* eslint-enable lingui/no-unlocalized-strings */
     return (
-      <span className={cn('inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wide leading-none', cls)}>
+      <span className={cn(
+        'inline-flex items-center font-semibold uppercase leading-none',
+        large ? 'h-7 px-3 rounded-full text-[12px] tracking-[0.08em]' : 'px-1.5 py-0.5 rounded text-[12px] tracking-wide',
+        cls,
+      )}>
         {SERIES_STATUS_LABELS[status] ? i18n._(SERIES_STATUS_LABELS[status]) : status}
       </span>
     )
@@ -593,7 +548,7 @@ export function DashboardPage() {
 
   const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterLanguage || filterReadingStatus || filterMinRating || filterMissing || filterOwnership || filterAddedBy || filterOnDevice || filterNotOnDevice)
 
-  // Grouping is bypassed while drilling into a specific series — the user
+  // Grouping is bypassed while drilling into a specific series - the user
   // explicitly asked for that series' volumes, so a single stack is useless.
   const groupActive = groupBySeries && !filterSeries
 
@@ -670,6 +625,7 @@ export function DashboardPage() {
   const [bulkMetaTypeId, setBulkMetaTypeId] = useState<number | ''>('')
   const [bulkMetaSaving, setBulkMetaSaving] = useState(false)
   const bookTypes = useBookTypes()
+  useEscape(bulkLibMenu, useCallback(() => setBulkLibMenu(false), []))
 
   function toggleSelect(id: number, shiftKey: boolean) {
     setSelected(prev => {
@@ -788,14 +744,15 @@ export function DashboardPage() {
 
   // ── Sidebar data ──────────────────────────────────────────────────────────
   const { libraries, savedFilters, loadLibraries, loadSavedFilters } = useSidebarLists(user?.id)
-  // Cached across page mounts (see useSidebarLists) — this refetch only
+  // Cached across page mounts (see useSidebarLists) - this refetch only
   // freshens the lists in the background, it never blanks them.
   useEffect(() => { loadLibraries(); loadSavedFilters() }, [])
 
   // ── Books + facets ────────────────────────────────────────────────────────
   const location = useLocation()
   const navigationType = useNavigationType()
-  const mainRef = useRef<HTMLElement | null>(null)
+  // The shell's <main> scrolls; reached through the body wrapper below.
+  const bodyRef = useRef<HTMLDivElement | null>(null)
   const locationKeyRef = useRef(location.key)
   locationKeyRef.current = location.key
   // Filters + sort of the list the current `books` belong to.
@@ -819,6 +776,9 @@ export function DashboardPage() {
   const [loading, setLoading] = useState(!seed)
   const [uploadModalOpen, setUploadModalOpen] = useState(false)
   const [filterOpen, setFilterOpen] = useState(false)
+  // Quick look opened from a cover in the Library grid or a series' volumes.
+  const [quickLookId, setQuickLookId] = useState<number | null>(null)
+  const closeQuickLook = useCallback(() => setQuickLookId(null), [])
 
   const { toast } = useToast()
   const toastSuccess = toast.success
@@ -831,41 +791,6 @@ export function DashboardPage() {
   const hasMoreRef = useRef(seed?.hasMore ?? true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
-  const [homeSeed] = useState(() => homeCache)
-  const [continueReading, setContinueReading] = useState<Book[]>(homeSeed?.continueReading ?? [])
-  const [homeStats, setHomeStats] = useState<HomeStats | null>(homeSeed?.homeStats ?? null)
-  const [readingDna, setReadingDna] = useState<ReadingDNA | null>(homeSeed?.readingDna ?? null)
-  // Home view mode: 'focus' = single-book Focus mode, 'dashboard' = the full grid.
-  const [homeMode, setHomeMode] = useState<'focus' | 'dashboard'>(
-    () => (localStorage.getItem('tome_home_mode') as 'focus' | 'dashboard') || 'dashboard'
-  )
-  const setHomeModePersisted = (m: 'focus' | 'dashboard') => {
-    localStorage.setItem('tome_home_mode', m)
-    setHomeMode(m)
-  }
-  const [recentlyFinished, setRecentlyFinished] = useState<Book[]>(homeSeed?.recentlyFinished ?? [])
-  const [recentlyAdded, setRecentlyAdded] = useState<Book[]>(homeSeed?.recentlyAdded ?? [])
-  const [activityLog, setActivityLog] = useState<ActivityEntry[]>(homeSeed?.activityLog ?? [])
-  const [forgottenBooks, setForgottenBooks] = useState<ForgottenBook[]>(homeSeed?.forgottenBooks ?? [])
-  const [spotlight, setSpotlight] = useState<HighlightSpotlight | null>(homeSeed?.spotlight ?? null)
-  // Persisted dismissal: store the signature of the dismissed book set so the
-  // panel stays hidden across refreshes, but resurfaces if a new set appears.
-  const [forgottenDismissedSig, setForgottenDismissedSig] = useState<string>(
-    () => localStorage.getItem('tome_forgotten_dismissed') || ''
-  )
-  // Home hydration gate: the five above-the-fold fetches (stats, continue
-  // reading, finished, added, forgotten) count down here. Until all have
-  // settled the Home tab shows skeletons — never a false "Nothing in
-  // progress" empty state, and sections mount in one paint instead of
-  // inserting one by one and shifting the layout (CLS). The telemetry
-  // question (admins) waits too, or its card lands on top a moment later
-  // and pushes the whole page down. Coming back to Home with its sections
-  // kept starts hydrated.
-  const telemetry = useTelemetry()
-  const [homeSettled, setHomeSettled] = useState(homeSeed ? 5 : 0)
-  const homeHydrated = homeSettled >= 5 && telemetry.settled
-  const countSettled = () => setHomeSettled(n => n + 1)
-
   const PAGE_SIZE = 60
 
   function buildFilterParams(): URLSearchParams {
@@ -956,7 +881,7 @@ export function DashboardPage() {
       .finally(() => {
         if (reset) {
           // An aborted reset was superseded by a newer one that owns the
-          // loading flags — leave them alone.
+          // loading flags - leave them alone.
           if (signal?.aborted) return
           setLoading(false)
           setRefreshing(false)
@@ -984,7 +909,7 @@ export function DashboardPage() {
     }
   }, [books, totalCount, readingStatuses, hasMore])
   useLayoutEffect(() => {
-    const main = mainRef.current
+    const main = bodyRef.current?.closest('main') ?? null
     // Back/forward to the entry the list was left from: same place as before.
     if (seed && navigationType === 'POP' && seed.locationKey === location.key && main) main.scrollTop = seed.scrollTop
     return () => {
@@ -992,6 +917,51 @@ export function DashboardPage() {
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // Series grid and series detail: the <main> scroll position per history
+  // entry, so Back from a book lands where the volumes were. Saved whenever
+  // the entry is left (another URL or another page), restored on a POP once
+  // the content it measured is back.
+  const seriesReady = tab === 'series'
+    && expandedSeries === (searchParams.get('series_detail') || null)
+    && (expandedSeries
+    ? !!seriesDetail && !seriesDetailLoading
+    : !seriesLoading && seriesList.length > 0)
+  useLayoutEffect(() => {
+    const main = bodyRef.current?.closest('main') ?? null
+    if (!main) return
+    const key = location.key
+    // Recorded as it moves, never on cleanup: a remount's own cleanup (dev
+    // StrictMode, a re-run) would overwrite the saved spot with 0.
+    const onScroll = () => { seriesScroll.set(key, main.scrollTop) }
+    main.addEventListener('scroll', onScroll, { passive: true })
+    return () => main.removeEventListener('scroll', onScroll)
+  }, [location.key])
+  const restoredKeyRef = useRef<string | null>(null)
+  useLayoutEffect(() => {
+    if (!seriesReady || restoredKeyRef.current === location.key) return
+    restoredKeyRef.current = location.key
+    const main = bodyRef.current?.closest('main')
+    if (!main) return
+    const saved = seriesScroll.get(location.key)
+    const target = navigationType === 'POP' && saved != null ? saved : 0
+    main.scrollTop = target
+    if (main.scrollTop >= target - 1) return
+    // The page is still growing (stats, covers): keep applying the position
+    // until it fits, for at most 2s, and give up as soon as the user scrolls.
+    let stop = false
+    const giveUp = () => { stop = true }
+    main.addEventListener('wheel', giveUp, { once: true, passive: true })
+    main.addEventListener('touchstart', giveUp, { once: true, passive: true })
+    const started = Date.now()
+    const tick = () => {
+      if (stop || Date.now() - started > 2000) return
+      main.scrollTop = target
+      if (main.scrollTop < target - 1) requestAnimationFrame(tick)
+    }
+    requestAnimationFrame(tick)
+    return () => { stop = true; main.removeEventListener('wheel', giveUp); main.removeEventListener('touchstart', giveUp) }
+  }, [seriesReady, location.key, navigationType])
 
   // Reset focused index when book list changes
   useEffect(() => { setFocusedIndex(null) }, [books])
@@ -1046,8 +1016,18 @@ export function DashboardPage() {
   useEffect(() => { groupActiveRef.current = groupActive }, [groupActive])
 
 
+  // The focused card lives in a ref too, so the key handler reads and writes
+  // it directly: side effects (navigate, blur) inside a state updater ran
+  // during render and React warned "Cannot update a component while rendering".
+  const focusedRef = useRef<number | null>(null)
+  useEffect(() => { focusedRef.current = focusedIndex }, [focusedIndex])
   useEffect(() => {
+    function moveFocus(next: number | null) {
+      focusedRef.current = next
+      setFocusedIndex(next)
+    }
     function handleKeyDown(e: KeyboardEvent) {
+      if (isModalOpen()) return
       const tag = (e.target as HTMLElement).tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT') return
 
@@ -1057,47 +1037,35 @@ export function DashboardPage() {
         return
       }
 
+      const n = booksRef.current.length
+      const prev = focusedRef.current
       if (e.key === 'j' || e.key === 'ArrowDown') {
         e.preventDefault()
-        setFocusedIndex(prev => {
-          if (booksRef.current.length === 0) return null
-          if (prev === null) return 0
-          return (prev + 1) % booksRef.current.length
-        })
+        moveFocus(n === 0 ? null : prev === null ? 0 : (prev + 1) % n)
         return
       }
 
       if (e.key === 'k' || e.key === 'ArrowUp') {
         e.preventDefault()
-        setFocusedIndex(prev => {
-          if (booksRef.current.length === 0) return null
-          if (prev === null) return booksRef.current.length - 1
-          return (prev - 1 + booksRef.current.length) % booksRef.current.length
-        })
+        moveFocus(n === 0 ? null : prev === null ? n - 1 : (prev - 1 + n) % n)
         return
       }
 
       if (e.key === 'Enter') {
-        setFocusedIndex(prev => {
-          if (prev !== null && booksRef.current[prev]) {
-            const b = booksRef.current[prev]
-            if (groupActiveRef.current && b.series) {
-              navigate(`/?tab=series&series_detail=${encodeURIComponent(b.series)}`)
-            } else {
-              navigate(`/books/${b.id}`)
-            }
+        if (prev !== null && booksRef.current[prev]) {
+          const b = booksRef.current[prev]
+          if (groupActiveRef.current && b.series) {
+            navigate(`/?tab=series&series_detail=${encodeURIComponent(b.series)}`)
+          } else {
+            navigate(`/books/${b.id}`)
           }
-          return prev
-        })
+        }
         return
       }
 
       if (e.key === 'Escape') {
-        setFocusedIndex(prev => {
-          if (prev !== null) return null
-          searchInputRef.current?.blur()
-          return null
-        })
+        if (prev === null) searchInputRef.current?.blur()
+        moveFocus(null)
         return
       }
     }
@@ -1105,53 +1073,9 @@ export function DashboardPage() {
     return () => window.removeEventListener('keydown', handleKeyDown)
   }, [navigate])
 
-  // Home's sections load the first time Home is shown, not on the other tabs.
-  const homeLoaded = useRef(false)
-  useEffect(() => {
-    if (tab !== 'home' || homeLoaded.current) return
-    homeLoaded.current = true
-    // status_updated = last reading activity, so the hero is the book you actually read last
-    api.get<Book[]>('/books?reading_status=reading&sort=status_updated&order=desc&limit=20')
-      .finally(countSettled)
-      .then(books => {
-        setContinueReading(books)
-        if (books.length > 0) {
-          api.post<Record<string, { status: string; progress_pct: number | null; rating: number | null }>>('/books/statuses', { book_ids: books.map(b => b.id) })
-            .then(map => {
-              const s: Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }> = {}
-              Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct, rating: val.rating ?? null } })
-              setReadingStatuses(prev => ({ ...prev, ...s }))
-            })
-            .catch(() => {})
-        }
-      })
-      .catch(() => {})
-    const tzOffset = new Date().getTimezoneOffset()
-    api.get<HomeStats>(`/home/stats?tz_offset=${tzOffset}`).finally(countSettled).then(setHomeStats).catch(() => {})
-    api.get<Book[]>('/books?reading_status=read&sort=status_updated&order=desc&limit=6').finally(countSettled).then(setRecentlyFinished).catch(() => {})
-    api.get<Book[]>('/books?sort=added_at&order=desc&limit=6').finally(countSettled).then(setRecentlyAdded).catch(() => {})
-    api.get<ActivityEntry[]>('/home/activity').then(setActivityLog).catch(() => {})
-    api.get<ForgottenBook[]>('/home/forgotten-books').finally(countSettled).then(setForgottenBooks).catch(() => {})
-    api.get<HighlightSpotlight>('/annotations/spotlight').then(setSpotlight).catch(() => {})
-  }, [tab])
-
   useEffect(() => {
     api.get<SeriesItem[]>('/books/series').then(setSeriesList).catch(() => {})
   }, [])
-
-  useEffect(() => {
-    if (!homeHydrated) return
-    homeCache = { continueReading, homeStats, readingDna, recentlyFinished, recentlyAdded, activityLog, forgottenBooks, spotlight }
-  }, [homeHydrated, continueReading, homeStats, readingDna, recentlyFinished, recentlyAdded, activityLog, forgottenBooks, spotlight])
-
-  // Reading DNA is the costliest home request — fetch it lazily, only once the
-  // dashboard Home view (the one place the card renders) is actually shown.
-  useEffect(() => {
-    if (tab !== 'home' || homeMode !== 'dashboard' || readingDna) return
-    api.get<ReadingDNA>(`/home/reading-dna?tz_offset=${new Date().getTimezoneOffset()}`)
-      .then(setReadingDna)
-      .catch(() => {})
-  }, [tab, homeMode, readingDna])
 
   // ── Filter chip helpers ───────────────────────────────────────────────────
   const filterLibraryChipName = libraries.find(l => l.id === filterLibrary)?.name ?? t`Library`
@@ -1163,7 +1087,7 @@ export function DashboardPage() {
   const activeFilterChips: { label: string; key: string }[] = [
     ...(filterLibrary ? [{ label: t`Library: ${filterLibraryChipName}`, key: 'library_id' }] : []),
     ...(filterSeries ? [{ label: t`Series: ${filterSeries}`, key: 'series' }] : []),
-    ...(filterNoSeries ? [{ label: t`No Series`, key: 'no_series' }] : []),
+    ...(filterNoSeries ? [{ label: t`No series`, key: 'no_series' }] : []),
     ...(filterAuthor ? [{ label: t`Author: ${filterAuthor}`, key: 'author' }] : []),
     ...(filterTag ? [{ label: t`Tag: ${filterTag}`, key: 'tag' }] : []),
     ...(filterFormat ? [{ label: t`Format: ${filterFormatUpper}`, key: 'format' }] : []),
@@ -1171,13 +1095,13 @@ export function DashboardPage() {
     ...(filterReadingStatus ? [{ label: t`Status: ${filterStatusLabel}`, key: 'reading_status' }] : []),
     ...(filterMinRating ? [{ label: filterMinRating === 5 ? t`Rated: 5 stars` : t`Rated: ${filterMinRating}+ stars`, key: 'min_rating' }] : []),
     ...(filterMissing ? [{ label: t`Missing: ${filterMissingLabel}`, key: 'missing' }] : []),
-    ...(filterOwnership === 'mine' ? [{ label: t`My Books`, key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: t`Shared Library`, key: 'ownership' }] : []),
+    ...(filterOwnership === 'mine' ? [{ label: t`My books`, key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: t`Shared library`, key: 'ownership' }] : []),
     ...(filterAddedBy ? [{ label: t`Uploader: ${filterUploaderName}`, key: 'added_by' }] : []),
     ...(onDevices.length ? [{ label: (() => { const names = onDevices.join(', '); return t`On ${names}` })(), key: 'on_device' }] : []),
     ...(notOnDevices.length ? [{ label: (() => { const names = notOnDevices.join(', '); return t`Not on ${names}` })(), key: 'not_on_device' }] : []),
   ]
 
-  // Params to pass to SaveFilterButton (excludes library_id — that belongs in sidebar)
+  // Params to pass to SaveFilterButton (excludes library_id - that belongs in sidebar)
   const saveableParams: Record<string, string> = {}
   if (search) saveableParams.q = search
   if (filterSeries) saveableParams.series = filterSeries
@@ -1189,16 +1113,18 @@ export function DashboardPage() {
   if (filterNotOnDevice) saveableParams.not_on_device = filterNotOnDevice
 
   // Grid columns flow from the spring-smoothed cover size; card typography
-  // follows the slider value. view-fade covers the grid/list switch.
+  // follows the slider value. The grid/list switch swaps in place: the old
+  // view-fade faded the new view up from nothing inside the painted panel.
+  // List rows sit on hairlines, no boxes.
   const cardView: ViewMode = view === 'list' ? 'list' : gridSize < 150 ? 'small' : 'large'
   const gridClass = view === 'list'
     // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
-    ? 'flex flex-col gap-2.5 animate-[view-fade_0.25s_ease-out]'
+    ? 'flex flex-col divide-y divide-border/70'
     : cn(
-        'grid transition-[gap] duration-300 ease-out animate-[view-fade_0.25s_ease-out]',
-        gridSize < 150 ? 'gap-2' : 'gap-4'
+        'grid transition-[gap] duration-300 ease-out',
+        gridSize < 150 ? 'gap-x-3 gap-y-5' : 'gap-x-5 gap-y-7'
       )
-  // min(size, 42vw) keeps phones at two columns regardless of the slider —
+  // min(size, 42vw) keeps phones at two columns regardless of the slider  - 
   // without it a 180px minimum fits only one track on a 390px screen
   const gridStyle = view === 'list'
     ? undefined
@@ -1208,56 +1134,36 @@ export function DashboardPage() {
   // Active library name for heading
   const activeLibraryName = filterLibrary ? libraries.find(l => l.id === filterLibrary)?.name : null
 
-  // Home quick stats
-  const homeStatItems: { value: string; label: string; icon: ReactNode }[] = homeStats ? [
-    // A zero-day streak is a sad opener — only lead with it when it exists
-    ...(homeStats.current_streak_days > 0
-      ? [{ value: String(homeStats.current_streak_days), label: t`Day streak`, icon: <Flame className="w-5 h-5" /> }]
-      : []),
-    { value: String(homeStats.books_finished_30d), label: t`Finished · 30d`, icon: <BookCheck className="w-5 h-5" /> },
-    { value: formatReadingTime(homeStats.reading_seconds_30d), label: t`Read · 30d`, icon: <Clock className="w-5 h-5" /> },
-    { value: String(homeStats.pages_turned_30d), label: t`Pages · 30d`, icon: <BookOpenCheck className="w-5 h-5" /> },
-  ] : []
-
-  // Compact Focus / Dashboard switch — placed inline next to the KPI band in
-  // Dashboard mode, top-right on its own in Focus mode.
-  const modeToggle = (
-    <div className="flex w-full sm:inline-flex sm:w-auto rounded-lg border border-border bg-card p-0.5 sm:shrink-0">
-      {([
-        { id: 'focus', label: t`Focus`, icon: <Moon className="w-3.5 h-3.5" /> },
-        { id: 'dashboard', label: t`Dashboard`, icon: <LayoutGrid className="w-3.5 h-3.5" /> },
-      ] as const).map((m) => (
-        <button
-          key={m.id}
-          onClick={() => setHomeModePersisted(m.id)}
-          className={cn(
-            'flex-1 justify-center sm:flex-none sm:justify-start inline-flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[13px] font-medium transition-colors',
-            homeMode === m.id ? 'bg-primary/15 text-foreground' : 'text-muted-foreground hover:text-foreground'
-          )}
-        >
-          {m.icon}
-          {m.label}
-        </button>
-      ))}
-    </div>
-  )
-
-  // h-dvh, not h-screen — see AppShell: 100vh overhangs mobile toolbars.
   return (
-    <div className="h-dvh bg-background flex flex-col overflow-hidden">
-      {/* ── Navbar (shared with the standalone pages via AppShell) ───────── */}
-      <AppHeader
-        onMenuClick={() => setMobileSidebarOpen(true)}
-        search={
-          <HeaderSearch
-            value={searchInput}
-            onChange={handleSearchInput}
-            onClear={() => { setSearchInput(''); setFilter('q', '') }}
-            inputRef={searchInputRef}
-          />
-        }
-        onUploadClick={isMember(user) ? () => setUploadModalOpen(true) : undefined}
-      />
+    <ShellFrame
+      sidebar={
+        <Sidebar
+          libraries={libraries}
+          savedFilters={savedFilters}
+          activeTab={tab}
+          onLibrariesChange={loadLibraries}
+          onSavedFiltersChange={loadSavedFilters}
+          onOpenSeriesView={openSeriesTab}
+          onOpenHomeView={() => setTab('home')}
+          mobileOpen={mobileSidebarOpen}
+          onMobileClose={() => setMobileSidebarOpen(false)}
+        />
+      }
+      header={
+        <AppHeader
+          onMenuClick={() => setMobileSidebarOpen(true)}
+          search={
+            <HeaderSearch
+              value={searchInput}
+              onChange={handleSearchInput}
+              onClear={() => { setSearchInput(''); setFilter('q', '') }}
+              inputRef={searchInputRef}
+            />
+          }
+          onUploadClick={isMember(user) ? () => setUploadModalOpen(true) : undefined}
+        />
+      }
+    >
 
       {shareSeries && (
         <ShareModal
@@ -1274,8 +1180,8 @@ export function DashboardPage() {
         onWishMatches={(wishIds) => {
           const n = wishIds.length
           toast.info(plural(n, {
-            one: 'This upload satisfies # wish — review in Admin > Wishlist',
-            other: 'This upload satisfies # wishes — review in Admin > Wishlist',
+            one: 'This upload satisfies # wish. Review it in Admin > Wishlist',
+            other: 'This upload satisfies # wishes. Review them in Admin > Wishlist',
           }))
         }}
       />
@@ -1305,951 +1211,614 @@ export function DashboardPage() {
         />
       )}
 
-      {/* ── Body (sidebar + main) ────────────────────────────────────────── */}
-      <div className="flex flex-1 overflow-hidden">
-        <Sidebar
-          libraries={libraries}
-          savedFilters={savedFilters}
-          activeTab={tab}
-          onLibrariesChange={loadLibraries}
-          onSavedFiltersChange={loadSavedFilters}
-          onOpenSeriesView={openSeriesTab}
-          onOpenHomeView={() => setTab('home')}
-          mobileOpen={mobileSidebarOpen}
-          onMobileClose={() => setMobileSidebarOpen(false)}
-        />
-
-        {/* overflow-x-hidden: WebKit counts pre-transform layout boxes (e.g. the
-            focus rotary's scaled 540px stage) as scrollable overflow, letting the
-            content pan sideways on phones; Chromium doesn't, so test on Safari. */}
-        <main ref={mainRef} className="flex-1 overflow-y-auto overflow-x-hidden px-4 py-4 min-w-0 overscroll-contain">
-          {/* Section heading */}
-          {activeLibraryName && (
+      {/* ── Body: the dashboard tabs. The frame's panel scrolls; this wrapper
+            only carries the page padding (the shared PageBody comes with the
+            per-tab rebuilds). ────────────────────────────────────────────── */}
+        <div ref={bodyRef}>
+          {/* Every tab brings its own PageBody + PageHeader now; the library
+              name heading only had a job before the Library tab had a header. */}
+          {tab === 'home' && activeLibraryName && (
             <h2 className="text-lg font-semibold mb-3">{activeLibraryName}</h2>
           )}
 
           {tab === 'home' ? (
-            /* ── Home tab ────────────────────────────────────────────────── */
-            <div className="flex flex-col gap-7">
-              {homeHydrated && <TelemetryConsentCard telemetry={telemetry} />}
-
-              {homeMode === 'focus' ? (
-              <>
-              {/* Focus mode: toggle alone, top-right */}
-              <div className="flex justify-end -mb-1">{modeToggle}</div>
-                <FocusMode />
-              </>
-              ) : (
-              <>
-
-              {/* ── Quick stats + mode toggle on one row ──────────────────── */}
-              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:flex-wrap">
-                <div className="flex flex-wrap items-stretch gap-3 empty:hidden w-full sm:w-auto">
-                  {/* Chromeless — the figures sit on the page itself. Boxing them
-                      gave the strip the same weight as the content panel below,
-                      and the dashboard read as four equal crates. */}
-                  {!homeStats && (
-                    /* Same footprint as the loaded strip so the row doesn't
-                       collapse-then-expand when stats arrive (layout shift). */
-                    <div className="px-1 py-1 grid grid-cols-3 gap-x-4 gap-y-3 sm:gap-x-0 sm:flex w-full sm:w-fit" aria-hidden="true">
-                      {[0, 1, 2].map(i => (
-                        <div key={i} className={cn('sm:px-5 animate-pulse', i === 0 && 'sm:pl-0')}>
-                          <div className="h-3 w-16 rounded bg-muted mb-1.5 mt-0.5" />
-                          <div className="h-6 w-14 rounded bg-muted" />
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                  {homeStats && (
-                    <div className={cn(
-                      'px-1 py-1 grid gap-x-4 gap-y-3 sm:gap-x-0 sm:flex w-full sm:w-fit',
-                      /* Three chips wrap 2+1 on phones and look ragged — give an
-                         odd count three even columns instead. */
-                      homeStatItems.length === 3 ? 'grid-cols-3' : 'grid-cols-2'
-                    )}>
-                      {homeStatItems.map((s, i) => (
-                        <div
-                          key={s.label}
-                          className={cn(
-                            'sm:px-5',
-                            i === 0 && 'sm:pl-0',
-                            i > 0 && 'sm:border-l sm:border-border/60'
-                          )}
-                        >
-                          <p className="text-xs text-muted-foreground/70">{s.label}</p>
-                          <p className="flex items-center gap-2 text-xl font-semibold tabular-nums text-foreground leading-tight">
-                            <span className="text-primary/60">{s.icon}</span>
-                            {s.value}
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-                <div className="w-full sm:w-auto sm:ml-auto">{modeToggle}</div>
-              </div>
-
-              {/* ── Two-column body: content + rail ───────────────────────── */}
-              <div className="flex flex-col gap-8 lg:grid lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-7 lg:items-start">
-              {/* ── Main column (one connected panel, hairline-divided) ──────
-                  The ONE bordered, elevated surface on the page — the rail and
-                  stat strip deliberately carry less chrome so this reads primary. */}
-              <div className="rounded-2xl border border-border bg-card shadow-sm divide-y divide-border min-w-0 overflow-hidden">
-
-              {!homeHydrated ? (
-                /* Skeleton until every above-the-fold fetch has settled — the
-                   real sections then mount in a single paint. Rendering the
-                   empty state before data resolves flashed "Nothing in
-                   progress" at every cold load (UX sweep finding, CLS 0.27). */
-                <div aria-busy="true">
-                  <section className="flex flex-col gap-3 px-5 py-5">
-                    <div className="h-5 w-40 rounded bg-muted animate-pulse" />
-                    <div className="flex gap-4 overflow-hidden pb-2">
-                      {[...Array(6)].map((_, i) => (
-                        <div key={i} className="shrink-0 w-32 animate-pulse">
-                          <div className="aspect-[2/3] rounded-lg bg-muted" />
-                          <div className="h-3 w-24 rounded bg-muted mt-2" />
-                          <div className="h-2.5 w-16 rounded bg-muted mt-1.5" />
-                        </div>
-                      ))}
-                    </div>
-                  </section>
-                  <section className="flex flex-col gap-3 px-5 py-5 border-t border-border">
-                    <div className="h-5 w-32 rounded bg-muted animate-pulse" />
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {[...Array(4)].map((_, i) => (
-                        <div key={i} className="h-14 rounded-xl bg-muted/60 animate-pulse" />
-                      ))}
-                    </div>
-                  </section>
-                </div>
-              ) : (
-              <>
-
-              {/* ── Forgotten Books ───────────────────────────────────────── */}
-              {(() => {
-                const forgottenSig = forgottenBooks.map(b => b.book_id).sort((a, b) => a - b).join(',')
-                const showForgotten = forgottenBooks.length > 0 && forgottenSig !== forgottenDismissedSig
-                if (!showForgotten) return null
-                const dismiss = () => {
-                  localStorage.setItem('tome_forgotten_dismissed', forgottenSig)
-                  setForgottenDismissedSig(forgottenSig)
-                }
-                return (
-                  <section className="px-5 py-4">
-                    <header className="flex items-center justify-between mb-2">
-                      <h2 className="text-base text-foreground"><Trans>Pick up where you left off</Trans></h2>
+            <HomeTab
+              onBrowse={() => setTab('books')}
+              onSeeAllRecent={() => { persistSort('added_at'); persistOrder('desc'); setTab('books') }}
+            />
+          ) : tab === 'series' ? (
+            /* ── Series tab: the series grid, or one series' detail ──────────── */
+            <PageBody width="wide">
+            {expandedSeries ? (
+              seriesDetailLoading || !seriesDetail ? (
+                <>
+                  <PageHeader
+                    eyebrow={
                       <button
-                        onClick={dismiss}
-                        className="text-xs text-muted-foreground hover:text-foreground transition-colors"
+                        type="button"
+                        onClick={() => showSeries(null)}
+                        className="inline-flex items-center gap-1 uppercase hover:text-foreground transition-colors"
                       >
-                        <Trans>Dismiss</Trans>
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <Trans>Series</Trans>
                       </button>
-                    </header>
-                    <HScrollRow className="gap-3 pb-1" controlsTop="top-[60px]">
-                      {forgottenBooks.map(b => (
-                        <a
-                          key={b.book_id}
-                          href={`/books/${b.book_id}`}
-                          className="group flex flex-col gap-1 w-20 shrink-0 hover:opacity-90 transition-opacity"
-                        >
-                          <div className="relative aspect-[2/3] rounded-md bg-muted overflow-hidden">
-                            <CoverImage
-                              src={b.has_cover ? coverSrc(b.book_id, { w: 400 }) : null}
-                              alt={b.title}
-                              iconClassName="w-5 h-5"
-                            />
-                          </div>
-                          <p className="text-[11px] font-medium text-foreground truncate group-hover:text-primary transition-colors">
-                            {b.title}
-                          </p>
-                          <p className="text-[10px] text-muted-foreground">
-                            {(() => { const d = b.days_ago; return d != null ? t`${d}d ago` : t`A while ago` })()}
-                          </p>
-                        </a>
-                      ))}
-                    </HScrollRow>
-                  </section>
-                )
-              })()}
-
-              {/* ── Continue Reading ──────────────────────────────────────── */}
-              <section className="flex flex-col gap-3 px-5 py-5">
-                <h2 className="text-base font-semibold text-foreground"><Trans>Continue Reading</Trans></h2>
-                {continueReading.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-                    <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                      <BookOpen className="w-8 h-8 text-primary/40" />
-                    </div>
-                    <div>
-                      <p className="text-base font-medium text-foreground"><Trans>Nothing in progress</Trans></p>
-                      <p className="text-sm text-muted-foreground mt-1"><Trans>Start reading and your progress will show up here</Trans></p>
-                    </div>
-                    <button onClick={() => setTab('books')} className="text-sm text-primary hover:underline">
-                      <Trans>Browse your library</Trans>
-                    </button>
+                    }
+                    title={expandedSeries === '__unserialized__' ? t`No series` : expandedSeries}
+                  />
+                  <div className="flex justify-center py-16">
+                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
                   </div>
-                ) : (
-                  /* Horizontal band (not a grid): one scrollable row keeps Home's
-                     left column on a consistent banded rhythm that aligns with the
-                     rail, instead of a tall wall of covers. */
-                  <HScrollRow className="gap-4 pb-2 px-1" wrapClassName="-mx-1" controlsTop="top-24">
-                    {continueReading.map((book, i) => {
-                      const status = readingStatuses[book.id]
-                      return (
-                        <div key={book.id} className="shrink-0 w-32">
-                          <BookCard
-                            book={book}
-                            view="small"
-                            index={i}
-                            selected={false}
-                            readingStatus={status?.status}
-                            progressPct={status?.progress_pct}
-                            rating={status?.rating}
-                            showFormatBadge={false}
+                </>
+              ) : (() => {
+                const isUnserialized = seriesDetail.name === '__unserialized__'
+                const total = seriesDetail.books.length
+                const readCount = seriesDetail.books.filter(b => b.reading_status === 'read').length
+                const readingCount = seriesDetail.books.filter(b => b.reading_status === 'reading').length
+                const unreadCount = total - readCount - readingCount
+                const readPct = total ? (readCount / total) * 100 : 0
+                const readingPct = total ? (readingCount / total) * 100 : 0
+                const heroCoverId = seriesList.find(s => s.name === seriesDetail.name)?.cover_book_id
+                  ?? seriesDetail.books[0]?.id ?? null
+                const sections = groupVolumesByArc(seriesDetail.books, seriesArcs)
+                const hasArcs = seriesArcs.length > 0
+                const coverage = seriesDetail.books.map(b => ({
+                  id: b.id, title: b.title, series_index: b.series_index, cover_path: b.cover_path,
+                }))
+                const continueBook = getContinueBook(seriesDetail.books)
+                return (
+                  <>
+                  {/* ── Header line: where you are on the left, the series' actions on the right ── */}
+                  <div className="flex items-center justify-between gap-4 flex-wrap">
+                    <div className="text-[13px] text-muted-foreground flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => showSeries(null)}
+                        className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                      >
+                        <ArrowLeft className="w-3.5 h-3.5" />
+                        <Trans>Series</Trans>
+                      </button>
+                      <span aria-hidden>/</span>
+                      <span><Plural value={total} one="# volume" other="# volumes" /></span>
+                      {followLatest && (
+                        <>
+                          <span aria-hidden>/</span>
+                          <span>{followLatest}</span>
+                        </>
+                      )}
+                    </div>
+                          <div className="flex flex-wrap items-center gap-1">
+                            {!isUnserialized && (
+                              <Pill
+                                variant="quiet"
+                                onClick={() => setShareSeries(seriesDetail.name)}
+                                title={t`Share this series as a public metadata-only page`}
+                              >
+                                <Share2 className="w-4 h-4" />
+                                <Trans>Share</Trans>
+                              </Pill>
+                            )}
+                            {isAdmin(user) && (
+                              <Pill variant="quiet" onClick={() => setManageSeriesOpen(true)} title={t`Manage series`}>
+                                <Settings2 className="w-4 h-4" />
+                                <Trans>Manage</Trans>
+                              </Pill>
+                            )}
+                            <SeriesFollowButton seriesName={seriesDetail.name} onLatest={setFollowLatest} />
+                          </div>
+                  </div>
+
+                  {/* ── Rail (cover, coverage) and content (title, state, description, actions, stats) ── */}
+                  <div className="grid gap-8 lg:gap-10 lg:grid-cols-[220px_minmax(0,1fr)] items-start">
+                    <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0">
+                      <div className="rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-hero)' }}>
+                        <div className="relative aspect-[2/3]">
+                          <CoverImage
+                            src={heroCoverId != null ? coverSrc(heroCoverId, { w: 400 }) : null}
+                            alt=""
+                            iconClassName="w-10 h-10"
                           />
                         </div>
-                      )
-                    })}
-                  </HScrollRow>
-                )}
-              </section>
-
-              {/* ── Series Progress ───────────────────────────────────────── */}
-              {(() => {
-                // One card per series (a series can have several in-progress volumes),
-                // ranked by how far through it you are. Progress = completed volumes /
-                // total, so it never reads "Book 1171 of 17" off a chapter index.
-                const bySeries = new Map<string, { book: typeof continueReading[number]; read: number; total: number | null; pct: number }>()
-                for (const book of continueReading) {
-                  if (!book.series || book.series_index == null || bySeries.has(book.series)) continue
-                  const sd = seriesList.find(s => s.name === book.series)
-                  const total = sd?.book_count ?? null
-                  const read = sd?.read_count ?? 0
-                  bySeries.set(book.series, { book, read, total, pct: total ? Math.min(100, (read / total) * 100) : 0 })
-                }
-                // Only series with genuine momentum: at least one completed volume
-                // and not yet finished. Just-started (0%) series live in Continue
-                // Reading; finished ones don't belong here. Most-progressed first.
-                const rows = [...bySeries.values()]
-                  .filter(r => r.read > 0 && (r.total == null || r.read < r.total))
-                  .sort((a, b) => b.pct - a.pct)
-                  .slice(0, 6)
-                if (rows.length === 0) return null
-                return (
-                  <div className="flex flex-col gap-3 px-5 py-5">
-                    <h2 className="text-base font-semibold text-foreground"><Trans>Series Progress</Trans></h2>
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-                      {rows.map(({ book, read, total, pct }) => (
-                        <button
-                          key={book.series}
-                          type="button"
-                          onClick={() => setSearchParams({ tab: 'books', series: book.series! })}
-                          className="group flex items-center gap-3 px-3 py-2.5 rounded-xl bg-muted/40 hover:bg-muted/60 transition-colors text-left"
-                        >
-                          <div className="relative w-9 aspect-[2/3] rounded shrink-0 overflow-hidden bg-muted">
-                            <CoverImage src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null} alt={book.series!} iconClassName="w-4 h-4" />
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center justify-between gap-2 mb-1.5">
-                              <span className="text-xs font-medium text-foreground truncate group-hover:text-primary transition-colors">{book.series}</span>
-                              <span className="text-[11px] text-muted-foreground shrink-0 tabular-nums">{total ? `${read}/${total}` : `${read}`}</span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-muted overflow-hidden">
-                              <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${pct}%` }} />
-                            </div>
-                          </div>
-                        </button>
-                      ))}
+                      </div>
+                      {!isUnserialized && coverage.some(v => v.series_index != null) && (
+                        <div className="mt-6">
+                          <div className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground mb-3"><Trans>In the library</Trans></div>
+                          <SeriesCoverageStrip coverage={coverage} />
+                        </div>
+                      )}
                     </div>
-                  </div>
-                )
-              })()}
 
-              {/* ── Recently Finished ─────────────────────────────────────── */}
-              {recentlyFinished.length > 0 && (
-                <section className="flex flex-col gap-3 px-5 py-5">
-                  <h2 className="text-base font-semibold text-foreground"><Trans>Recently Finished</Trans></h2>
-                  <HScrollRow className="gap-3 pb-1 px-1" wrapClassName="-mx-1" controlsTop="top-[72px]">
-                    {recentlyFinished.map(book => (
-                      <div key={book.id} className="shrink-0 w-24">
-                        <BookCard
-                          book={book}
-                          view="small"
-                          index={0}
-                          selected={false}
-                          readingStatus="read"
-                          rating={readingStatuses[book.id]?.rating}
-                          showFormatBadge={false}
-                        />
+                    <div className="min-w-0 flex flex-col gap-6">
+                      <div>
+                        <h1 className="font-display text-[34px] leading-none font-bold text-foreground">{isUnserialized ? t`No series` : seriesDetail.name}</h1>
+                        {seriesDetail.author && <div className="mt-2 text-[16px] text-muted-foreground">{seriesDetail.author}</div>}
                       </div>
-                    ))}
-                  </HScrollRow>
-                </section>
-              )}
 
-              {/* ── Recently Added ────────────────────────────────────────── */}
-              {recentlyAdded.length > 0 && (
-                <section className="flex flex-col gap-3 px-5 py-5">
-                  <h2 className="text-base font-semibold text-foreground"><Trans>Recently Added</Trans></h2>
-                  <HScrollRow className="gap-3 pb-1 px-1" wrapClassName="-mx-1" controlsTop="top-[72px]">
-                    {recentlyAdded.map(book => (
-                      <div key={book.id} className="shrink-0 w-24">
-                        <BookCard
-                          book={book}
-                          view="small"
-                          index={0}
-                          selected={false}
-                          readingStatus={readingStatuses[book.id]?.status}
-                          progressPct={readingStatuses[book.id]?.progress_pct}
-                          rating={readingStatuses[book.id]?.rating}
-                          showFormatBadge={false}
-                        />
-                      </div>
-                    ))}
-                  </HScrollRow>
-                </section>
-              )}
-
-              {/* ── Reading Log ───────────────────────────────────────────── */}
-              {activityLog.length > 0 && (
-                <div className="flex flex-col gap-3 px-5 py-5">
-                  <h2 className="text-base font-semibold text-foreground"><Trans>Reading Log</Trans></h2>
-                  <div className="flex flex-col gap-1">
-                    {(() => {
-                      // Back-to-back sessions of the same book collapse into one row
-                      // ("3 sessions · 1h 08m") under a day header — five raw
-                      // "Press Start" lines in a row said less than one merged one.
-                      const sameDay = (a: string, b: string) => new Date(a).toDateString() === new Date(b).toDateString()
-                      const dayLabel = (iso: string) => {
-                        const d = new Date(iso)
-                        const today = new Date()
-                        const yesterday = new Date(today)
-                        yesterday.setDate(today.getDate() - 1)
-                        if (d.toDateString() === today.toDateString()) return t`Today`
-                        if (d.toDateString() === yesterday.toDateString()) return t`Yesterday`
-                        return d.toLocaleDateString(i18n.locale, { weekday: 'short', month: 'short', day: 'numeric' })
-                      }
-                      type LogRow = { entry: ActivityEntry; sessions: number; seconds: number }
-                      const days: { label: string; first: string; rows: LogRow[] }[] = []
-                      for (const entry of activityLog) {
-                        let day = days[days.length - 1]
-                        if (!day || !sameDay(day.first, entry.started_at)) {
-                          day = { label: dayLabel(entry.started_at), first: entry.started_at, rows: [] }
-                          days.push(day)
-                        }
-                        const last = day.rows[day.rows.length - 1]
-                        if (last && last.entry.book_id === entry.book_id) {
-                          last.sessions += 1
-                          last.seconds += entry.duration_seconds
-                        } else {
-                          day.rows.push({ entry, sessions: 1, seconds: entry.duration_seconds })
-                        }
-                      }
-                      return days.map(day => (
-                        <div key={day.first} className="flex flex-col gap-1">
-                          <p className="px-3 pt-2 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
-                            {day.label}
-                          </p>
-                          {day.rows.map(({ entry, sessions, seconds }) => (
-                            <Link
-                              key={entry.started_at}
-                              to={`/books/${entry.book_id}`}
-                              className="flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-muted/50 transition-colors"
+                      {/* Status and arcs */}
+                      {(seriesMetaMap[seriesDetail.name] || hasArcs) && (
+                        <div className="flex flex-wrap items-center gap-2">
+                          <SeriesStatusBadge status={seriesMetaMap[seriesDetail.name]} large />
+                          {sections.filter(sec => sec.arcId != null).map(sec => (
+                            <button
+                              key={sec.arcId}
+                              type="button"
+                              onClick={() => document.getElementById(`series-arc-${sec.arcId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+                              className="h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-surface-hover transition-colors"
                             >
-                              <div className="relative w-8 h-11 rounded overflow-hidden shrink-0 border border-border">
-                                <CoverImage
-                                  src={entry.book_cover_path ? coverSrc(entry.book_id, { w: 160 }) : null}
-                                  alt={entry.book_title}
-                                  iconClassName="w-3.5 h-3.5"
-                                />
-                              </div>
-                              <div className="min-w-0 flex-1">
-                                <p className="text-xs font-medium text-foreground truncate">{entry.book_title}</p>
-                                <p className="text-[10px] text-muted-foreground">
-                                  {(() => {
-                                    const time = formatReadingTime(seconds)
-                                    return sessions > 1 ? t`${sessions} sessions · ${time}` : time
-                                  })()}
-                                </p>
-                              </div>
-                              <span className="text-[10px] text-muted-foreground shrink-0">
-                                {new Date(entry.started_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                              </span>
-                            </Link>
+                              {sec.name}
+                            </button>
                           ))}
                         </div>
-                      ))
-                    })()}
-                  </div>
-                </div>
-              )}
+                      )}
 
-              </>
-              )}
+                      <SeriesRating seriesName={seriesDetail.name} isUnserialized={isUnserialized} />
 
-              </div>{/* ── /Main column ── */}
 
-              {/* ── Right rail (one connected panel, hairline-divided) ───────
-                  empty:hidden — every child is conditional (no sessions / no
-                  goals / no highlights), and a brand-new user would otherwise
-                  see a bare bordered box. */}
-              <aside className="rounded-2xl bg-muted/40 divide-y divide-border/60 overflow-hidden empty:hidden">
-                {readingDna && <ReadingDNACard dna={readingDna} />}
-                <HomeGoalRings />
-                <UpcomingReleases />
-                {spotlight?.highlight?.highlighted_text && (
-                  <section className="p-4">
-                    <header className="flex items-center justify-between mb-2.5">
-                      <h2 className="flex items-center gap-1.5 text-sm font-semibold text-foreground">
-                        <Quote className="w-4 h-4 text-primary/60" />
-                        {spotlight.on_this_day ? t`On this day` : t`From your highlights`}
-                      </h2>
-                      <div className="flex items-center gap-2">
-                        <button
-                          onClick={() => {
-                            const cur = spotlight.highlight?.id
-                            api.get<HighlightSpotlight>(
-                              `/annotations/spotlight${cur ? `?exclude=${cur}` : ''}`
-                            ).then(setSpotlight).catch(() => {})
-                          }}
-                          title={t`Show another highlight`}
-                          aria-label={t`Show another highlight`}
-                          className="p-1 rounded text-muted-foreground hover:text-foreground transition-colors"
-                        >
-                          <Shuffle className="w-3.5 h-3.5" />
-                        </button>
-                        <a href="/highlights" className="text-xs text-muted-foreground hover:text-foreground transition-colors">
-                          <Trans>All →</Trans>
-                        </a>
-                      </div>
-                    </header>
-                    <a href={`/books/${spotlight.highlight.book_id}`} className="block group">
-                      <p className="text-sm text-foreground leading-relaxed border-l-2 border-primary/40 pl-3 italic line-clamp-4">
-                        {spotlight.highlight.highlighted_text}
-                      </p>
-                      <p className="mt-2 pl-3 text-xs text-muted-foreground group-hover:text-primary transition-colors">
-                        — {spotlight.highlight.book_title}
-                        {spotlight.highlight.book_author ? `, ${spotlight.highlight.book_author}` : ''}
-                      </p>
-                    </a>
-                  </section>
-                )}
-              </aside>
-
-              </div>{/* ── /Two-column body ── */}
-              </>
-              )}
-            </div>
-          ) : tab === 'series' ? (
-            /* ── Series grid ─────────────────────────────────────────────── */
-            <>
-            <div className="flex items-center gap-1 mb-5 text-sm text-muted-foreground">
-              <button
-                onClick={() => setTab('books')}
-                className="flex items-center gap-1 hover:text-foreground transition-colors shrink-0"
-              >
-                <Home className="w-3.5 h-3.5" />
-                <span className="hidden sm:inline"><Trans>Library</Trans></span>
-              </button>
-              <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
-              {expandedSeries ? (
-                <>
-                  <button
-                    onClick={() => { setExpandedSeries(null); setSeriesDetail(null) }}
-                    className="hover:text-foreground transition-colors"
-                  >
-                    <Trans>Series</Trans>
-                  </button>
-                  <ChevronRight className="w-3.5 h-3.5 opacity-30 shrink-0" />
-                  <span className="font-medium text-foreground truncate max-w-[200px] sm:max-w-[300px]">{expandedSeries}</span>
-                </>
-              ) : (
-                <span className="font-medium text-foreground"><Trans>Series</Trans></span>
-              )}
-            </div>
-            {seriesLoading ? (
-              <div className="flex justify-center py-24">
-                <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
-              </div>
-            ) : seriesList.length === 0 ? (
-              <div className="flex flex-col items-center justify-center py-24 gap-3 text-muted-foreground">
-                <BookOpen className="w-12 h-12 opacity-20" />
-                <p className="text-sm"><Trans>No series found — add series metadata to your books.</Trans></p>
-              </div>
-            ) : (
-              <div className="flex flex-col gap-4">
-                {/* Series detail panel — replaces grid when a series is selected */}
-                {expandedSeries ? (
-                  <div className="rounded-xl border border-border bg-card overflow-hidden">
-                    {seriesDetailLoading || !seriesDetail ? (
-                      <div className="flex justify-center py-12">
-                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
-                      </div>
-                    ) : (
-                      <div className="p-5 flex flex-col gap-5">
-                        {/* Header */}
-                        <div className="flex flex-col sm:flex-row sm:items-start gap-4">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <h2 className="text-xl sm:text-2xl font-bold text-foreground leading-tight">{seriesDetail.name}</h2>
-                              <SeriesStatusBadge status={seriesMetaMap[seriesDetail.name]} />
-                              {seriesDetail.name !== '__unserialized__' && (
-                                <button
-                                  onClick={() => setShareSeries(seriesDetail.name)}
-                                  title={t`Share this series — a public metadata-only page`}
-                                  className="p-1.5 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                                >
-                                  <Share2 className="w-4 h-4" />
-                                </button>
-                              )}
-                            </div>
-                            {seriesDetail.author && (
-                              <p className="text-sm text-muted-foreground mt-0.5">{seriesDetail.author}</p>
-                            )}
-                            <SeriesRating
-                              seriesName={seriesDetail.name}
-                              isUnserialized={seriesDetail.name === '__unserialized__'}
-                            />
-                            {(() => {
-                              const total = seriesDetail.books.length
-                              const readCount = seriesDetail.books.filter(b => b.reading_status === 'read').length
-                              const readingCount = seriesDetail.books.filter(b => b.reading_status === 'reading').length
-                              const readPct = total ? (readCount / total) * 100 : 0
-                              const readingPct = total ? (readingCount / total) * 100 : 0
-                              return (
-                                <div className="mt-3">
-                                  <div className="flex items-center justify-between text-[10px] text-muted-foreground mb-1">
-                                    {(() => { const unreadCount = total - readCount - readingCount; return (
-                                      <span><Trans>{readCount} read &middot; {readingCount} reading &middot; {unreadCount} unread</Trans></span>
-                                    ) })()}
-                                    <span><Plural value={total} one="# volume" other="# volumes" /></span>
-                                  </div>
-                                  {seriesDetail.backlog && seriesDetail.backlog.estimated > 0 && (
-                                    <p className="text-[10px] text-muted-foreground mb-1.5" title={describePace(seriesDetail.backlog.pace, seriesDetail.backlog.by_type.some(t => t.type_avg > 0) ? 'type_avg' : 'words')}>
-                                      {(() => { const dur = formatEstimateHours(seriesDetail.backlog.seconds); return (
-                                        <Trans><span className="text-foreground font-medium tabular-nums">{dur}</span> left in this series</Trans>
-                                      ) })()}
-                                      {seriesDetail.backlog.days != null && (() => { const d = formatEstimateDays(seriesDetail.backlog.days); return <Trans> &middot; {d} at your pace</Trans> })()}
-                                      {seriesDetail.backlog.unestimated > 0 && (() => { const n = seriesDetail.backlog.unestimated; return <Trans> &middot; {n} not estimated</Trans> })()}
-                                    </p>
-                                  )}
-                                  {devices.map(d => {
-                                    const n = seriesDetail.books.filter(b => devicesFor([d], b.id).length > 0).length
-                                    if (n === 0) return null
-                                    const name = d.name
-                                    return (
-                                      <p key={d.name} className="text-[10px] text-muted-foreground mb-1.5 inline-flex items-center gap-1 mr-3">
-                                        <Tablet className="w-3 h-3" />
-                                        <Trans>On {name}: <span className="text-foreground font-medium tabular-nums">{n}</span> of {total}</Trans>
-                                      </p>
-                                    )
-                                  })}
-                                  <div className="h-2 rounded-full bg-muted overflow-hidden flex">
-                                    <div className="h-full bg-primary transition-all" style={{ width: `${readPct}%` }} />
-                                    <div className="h-full bg-primary/50 transition-all" style={{ width: `${readingPct}%` }} />
-                                  </div>
-                                </div>
-                              )
-                            })()}
-                            {seriesDetail.description && (
-                              <div className="mt-3">
-                                <p className={cn(
-                                  "text-xs text-muted-foreground leading-relaxed whitespace-pre-line",
-                                  !seriesDescExpanded && "line-clamp-3"
-                                )}>
-                                  {seriesDetail.description}
-                                </p>
-                                {seriesDetail.description.length > 240 && (
-                                  <button
-                                    onClick={() => setSeriesDescExpanded(v => !v)}
-                                    className="text-xs font-medium text-primary hover:opacity-80 mt-1 transition-opacity"
-                                  >
-                                    {seriesDescExpanded ? t`Show less` : t`Show more`}
-                                  </button>
-                                )}
-                              </div>
-                            )}
+                      {/* Progress through the series */}
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <div
+                            className="h-[6px] flex-1 rounded-full overflow-hidden flex"
+                            style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}
+                          >
+                            <div className="h-full bg-primary" style={{ width: `${readPct}%` }} />
+                            <div className="h-full bg-primary/50" style={{ width: `${readingPct}%` }} />
                           </div>
-                          <div className="flex items-center gap-2 shrink-0 flex-wrap">
-                            {(() => {
-                              const continueBook = getContinueBook(seriesDetail.books)
-                              if (!continueBook) return null
-                              const volIdx = continueBook.series_index
-                              const volLabel = volIdx != null ? t`Vol. ${volIdx}` : continueBook.title
-                              const isResuming = continueBook.reading_status === 'reading'
-                              return (
-                                <button
-                                  onClick={() => navigate(`/reader/${continueBook.id}`)}
-                                  className="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm font-medium hover:opacity-90 transition-opacity"
-                                >
-                                  <Play className="w-3.5 h-3.5" />
-                                  {isResuming ? t`Resume ${volLabel}` : t`Start ${volLabel}`}
-                                </button>
-                              )
-                            })()}
-                            <button
-                              onClick={() => markAllRead(seriesDetail.books)}
-                              disabled={markingAllRead || seriesDetail.books.every(b => b.reading_status === 'read')}
-                              className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted disabled:opacity-40 disabled:cursor-not-allowed transition-all"
-                            >
-                              {markingAllRead ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCheck className="w-3.5 h-3.5" />}
-                              <Trans>Mark all read</Trans>
-                            </button>
-                            {isAdmin(user) && (
-                              <button
-                                onClick={() => setManageSeriesOpen(true)}
-                                className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border bg-card text-sm font-medium text-foreground hover:bg-muted transition-all"
-                                title={t`Manage series`}
-                              >
-                                <Settings2 className="w-3.5 h-3.5" />
-                                <Trans>Manage</Trans>
-                              </button>
-                            )}
-                            <SeriesFollowButton seriesName={seriesDetail.name} />
-                          </div>
+                          <span className="text-[17px] font-bold tabular-nums text-foreground">{Math.round(readPct)}%</span>
                         </div>
+                        <p className="mt-1.5 text-[13px] text-muted-foreground">
+                          <Trans>{readCount} read &middot; {readingCount} reading &middot; {unreadCount} unread</Trans>
+                        </p>
+                        {seriesDetail.backlog && seriesDetail.backlog.estimated > 0 && (
+                          <p className="mt-1 text-[13px] text-muted-foreground" title={describePace(seriesDetail.backlog.pace, seriesDetail.backlog.by_type.some(t => t.type_avg > 0) ? 'type_avg' : 'words')}>
+                            {(() => { const dur = formatEstimateHours(seriesDetail.backlog.seconds); return (
+                              <Trans><span className="text-foreground font-medium tabular-nums">{dur}</span> left in this series</Trans>
+                            ) })()}
+                            {seriesDetail.backlog.days != null && (() => { const d = formatEstimateDays(seriesDetail.backlog.days); return <Trans> &middot; {d} at your pace</Trans> })()}
+                            {seriesDetail.backlog.unestimated > 0 && (() => { const n = seriesDetail.backlog.unestimated; return <Trans> &middot; {n} not estimated</Trans> })()}
+                          </p>
+                        )}
+                        {devices.some(d => seriesDetail.books.some(b => devicesFor([d], b.id).length > 0)) && (
+                          <p className="mt-1 text-[13px] text-muted-foreground flex flex-wrap gap-x-4 gap-y-1">
+                            {devices.map(d => {
+                              const n = seriesDetail.books.filter(b => devicesFor([d], b.id).length > 0).length
+                              if (n === 0) return null
+                              const name = d.name
+                              return (
+                                <span key={d.name} className="inline-flex items-center gap-1">
+                                  <Tablet className="w-3.5 h-3.5" />
+                                  <Trans>On {name}: <span className="text-foreground font-medium tabular-nums">{n}</span> of {total}</Trans>
+                                </span>
+                              )
+                            })}
+                          </p>
+                        )}
+                      </div>
 
-                        {/* Per-series reading stats */}
-                        <SeriesReadingStats seriesName={seriesDetail.name} />
 
-                        {/* Volume grid — grouped by arc when arcs exist */}
-                        {(() => {
-                          const sections = groupVolumesByArc(seriesDetail.books, seriesArcs)
-                          const hasArcs = seriesArcs.length > 0
+                      {seriesDetail.description && (
+                        <div className="max-w-[680px]">
+                          <p className={cn(
+                            'text-[15px] text-foreground/80 leading-relaxed whitespace-pre-line',
+                            !seriesDescExpanded && 'line-clamp-3'
+                          )}>
+                            {seriesDetail.description}
+                          </p>
+                          {seriesDetail.description.length > 240 && (
+                            <button
+                              onClick={() => setSeriesDescExpanded(v => !v)}
+                              className="text-[14px] font-medium text-primary hover:underline underline-offset-4 mt-1"
+                            >
+                              {seriesDescExpanded ? t`Show less` : t`Show more`}
+                            </button>
+                          )}
+                        </div>
+                      )}
+
+
+                      <div className="flex flex-wrap items-center gap-2">
+                        {continueBook && (() => {
+                          const volIdx = continueBook.series_index
+                          const volLabel = volIdx != null ? t`Vol. ${volIdx}` : continueBook.title
+                          const isResuming = continueBook.reading_status === 'reading'
                           return (
-                            <div className="flex flex-col gap-5">
-                              {sections.map((section, si) => (
-                                <div key={si} className="flex flex-col gap-2">
-                                  {hasArcs && (
-                                    <div className="flex items-center gap-3">
-                                      <span className="text-xs font-semibold text-foreground whitespace-nowrap">{section.label}</span>
-                                      <div className="flex-1 h-px bg-border" />
-                                    </div>
-                                  )}
-                                  {hasArcs && section.description && (
-                                    <p className="text-[11px] text-muted-foreground -mt-1">{section.description}</p>
-                                  )}
-                                  <div className="grid grid-cols-5 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-2">
-                                    {section.volumes.map(vol => (
-                                      <div
-                                        key={vol.id}
-                                        onClick={() => navigate(`/books/${vol.id}`)}
-                                        title={vol.title}
-                                        className="group relative flex flex-col rounded-lg overflow-hidden border bg-muted transition-all duration-150 hover:shadow-md hover:scale-105 cursor-pointer"
-                                        style={{
-                                          borderColor: vol.reading_status === 'read'
-                                            ? 'color-mix(in oklab, var(--primary) 60%, transparent)'
-                                            : vol.reading_status === 'reading'
-                                            ? 'color-mix(in oklab, var(--primary) 30%, transparent)'
-                                            : undefined,
-                                        }}
-                                      >
-                                        <div className="relative aspect-[2/3] w-full overflow-hidden">
-                                          <CoverImage
-                                            src={vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null}
-                                            alt={vol.title}
-                                            iconClassName="w-4 h-4"
-                                          />
-                                          {/* Quick-read play button — top-left corner on hover */}
-                                          <button
-                                            onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
-                                            className="absolute top-1 left-1 opacity-0 group-hover:opacity-100 transition-opacity z-10"
-                                            title={t({ message: 'Read', context: 'action' })}
-                                            aria-label={t({ message: 'Read', context: 'action' })}
-                                          >
-                                            <div className="w-5 h-5 rounded-full bg-white/90 flex items-center justify-center shadow">
-                                              <Play className="w-2.5 h-2.5 text-black fill-black ml-px" />
-                                            </div>
-                                          </button>
-                                          {/* Status dot */}
-                                          {vol.reading_status !== 'unread' && (
-                                            <div className={cn(
-                                              'absolute top-1 right-1 w-2 h-2 rounded-full ring-1 ring-background',
-                                              vol.reading_status === 'read' ? 'bg-primary' : 'bg-primary/60'
-                                            )} />
-                                          )}
-                                          {/* Volume bar: number left, on-device glyph right */}
-                                          {(() => {
-                                            const idx = vol.series_index
-                                            const on = devicesFor(devices, vol.id)
-                                            if (idx == null && on.length === 0) return null
-                                            const names = on.map(d => d.name).join(', ')
-                                            return (
-                                              <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1 py-0.5 flex items-center justify-between gap-1">
-                                                <span className="text-[9px] font-bold text-white leading-none">
-                                                  {idx != null && <Trans>Vol. {idx}</Trans>}
-                                                </span>
-                                                {on.length > 0 && (
-                                                  <span title={t`On ${names}`} aria-label={t`On ${names}`}>
-                                                    <Tablet className="w-2.5 h-2.5 text-white" />
-                                                  </span>
-                                                )}
-                                              </div>
-                                            )
-                                          })()}
-                                        </div>
-                                      </div>
-                                    ))}
-                                  </div>
-                                </div>
-                              ))}
-                            </div>
+                            <Pill variant="primary" size="lg" onClick={() => navigate(`/reader/${continueBook.id}`)}>
+                              <Play className="w-4 h-4 fill-current" />
+                              {isResuming ? t`Resume ${volLabel}` : t`Start ${volLabel}`}
+                            </Pill>
                           )
                         })()}
-                      </div>
-                    )}
-                  </div>
-                ) : (
-                  /* Series card grid */
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
-                    {seriesList.map(s => {
-                      const isUnserialized = s.name === '__unserialized__'
-                      return (
-                        <button
-                          key={s.name}
-                          onClick={() => {
-                            if (isUnserialized) {
-                              setSearchParams(prev => {
-                                const p = new URLSearchParams(prev)
-                                p.set('tab', 'books')
-                                p.delete('saved_filter')
-                                p.set('no_series', 'true')
-                                return p
-                              })
-                            } else {
-                              openSeriesDetail(s.name)
-                            }
-                          }}
-                          className="group flex flex-col text-left rounded-xl overflow-hidden border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all duration-150"
+                        <Pill
+                          size="lg"
+                          onClick={() => markAllRead(seriesDetail.books)}
+                          disabled={markingAllRead || seriesDetail.books.every(b => b.reading_status === 'read')}
                         >
-                          <div className="relative aspect-[2/3] bg-muted overflow-hidden">
-                            <CoverImage
-                              src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
-                              alt={isUnserialized ? t`Unserialized` : s.name}
-                              imgClassName="group-hover:scale-105"
-                            />
-                            <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent px-2 pt-6 pb-2">
-                              <span className="text-[10px] font-semibold text-white/90">
-                                <Plural value={s.book_count} one="# book" other="# books" />
-                              </span>
-                            </div>
-                          </div>
-                          <div className="px-3 py-2.5 flex flex-col gap-0.5 min-w-0">
-                            <div className="flex items-start gap-1.5 flex-wrap">
-                              <span className="text-xs font-semibold text-foreground leading-tight line-clamp-2">
-                                {isUnserialized ? t`No Series` : s.name}
-                              </span>
-                              {!isUnserialized && <SeriesStatusBadge status={seriesMetaMap[s.name]} />}
-                            </div>
-                            {!isUnserialized && s.author && <span className="text-[10px] text-muted-foreground truncate">{s.author}</span>}
-                            {!isUnserialized && s.rating != null && (
-                              <StarRating value={s.rating} readOnly starClassName="w-3 h-3" className="mt-0.5" />
-                            )}
-                            {!isUnserialized && s.description && (
-                              <p className="text-[10px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">{s.description}</p>
-                            )}
-                            {isUnserialized && (
-                              <p className="text-[10px] text-muted-foreground leading-snug mt-0.5"><Trans>Books without a series</Trans></p>
-                            )}
-                            {!isUnserialized && s.book_count > 0 && (s.read_count > 0 || s.reading_count > 0) && (
-                              <div className="mt-1.5 h-1 rounded-full bg-muted overflow-hidden flex">
-                                <div
-                                  className="h-full bg-primary"
-                                  style={{ width: `${(s.read_count / s.book_count) * 100}%` }}
-                                />
-                                <div
-                                  className="h-full bg-primary/50"
-                                  style={{ width: `${(s.reading_count / s.book_count) * 100}%` }}
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </button>
-                      )
-                    })}
+                          {markingAllRead ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCheck className="w-4 h-4" />}
+                          <Trans>Mark all read</Trans>
+                        </Pill>
+                      </div>
+                    </div>
                   </div>
-                )}
-              </div>
-            )
-            }
-            </>
-          ) : (
-          <>
 
-          <div className="flex items-center gap-2 mb-3 flex-wrap">
-            <div className="flex items-center gap-1 bg-muted rounded-lg p-0.5">
-              {(Object.keys(SORT_LABELS) as SortField[]).map(f => (
-                <button key={f} onClick={() => toggleSort(f)}
-                  className={cn(
-                    'flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium transition-all',
-                    sort === f ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground'
-                  )}>
-                  {i18n._(SORT_LABELS[f])}
-                  {sort === f && (order === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />)}
-                </button>
-              ))}
-            </div>
+                  {/* Per-series reading stats: full width, like the volumes below.
+                      Beside the cover it stayed indented against an empty rail once
+                      the cover had scrolled away. */}
+                  <SeriesReadingStats seriesName={seriesDetail.name} />
 
-            <button
-              onClick={() => setFilterOpen(o => !o)}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                filterOpen || hasFilters
-                  ? 'border-primary/40 bg-primary/5 text-primary'
-                  : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}>
-              <SlidersHorizontal className="w-3.5 h-3.5" />
-              <Trans>Filters</Trans>
-              {/* Counts filter chips only: a search alone (hasFilters) is not
-                  a filter and used to show a "0" badge. */}
-              {activeFilterChips.length > 0 && (
-                <span className="ml-0.5 w-4 h-4 rounded-full bg-primary text-primary-foreground text-[9px] flex items-center justify-center font-bold">
-                  {activeFilterChips.length}
-                </span>
+                  {/* Volume grid - grouped by arc when arcs exist */}
+                  {sections.map((section, si) => (
+                    <section key={si} id={section.arcId != null ? `series-arc-${section.arcId}` : undefined} className="scroll-mt-6">
+                      {hasArcs ? (
+                        <>
+                          <SectionTitle size={20}>{section.label}</SectionTitle>
+                          {section.description && (
+                            <p className="mt-2 text-[14px] text-muted-foreground max-w-[70ch]">{section.description}</p>
+                          )}
+                        </>
+                      ) : (
+                        <SectionTitle size={20}><Trans>Volumes</Trans></SectionTitle>
+                      )}
+                      <div className="mt-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-x-3 gap-y-4">
+                        {section.volumes.map(vol => (
+                          <div
+                            key={vol.id}
+                            onClick={() => navigate(`/books/${vol.id}`)}
+                            title={vol.title}
+                            className="group relative cursor-pointer touch-feedback"
+                          >
+                            <div
+                              className="relative aspect-[2/3] w-full rounded-[8px] overflow-hidden bg-muted transition-transform duration-150 group-hover:-translate-y-0.5"
+                              style={{ boxShadow: 'var(--cover-bloom-fan)' }}
+                            >
+                              <CoverImage
+                                src={vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null}
+                                alt={vol.title}
+                                iconClassName="w-4 h-4"
+                              />
+                              {/* Quick-read play button - top-left corner on hover */}
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
+                                className="absolute top-1 left-1 z-10 w-7 h-7 rounded-full bg-background/75 backdrop-blur-sm text-foreground hover:bg-background flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                title={t({ message: 'Read', context: 'action' })}
+                                aria-label={t({ message: 'Read', context: 'action' })}
+                              >
+                                <Play className="w-3 h-3 fill-current ml-px" />
+                              </button>
+                              {/* Quick look - top-right corner on hover; the status dot steps aside */}
+                              <button
+                                type="button"
+                                onClick={e => { e.stopPropagation(); setQuickLookId(vol.id) }}
+                                className="absolute top-1 right-1 z-10 w-7 h-7 rounded-full bg-background/75 backdrop-blur-sm text-foreground hover:bg-background flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                title={t`Quick look`}
+                                aria-label={t`Quick look`}
+                              >
+                                <Eye className="w-3.5 h-3.5" />
+                              </button>
+                              {/* Read: a check badge (the old bare status dot read as a
+                                  stray circle). Reading: a progress strip along the
+                                  bottom edge. Other states draw nothing. */}
+                              {vol.reading_status === 'read' && (
+                                <span
+                                  className="absolute top-1.5 right-1.5 w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground grid place-items-center shadow-sm transition-opacity group-hover:opacity-0 group-focus-within:opacity-0"
+                                  title={t({ message: 'Read', context: 'status' })}
+                                  aria-label={t({ message: 'Read', context: 'status' })}
+                                >
+                                  <Check className="w-3 h-3" strokeWidth={3} />
+                                </span>
+                              )}
+                              {vol.reading_status === 'reading' && (
+                                <div className="absolute inset-x-0 bottom-0 z-[1] h-[3px] bg-black/40" aria-hidden>
+                                  <div className="h-full bg-primary" style={{ width: `${Math.max(4, Math.round(progressPercent(vol.progress_pct)))}%` }} />
+                                </div>
+                              )}
+                              {/* Volume bar: number left, on-device glyph right */}
+                              {(() => {
+                                const idx = vol.series_index
+                                const on = devicesFor(devices, vol.id)
+                                if (idx == null && on.length === 0) return null
+                                const names = on.map(d => d.name).join(', ')
+                                return (
+                                  <div className="absolute bottom-0 inset-x-0 bg-black/60 px-1.5 py-1 flex items-center justify-between gap-1">
+                                    <span className="text-[10px] font-bold text-white leading-none">
+                                      {idx != null && <Trans>Vol. {idx}</Trans>}
+                                    </span>
+                                    {on.length > 0 && (
+                                      <span title={t`On ${names}`} aria-label={t`On ${names}`}>
+                                        <Tablet className="w-3 h-3 text-white" />
+                                      </span>
+                                    )}
+                                  </div>
+                                )
+                              })()}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </section>
+                  ))}
+                  </>
+                )
+              })()
+            ) : (
+              <>
+              <PageHeader
+                eyebrow={seriesLoading ? undefined : (() => {
+                  const n = seriesList.filter(s => s.name !== '__unserialized__').length
+                  return <Plural value={n} one="# series" other="# series" />
+                })()}
+                title={<Trans>Series</Trans>}
+              />
+              {seriesLoading ? (
+                <div className="flex justify-center py-24">
+                  <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
+                </div>
+              ) : seriesList.length === 0 ? (
+                <div className="flex flex-col items-start gap-4 py-10">
+                  <div>
+                    <p className="text-[17px] font-medium text-foreground"><Trans>No series yet</Trans></p>
+                    <p className="text-[15px] text-muted-foreground mt-1"><Trans>Books with series metadata show up here, grouped by series.</Trans></p>
+                  </div>
+                  <Pill onClick={() => setTab('books')}><Trans>Show all books</Trans></Pill>
+                </div>
+              ) : (
+                /* Series card grid */
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-8">
+                  {seriesList.map(s => {
+                    const isUnserialized = s.name === '__unserialized__'
+                    return (
+                      <button
+                        key={s.name}
+                        onClick={() => {
+                          if (isUnserialized) {
+                            setSearchParams(prev => {
+                              const p = new URLSearchParams(prev)
+                              p.set('tab', 'books')
+                              p.delete('saved_filter')
+                              p.set('no_series', 'true')
+                              return p
+                            })
+                          } else {
+                            showSeries(s.name)
+                          }
+                        }}
+                        className="group flex flex-col text-left min-w-0 touch-feedback focus:outline-none"
+                      >
+                        <div
+                          className="relative aspect-[2/3] rounded-[8px] bg-muted overflow-hidden transition-transform duration-200 group-hover:-translate-y-0.5 group-focus-visible:ring-2 group-focus-visible:ring-ring"
+                          style={{ boxShadow: 'var(--cover-bloom-fan)' }}
+                        >
+                          <CoverImage
+                            src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
+                            alt={isUnserialized ? t`Unserialized` : s.name}
+                          />
+                        </div>
+                        <div className="pt-2.5 flex flex-col gap-0.5 min-w-0">
+                          <div className="flex items-start gap-1.5 flex-wrap">
+                            <span className="text-[14px] font-medium text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
+                              {isUnserialized ? t`No series` : s.name}
+                            </span>
+                            {!isUnserialized && <SeriesStatusBadge status={seriesMetaMap[s.name]} />}
+                          </div>
+                          {/* The count sits under the cover: on a light cover the
+                              white label over a thin scrim was unreadable. */}
+                          <span className="text-[13px] text-muted-foreground truncate">
+                            {!isUnserialized && s.author && <>{s.author}{' · '}</>}
+                            <Plural value={s.book_count} one="# book" other="# books" />
+                          </span>
+                          {!isUnserialized && s.rating != null && (
+                            <StarRating value={s.rating} readOnly starClassName="w-3 h-3" className="mt-0.5" />
+                          )}
+                          {!isUnserialized && s.description && (
+                            <p className="text-[13px] text-muted-foreground leading-snug line-clamp-2 mt-0.5">{s.description}</p>
+                          )}
+                          {isUnserialized && (
+                            <p className="text-[13px] text-muted-foreground leading-snug mt-0.5"><Trans>Books without a series</Trans></p>
+                          )}
+                          {!isUnserialized && s.book_count > 0 && (s.read_count > 0 || s.reading_count > 0) && (
+                            <div
+                              className="mt-2 h-[3px] rounded-full overflow-hidden flex"
+                              style={{ background: 'color-mix(in oklch, var(--primary) 25%, var(--background))' }}
+                            >
+                              <div className="h-full bg-primary" style={{ width: `${(s.read_count / s.book_count) * 100}%` }} />
+                              <div className="h-full bg-primary/50" style={{ width: `${(s.reading_count / s.book_count) * 100}%` }} />
+                            </div>
+                          )}
+                        </div>
+                      </button>
+                    )
+                  })}
+                </div>
               )}
-            </button>
-
-            {/* Save filter button — only when content filters active (not library) */}
-            <SaveFilterButton params={saveableParams} onSaved={loadSavedFilters} />
-
-            {activeFilterChips.map(f => (
-              <span key={f.key} className="flex items-center gap-1 px-2 py-1 rounded-full text-xs bg-primary/10 text-primary border border-primary/20">
-                {f.label}
-                <button onClick={() => setFilter(f.key, '')} className="hover:text-destructive transition-colors">
-                  <X className="w-3 h-3" />
-                </button>
-              </span>
-            ))}
-
-            {(hasFilters || filterLibrary) && (
-              <button onClick={clearFilters} className="text-xs text-muted-foreground hover:text-foreground transition-colors ml-1">
-                <Trans>Clear all</Trans>
-              </button>
+              </>
             )}
+            </PageBody>
+          ) : (
+          /* ── Library tab: header with the toolbar, filters, selection, grid ── */
+          <PageBody width="wide">
+          <div className="flex flex-col gap-4">
+          <PageHeader
+            eyebrow={loading
+              ? '…'
+              : (() => {
+                  // Grouped rows are series stacks + standalones - "titles", not the
+                  // ambiguous "entries" (which read like a book count and never matched it).
+                  // The total of the current view (filters included); how many rows have
+                  // loaded so far is paging, not information for the header.
+                  const n = totalCount ?? books.length
+                  return groupActive
+                    ? plural(n, { one: '# title', other: '# titles' })
+                    : plural(n, { one: '# book', other: '# books' })
+                })()}
+            title={activeLibraryName ?? <Trans>Library</Trans>}
+            actions={
+              /* Capped at the viewport so the row wraps on phones instead of
+                 running off the side. */
+              <div className="flex flex-wrap items-center sm:justify-end gap-1 max-w-[calc(100vw-2.5rem)]">
+                <SortMenu
+                  fields={(Object.keys(SORT_LABELS) as SortField[]).map(f => ({ id: f, label: i18n._(SORT_LABELS[f]) }))}
+                  value={sort}
+                  order={order}
+                  onPick={toggleSort}
+                />
 
-            <div className="flex-1" />
-            <span className="text-xs text-muted-foreground hidden sm:block">
-              {loading
-                ? '…'
-                : (() => {
-                    // Grouped rows are series stacks + standalones — "titles", not the
-                    // ambiguous "entries" (which read like a book count and never matched it).
-                    const shown = books.length
-                    if (totalCount !== null && totalCount > shown) {
-                      return groupActive
-                        ? plural(totalCount, { one: `${shown} of # title`, other: `${shown} of # titles` })
-                        : plural(totalCount, { one: `${shown} of # book`, other: `${shown} of # books` })
-                    }
-                    return groupActive
-                      ? plural(shown, { one: '# title', other: '# titles' })
-                      : plural(shown, { one: '# book', other: '# books' })
-                  })()}
-            </span>
-
-            {/* Group by series toggle */}
-            <button
-              onClick={() => persistGroup(!groupBySeries)}
-              title={groupBySeries ? t`Show individual volumes` : t`Group volumes by series`}
-              aria-label={t`Group by series`}
-              aria-pressed={groupBySeries}
-              className={cn(
-                'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                groupBySeries
-                  ? 'border-primary/40 bg-primary/10 text-primary'
-                  : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
-              )}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span className="hidden sm:inline"><Trans>Group series</Trans></span>
-            </button>
-
-            {/* Select mode toggle — selection operates on individual books, hidden while grouped */}
-            {books.length > 0 && !groupActive && (
-              <div className="flex items-center gap-1">
-                <button
-                  onClick={() => {
-                    if (!selectionMode) {
-                      setSelectionMode(true)
-                      selectAll()
-                    } else if (selected.size > 0) {
-                      clearSelection()
-                    } else {
-                      selectAll()
-                    }
-                  }}
-                  className={cn(
-                    'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border transition-all',
-                    selectionMode
-                      ? 'border-primary/40 bg-primary/10 text-primary'
-                      : 'border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted'
-                  )}
+                <Pill
+                  variant={filterOpen || activeFilterChips.length > 0 ? 'secondary' : 'quiet'}
+                  onClick={() => setFilterOpen(o => !o)}
+                  aria-expanded={filterOpen}
+                  aria-label={t`Filters`}
+                  title={t`Filters`}
+                  className="px-3"
                 >
-                  {selectionMode
-                    ? selected.size > 0
-                      ? <><XSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> <Trans>Deselect all</Trans></span></>
-                      : <><CheckSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> <Trans>Select all</Trans></span></>
-                    : <><CheckSquare className="w-3.5 h-3.5" /><span className="hidden sm:inline"> <Trans>Select</Trans></span></>
-                  }
-                </button>
-                {selectionMode && (
+                  <SlidersHorizontal className="w-4 h-4" />
+                  <span className="hidden lg:inline"><Trans>Filters</Trans></span>
+                  {/* Counts filter chips only: a search alone (hasFilters) is not
+                      a filter and used to show a "0" badge. */}
+                  {activeFilterChips.length > 0 && (
+                    <span className="min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-foreground text-background text-[12px] font-semibold tabular-nums">
+                      {activeFilterChips.length}
+                    </span>
+                  )}
+                </Pill>
+
+                {/* Group by series toggle */}
+                <Pill
+                  variant={groupBySeries ? 'secondary' : 'quiet'}
+                  onClick={() => persistGroup(!groupBySeries)}
+                  title={groupBySeries ? t`Show individual volumes` : t`Group volumes by series`}
+                  aria-label={t`Group by series`}
+                  aria-pressed={groupBySeries}
+                  className="px-3"
+                >
+                  <Layers className="w-4 h-4" />
+                  <span className="hidden xl:inline"><Trans>Group series</Trans></span>
+                </Pill>
+
+                {/* Select mode toggle - selection operates on individual books, hidden while grouped */}
+                {books.length > 0 && !groupActive && (
+                  <>
+                    <Pill
+                      variant={selectionMode ? 'secondary' : 'quiet'}
+                      onClick={() => {
+                        if (!selectionMode) {
+                          setSelectionMode(true)
+                          selectAll()
+                        } else if (selected.size > 0) {
+                          clearSelection()
+                        } else {
+                          selectAll()
+                        }
+                      }}
+                      className="px-3"
+                      aria-label={selectionMode ? (selected.size > 0 ? t`Deselect all` : t`Select all`) : t`Select`}
+                      title={selectionMode ? (selected.size > 0 ? t`Deselect all` : t`Select all`) : t`Select`}
+                    >
+                      {selectionMode
+                        ? selected.size > 0
+                          ? <><XSquare className="w-4 h-4" /><span className="hidden xl:inline"><Trans>Deselect all</Trans></span></>
+                          : <><CheckSquare className="w-4 h-4" /><span className="hidden xl:inline"><Trans>Select all</Trans></span></>
+                        : <><CheckSquare className="w-4 h-4" /><span className="hidden xl:inline"><Trans>Select</Trans></span></>
+                      }
+                    </Pill>
+                    {selectionMode && (
+                      <Pill
+                        variant="quiet"
+                        icon
+                        onClick={exitSelectionMode}
+                        title={t`Exit selection mode`}
+                        aria-label={t`Exit selection mode`}
+                      >
+                        <X className="w-4 h-4" />
+                      </Pill>
+                    )}
+                  </>
+                )}
+
+                {/* Cover size (grid only) + grid / list */}
+                <div className="flex items-center">
+                  <input
+                    type="range"
+                    min={GRID_SIZE_MIN}
+                    max={GRID_SIZE_MAX}
+                    step={10}
+                    value={gridSize}
+                    onChange={e => persistGridSize(Number(e.target.value))}
+                    title={t`Cover size`}
+                    aria-label={t`Cover size`}
+                    tabIndex={view === 'grid' ? 0 : -1}
+                    className={cn(
+                      'cover-slider transition-all duration-200',
+                      view === 'grid'
+                        ? 'w-20 sm:w-24 opacity-100 mx-2'
+                        : 'w-0 opacity-0 mx-0 pointer-events-none'
+                    )}
+                    style={{
+                      background: `linear-gradient(to right, var(--primary) ${((gridSize - GRID_SIZE_MIN) / (GRID_SIZE_MAX - GRID_SIZE_MIN)) * 100}%, var(--input) 0)`,
+                    }}
+                  />
+                  {([
+                    { mode: 'grid' as ViewPref, Icon: LayoutGrid, title: t`Grid view` },
+                    { mode: 'list' as ViewPref, Icon: List, title: t`List view` },
+                  ]).map(({ mode, Icon, title }) => (
+                    <Pill
+                      key={mode}
+                      icon
+                      variant={view === mode ? 'secondary' : 'quiet'}
+                      onClick={() => persistView(mode)}
+                      title={title}
+                      aria-label={title}
+                      aria-pressed={view === mode}
+                    >
+                      <Icon className="w-4 h-4" />
+                    </Pill>
+                  ))}
+                </div>
+              </div>
+            }
+          />
+
+          {/* ── Active filters as chips, Add shelf, Clear all ─────────────── */}
+          {(activeFilterChips.length > 0 || hasFilters) && (
+            <div className="flex items-center gap-2 flex-wrap">
+              {activeFilterChips.map(f => (
+                <span key={f.key} className="inline-flex items-center gap-1 h-8 pl-3.5 pr-1.5 rounded-full bg-secondary text-[13px] font-medium text-foreground">
+                  {f.label}
                   <button
-                    onClick={exitSelectionMode}
-                    title={t`Exit selection mode`}
-                    aria-label={t`Exit selection mode`}
-                    className="p-1.5 rounded-lg border border-border bg-card text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+                    type="button"
+                    onClick={() => setFilter(f.key, '')}
+                    aria-label={t`Remove filter`}
+                    className="w-6 h-6 grid place-items-center rounded-full text-muted-foreground hover:text-destructive hover:bg-background/60 transition-colors"
                   >
                     <X className="w-3.5 h-3.5" />
                   </button>
-                )}
-              </div>
-            )}
-
-            <div className="flex items-center gap-0.5 bg-muted rounded-lg p-0.5">
-              <input
-                type="range"
-                min={GRID_SIZE_MIN}
-                max={GRID_SIZE_MAX}
-                step={10}
-                value={gridSize}
-                onChange={e => persistGridSize(Number(e.target.value))}
-                title={t`Cover size`}
-                aria-label={t`Cover size`}
-                tabIndex={view === 'grid' ? 0 : -1}
-                className={cn(
-                  'cover-slider transition-all duration-200',
-                  view === 'grid'
-                    ? 'w-20 sm:w-24 opacity-100 mx-2'
-                    : 'w-0 opacity-0 mx-0 pointer-events-none'
-                )}
-                style={{
-                  background: `linear-gradient(to right, var(--primary) ${((gridSize - GRID_SIZE_MIN) / (GRID_SIZE_MAX - GRID_SIZE_MIN)) * 100}%, var(--input) 0)`,
-                }}
-              />
-              {([
-                { mode: 'grid' as ViewPref, Icon: LayoutGrid, title: t`Grid view` },
-                { mode: 'list' as ViewPref, Icon: List, title: t`List view` },
-              ]).map(({ mode, Icon, title }) => (
-                <button key={mode} onClick={() => persistView(mode)} title={title} aria-label={title}
-                  className={cn('p-1.5 rounded-md transition-all',
-                    view === mode ? 'bg-primary/10 text-primary shadow-sm' : 'text-muted-foreground hover:text-foreground')}>
-                  <Icon className="w-3.5 h-3.5" />
-                </button>
+                </span>
               ))}
+
+              {/* Save filter button - only when content filters active (not library) */}
+              <SaveFilterButton params={saveableParams} onSaved={loadSavedFilters} />
+
+              <Pill variant="quiet" onClick={clearFilters}>
+                <Trans>Clear all</Trans>
+              </Pill>
             </div>
-          </div>
+          )}
 
           {/* ── Filter panel ──────────────────────────────────────────────── */}
-          {filterOpen && (
-            <div className="mb-4 p-4 rounded-xl border border-border bg-card flex flex-col gap-4">
+          {filterOpen && (() => {
+            /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
+            const opt = (active: boolean) => cn(
+              'h-8 px-3.5 rounded-full text-[13px] font-medium transition-colors inline-flex items-center gap-1',
+              active ? 'bg-foreground text-background' : 'bg-secondary text-muted-foreground hover:text-foreground',
+            )
+            const rowLabel = 'text-[13px] text-muted-foreground w-20 shrink-0'
+            /* eslint-enable lingui/no-unlocalized-strings */
+            return (
+            <div className="rounded-[var(--radius-panel)] bg-card p-5 flex flex-col gap-4">
               <div className="flex items-center justify-between sm:hidden">
-                <span className="text-xs font-medium text-muted-foreground"><Trans>Filters</Trans></span>
-                <button
-                  onClick={() => setFilterOpen(false)}
-                  className="p-1 text-muted-foreground hover:text-foreground"
-                >
+                <span className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Filters</Trans></span>
+                <Pill variant="quiet" icon onClick={() => setFilterOpen(false)} aria-label={t`Close`}>
                   <X className="w-4 h-4" />
-                </button>
+                </Pill>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
                 <FilterSelect label={t`Series`} value={filterSeries} options={facets.series} onChange={v => setFilter('series', v)} />
@@ -2261,24 +1830,15 @@ export function DashboardPage() {
                 )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Status</Trans></span>
+                <span className={rowLabel}><Trans>Status</Trans></span>
                 {(['', 'unread', 'want_to_read', 'reading', 'read', 'shelved'] as const).map(s => (
-                  <button
-                    key={s}
-                    onClick={() => setFilter('reading_status', s)}
-                    className={cn(
-                      'px-3 py-1 rounded-lg text-xs font-medium border transition-all',
-                      filterReadingStatus === s
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                    )}
-                  >
+                  <button key={s} type="button" onClick={() => setFilter('reading_status', s)} className={opt(filterReadingStatus === s)}>
                     {s === '' ? t`All` : i18n._(READING_STATUS_LABELS[s])}
                   </button>
                 ))}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Rating</Trans></span>
+                <span className={rowLabel}><Trans>Rating</Trans></span>
                 {([
                   { value: '', label: t`All`, starless: true },
                   { value: '1', label: t`Rated`, starless: true },
@@ -2288,13 +1848,9 @@ export function DashboardPage() {
                 ]).map(({ value, label, starless }) => (
                   <button
                     key={value}
+                    type="button"
                     onClick={() => setFilter('min_rating', value)}
-                    className={cn(
-                      'px-3 py-1 rounded-lg text-xs font-medium border transition-all inline-flex items-center gap-1',
-                      (filterMinRating ? String(filterMinRating) : '') === value
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                    )}
+                    className={opt((filterMinRating ? String(filterMinRating) : '') === value)}
                   >
                     {!starless && <Star className="w-3 h-3 fill-current" />}
                     {label}
@@ -2302,7 +1858,7 @@ export function DashboardPage() {
                 ))}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Missing</Trans></span>
+                <span className={rowLabel}><Trans>Missing</Trans></span>
                 {([
                   { value: '', label: t`None` },
                   { value: 'cover', label: t`Cover` },
@@ -2311,16 +1867,7 @@ export function DashboardPage() {
                   { value: 'series', label: t`Series` },
                   { value: 'any', label: t`Any` },
                 ]).map(({ value, label }) => (
-                  <button
-                    key={value}
-                    onClick={() => setFilter('missing', value)}
-                    className={cn(
-                      'px-3 py-1 rounded-lg text-xs font-medium border transition-all',
-                      filterMissing === value
-                        ? 'bg-primary text-primary-foreground border-primary'
-                        : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                    )}
-                  >
+                  <button key={value} type="button" onClick={() => setFilter('missing', value)} className={opt(filterMissing === value)}>
                     {label}
                   </button>
                 ))}
@@ -2328,22 +1875,21 @@ export function DashboardPage() {
               {/* Device filter: one pill per device, click cycles off / on / not on */}
               {devices.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Devices</Trans></span>
+                  <span className={rowLabel}><Trans>Devices</Trans></span>
                   {devices.map(d => {
                     const name = d.name
                     const state = onDevices.includes(name) ? 'on' : notOnDevices.includes(name) ? 'not' : 'off'
                     return (
                       <button
                         key={name}
+                        type="button"
                         onClick={() => cycleDeviceFilter(name)}
                         title={state === 'off' ? t`Click: only books on ${name}`
                           : state === 'on' ? t`Click: only books not on ${name}`
                           : t`Click: ${name} does not matter`}
                         className={cn(
-                          'px-3 py-1 rounded-lg text-xs font-medium border transition-all inline-flex items-center gap-1',
-                          state === 'on' && 'bg-primary text-primary-foreground border-primary',
-                          state === 'not' && 'bg-destructive/10 text-destructive border-destructive/40',
-                          state === 'off' && 'border-border bg-card text-muted-foreground hover:text-foreground',
+                          opt(state === 'on'),
+                          state === 'not' && 'bg-destructive/10 text-destructive hover:text-destructive',
                         )}
                       >
                         <Tablet className="w-3 h-3" />
@@ -2353,74 +1899,63 @@ export function DashboardPage() {
                   })}
                 </div>
               )}
-              {/* Ownership filter — members only (not admin) */}
+              {/* Ownership filter - members only (not admin) */}
               {isMember(user) && !isAdmin(user) && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Books</Trans></span>
+                  <span className={rowLabel}><Trans>Books</Trans></span>
                   {([
                     { value: '', label: t`All` },
-                    { value: 'mine', label: t`My Books` },
-                    { value: 'shared', label: t`Shared Library` },
+                    { value: 'mine', label: t`My books` },
+                    { value: 'shared', label: t`Shared library` },
                   ] as const).map(({ value, label }) => (
-                    <button
-                      key={value}
-                      onClick={() => setFilter('ownership', value)}
-                      className={cn(
-                        'px-3 py-1 rounded-lg text-xs font-medium border transition-all',
-                        filterOwnership === value
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'border-border bg-card text-muted-foreground hover:text-foreground'
-                      )}
-                    >
+                    <button key={value} type="button" onClick={() => setFilter('ownership', value)} className={opt(filterOwnership === value)}>
                       {label}
                     </button>
                   ))}
                 </div>
               )}
-              {/* Uploader filter — admins only */}
+              {/* Uploader filter - admins only */}
               {isAdmin(user) && userList.length > 0 && (
                 <div className="flex items-center gap-2 flex-wrap">
-                  <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Uploader</Trans></span>
-                  <select
+                  <span className={rowLabel}><Trans>Uploader</Trans></span>
+                  <Select
                     value={filterAddedBy ?? ''}
                     onChange={e => setFilter('added_by', e.target.value)}
-                    className="text-xs rounded-lg border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                    aria-label={t`Uploader`}
+                    className="w-auto min-w-44"
                   >
                     <option value="">{t`All users`}</option>
                     {userList.map(u => (
                       <option key={u.id} value={u.id}>{u.username} ({u.role})</option>
                     ))}
-                  </select>
+                  </Select>
                 </div>
               )}
               <div className="flex items-center gap-2 flex-wrap">
-                <span className="text-xs text-muted-foreground font-medium w-14"><Trans>Type</Trans></span>
-                <select
+                <span className={rowLabel}><Trans>Type</Trans></span>
+                <Select
                   value={contentType}
                   onChange={e => setContentType(e.target.value)}
-                  className="text-xs rounded-lg border border-border bg-background px-2 py-1.5 focus:outline-none focus:ring-1 focus:ring-ring"
+                  aria-label={t`Type`}
+                  className="w-auto min-w-36"
                 >
                   <option value="volume">{t`Volumes`}</option>
                   <option value="chapter">{t`Chapters`}</option>
                   <option value="">{t`All`}</option>
-                </select>
+                </Select>
               </div>
             </div>
-          )}
+            )
+          })()}
 
           {/* ── Bulk action bar ──────────────────────────────────────────── */}
           {selectionMode && (
-            <div className="mb-3 flex items-center gap-2 px-3 py-2 rounded-xl bg-primary/5 border border-primary/20">
-              <span className="text-xs font-medium text-primary">{(() => { const n = selected.size; return t`${n} selected` })()}</span>
-              <div className="flex-1" />
-              <button
-                onClick={bulkDownload}
-                disabled={bulkPending || selected.size === 0}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all"
-              >
-                <Download className="w-3.5 h-3.5" />
+            <div className="flex flex-wrap items-center gap-2 py-2.5 border-y border-border/70">
+              <span className="text-[15px] font-semibold text-foreground tabular-nums mr-auto">{(() => { const n = selected.size; return t`${n} selected` })()}</span>
+              <Pill onClick={bulkDownload} disabled={bulkPending || selected.size === 0}>
+                <Download className="w-4 h-4" />
                 <Trans>Download ZIP</Trans>
-              </button>
+              </Pill>
               {isMember(user) && (
                 <SendButton
                   variant="bulk"
@@ -2428,36 +1963,39 @@ export function DashboardPage() {
                   books={books.filter(b => selected.has(b.id)).map(b => ({ id: b.id, title: b.title, files: b.files }))}
                 />
               )}
-              <button
+              <Pill
                 onClick={() => { setBulkMetaOpen(true); api.get<Facets>('/books/facets').then(setFacets).catch(() => {}) }}
                 disabled={bulkPending || selected.size === 0}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all"
               >
-                <Pencil className="w-3.5 h-3.5" />
-                <Trans>Edit Metadata</Trans>
-              </button>
+                <Pencil className="w-4 h-4" />
+                <Trans>Edit metadata</Trans>
+              </Pill>
               {libraries.some(l => l.can_edit) && (
                 <div className="relative">
-                  <button
+                  <Pill
+                    variant="primary"
                     onClick={() => setBulkLibMenu(o => !o)}
                     disabled={bulkPending || selected.size === 0}
-                    className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
                   >
-                    <LibraryIcon className="w-3.5 h-3.5" />
-                    <Trans>Add to Library</Trans>
-                  </button>
+                    <LibraryIcon className="w-4 h-4" />
+                    <Trans>Add to library</Trans>
+                  </Pill>
                   {bulkLibMenu && (
                     <>
                       <div className="fixed inset-0 z-10" onClick={() => setBulkLibMenu(false)} />
-                      <div className="absolute right-0 top-full mt-1 z-20 bg-card border border-border rounded-xl shadow-xl py-1 min-w-44">
+                      <div className="absolute right-0 top-full mt-2 z-20 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring py-1.5 min-w-56 max-w-[calc(100vw-2rem)]">
+                        <p className="border-b border-border px-3 pb-2 pt-0.5 mb-1 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                          <Trans>Add to library</Trans>
+                        </p>
                         {libraries.filter(l => l.can_edit).map(lib => (
                           <button
                             key={lib.id}
+                            type="button"
                             onClick={() => bulkAddToLibrary(lib.id)}
-                            className="flex items-center gap-2 w-full px-3 py-2 text-sm hover:bg-muted transition-colors"
+                            className="flex items-center gap-2 w-full h-9 px-3 text-[14px] text-foreground hover:bg-secondary transition-colors"
                           >
                             <LibraryIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
-                            {lib.name}
+                            <span className="truncate">{lib.name}</span>
                           </button>
                         ))}
                       </div>
@@ -2465,37 +2003,38 @@ export function DashboardPage() {
                   )}
                 </div>
               )}
-              <button
+              <Pill
+                variant="destructive"
                 onClick={() => setDeleteModalOpen(true)}
                 disabled={bulkPending || selected.size === 0}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-destructive/30 bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 transition-all"
               >
-                <Trash2 className="w-3.5 h-3.5" />
+                <Trash2 className="w-4 h-4" />
                 <Trans>Delete</Trans>
-              </button>
-              <button onClick={exitSelectionMode} className="text-xs text-muted-foreground hover:text-foreground transition-colors">
+              </Pill>
+              <Pill variant="quiet" onClick={exitSelectionMode}>
                 <Trans>Done</Trans>
-              </button>
+              </Pill>
             </div>
           )}
+          </div>
 
           {/* ── Series matching the search ───────────────────────────────── */}
           {search && !groupActive && searchSeries.length > 0 && (
-            <section className="mb-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2 flex items-center gap-1.5">
+            <section>
+              <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground mb-3 flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5" />
                 <Trans>Series</Trans>
               </p>
-              <HScrollRow className="gap-3 pb-1">
+              <HScrollRow className="gap-2 pb-1" fadeFrom="background">
                 {searchSeries.map(s => {
                   const name = s.name
                   return (
                     <button
                       key={name}
                       onClick={() => navigate(`/?tab=series&series_detail=${encodeURIComponent(name)}`)}
-                      className="group flex items-center gap-3 w-72 shrink-0 p-2 pr-3 text-left rounded-xl border border-border bg-card hover:border-primary/40 hover:shadow-md transition-all duration-150"
+                      className="group flex items-center gap-3 w-72 shrink-0 p-2 pr-3 text-left rounded-xl hover:bg-secondary transition-colors"
                     >
-                      <div className="relative w-12 aspect-[2/3] shrink-0 rounded-md overflow-hidden bg-muted">
+                      <div className="relative w-12 aspect-[2/3] shrink-0 rounded-[6px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
                         <CoverImage
                           src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
                           alt={name}
@@ -2503,15 +2042,15 @@ export function DashboardPage() {
                         />
                       </div>
                       <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                        <span className="text-sm font-semibold text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">{name}</span>
-                        {s.author && <span className="text-xs text-muted-foreground truncate">{s.author}</span>}
-                        <span className="text-[11px] text-muted-foreground">
+                        <span className="text-[15px] font-medium text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">{name}</span>
+                        {s.author && <span className="text-[13px] text-muted-foreground truncate">{s.author}</span>}
+                        <span className="text-[13px] text-muted-foreground">
                           {(() => { const n = s.book_count; const r = s.read_count; return r > 0
                             ? <Trans>{n} books &middot; {r} read</Trans>
                             : <Plural value={n} one="# book" other="# books" /> })()}
                         </span>
                         {s.book_count > 0 && (s.read_count > 0 || s.reading_count > 0) && (
-                          <div className="mt-1 h-1 rounded-full bg-muted overflow-hidden flex">
+                          <div className="mt-1 h-[3px] rounded-full overflow-hidden flex" style={{ background: 'color-mix(in oklch, var(--primary) 25%, var(--background))' }}>
                             <div className="h-full bg-primary" style={{ width: `${(s.read_count / s.book_count) * 100}%` }} />
                             <div className="h-full bg-primary/50" style={{ width: `${(s.reading_count / s.book_count) * 100}%` }} />
                           </div>
@@ -2524,64 +2063,67 @@ export function DashboardPage() {
             </section>
           )}
 
-          {/* ── Search result count ───────────────────────────────────────── */}
-          {search && !loading && totalCount !== null && (
-            <p className="text-sm text-muted-foreground mb-3">
-              {totalCount === 0
-                ? t`No results for "${search}"`
-                : plural(totalCount, { one: `# result for "${search}"`, other: `# results for "${search}"` })}
+          {/* ── Grid / list, with the search result count above ─────────── */}
+          <div>
+          {/* The count only when there are results: an empty search has its own
+              empty state below, and it said "no results" twice. */}
+          {search && !loading && totalCount !== null && totalCount > 0 && (
+            <p className="text-[14px] text-muted-foreground mb-4">
+              {plural(totalCount, { one: `# result for "${search}"`, other: `# results for "${search}"` })}
             </p>
           )}
 
-          {/* ── Grid / list ───────────────────────────────────────────────── */}
           {loading ? (
             <div className="flex justify-center py-24">
               <BookAnimation variant="refresh" className="block w-12 h-12 text-primary" />
             </div>
           ) : books.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-primary/10 flex items-center justify-center">
-                <BookOpen className="w-8 h-8 text-primary/40" />
-              </div>
+            <div className="flex flex-col items-start gap-4 py-10">
               {search ? (
                 <>
                   <div>
-                    <p className="text-base font-medium text-foreground"><Trans>No results found</Trans></p>
-                    <p className="text-sm text-muted-foreground mt-1"><Trans>Nothing matched &ldquo;{search}&rdquo;</Trans></p>
+                    <p className="text-[17px] font-medium text-foreground"><Trans>No results found</Trans></p>
+                    <p className="text-[15px] text-muted-foreground mt-1"><Trans>Nothing matched &ldquo;{search}&rdquo;</Trans></p>
                   </div>
-                  <button
-                    onClick={() => { setSearchInput(''); setFilter('q', '') }}
-                    className="text-sm text-primary hover:underline"
-                  >
+                  <Pill onClick={() => { setSearchInput(''); setFilter('q', '') }}>
                     <Trans>Clear search</Trans>
-                  </button>
+                  </Pill>
                 </>
               ) : (hasFilters || filterLibrary) ? (
                 <>
                   <div>
-                    <p className="text-base font-medium text-foreground"><Trans>No matches</Trans></p>
-                    <p className="text-sm text-muted-foreground mt-1"><Trans>Try adjusting your filters</Trans></p>
+                    <p className="text-[17px] font-medium text-foreground"><Trans>No matches</Trans></p>
+                    <p className="text-[15px] text-muted-foreground mt-1"><Trans>Try adjusting your filters</Trans></p>
                   </div>
-                  <button onClick={clearFilters} className="text-sm text-primary hover:underline"><Trans>Clear all filters</Trans></button>
+                  <Pill onClick={clearFilters}><Trans>Clear all filters</Trans></Pill>
                 </>
               ) : (
-                <div>
-                  <p className="text-base font-medium text-foreground"><Trans>Your library is empty</Trans></p>
-                  <p className="text-sm text-muted-foreground mt-1"><Trans>Upload or scan a folder to get started</Trans></p>
-                </div>
+                <>
+                  <div>
+                    <p className="text-[17px] font-medium text-foreground"><Trans>Your library is empty</Trans></p>
+                    <p className="text-[15px] text-muted-foreground mt-1"><Trans>Upload or scan a folder to get started</Trans></p>
+                  </div>
+                  {isMember(user) && (
+                    <Pill variant="primary" onClick={() => setUploadModalOpen(true)}>
+                      <Upload className="w-4 h-4" />
+                      <Trans>Upload books</Trans>
+                    </Pill>
+                  )}
+                </>
               )}
             </div>
           ) : (
             <div key={view} ref={booksGridRef} className={cn(gridClass, refreshing && 'opacity-50 transition-opacity duration-150')} style={gridStyle}>
-              {/* POC: Motion layout animations replace the hand-rolled FLIP above —
-                  `layout` covers reflows (grid-size slider, filter survivors gliding)
-                  and AnimatePresence adds enter/exit, which FLIP never had. */}
+              {/* Motion layout animations: `layout` glides the survivors on a
+                  reflow (cover-size slider, filter changes). Arriving cards
+                  appear in place, never fading up from nothing inside the
+                  painted panel; leaving cards fade out. */}
               <AnimatePresence mode="popLayout" initial={false}>
               {books.map((book, i) => (
                 <m.div
                   key={`${cardView}-${groupActive && book.series ? 'stack-' : ''}${book.id}`}
                   layout
-                  initial={{ opacity: 0, scale: 0.92 }}
+                  initial={false}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.92 }}
                   transition={{ layout: { duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }, duration: 0.15 }}
@@ -2606,6 +2148,7 @@ export function DashboardPage() {
                   onTagClick={tag => setFilter('tag', tag)}
                   onSeriesClick={series => setFilter('series', series)}
                   onAuthorClick={author => setFilter('author', author)}
+                  onQuickLook={() => setQuickLookId(book.id)}
                   readingStatus={readingStatuses[book.id]?.status}
                   progressPct={readingStatuses[book.id]?.progress_pct}
                   rating={readingStatuses[book.id]?.rating}
@@ -2626,15 +2169,15 @@ export function DashboardPage() {
           {!hasMore && booksRef.current.length >= PAGE_SIZE && (() => {
             const loadedCount = booksRef.current.length
             return (
-              <p className="text-center text-xs text-muted-foreground py-4">
+              <p className="text-center text-[13px] text-muted-foreground py-4">
                 <Trans>All {loadedCount} books loaded</Trans>
               </p>
             )
           })()}
-          </>
+          </div>
+          </PageBody>
           )}
-        </main>
-      </div>
+        </div>
 
       {/* ── Bulk delete modal ───────────────────────────────────────────────── */}
       <BulkDeleteModal
@@ -2645,120 +2188,108 @@ export function DashboardPage() {
         onConfirm={bulkDelete}
       />
 
+      {/* ── Quick look (Library grid, series volumes) ───────────────────────── */}
+      {quickLookId != null && <QuickLook bookId={quickLookId} onClose={closeQuickLook} />}
+
       {/* ── Bulk metadata modal ─────────────────────────────────────────────── */}
-      <ModalShell open={bulkMetaOpen} onClose={() => { if (!bulkMetaSaving) setBulkMetaOpen(false) }} className="w-full max-w-md">
-            <div className="bg-card border border-border rounded-2xl shadow-2xl p-6">
-              <div className="flex items-start justify-between mb-1">
-                <h2 className="text-base font-semibold text-foreground">
-                  <Plural value={selected.size} one="Edit Metadata for # Book" other="Edit Metadata for # Books" />
-                </h2>
-                <button
-                  onClick={() => setBulkMetaOpen(false)}
-                  disabled={bulkMetaSaving}
-                  className="text-muted-foreground hover:text-foreground transition-colors"
-                >
-                  <X className="w-4 h-4" />
-                </button>
+      <ModalShell
+        open={bulkMetaOpen}
+        onClose={() => { if (!bulkMetaSaving) setBulkMetaOpen(false) }}
+        size="sm"
+        title={<Plural value={selected.size} one="Edit metadata for # book" other="Edit metadata for # books" />}
+        subtitle={<Trans>Only filled fields will be updated. Leave blank to keep existing values.</Trans>}
+        footer={
+          <>
+            <Pill variant="quiet" onClick={() => setBulkMetaOpen(false)} disabled={bulkMetaSaving}>
+              <Trans>Cancel</Trans>
+            </Pill>
+            <Pill
+              variant="primary"
+              onClick={bulkSaveMetadata}
+              disabled={bulkMetaSaving || (!bulkMetaAuthor && !bulkMetaSeries && !bulkMetaTagsAdd.length && !bulkMetaTypeId)}
+            >
+              {bulkMetaSaving && <Loader2 className="w-4 h-4 animate-spin" />}
+              <Trans>Save changes</Trans>
+            </Pill>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-4 pt-1">
+          <div>
+            <FormLabel><Trans>Author</Trans></FormLabel>
+            <AutocompleteInput
+              value={bulkMetaAuthor}
+              onChange={setBulkMetaAuthor}
+              suggestions={facets.authors}
+              placeholder={t`Author`}
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div>
+            <FormLabel><Trans>Series</Trans></FormLabel>
+            <AutocompleteInput
+              value={bulkMetaSeries}
+              onChange={setBulkMetaSeries}
+              suggestions={facets.series}
+              placeholder={t`Series name`}
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div>
+            <FormLabel><Trans>Add tags</Trans></FormLabel>
+            {bulkMetaTagsAdd.length > 0 && (
+              <div className="flex flex-wrap gap-1.5 mb-2">
+                {bulkMetaTagsAdd.map(tag => (
+                  <span key={tag} className="inline-flex items-center gap-1 h-7 pl-3 pr-1 rounded-full text-[13px] bg-secondary text-foreground">
+                    {tag}
+                    <button
+                      type="button"
+                      onClick={() => setBulkMetaTagsAdd(prev => prev.filter(t => t !== tag))}
+                      aria-label={t`Remove tag`}
+                      className="w-5 h-5 grid place-items-center rounded-full text-muted-foreground hover:text-destructive transition-colors"
+                    >
+                      <X className="w-3 h-3" />
+                    </button>
+                  </span>
+                ))}
               </div>
-              <p className="text-xs text-muted-foreground mb-4">
-                <Trans>Only filled fields will be updated. Leave blank to keep existing values.</Trans>
-              </p>
-
-              <div className="space-y-3">
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Author</Trans></label>
-                  <AutocompleteInput
-                    value={bulkMetaAuthor}
-                    onChange={setBulkMetaAuthor}
-                    suggestions={facets.authors}
-                    placeholder={t`Author`}
-                    className="w-full text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Series</Trans></label>
-                  <AutocompleteInput
-                    value={bulkMetaSeries}
-                    onChange={setBulkMetaSeries}
-                    suggestions={facets.series}
-                    placeholder={t`Series name`}
-                    className="w-full text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Add Tags</Trans></label>
-                  <div className="flex flex-wrap gap-1.5 mb-2">
-                    {bulkMetaTagsAdd.map(tag => (
-                      <span key={tag} className="flex items-center gap-1 px-2 py-0.5 rounded-full text-xs bg-muted border border-border text-foreground">
-                        {tag}
-                        <button
-                          type="button"
-                          onClick={() => setBulkMetaTagsAdd(prev => prev.filter(t => t !== tag))}
-                          className="text-muted-foreground hover:text-destructive transition-colors"
-                        >
-                          <X className="w-3 h-3" />
-                        </button>
-                      </span>
-                    ))}
-                  </div>
-                  <AutocompleteInput
-                    value={bulkMetaTagInput}
-                    onChange={setBulkMetaTagInput}
-                    suggestions={facets.tags.filter(t => !bulkMetaTagsAdd.includes(t))}
-                    placeholder={t`Add tag…`}
-                    onSelect={tag => {
-                      if (tag && !bulkMetaTagsAdd.includes(tag)) {
-                        setBulkMetaTagsAdd(prev => [...prev, tag])
-                        setBulkMetaTagInput('')
-                      }
-                    }}
-                    onEnter={val => {
-                      const trimmed = val.trim()
-                      if (trimmed && !bulkMetaTagsAdd.includes(trimmed)) {
-                        setBulkMetaTagsAdd(prev => [...prev, trimmed])
-                        setBulkMetaTagInput('')
-                      }
-                    }}
-                    className="text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring w-48"
-                  />
-                </div>
-
-                <div>
-                  <label className="text-xs font-medium text-muted-foreground mb-1 block"><Trans>Type</Trans></label>
-                  <select
-                    value={bulkMetaTypeId}
-                    onChange={e => setBulkMetaTypeId(e.target.value ? Number(e.target.value) : '')}
-                    className="w-full text-sm bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring text-foreground"
-                  >
-                    <option value="">{t`— keep existing —`}</option>
-                    {bookTypes.map(t => (
-                      <option key={t.id} value={t.id}>{t.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="flex justify-end gap-2 mt-5">
-                <button
-                  onClick={() => setBulkMetaOpen(false)}
-                  disabled={bulkMetaSaving}
-                  className="px-3 py-1.5 rounded-lg text-sm border border-border text-muted-foreground hover:bg-muted transition-colors"
-                >
-                  <Trans>Cancel</Trans>
-                </button>
-                <button
-                  onClick={bulkSaveMetadata}
-                  disabled={bulkMetaSaving || (!bulkMetaAuthor && !bulkMetaSeries && !bulkMetaTagsAdd.length && !bulkMetaTypeId)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-                >
-                  {bulkMetaSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  <Trans>Save Changes</Trans>
-                </button>
-              </div>
-            </div>
+            )}
+            <AutocompleteInput
+              value={bulkMetaTagInput}
+              onChange={setBulkMetaTagInput}
+              suggestions={facets.tags.filter(t => !bulkMetaTagsAdd.includes(t))}
+              placeholder={t`Add tag…`}
+              onSelect={tag => {
+                if (tag && !bulkMetaTagsAdd.includes(tag)) {
+                  setBulkMetaTagsAdd(prev => [...prev, tag])
+                  setBulkMetaTagInput('')
+                }
+              }}
+              onEnter={val => {
+                const trimmed = val.trim()
+                if (trimmed && !bulkMetaTagsAdd.includes(trimmed)) {
+                  setBulkMetaTagsAdd(prev => [...prev, trimmed])
+                  setBulkMetaTagInput('')
+                }
+              }}
+              className={INPUT_CLASS}
+            />
+          </div>
+          <div>
+            <FormLabel><Trans>Type</Trans></FormLabel>
+            <Select
+              value={bulkMetaTypeId}
+              onChange={e => setBulkMetaTypeId(e.target.value ? Number(e.target.value) : '')}
+            >
+              <option value="">{t`Keep existing`}</option>
+              {bookTypes.map(t => (
+                <option key={t.id} value={t.id}>{t.label}</option>
+              ))}
+            </Select>
+          </div>
+        </div>
       </ModalShell>
-    </div>
+    </ShellFrame>
   )
 }
 
@@ -2767,14 +2298,14 @@ function FilterSelect({ label, value, options, onChange }: {
 }) {
   const { t } = useLingui()
   const opts = options.map(o => typeof o === 'string' ? { value: o, label: o } : o)
+  const id = useId()
   return (
-    <div className="flex flex-col gap-1">
-      <label className="text-xs font-medium text-muted-foreground">{label}</label>
-      <select value={value} onChange={e => onChange(e.target.value)}
-        className="h-8 rounded-md border border-border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring text-foreground">
+    <div className="min-w-0">
+      <FormLabel htmlFor={id}>{label}</FormLabel>
+      <Select id={id} value={value} onChange={e => onChange(e.target.value)}>
         <option value="">{t`All`}</option>
         {opts.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-      </select>
+      </Select>
     </div>
   )
 }

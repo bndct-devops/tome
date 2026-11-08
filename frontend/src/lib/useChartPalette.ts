@@ -1,30 +1,23 @@
 import { useEffect, useState } from 'react'
 
-// Light & dark: vibrant default — indigo/violet/pink/amber/emerald/blue/red/teal/orange/purple
-const DEFAULT_PALETTE = [
-  '#6366f1', '#8b5cf6', '#ec4899', '#f59e0b', '#10b981',
-  '#3b82f6', '#ef4444', '#14b8a6', '#f97316', '#a855f7',
-]
+// The categorical chart palette is built from the theme's semantic tokens, so
+// a pie or a stack uses the same hues as the rest of the page in every theme:
+// the chart accent first, then info, success, rating, a muted tone and warning
+// (warning last: it sits closest to rating and, in amber, to the accent).
+// Charts render into SVG attributes, so the values are resolved, not var() refs.
+const TOKENS = ['--chart-accent', '--info', '--success', '--rating', '--muted-foreground', '--warning'] as const
 
-// Amber: warm earth tones that harmonize with the parchment background
-const AMBER_PALETTE = [
-  '#a0571c', // burnt orange (accent)
-  '#6b3a1a', // deep brown
-  '#5e6877', // slate
-  '#8a7128', // olive
-  '#b56b4a', // terracotta
-  '#6b7a4a', // sage
-  '#9c4a2a', // rust
-  '#7a5d4a', // taupe
-  '#c08552', // tan
-  '#4a5d6b', // steel blue
-]
+const FALLBACK = ['#8a2b35', '#3f6c9e', '#3f8a5c', '#b08a3a', '#7a756e', '#b07a2a']
 
 function readPalette(): string[] {
-  if (typeof window === 'undefined') return DEFAULT_PALETTE
-  return document.documentElement.classList.contains('theme-amber')
-    ? AMBER_PALETTE
-    : DEFAULT_PALETTE
+  if (typeof window === 'undefined') return FALLBACK
+  const style = getComputedStyle(document.documentElement)
+  const base = TOKENS.map((name, i) => style.getPropertyValue(name).trim() || FALLBACK[i])
+  const card = style.getPropertyValue('--card').trim() || 'transparent'
+  // Past six series, the same hues again mixed halfway into the card, so a
+  // seventh category never repeats the first one's exact colour.
+  const soft = base.map((c) => `color-mix(in oklch, ${c} 55%, ${card})`)
+  return [...base, ...soft]
 }
 
 export function useChartPalette(): string[] {
@@ -33,7 +26,7 @@ export function useChartPalette(): string[] {
   useEffect(() => {
     setPalette(readPalette())
     const observer = new MutationObserver(() => setPalette(readPalette()))
-    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class'] })
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['class', 'style'] })
     return () => observer.disconnect()
   }, [])
 

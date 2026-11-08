@@ -29,8 +29,11 @@ export interface WordCountState {
 export interface WordCountPreflight {
   epub_total: number
   already_counted: number
+  /** EPUB word counts plus PDF/CBZ/CBR page counts still to read. */
   pending: number
   pending_bytes: number
+  pending_epubs?: number
+  pending_page_counts?: number
 }
 
 export const getWordCountStatus = () => api.get<WordCountState>('/admin/word-count/status')

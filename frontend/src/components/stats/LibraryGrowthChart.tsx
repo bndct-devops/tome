@@ -20,7 +20,9 @@ interface GrowthEntry {
 
 function formatMonth(m: string): string {
   try {
-    return new Date(m + '-01T00:00:00').toLocaleDateString(undefined, { month: 'short', year: '2-digit' })
+    // "Dec '24", not "Dec 24", which reads as a day of the month
+    const d = new Date(m + '-01T00:00:00')
+    return `${d.toLocaleDateString(undefined, { month: 'short' })} '${String(d.getFullYear()).slice(-2)}`
   } catch {
     return m
   }
@@ -28,7 +30,7 @@ function formatMonth(m: string): string {
 
 function ChartTooltip({ children }: { children: React.ReactNode }) {
   return (
-    <div className="bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs">
+    <div className="bg-card rounded-lg shadow-lg ring-1 ring-panel-ring px-3 py-2 text-[13px]">
       {children}
     </div>
   )
@@ -39,7 +41,7 @@ export function LibraryGrowthChart({ data, height = 280, chartType = 'area' }: {
   const { tick, cursor } = useChartColors()
   if (!data || data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8"><Trans>No library growth data.</Trans></p>
+      <p className="py-2 text-[14px] text-muted-foreground"><Trans>No library growth data.</Trans></p>
     )
   }
 
@@ -49,7 +51,7 @@ export function LibraryGrowthChart({ data, height = 280, chartType = 'area' }: {
 
   if (categories.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8"><Trans>No library growth data.</Trans></p>
+      <p className="py-2 text-[14px] text-muted-foreground"><Trans>No library growth data.</Trans></p>
     )
   }
 

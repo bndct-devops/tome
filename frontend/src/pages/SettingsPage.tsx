@@ -1,9 +1,8 @@
 import { TelemetrySettings } from '@/components/TelemetryConsentCard'
 import { useState, useEffect, useMemo } from 'react'
-import { Link } from 'react-router-dom'
 import {
-  ArrowLeft, ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
-  Copy, Trash2, Plus, Key, Smartphone, Monitor, CheckCircle, Info, X, ChevronDown, ChevronUp,
+  ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
+  Copy, Trash2, Plus, Key, Smartphone, Monitor, CheckCircle, Info, X, ChevronDown, ChevronUp, ChevronRight,
   AlertTriangle, ExternalLink, Send, QrCode, ScanLine,
 } from 'lucide-react'
 import { ConnectPhoneModal } from '@/components/ConnectPhoneModal'
@@ -11,15 +10,18 @@ import { ScanSyncCodeModal } from '@/components/ScanSyncCodeModal'
 import { DeviceInventoryList } from '@/components/DeviceInventoryList'
 import { listDevices, revokeDevice, type ClientDevice } from '@/lib/devices'
 import { DOCS, docsLink } from '@/lib/docs'
-import { ThemeToggle } from '@/components/ThemeToggle'
 import { NotificationChannels } from '@/components/NotificationChannels'
 import { ReadingImport } from '@/components/ReadingImport'
 import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
 import { SettingsNav } from '@/components/SettingsNav'
+import { SectionLayout, SectionSidebar, PanelSection } from '@/components/SectionNav'
+import { AppShell } from '@/components/AppShell'
+import { Pill, Input, Select, Checkbox, FormLabel, Textarea } from '@/components/page'
+import { ModalShell } from '@/components/ModalShell'
 import { api } from '@/lib/api'
 import { SUPPORTERS } from '@/lib/supporters'
-import { cn } from '@/lib/utils'
+import { cn, formatLongDate } from '@/lib/utils'
 import {
   listTokens, createToken, revokeToken,
   type ApiTokenListItem,
@@ -29,7 +31,7 @@ import {
   type CustomTheme, loadCustomThemes, saveCustomTheme, deleteCustomTheme, parseThemeColors,
 } from '@/lib/theme'
 import { useAuth } from '@/contexts/AuthContext'
-import { Trans, useLingui } from '@lingui/react/macro'
+import { Trans, Plural, useLingui } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import { LOCALES, getActiveLocale, setLocale } from '@/lib/i18n'
@@ -40,6 +42,13 @@ interface ApiKey {
   key_preview: string
   created_at: string
   last_used_at: string | null
+}
+
+interface ConfirmAsk {
+  title: string
+  body: string
+  action: string
+  run: () => void | Promise<void>
 }
 
 interface OpdsPin {
@@ -187,6 +196,7 @@ export function SettingsPage() {
   const [clientDevices, setClientDevices] = useState<ClientDevice[] | null>(null) // null = loading
   const [clientDevicesAllUsers, setClientDevicesAllUsers] = useState(false)
   const [clientDevicesTick, setClientDevicesTick] = useState(0)
+  const [clientDevicesAll, setClientDevicesAll] = useState(false)
 
   useEffect(() => {
     let alive = true
@@ -196,20 +206,35 @@ export function SettingsPage() {
     return () => { alive = false }
   }, [clientDevicesAllUsers, clientDevicesTick, showConnectPhone])
 
-  async function handleRevokeClientDevice(d: ClientDevice) {
+  // One small confirm dialog for every destructive action on this page.
+  const [confirmAsk, setConfirmAsk] = useState<ConfirmAsk | null>(null)
+
+  function handleRevokeClientDevice(d: ClientDevice) {
     const name = d.name
     if (d.current) {
-      if (!confirm(t`Sign out of this browser?`)) return
-      await revokeDevice(d.id).catch(() => {})
-      logout()
+      setConfirmAsk({
+        title: t`Sign out of this browser?`,
+        body: t`You will have to sign in again here.`,
+        action: t`Sign out`,
+        run: async () => {
+          await revokeDevice(d.id).catch(() => {})
+          logout()
+        },
+      })
       return
     }
-    if (!confirm(t`Revoke "${name}"? It is signed out immediately and has to sign in again.`)) return
-    try {
-      await revokeDevice(d.id)
-    } finally {
-      setClientDevicesTick(n => n + 1)
-    }
+    setConfirmAsk({
+      title: t`Revoke "${name}"?`,
+      body: t`It is signed out immediately and has to sign in again.`,
+      action: t`Revoke`,
+      run: async () => {
+        try {
+          await revokeDevice(d.id)
+        } finally {
+          setClientDevicesTick(n => n + 1)
+        }
+      },
+    })
   }
 
   async function handleQcAuthorize(e: React.FormEvent) {
@@ -292,7 +317,8 @@ export function SettingsPage() {
   interface KOSyncStatus {
     linked: boolean
     synced_documents?: number
-    last_sync?: number | null
+    /** ISO string from the API; older servers sent epoch seconds. */
+    last_sync?: string | number | null
     last_device?: string | null
   }
   const [kosyncStatus, setKosyncStatus] = useState<KOSyncStatus | null>(null)
@@ -328,6 +354,7 @@ export function SettingsPage() {
   const [newKeyResult, setNewKeyResult] = useState<string | null>(null)
   const [keyCreating, setKeyCreating] = useState(false)
   const [keyRevoking, setKeyRevoking] = useState<number | null>(null)
+  const [apiKeysAll, setApiKeysAll] = useState(false)
   const [pluginDownloading, setPluginDownloading] = useState(false)
 
   useEffect(() => {
@@ -473,6 +500,16 @@ export function SettingsPage() {
     }
   }
 
+  function askDeleteDevice(d: UserDeviceItem) {
+    const name = d.name
+    setConfirmAsk({
+      title: t`Remove "${name}"?`,
+      body: t`Books can no longer be sent to this address until you add it again.`,
+      action: t`Remove`,
+      run: () => handleDeleteDevice(d.id),
+    })
+  }
+
   async function handleDeleteDevice(id: number) {
     setDeviceDeleting(id)
     try {
@@ -524,8 +561,16 @@ export function SettingsPage() {
     }
   }
 
+  function askRevokeApiToken(id: number) {
+    setConfirmAsk({
+      title: t`Revoke this token?`,
+      body: t`Any scripts or tools using it will stop working immediately.`,
+      action: t`Revoke`,
+      run: () => handleRevokeApiToken(id),
+    })
+  }
+
   async function handleRevokeApiToken(id: number) {
-    if (!confirm(t`Revoke this token? Any scripts or tools using it will stop working immediately.`)) return
     setTokenRevoking(id)
     try {
       await revokeToken(id)
@@ -614,16 +659,16 @@ export function SettingsPage() {
   // Jump list: the same sections, in page order, with the same conditions
   // the page uses to render them.
   const navSections = [
-    { id: 'account', label: t`Account & Security` },
+    { id: 'account', label: t`Account and security` },
     ...((nativeApp || (clientDevices?.length ?? 0) > 0) ? [{ id: 'devices', label: t`Connected devices` }] : []),
     { id: 'appearance', label: t`Appearance` },
     { id: 'language', label: t`Language` },
     // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
     { id: 'koreader', label: 'KOReader' },
-    { id: 'send-to-device', label: t`Send to Device` },
+    { id: 'send-to-device', label: t`Send to device` },
     // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
     ...(hardcoverAvailable ? [{ id: 'hardcover', label: 'Hardcover' }] : []),
-    { id: 'api-tokens', label: t`API Tokens` },
+    { id: 'api-tokens', label: t`API tokens` },
     { id: 'notifications', label: t`Notifications` },
     { id: 'share-links', label: t`Share links` },
     { id: 'import', label: t`Import reading history` },
@@ -632,83 +677,70 @@ export function SettingsPage() {
     { id: 'about', label: t`About` },
   ]
 
+  const [activeSection, setActiveSection] = useState<string | null>(null)
   const origin = window.location.origin
   const opdsUrl = `${origin}/opds`
   const kosyncUrl = `${origin}/api/v1`
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="border-b border-border bg-card/50 backdrop-blur-sm sticky top-0 z-20 safe-top">
-        <div className="max-w-5xl mx-auto px-4 h-14 flex items-center justify-between gap-4">
-          <div className="flex items-center gap-3">
-            <Link
-              to="/"
-              className="flex items-center gap-1.5 text-sm text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <ArrowLeft className="w-4 h-4" />
-              <Trans>Library</Trans>
-            </Link>
-            <span className="text-border select-none">/</span>
-            <span className="text-sm font-medium text-foreground"><Trans>Settings</Trans></span>
-          </div>
-          <ThemeToggle />
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-5xl mx-auto w-full px-4 pb-10 pt-0 lg:pt-10 lg:grid lg:grid-cols-[11rem_minmax(0,48rem)] lg:gap-10 lg:justify-center">
-        <SettingsNav sections={navSections} />
-        <div className="min-w-0 space-y-10 pt-8 lg:pt-0">
+    <AppShell sidebar={<SectionSidebar title={<Trans>Settings</Trans>} />}>
+      <SectionLayout
+        sidebar
+        title={<Trans>Settings</Trans>}
+        eyebrow={navSections.find(s => s.id === activeSection)?.label ?? navSections[0]?.label}
+        nav={<SettingsNav sections={navSections} onActiveChange={setActiveSection} placement="sidebar" />}
+      >
+        <div className="flex flex-col gap-12">
 
         {/* ── Account & Security ────────────────────────────────────────── */}
-        <section id="account" className="scroll-mt-24">
-          <SectionHeader title={t`Account & Security`} />
-          <div className="mt-4 rounded-xl border border-border bg-card divide-y divide-border overflow-hidden">
+        <PanelSection id="account" title={t`Account and security`}>
+          <div className="divide-y divide-border/70">
 
             {/* Profile */}
-            <div className="p-5">
-              <form onSubmit={handleProfileSubmit} className="flex flex-col sm:flex-row gap-3 items-start">
+            <div className="py-6 first:pt-0 last:pb-0">
+              <form onSubmit={handleProfileSubmit} className="flex flex-col sm:flex-row gap-3 sm:items-end">
                 <div className="flex-1 w-full grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Username</Trans></label>
-                    <input
+                    <FormLabel htmlFor="profile-username"><Trans>Username</Trans></FormLabel>
+                    <Input
+                      id="profile-username"
                       type="text"
                       value={profileUsername}
                       onChange={e => setProfileUsername(e.target.value)}
                       required
-                      className="w-full text-sm bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   </div>
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Email</Trans></label>
-                    <input
+                    <FormLabel htmlFor="profile-email"><Trans>Email</Trans></FormLabel>
+                    <Input
+                      id="profile-email"
                       type="email"
                       value={profileEmail}
                       onChange={e => setProfileEmail(e.target.value)}
                       required
-                      className="w-full text-sm bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
                     />
                   </div>
                 </div>
-                <button
+                <Pill
                   type="submit"
                   disabled={profileSaving || !profileChanged}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 sm:mt-5 shrink-0"
+                  variant="primary" className="shrink-0"
                 >
                   {profileSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                   {profileSaving ? t`Saving…` : t`Save changes`}
-                </button>
+                </Pill>
               </form>
-              {profileError && <p className="text-xs text-destructive mt-2">{profileError}</p>}
-              {profileSuccess && <p className="text-xs text-success mt-2"><Trans>Profile updated</Trans></p>}
+              {profileError && <p className="text-[13px] text-destructive mt-2">{profileError}</p>}
+              {profileSuccess && <p className="text-[13px] text-success mt-2"><Trans>Profile updated</Trans></p>}
             </div>
 
             {/* Password */}
-            <div className="p-5">
-              <p className="text-sm font-medium text-foreground mb-3"><Trans>Change Password</Trans></p>
+            <div className="py-6 first:pt-0 last:pb-0">
+              <p className="text-[15px] font-semibold text-foreground mb-3"><Trans>Change password</Trans></p>
               {user?.auth_source === 'oidc' ? (
                 <p className="text-sm text-muted-foreground max-w-sm">
                   <Trans>You're signed in via SSO. Manage your credentials at your identity
-                  provider — there's no Tome password to change.</Trans>
+                  provider; there's no Tome password to change.</Trans>
                 </p>
               ) : (
               <form onSubmit={handlePasswordSubmit} className="space-y-3 max-w-sm">
@@ -728,17 +760,17 @@ export function SettingsPage() {
                   show={showPasswords}
                   error={!!(pwError && confirmPassword && newPassword !== confirmPassword)}
                 />
-                {pwError && <p className="text-xs text-destructive pt-0.5">{pwError}</p>}
-                {pwSuccess && <p className="text-xs text-success pt-0.5"><Trans>Password updated successfully</Trans></p>}
+                {pwError && <p className="text-[13px] text-destructive pt-0.5">{pwError}</p>}
+                {pwSuccess && <p className="text-[13px] text-success pt-0.5"><Trans>Password updated successfully</Trans></p>}
                 <div className="pt-1">
-                  <button
+                  <Pill
                     type="submit"
                     disabled={pwSaving || !currentPassword || !newPassword || !confirmPassword}
-                    className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40"
+                    variant="secondary"
                   >
                     {pwSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
                     {pwSaving ? t`Saving…` : t`Update password`}
-                  </button>
+                  </Pill>
                 </div>
               </form>
               )}
@@ -746,8 +778,8 @@ export function SettingsPage() {
 
             {/* SSO linking */}
             {ssoEnabled && (
-              <div className="p-5">
-                <p className="text-sm font-medium text-foreground mb-3"><Trans>Single Sign-On</Trans></p>
+              <div className="py-6 first:pt-0 last:pb-0">
+                <p className="text-[15px] font-semibold text-foreground mb-3"><Trans>Single sign-on</Trans></p>
                 {ssoMsg && (
                   <div className={cn(
                     'flex items-center gap-2 text-sm p-3 rounded-lg mb-3 border',
@@ -762,7 +794,7 @@ export function SettingsPage() {
                 {user?.oidc_linked ? (
                   <p className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Check className="w-4 h-4 text-success" />
-                    <Trans>Your account is linked to SSO — you can sign in with your identity provider.</Trans>
+                    <Trans>Your account is linked to SSO. You can sign in with your identity provider.</Trans>
                   </p>
                 ) : (
                   <div className="space-y-3 max-w-sm">
@@ -771,28 +803,25 @@ export function SettingsPage() {
                         ? <Trans>Link your identity provider to this account so you can sign in with SSO. Your existing login keeps working.</Trans>
                         : <Trans>Link your identity provider to this account so you can sign in with SSO. Your existing login and password keep working.</Trans>}
                     </p>
-                    <button
+                    <Pill
                       onClick={handleLinkSso}
                       disabled={linkingSso}
-                      className="flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium border border-border text-foreground hover:bg-muted transition-all disabled:opacity-40"
+                      variant="secondary"
                     >
                       {linkingSso ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Key className="w-3.5 h-3.5" />}
                       <Trans>Link SSO</Trans>
-                    </button>
+                    </Pill>
                   </div>
                 )}
               </div>
             )}
 
             {/* Quick Connect */}
-            <div className="p-5">
-              <div className="flex items-start gap-3 mb-3">
-                <div className="p-1.5 rounded-lg bg-primary/10 mt-0.5 shrink-0">
-                  <Smartphone className="w-3.5 h-3.5 text-primary" />
-                </div>
+            <div className="py-6 first:pt-0 last:pb-0">
+              <div className="mb-4">
                 <div>
-                  <p className="text-sm font-medium text-foreground"><Trans>Quick Connect</Trans></p>
-                  <p className="text-xs text-muted-foreground mt-0.5">
+                  <p className="text-[15px] font-semibold text-foreground"><Trans>Quick Connect</Trans></p>
+                  <p className="text-[13px] text-muted-foreground mt-0.5">
                     {nativeApp
                       ? <Trans>Sign in on a new device without entering your password. Show a QR code for the Tome app, or enter the 6-character code a new device displays when you tap "Quick Connect" on its login screen.</Trans>
                       : <Trans>Sign in on a new device without entering your password. On the new device, tap "Quick Connect" on the login screen to get a 6-character code, then enter it here.</Trans>}
@@ -801,66 +830,66 @@ export function SettingsPage() {
               </div>
               {nativeApp && (
                 <>
-                  <button
+                  <Pill
                     type="button"
                     onClick={() => setShowConnectPhone(true)}
-                    className="mb-4 flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium border border-border hover:bg-muted transition-colors"
+                    variant="secondary" className="mb-4"
                   >
                     <QrCode className="w-3.5 h-3.5" />
                     <Trans>Connect a phone</Trans>
-                  </button>
+                  </Pill>
                   {showConnectPhone && <ConnectPhoneModal onClose={() => setShowConnectPhone(false)} />}
                 </>
               )}
-              <form onSubmit={handleQcAuthorize} className="flex items-end gap-2 max-w-xs">
+              <form onSubmit={handleQcAuthorize} className="flex items-end gap-2 max-w-sm">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Code from new device</Trans></label>
-                  <input
+                  <FormLabel htmlFor="qc-code"><Trans>Code from new device</Trans></FormLabel>
+                  <Input
+                    id="qc-code"
                     type="text"
                     value={qcCode}
                     onChange={e => setQcCode(e.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 6))}
                     placeholder="ABC123"
                     maxLength={6}
                     spellCheck={false}
-                    className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm font-mono tracking-widest uppercase focus:outline-none focus:ring-1 focus:ring-ring"
+                    className="font-mono tracking-widest uppercase"
                   />
                 </div>
-                <button
+                <Pill
                   type="submit"
                   disabled={qcAuthorizing || qcCode.trim().length !== 6}
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                  variant="secondary" className="shrink-0"
                 >
                   {qcAuthorizing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {qcAuthorizing ? t`Authorizing...` : t`Authorize`}
-                </button>
+                </Pill>
               </form>
-              {qcError && <p className="text-xs text-destructive mt-2">{qcError}</p>}
+              {qcError && <p className="text-[13px] text-destructive mt-2">{qcError}</p>}
               {qcSuccess && (
-                <div className="flex items-center gap-1.5 text-xs text-success mt-2">
+                <div className="flex items-center gap-1.5 text-[13px] text-success mt-2">
                   <CheckCircle className="w-3.5 h-3.5" />
-                  <Trans>Device authorized — the new device is now signed in.</Trans>
+                  <Trans>Device authorized. The new device is now signed in.</Trans>
                 </div>
               )}
             </div>
 
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── Connected devices ───────────────────────────────────────── */}
         {(nativeApp || (clientDevices?.length ?? 0) > 0) && (
-          <section id="devices" className="scroll-mt-24">
-            <SectionHeader title={t`Connected devices`} />
-            <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
-              <div className="p-5 space-y-2">
+        <PanelSection id="devices" title={t`Connected devices`}>
+            <div>
+              <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[13px] text-muted-foreground">
                     <Trans>Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately.</Trans>
                     {webIdleDays > 0 && (
                       <> <Trans>A browser that is not used for {webIdleDays} days is signed out on its own.</Trans></>
                     )}
                   </p>
                   {user?.is_admin && (
-                    <label className="flex items-center gap-2 text-xs text-muted-foreground cursor-pointer select-none shrink-0">
+                    <label className="flex items-center gap-2 text-[13px] text-muted-foreground cursor-pointer select-none shrink-0">
                       <button
                         type="button"
                         role="switch"
@@ -882,19 +911,19 @@ export function SettingsPage() {
                 </div>
 
                 {clientDevices === null ? (
-                  <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                  <div className="flex items-center gap-2 text-[13px] text-muted-foreground py-2">
                     <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     <Trans>Loading…</Trans>
                   </div>
                 ) : clientDevices.length === 0 ? (
-                  <p className="text-xs text-muted-foreground py-2">
+                  <p className="text-[13px] text-muted-foreground py-2">
                     <Trans>No devices connected yet. Use "Connect a phone" above to sign the Tome app in.</Trans>
                   </p>
                 ) : (
-                  <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                  <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
                     {/* One template for both modes so nothing shifts when the admin toggle flips;
                         the Owner column is simply empty until "All users" is on. */}
-                    <div className="hidden sm:grid grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40">
+                    <div className="hidden sm:grid grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] px-3 py-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                       <span><Trans>Device</Trans></span>
                       <span><Trans>System</Trans></span>
                       <span><Trans>Last seen</Trans></span>
@@ -902,14 +931,14 @@ export function SettingsPage() {
                       <span>{clientDevicesAllUsers && user?.is_admin && <Trans>Owner</Trans>}</span>
                       <span />
                     </div>
-                    {clientDevices.map(d => {
+                    {(clientDevicesAll ? clientDevices : clientDevices.slice(0, LIST_PREVIEW)).map(d => {
                       const isRevoked = d.revoked_at !== null
                       return (
                         <div
                           key={d.id}
                           className={cn(
                             'flex sm:grid sm:grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
-                            isRevoked ? 'opacity-50' : 'hover:bg-muted/30'
+                            isRevoked && 'opacity-50'
                           )}
                         >
                           <span className="flex items-center gap-1.5 font-medium text-foreground truncate min-w-0 pr-4">
@@ -922,7 +951,7 @@ export function SettingsPage() {
                               <span className="sm:hidden text-muted-foreground font-normal shrink-0">{d.platform}</span>
                             )}
                             {d.current && (
-                              <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-primary/10 text-primary border border-primary/20">
+                              <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-primary/10 text-primary">
                                 <Trans>This browser</Trans>
                               </span>
                             )}
@@ -933,12 +962,12 @@ export function SettingsPage() {
                               </span>
                             )}
                             {isRevoked && (
-                              <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground border border-border">
+                              <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-secondary text-muted-foreground">
                                 <Trans>Revoked</Trans>
                               </span>
                             )}
                           </span>
-                          <span className="text-muted-foreground hidden sm:block truncate pr-4">{d.platform ?? '—'}</span>
+                          <span className="text-muted-foreground hidden sm:block truncate pr-4">{d.platform ?? '-'}</span>
                           <span className="text-muted-foreground hidden sm:block shrink-0">
                             {d.last_seen_at ? relativeTime(d.last_seen_at) : t`Never`}
                           </span>
@@ -950,13 +979,16 @@ export function SettingsPage() {
                           </span>
                           <span className="flex justify-end shrink-0">
                             {!isRevoked && (
-                              <button
+                              <Pill
+                                icon
+                                variant="destructive"
                                 onClick={() => handleRevokeClientDevice(d)}
                                 title={d.current ? t`Sign out` : t`Revoke`}
-                                className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors"
+                                aria-label={d.current ? t`Sign out` : t`Revoke`}
+                                className="h-8 w-8"
                               >
                                 <Trash2 className="w-3.5 h-3.5" />
-                              </button>
+                              </Pill>
                             )}
                           </span>
                         </div>
@@ -964,19 +996,21 @@ export function SettingsPage() {
                     })}
                   </div>
                 )}
+                {clientDevices && clientDevices.length > LIST_PREVIEW && (
+                  <ShowMore all={clientDevicesAll} hidden={clientDevices.length - LIST_PREVIEW} onToggle={() => setClientDevicesAll(v => !v)} />
+                )}
               </div>
             </div>
-          </section>
+          </PanelSection>
         )}
 
         {/* ── Appearance ───────────────────────────────────────────────── */}
-        <section id="appearance" className="scroll-mt-24">
-          <SectionHeader title={t`Appearance`} />
+        <PanelSection id="appearance" title={t`Appearance`}>
 
-          {/* Built-in themes — neutral core + warm pair */}
+          {/* Built-in themes - neutral core + warm pair */}
           {([[t`Core`, 'core'], [t`Warm`, 'warm']] as const).map(([groupLabel, group]) => (
             <div key={group} className="mt-4">
-              <p className="text-xs text-muted-foreground mb-1.5">{groupLabel}</p>
+              <p className="text-[13px] text-muted-foreground mb-1.5">{groupLabel}</p>
               <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
                 {THEMES.filter(t => t.group === group).map(theme => {
                   const active = activeTheme === theme.id
@@ -996,11 +1030,11 @@ export function SettingsPage() {
                         <div className="flex-1 h-4 rounded opacity-90" style={{ background: theme.preview.card }} />
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: theme.preview.primary }} />
                       </div>
-                      <div className="px-1.5 py-1 flex items-center justify-between gap-1" style={{ background: theme.preview.card }}>
-                        <span className="text-[10px] font-medium leading-tight truncate" style={{ color: theme.preview.text }}>
+                      <div className="px-2 py-1.5 flex items-center justify-between gap-1" style={{ background: theme.preview.card }}>
+                        <span className="text-[13px] font-medium leading-tight truncate" style={{ color: theme.preview.text }}>
                           {theme.label}
                         </span>
-                        {active && <Check className="w-2.5 h-2.5 shrink-0" style={{ color: theme.preview.primary }} />}
+                        {active && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: theme.preview.primary }} />}
                       </div>
                     </button>
                   )
@@ -1035,19 +1069,20 @@ export function SettingsPage() {
                         <div className="flex-1 h-4 rounded opacity-90" style={{ background: card }} />
                         <div className="w-2.5 h-2.5 rounded-full shrink-0" style={{ background: primary }} />
                       </div>
-                      <div className="px-1.5 py-1 flex items-center justify-between gap-1" style={{ background: card }}>
-                        <span className="text-[10px] font-medium leading-tight truncate" style={{ color: text }}>
+                      <div className="px-2 py-1.5 flex items-center justify-between gap-1" style={{ background: card }}>
+                        <span className="text-[13px] font-medium leading-tight truncate" style={{ color: text }}>
                           {theme.label}
                         </span>
-                        {active && <Check className="w-2.5 h-2.5 shrink-0" style={{ color: primary }} />}
+                        {active && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: primary }} />}
                       </div>
                     </button>
                     <button
                       onClick={() => handleDeleteCustomTheme(theme.id)}
-                      className="absolute -top-1.5 -right-1.5 w-4 h-4 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity shadow-sm"
                       title={t`Delete theme`}
+                      aria-label={t`Delete theme`}
                     >
-                      <X className="w-2.5 h-2.5" />
+                      <X className="w-3 h-3" />
                     </button>
                   </div>
                 )
@@ -1056,58 +1091,53 @@ export function SettingsPage() {
           )}
 
           {/* Add custom theme */}
-          <div className="mt-3 rounded-xl border border-border bg-card overflow-hidden">
-            <button
+          <div className="mt-5">
+            <Pill
               onClick={() => setCustomFormOpen(v => !v)}
-              className="w-full flex items-center justify-between px-4 py-3 text-sm text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors"
+              variant="secondary"
             >
-              <span className="flex items-center gap-2 font-medium">
-                <Plus className="w-3.5 h-3.5" />
-                <Trans>Add custom theme</Trans>
-              </span>
+              <Plus className="w-3.5 h-3.5" />
+              <Trans>Add custom theme</Trans>
               {customFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
-            </button>
+            </Pill>
 
             {customFormOpen && (
-              <div className="border-t border-border p-4 space-y-4">
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="mt-5 space-y-4 max-w-2xl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-4 sm:items-end">
                   <div>
-                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Theme name</Trans></label>
-                    <input
+                    <FormLabel htmlFor="custom-theme-name"><Trans>Theme name</Trans></FormLabel>
+                    <Input
+                      id="custom-theme-name"
                       type="text"
                       value={customName}
                       onChange={e => setCustomName(e.target.value)}
-                      placeholder={t`My Theme`}
-                      className="w-full text-sm bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                      placeholder={t`My theme`}
                     />
                   </div>
-                  <div className="flex items-end">
-                    <label className="flex items-center gap-2 text-sm text-foreground cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={customDark}
-                        onChange={e => setCustomDark(e.target.checked)}
-                        className="w-4 h-4 rounded accent-primary"
-                      />
-                      <Trans>Dark theme</Trans>
-                      <span className="text-xs text-muted-foreground"><Trans>(enables dark: variants)</Trans></span>
-                    </label>
-                  </div>
+                  <Checkbox
+                    checked={customDark}
+                    onChange={e => setCustomDark(e.target.checked)}
+                    label={<Trans>Dark theme</Trans>}
+                    description={<Trans>Turn on when the background is dark, so the parts made for dark mode use their dark look.</Trans>}
+                    className="sm:pb-0.5"
+                  />
                 </div>
 
                 <div>
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">
-                    <Trans>Colors <span className="font-normal">(10 hex values, comma-separated)</span></Trans>
-                  </label>
-                  <input
-                    type="text"
+                  <FormLabel htmlFor="custom-theme-colors" hint={<Trans>10 hex values, comma-separated</Trans>}>
+                    <Trans>Colors</Trans>
+                  </FormLabel>
+                  <Textarea
+                    id="custom-theme-colors"
                     value={customColors}
                     onChange={e => { setCustomColors(e.target.value); setCustomError(null) }}
-                    placeholder="#1E1E2E,#CDD6F4,#313244,#CBA6F7,#1E1E2E,#45475A,#A6ADC8,#313244,#585B70,#F38BA8"
-                    className="w-full text-xs font-mono bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring"
+                    // eslint-disable-next-line lingui/no-unlocalized-strings -- example hex values
+                    placeholder="#1E1E2E, #CDD6F4, #313244, #CBA6F7, #1E1E2E, #45475A, #A6ADC8, #313244, #585B70, #F38BA8"
+                    rows={2}
+                    className="min-h-[60px] font-mono text-[13px] resize-none"
                     spellCheck={false}
                   />
-                  <p className="text-[10px] text-muted-foreground mt-1">
+                  <p className="text-[13px] text-muted-foreground mt-1.5">
                     <Trans>Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive</Trans>
                   </p>
                 </div>
@@ -1115,7 +1145,7 @@ export function SettingsPage() {
                 {/* Live preview */}
                 {parsedPreview && (
                   <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground shrink-0"><Trans>Preview:</Trans></span>
+                    <span className="text-[13px] text-muted-foreground shrink-0"><Trans>Preview:</Trans></span>
                     <div
                       className="flex items-center gap-1.5 rounded-lg px-3 py-2 border"
                       style={{
@@ -1132,28 +1162,27 @@ export function SettingsPage() {
                   </div>
                 )}
 
-                {customError && <p className="text-xs text-destructive">{customError}</p>}
+                {customError && <p className="text-[13px] text-destructive">{customError}</p>}
 
-                <button
+                <Pill
                   onClick={handleAddCustomTheme}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                  variant="primary"
                 >
                   <Plus className="w-3.5 h-3.5" />
-                  <Trans>Add Theme</Trans>
-                </button>
+                  <Trans>Add theme</Trans>
+                </Pill>
               </div>
             )}
           </div>
 
-        </section>
+        </PanelSection>
 
         {/* ── Language ─────────────────────────────────────────────────── */}
         {/* Pills work up to roughly a dozen locales; if the list outgrows a
             row or two, swap back to a (styled) select. Labels are the
             language's own name and stay untranslated on purpose. */}
-        <section id="language" className="scroll-mt-24">
-          <SectionHeader title={t`Language`} />
-          <div className="mt-4 flex flex-wrap gap-2">
+        <PanelSection id="language" title={t`Language`}>
+          <div className="flex flex-wrap gap-2">
             {LOCALES.map(l => {
               const active = activeLocale === l.code
               return (
@@ -1162,10 +1191,10 @@ export function SettingsPage() {
                   onClick={() => handleLocaleSelect(l.code)}
                   lang={l.code}
                   className={cn(
-                    'flex items-center gap-2 px-4 py-2 rounded-lg border text-sm transition-all',
+                    'inline-flex items-center gap-2 h-9 px-4 rounded-full text-[14px] transition-colors',
                     active
-                      ? 'border-primary bg-primary/10 text-primary font-medium'
-                      : 'border-border text-muted-foreground hover:text-foreground hover:border-primary/40 hover:bg-muted/50'
+                      ? 'bg-primary/10 text-foreground font-medium'
+                      : 'bg-secondary text-muted-foreground hover:text-foreground'
                   )}
                 >
                   {l.label}
@@ -1174,72 +1203,72 @@ export function SettingsPage() {
               )
             })}
           </div>
-          <p className="text-xs text-muted-foreground mt-3">
+          <p className="text-[13px] text-muted-foreground mt-3">
             <Trans>Translations are community-maintained. Anything not yet translated is shown in English.</Trans>
           </p>
-        </section>
+        </PanelSection>
 
         {/* ── KOReader ─────────────────────────────────────────────────── */}
-        <section id="koreader" className="scroll-mt-24">
-          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
-          <SectionHeader title="KOReader" />
-          <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden divide-y divide-border">
+                  {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
+        <PanelSection id="koreader" title="KOReader">
+          <div className="divide-y divide-border/70">
 
             {/* OPDS Catalog */}
-            <div className="p-6 space-y-4">
+            <div className="py-6 first:pt-0 last:pb-0 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5"><Trans>OPDS Catalog</Trans></p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>OPDS catalog</Trans></p>
+                  <p className="text-[13px] text-muted-foreground">
                     <Trans>Browse and download your library from KOReader or any OPDS client.</Trans>
                   </p>
                 </div>
-                <a href={docsLink(DOCS.opds)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                <a href={docsLink(DOCS.opds)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors">
                   <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
               <ConnectBlock rows={[
                 { label: t`URL`, value: opdsUrl, copy: true },
-                { label: t`Username`, value: user?.username ?? '—', copy: true },
+                { label: t`Username`, value: user?.username ?? '-', copy: true },
                 { label: t`Password`, value: t`your Tome password` },
               ]} />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 <Trans>In KOReader: Search &rarr; OPDS catalog &rarr; add catalog with the URL above.</Trans>
               </p>
 
-              {/* OPDS PINs — nested under OPDS */}
+              {/* OPDS PINs, nested under OPDS */}
               <div className="space-y-2 pt-1">
-                <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Key className="w-3 h-3" /> <Trans>App-specific PINs</Trans>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <p className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5" /> <Trans>App-specific PINs</Trans>
                   </p>
                   <div className="flex items-center gap-2">
-                    <input
+                    <Input
                       type="text"
                       value={pinLabel}
                       onChange={e => setPinLabel(e.target.value)}
                       placeholder={t`Label (e.g. KOReader)`}
-                      className="h-7 rounded-md border border-border bg-background px-2 text-xs focus:outline-none focus:ring-1 focus:ring-ring w-36"
+                      aria-label={t`PIN label`}
+                      className="w-44"
                     />
-                    <button
+                    <Pill
                       onClick={handleCreatePin}
                       disabled={pinCreating}
-                      className="flex items-center gap-1 text-xs text-primary hover:opacity-80 transition-opacity disabled:opacity-50"
+                      variant="quiet"
                     >
                       {pinCreating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                       <Trans>Generate PIN</Trans>
-                    </button>
+                    </Pill>
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">
-                  <Trans>Short app-specific passwords for OPDS — easier to type on an e-reader than your full password.</Trans>
+                <p className="text-[13px] text-muted-foreground">
+                  <Trans>Short app-specific passwords for OPDS, easier to type on an e-reader than your full password.</Trans>
                 </p>
 
                 {newPinResult && (
                   <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
-                    <p className="text-xs text-success font-medium"><Trans>PIN created — copy it now, it won't be shown again.</Trans></p>
+                    <p className="text-[13px] text-success font-medium"><Trans>PIN created. Copy it now, it won't be shown again.</Trans></p>
                     <div className="flex items-center gap-2">
-                      <code className="text-xs font-mono text-foreground break-all flex-1">{newPinResult}</code>
+                      <code className="text-[13px] font-mono text-foreground break-all flex-1">{newPinResult}</code>
                       <button
                         onClick={() => navigator.clipboard.writeText(newPinResult)}
                         className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground shrink-0"
@@ -1247,12 +1276,12 @@ export function SettingsPage() {
                         <Copy className="w-3 h-3" />
                       </button>
                     </div>
-                    <p className="text-xs text-muted-foreground"><Trans>Use this as the OPDS password in KOReader (username stays the same).</Trans></p>
+                    <p className="text-[13px] text-muted-foreground"><Trans>Use this as the OPDS password in KOReader (username stays the same).</Trans></p>
                   </div>
                 )}
 
                 {opdsPins.length > 0 ? (
-                  <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                  <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
                     {opdsPins.map(p => (
                       <div key={p.id} className="flex items-center gap-3 px-3 py-2">
                         <span className="font-mono text-muted-foreground w-14 shrink-0">{p.pin_preview}</span>
@@ -1272,22 +1301,22 @@ export function SettingsPage() {
                     ))}
                   </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground"><Trans>No PINs yet. Generate one to use with OPDS clients.</Trans></p>
+                  <p className="text-[13px] text-muted-foreground"><Trans>No PINs yet. Generate one to use with OPDS clients.</Trans></p>
                 )}
               </div>
             </div>
 
             {/* Progress Sync (KOSync) */}
-            <div className="p-6 space-y-4">
+            <div className="py-6 first:pt-0 last:pb-0 space-y-4">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5"><Trans>Progress Sync</Trans></p>
-                  <p className="text-xs text-muted-foreground">
+                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>Progress sync</Trans></p>
+                  <p className="text-[13px] text-muted-foreground">
                     <Trans>Sync reading position between KOReader and Tome.</Trans>
                   </p>
                 </div>
                 {kosyncStatus?.linked && (
-                  <span className="flex items-center gap-1 text-xs text-success shrink-0 mt-0.5">
+                  <span className="flex items-center gap-1 text-[13px] text-success shrink-0 mt-0.5">
                     <Check className="w-3 h-3" /> <Trans>Linked</Trans>
                     {kosyncStatus.synced_documents != null && (
                       <span className="text-muted-foreground ml-1">{(() => { const n = kosyncStatus.synced_documents; return t`· ${n} docs` })()}</span>
@@ -1297,58 +1326,58 @@ export function SettingsPage() {
               </div>
 
               {kosyncStatus?.last_sync && (
-                <p className="text-xs text-muted-foreground">
-                  {(() => { const d = new Date(kosyncStatus.last_sync * 1000).toLocaleString(i18n.locale); return t`Last sync: ${d}` })()}
+                <p className="text-[13px] text-muted-foreground">
+                  {(() => { const d = formatSyncTime(kosyncStatus.last_sync, i18n.locale); return t`Last sync: ${d}` })()}
                   {kosyncStatus.last_device && ` · ${kosyncStatus.last_device}`}
                 </p>
               )}
 
-              <form onSubmit={handleKosyncRegister} className="flex items-end gap-2 max-w-xs">
+              <form onSubmit={handleKosyncRegister} className="flex items-end gap-2 max-w-sm">
                 <div className="flex-1">
-                  <label className="block text-xs font-medium text-muted-foreground mb-1">
+                  <FormLabel htmlFor="kosync-password">
                     {kosyncStatus?.linked ? t`Update sync password` : t`Set sync password`}
-                  </label>
-                  <input
+                  </FormLabel>
+                  <Input
+                    id="kosync-password"
                     type="password"
                     value={kosyncPassword}
                     onChange={e => setKosyncPassword(e.target.value)}
                     placeholder="••••••••"
-                    className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                   />
                 </div>
-                <button
+                <Pill
                   type="submit"
                   disabled={kosyncSaving || !kosyncPassword}
-                  className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                  variant="secondary" className="shrink-0"
                 >
                   {kosyncSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                   {kosyncSaving ? t`Saving…` : kosyncStatus?.linked ? t`Update` : t`Register`}
-                </button>
+                </Pill>
               </form>
-              {kosyncError && <p className="text-xs text-destructive">{kosyncError}</p>}
-              {kosyncSuccess && <p className="text-xs text-success"><Trans>KOSync registered successfully</Trans></p>}
+              {kosyncError && <p className="text-[13px] text-destructive">{kosyncError}</p>}
+              {kosyncSuccess && <p className="text-[13px] text-success"><Trans>KOSync registered successfully</Trans></p>}
 
               <ConnectBlock rows={[
                 { label: t`URL`, value: kosyncUrl, copy: true },
-                { label: t`Username`, value: user?.username ?? '—', copy: true },
+                { label: t`Username`, value: user?.username ?? '-', copy: true },
                 { label: t`Password`, value: t`the sync password set above` },
               ]} />
-              <p className="text-xs text-muted-foreground">
+              <p className="text-[13px] text-muted-foreground">
                 <Trans>In KOReader: Tools &rarr; Progress sync &rarr; Custom sync server.</Trans>
               </p>
             </div>
 
             {/* TomeSync Plugin */}
-            <div className="p-6 space-y-4">
+            <div className="py-6 first:pt-0 last:pb-0 space-y-4">
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-0.5"><Trans>TomeSync Plugin</Trans></p>
-                  <p className="text-xs text-muted-foreground">
-                    <Trans>Native KOReader plugin — tracks reading sessions and syncs by book ID. More reliable than KOSync.</Trans>
+                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>TomeSync plugin</Trans></p>
+                  <p className="text-[13px] text-muted-foreground">
+                    <Trans>Native KOReader plugin. Tracks reading sessions and syncs by book ID. More reliable than KOSync.</Trans>
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <a href={docsLink(DOCS.koreader)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                  <a href={docsLink(DOCS.koreader)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors">
                     <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                   </a>
                   <PluginVersion />
@@ -1356,29 +1385,29 @@ export function SettingsPage() {
               </div>
 
               <div className="flex flex-wrap items-center gap-2">
-                <button
+                <Pill
                   onClick={handleDownloadPlugin}
                   disabled={pluginDownloading}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
+                  variant="primary"
                 >
                   {pluginDownloading
                     ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
                     : <Download className="w-3.5 h-3.5" />
                   }
                   {pluginDownloading ? t`Preparing…` : t`Download plugin ZIP`}
-                </button>
-                <button
+                </Pill>
+                <Pill
                   type="button"
                   onClick={() => setShowScanCode(true)}
-                  className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium border border-border hover:bg-muted transition-colors"
+                  variant="secondary"
                   title={t`Read the QR code an offline KOReader device shows under TomeSync > Show sync code`}
                 >
                   <ScanLine className="w-3.5 h-3.5" />
                   <Trans>Scan a sync code</Trans>
-                </button>
+                </Pill>
                 {showScanCode && <ScanSyncCodeModal onClose={() => setShowScanCode(false)} />}
               </div>
-              <p className="text-xs text-muted-foreground -mt-2">
+              <p className="text-[13px] text-muted-foreground -mt-2">
                 <Trans>Device offline but your phone is not? "Show sync code" in the plugin turns the unsent sessions and positions into a QR code you can scan here. The live camera needs HTTPS; on a plain http install, take a photo of the screen and pick it.</Trans>
               </p>
 
@@ -1387,24 +1416,24 @@ export function SettingsPage() {
               {/* API Keys */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <p className="text-xs font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Key className="w-3 h-3" /> <Trans>API Keys</Trans>
+                  <p className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
+                    <Key className="w-3.5 h-3.5" /> <Trans>API keys</Trans>
                   </p>
-                  <button
+                  <Pill
                     onClick={handleCreateKey}
                     disabled={keyCreating}
-                    className="flex items-center gap-1 text-xs text-primary hover:opacity-80 transition-opacity disabled:opacity-50"
+                    variant="quiet"
                   >
                     {keyCreating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                     <Trans>New key</Trans>
-                  </button>
+                  </Pill>
                 </div>
 
                 {newKeyResult && (
                   <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
-                    <p className="text-xs text-success font-medium"><Trans>Key created — copy it now, it won't be shown again.</Trans></p>
+                    <p className="text-[13px] text-success font-medium"><Trans>Key created. Copy it now, it won't be shown again.</Trans></p>
                     <div className="flex items-center gap-2">
-                      <code className="text-xs font-mono text-foreground break-all flex-1">{newKeyResult}</code>
+                      <code className="text-[13px] font-mono text-foreground break-all flex-1">{newKeyResult}</code>
                       <button onClick={() => navigator.clipboard.writeText(newKeyResult)}
                         className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground shrink-0">
                         <Copy className="w-3 h-3" />
@@ -1414,8 +1443,9 @@ export function SettingsPage() {
                 )}
 
                 {apiKeys.length > 0 ? (
-                  <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
-                    {apiKeys.map(k => (
+                  <div>
+                  <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
+                    {(apiKeysAll ? apiKeys : apiKeys.slice(0, LIST_PREVIEW)).map(k => (
                       <div key={k.id} className="flex items-center gap-3 px-3 py-2">
                         <span className="font-mono text-muted-foreground flex-1">{k.key_preview}</span>
                         <span className="text-muted-foreground hidden sm:block">
@@ -1432,8 +1462,12 @@ export function SettingsPage() {
                       </div>
                     ))}
                   </div>
+                  {apiKeys.length > LIST_PREVIEW && (
+                    <ShowMore all={apiKeysAll} hidden={apiKeys.length - LIST_PREVIEW} onToggle={() => setApiKeysAll(v => !v)} />
+                  )}
+                  </div>
                 ) : (
-                  <p className="text-xs text-muted-foreground"><Trans>No API keys. Download the plugin to auto-create one.</Trans></p>
+                  <p className="text-[13px] text-muted-foreground"><Trans>No API keys. Download the plugin to auto-create one.</Trans></p>
                 )}
               </div>
 
@@ -1441,66 +1475,58 @@ export function SettingsPage() {
             </div>
 
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── Send to Device ──────────────────────────────────────────── */}
-        <section id="send-to-device" className="scroll-mt-24">
-          <SectionHeader title={t`Send to Device`} />
-          <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
-            <div className="p-5 space-y-4">
+        <PanelSection id="send-to-device" title={t`Send to device`}>
+          <div>
+            <div className="space-y-4">
               <div className="flex items-start justify-between gap-3">
-                <div className="flex items-start gap-3">
-                  <div className="p-1.5 rounded-lg bg-primary/10 mt-0.5 shrink-0">
-                    <Send className="w-3.5 h-3.5 text-primary" />
-                  </div>
+                <div>
                   <div>
-                    <p className="text-sm font-medium text-foreground"><Trans>E-Reader Devices</Trans></p>
-                    <p className="text-xs text-muted-foreground mt-0.5">
-                      <Trans>Add your e-reader or personal email. Books are sent as attachments — works with Kindle, Kobo, or any email address.</Trans>
+                    <p className="text-[15px] font-semibold text-foreground"><Trans>E-reader devices</Trans></p>
+                    <p className="text-[13px] text-muted-foreground mt-0.5">
+                      <Trans>Add your e-reader or personal email. Books are sent as attachments; works with Kindle, Kobo, or any email address.</Trans>
                     </p>
                   </div>
                 </div>
-                <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
+                <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors">
                   <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
 
               {smtpConfigured === false ? (
                 <div className="space-y-3">
-                  <div className="flex items-center gap-2 rounded-lg bg-warning/10 border border-warning/20 px-3 py-2">
-                    <AlertTriangle className="w-3.5 h-3.5 text-warning dark:text-warning shrink-0" />
-                    <p className="text-xs text-warning font-medium"><Trans>Email delivery is not set up yet.</Trans></p>
-                  </div>
-                  <div className="rounded-lg border border-border overflow-hidden text-xs">
-                    <button
-                      onClick={() => setSetupGuideOpen(v => !v)}
-                      className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
-                    >
-                      <span className="font-medium text-foreground"><Trans>How to set it up</Trans></span>
-                      {setupGuideOpen ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
-                    </button>
+                  <p className="flex items-center gap-2 text-[13px] text-warning font-medium">
+                    <AlertTriangle className="w-3.5 h-3.5 shrink-0" />
+                    <Trans>Email delivery is not set up yet.</Trans>
+                  </p>
+                  <div>
+                    <Disclosure open={setupGuideOpen} onToggle={() => setSetupGuideOpen(v => !v)}>
+                      <Trans>How to set it up</Trans>
+                    </Disclosure>
                     {setupGuideOpen && (
-                      <div className="border-t border-border px-3 py-3 space-y-3 text-xs text-muted-foreground">
-                        <p><Trans>Your server admin needs to set SMTP environment variables:</Trans></p>
+                      <div className="pb-1 pt-2 space-y-3 text-[13px] text-muted-foreground">
+                        <p><Trans>Your server admin sets these environment variables. TOME_SMTP_HOST is required. User and password are optional; set both when the mail server needs a login. Without a user, TOME_SMTP_FROM is required as the sender address.</Trans></p>
                         <div className="space-y-2">
                           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
                           <p className="font-medium text-foreground">Gmail</p>
                           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- env config example */}
-                          <code className="block bg-muted rounded px-2 py-1.5 text-[11px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.gmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@gmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
+                          <code className="block bg-secondary rounded-lg px-3 py-2 text-[12px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.gmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@gmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
                           <p><Trans>Use a <a href="https://myaccount.google.com/apppasswords" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Google App Password</a>, not your regular password.</Trans></p>
                         </div>
                         <div className="space-y-2">
                           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
                           <p className="font-medium text-foreground">Fastmail</p>
                           {/* eslint-disable-next-line lingui/no-unlocalized-strings -- env config example */}
-                          <code className="block bg-muted rounded px-2 py-1.5 text-[11px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.fastmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@fastmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
+                          <code className="block bg-secondary rounded-lg px-3 py-2 text-[12px] font-mono whitespace-pre-wrap">TOME_SMTP_HOST=smtp.fastmail.com{'\n'}TOME_SMTP_PORT=587{'\n'}TOME_SMTP_USER=you@fastmail.com{'\n'}TOME_SMTP_PASSWORD=your-app-password</code>
                         </div>
                         <div className="space-y-2">
                           <p className="font-medium text-foreground"><Trans>Other providers</Trans></p>
-                          <p><Trans>Set <code className="text-foreground">TOME_SMTP_HOST</code>, <code className="text-foreground">TOME_SMTP_PORT</code>, <code className="text-foreground">TOME_SMTP_USER</code>, and <code className="text-foreground">TOME_SMTP_PASSWORD</code>.</Trans></p>
+                          <p><Trans>Set <code className="text-foreground">TOME_SMTP_HOST</code> and <code className="text-foreground">TOME_SMTP_PORT</code>. Add <code className="text-foreground">TOME_SMTP_USER</code> and <code className="text-foreground">TOME_SMTP_PASSWORD</code> if the server needs a login, otherwise set <code className="text-foreground">TOME_SMTP_FROM</code>.</Trans></p>
                         </div>
-                        <div className="rounded-lg bg-muted/60 border border-border p-2.5">
-                          <p className="font-medium text-foreground mb-1"><Trans>Kindle users</Trans></p>
+                        <div className="space-y-2">
+                          <p className="font-medium text-foreground"><Trans>Kindle users</Trans></p>
                           <p><Trans>Add your SMTP sender address to Amazon's <a href="https://www.amazon.com/hz/mycd/myx#/home/settings/payment" target="_blank" rel="noopener noreferrer" className="text-primary hover:underline">Approved Personal Document E-mail List</a>, or emails will be silently dropped.</Trans></p>
                         </div>
                         <p className="text-muted-foreground/70"><Trans>Ask your server admin if you don't manage the Tome installation yourself.</Trans></p>
@@ -1511,48 +1537,48 @@ export function SettingsPage() {
               ) : smtpConfigured ? (
                 <div className="space-y-3">
                   {/* Add device form */}
-                  <form onSubmit={handleAddDevice} className="flex items-end gap-2">
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Device name</Trans></label>
-                      <input
+                  <form onSubmit={handleAddDevice} className="flex flex-wrap items-end gap-2">
+                    <div className="flex-1 min-w-[10rem]">
+                      <FormLabel htmlFor="device-name"><Trans>Device name</Trans></FormLabel>
+                      <Input
+                        id="device-name"
                         type="text"
                         value={newDeviceName}
                         onChange={e => setNewDeviceName(e.target.value)}
                         placeholder={t`My Kindle`}
-                        className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
-                    <div className="flex-1">
-                      <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Email address</Trans></label>
-                      <input
+                    <div className="flex-1 min-w-[12rem]">
+                      <FormLabel htmlFor="device-email"><Trans>Email address</Trans></FormLabel>
+                      <Input
+                        id="device-email"
                         type="email"
                         value={newDeviceEmail}
                         onChange={e => setNewDeviceEmail(e.target.value)}
                         placeholder="user_abc@kindle.com"
-                        className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                       />
                     </div>
-                    <button
+                    <Pill
                       type="submit"
                       disabled={deviceAdding || !newDeviceName.trim() || !newDeviceEmail.trim()}
-                      className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                      variant="primary" className="shrink-0"
                     >
                       {deviceAdding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Plus className="w-3.5 h-3.5" />}
                       <Trans>Add</Trans>
-                    </button>
+                    </Pill>
                   </form>
-                  {deviceError && <p className="text-xs text-destructive">{deviceError}</p>}
+                  {deviceError && <p className="text-[13px] text-destructive">{deviceError}</p>}
 
                   {/* Device list */}
                   {devices.length > 0 ? (
-                    <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                    <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
                       {devices.map(d => (
                         <div key={d.id} className="flex items-center gap-3 px-3 py-2">
                           <Send className="w-3 h-3 text-muted-foreground shrink-0" />
                           <span className="text-foreground font-medium flex-1 truncate">{d.name}</span>
                           <span className="text-muted-foreground hidden sm:block truncate max-w-48">{d.email}</span>
                           <button
-                            onClick={() => handleDeleteDevice(d.id)}
+                            onClick={() => askDeleteDevice(d)}
                             disabled={deviceDeleting === d.id}
                             className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                             title={t`Remove device`}
@@ -1563,114 +1589,110 @@ export function SettingsPage() {
                       ))}
                     </div>
                   ) : (
-                    <p className="text-xs text-muted-foreground"><Trans>No devices yet. Add one to start sending books.</Trans></p>
+                    <p className="text-[13px] text-muted-foreground"><Trans>No devices yet. Add one to start sending books.</Trans></p>
                   )}
                 </div>
               ) : null}
             </div>
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── Hardcover ────────────────────────────────────────────────── */}
         {hardcoverAvailable && (
-          <section id="hardcover" className="scroll-mt-24">
-            {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
-            <SectionHeader title="Hardcover" />
+          // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
+          <PanelSection id="hardcover" title="Hardcover">
             <HardcoverSync onAvailable={setHardcoverAvailable} />
-          </section>
+          </PanelSection>
         )}
 
         {/* ── API Tokens ───────────────────────────────────────────────── */}
-        <section id="api-tokens" className="scroll-mt-24">
-          <SectionHeader title={t`API Tokens`} />
-          <div className="mt-4 rounded-xl border border-border bg-card overflow-hidden">
-            <div className="p-5 space-y-4">
-              <div className="flex items-start justify-between gap-3">
-                <div>
-                  <p className="text-xs text-muted-foreground">
-                    <Trans>Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.</Trans>{' '}
-                    <a href={docsLink(DOCS.apiTokens)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-foreground/80 hover:text-primary transition-colors">
-                      <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </p>
+        <PanelSection
+          id="api-tokens"
+          title={t`API tokens`}
+          description={<>
+            <Trans>Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.</Trans>{' '}
+            <a href={docsLink(DOCS.apiTokens)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-foreground/80 hover:text-primary transition-colors">
+              <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
+            </a>
+          </>}
+          action={
+            <Pill
+              onClick={() => { setTokenFormOpen(v => !v); setTokenCreateError(null) }}
+              variant="secondary"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              <Trans>New token</Trans>
+            </Pill>
+          }
+        >
+          <div>
+            <div className="space-y-4">
+              {user?.is_admin && apiTokens.length > 0 && (
+                <div className="flex items-center gap-2">
+                    <Checkbox
+                      checked={apiTokensAllUsers}
+                      onChange={e => setApiTokensAllUsers(e.target.checked)}
+                      label={<span className="text-[13px] text-muted-foreground"><Trans>All users</Trans></span>}
+                    />
                 </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {user?.is_admin && apiTokens.length > 0 && (
-                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer select-none">
-                      <input
-                        type="checkbox"
-                        checked={apiTokensAllUsers}
-                        onChange={e => setApiTokensAllUsers(e.target.checked)}
-                        className="w-3.5 h-3.5 rounded accent-primary"
-                      />
-                      <Trans>All users</Trans>
-                    </label>
-                  )}
-                  <button
-                    onClick={() => { setTokenFormOpen(v => !v); setTokenCreateError(null) }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
-                  >
-                    <Plus className="w-3 h-3" />
-                    <Trans>New Token</Trans>
-                  </button>
-                </div>
-              </div>
+              )}
 
               {/* Create form */}
               {tokenFormOpen && (
-                <form onSubmit={handleCreateToken} className="flex items-end gap-2 rounded-lg bg-muted/50 border border-border p-3">
-                  <div className="flex-1">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Token name</Trans></label>
-                    <input
+                <form onSubmit={handleCreateToken} className="flex flex-wrap items-end gap-2">
+                  <div className="flex-1 min-w-[12rem]">
+                    <FormLabel htmlFor="token-name"><Trans>Token name</Trans></FormLabel>
+                    <Input
+                      id="token-name"
                       type="text"
                       value={tokenNewName}
                       onChange={e => { setTokenNewName(e.target.value); setTokenCreateError(null) }}
                       placeholder={t`e.g. scribe-laptop`}
                       autoFocus
-                      className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                     />
                   </div>
                   <div className="shrink-0">
-                    <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Scope</Trans></label>
-                    <select
+                    <FormLabel htmlFor="token-scope"><Trans>Scope</Trans></FormLabel>
+                    <Select
+                      id="token-scope"
                       value={tokenNewScope}
                       onChange={e => setTokenNewScope(e.target.value as 'full' | 'readonly')}
-                      className="h-9 rounded-md border border-border bg-background px-2 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+                      className="w-auto min-w-[9.5rem]"
                     >
                       <option value="full">{t`Full access`}</option>
                       <option value="readonly">{t`Read-only`}</option>
-                    </select>
+                    </Select>
                   </div>
-                  <button
+                  <Pill
                     type="submit"
                     disabled={tokenCreating || !tokenNewName.trim()}
-                    className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                    variant="primary" className="shrink-0"
                   >
                     {tokenCreating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
                     {tokenCreating ? t`Creating...` : t`Create`}
-                  </button>
-                  <button
+                  </Pill>
+                  <Pill
                     type="button"
                     onClick={() => { setTokenFormOpen(false); setTokenNewName(''); setTokenCreateError(null) }}
-                    className="flex items-center h-9 px-3 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-muted transition-colors shrink-0"
+                    variant="quiet" className="shrink-0"
                   >
                     <Trans>Cancel</Trans>
-                  </button>
+                  </Pill>
                 </form>
               )}
-              {tokenCreateError && <p className="text-xs text-destructive">{tokenCreateError}</p>}
+              {tokenCreateError && <p className="text-[13px] text-destructive">{tokenCreateError}</p>}
 
               {/* One-time token reveal */}
               {tokenRevealPlaintext && (
                 <div className="rounded-lg bg-warning/10 border border-warning/30 p-4 space-y-3">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-warning dark:text-warning shrink-0 mt-0.5" />
-                    <p className="text-xs font-medium text-warning">
-                      <Trans>This is the only time you will see this token. Store it somewhere safe — it cannot be recovered.</Trans>
+                    <p className="text-[13px] font-medium text-warning">
+                      <Trans>This is the only time you will see this token. Store it somewhere safe; it cannot be recovered.</Trans>
                     </p>
                   </div>
-                  <div className="flex items-center gap-2 rounded-md bg-background border border-border px-3 py-2">
-                    <code className="text-xs font-mono text-foreground break-all flex-1 select-all">
+                  <div className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2">
+                    <code className="text-[13px] font-mono text-foreground break-all flex-1 select-all">
                       {tokenRevealPlaintext}
                     </code>
                     <button
@@ -1681,31 +1703,31 @@ export function SettingsPage() {
                       {tokenCopied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
                     </button>
                   </div>
-                  <button
+                  <Pill
                     onClick={() => { setTokenRevealPlaintext(null); setTokenCopied(false) }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                    variant="primary"
                   >
                     <Trans>Done</Trans>
-                  </button>
+                  </Pill>
                 </div>
               )}
 
               {/* Token list */}
               {apiTokensLoading ? (
-                <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+                <div className="flex items-center gap-2 text-[13px] text-muted-foreground py-2">
                   <Loader2 className="w-3.5 h-3.5 animate-spin" />
                   <Trans>Loading…</Trans>
                 </div>
               ) : apiTokens.length === 0 ? (
-                <p className="text-xs text-muted-foreground py-2">
+                <p className="text-[13px] text-muted-foreground py-2">
                   <Trans>No API tokens yet. Create one to use Scribe or scripts against Tome.</Trans>
                 </p>
               ) : (
-                <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
+                <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
                   {/* Header */}
                   <div className={cn(
-                    'hidden sm:grid px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40',
-                    apiTokensAllUsers && user?.is_admin ? 'grid-cols-[1fr_7rem_7rem_6rem_3rem_2rem]' : 'grid-cols-[1fr_7rem_7rem_6rem_2rem]'
+                    'hidden sm:grid gap-x-4 px-3 py-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground',
+                    apiTokensAllUsers && user?.is_admin ? 'grid-cols-[minmax(0,1fr)_9rem_6.5rem_6.5rem_5rem_2rem]' : 'grid-cols-[minmax(0,1fr)_9rem_6.5rem_6.5rem_2rem]'
                   )}>
                     <span><Trans>Name</Trans></span>
                     <span><Trans>Prefix</Trans></span>
@@ -1720,32 +1742,32 @@ export function SettingsPage() {
                       <div
                         key={tok.id}
                         className={cn(
-                          'flex sm:grid items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
-                          apiTokensAllUsers && user?.is_admin ? 'sm:grid-cols-[1fr_7rem_7rem_6rem_3rem_2rem]' : 'sm:grid-cols-[1fr_7rem_7rem_6rem_2rem]',
-                          isRevoked ? 'opacity-50' : 'hover:bg-muted/30'
+                          'flex sm:grid items-center gap-2 sm:gap-x-4 px-3 py-2.5 transition-colors',
+                          apiTokensAllUsers && user?.is_admin ? 'sm:grid-cols-[minmax(0,1fr)_9rem_6.5rem_6.5rem_5rem_2rem]' : 'sm:grid-cols-[minmax(0,1fr)_9rem_6.5rem_6.5rem_2rem]',
+                          isRevoked && 'opacity-50'
                         )}
                       >
                         <span className="flex items-center gap-1.5 font-medium text-foreground flex-1 truncate min-w-0">
                           {tok.name}
                           {(tok.scope ?? 'full') === 'readonly' && (
-                            <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-info/10 text-info border border-info/20">
+                            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-info/10 text-info">
                               <Trans>Read-only</Trans>
                             </span>
                           )}
                           {isRevoked && (
-                            <span className="shrink-0 px-1 py-0.5 rounded text-[9px] font-semibold uppercase tracking-wide bg-muted text-muted-foreground border border-border">
+                            <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-secondary text-muted-foreground">
                               <Trans>Revoked</Trans>
                             </span>
                           )}
                         </span>
-                        <span className="font-mono text-muted-foreground shrink-0">
+                        <span className="font-mono text-muted-foreground shrink-0 min-w-0 truncate" title={`tome_${tok.prefix}`}>
                           tome_{tok.prefix}…
                         </span>
-                        <span className="text-muted-foreground hidden sm:block shrink-0">
+                        <span className="text-muted-foreground hidden sm:block shrink-0 truncate">
                           {tok.last_used_at ? relativeTime(tok.last_used_at) : t`Never`}
                         </span>
-                        <span className="text-muted-foreground hidden sm:block shrink-0">
-                          {new Date(tok.created_at).toLocaleDateString(i18n.locale)}
+                        <span className="text-muted-foreground hidden sm:block shrink-0 truncate">
+                          {formatLongDate(tok.created_at)}
                         </span>
                         {apiTokensAllUsers && user?.is_admin && (
                           <span className="text-muted-foreground hidden sm:block shrink-0 truncate">
@@ -1755,7 +1777,7 @@ export function SettingsPage() {
                         <div className="flex items-center justify-end shrink-0">
                           {!isRevoked && (
                             <button
-                              onClick={() => handleRevokeApiToken(tok.id)}
+                              onClick={() => askRevokeApiToken(tok.id)}
                               disabled={tokenRevoking === tok.id}
                               className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
                               title={t`Revoke token`}
@@ -1774,70 +1796,69 @@ export function SettingsPage() {
               )}
             </div>
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── Export ───────────────────────────────────────────────────── */}
         {/* ── Outbound notifications ────────────────────────────────────── */}
-        <section id="notifications" className="scroll-mt-24">
-          <SectionHeader title={t`Notifications`} subtle />
+        <PanelSection id="notifications" title={t`Notifications`}>
           <NotificationChannels />
-        </section>
+        </PanelSection>
 
         {/* ── Share links overview ──────────────────────────────────────── */}
-        <section id="share-links" className="scroll-mt-24">
-          <SectionHeader title={t`Share links`} subtle />
+        <PanelSection id="share-links" title={t`Share links`}>
           <ShareLinksOverview />
-        </section>
+        </PanelSection>
 
         {/* ── Reading-history import ────────────────────────────────────── */}
-        <section id="import" className="scroll-mt-24">
-          <SectionHeader title={t`Import reading history`} subtle />
+        <PanelSection id="import" title={t`Import reading history`}>
           <ReadingImport />
-        </section>
+        </PanelSection>
 
-        <section id="export" className="scroll-mt-24">
-          <SectionHeader title={t`Export`} subtle />
-          <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
-            <p className="text-xs text-muted-foreground mb-4">
-              <Trans>Download your entire library catalog — all titles, authors, series, tags and formats.</Trans>
-            </p>
+        <PanelSection
+          id="export"
+          title={t`Export`}
+          description={<Trans>Download your entire library catalog: all titles, authors, series, tags and formats.</Trans>}
+        >
+          <div>
+
             <div className="flex flex-wrap gap-2">
               <ExportButton format="json" label="JSON" exporting={exporting} onExport={handleExport} />
               <ExportButton format="csv" label="CSV" exporting={exporting} onExport={handleExport} />
             </div>
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── Personal backup ─────────────────────────────────────────── */}
-        <section id="backup" className="scroll-mt-24">
-          <SectionHeader title={t`Backup`} subtle />
-          <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
-            <p className="text-xs text-muted-foreground mb-4">
-              <Trans>Download a JSON snapshot of <strong>your personal data</strong>: reading status,
+        <PanelSection
+          id="backup"
+          title={t`Backup`}
+          description={<Trans>Download a JSON snapshot of <strong>your personal data</strong>: reading status,
               every reading session, sync positions, shelves, and your local preferences.
-              Book files themselves are not included — Tome only references them on disk.
-              API tokens and KOReader keys are also excluded so the file isn't a credential.</Trans>
-            </p>
-            <button
+              Book files themselves are not included, since Tome only references them on disk.
+              API tokens and KOReader keys are also excluded so the file isn't a credential.</Trans>}
+        >
+          <div>
+
+            <Pill
               onClick={handleBackup}
               disabled={backingUp}
-              className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted disabled:opacity-60 disabled:cursor-not-allowed transition-all touch-feedback"
+              variant="secondary"
             >
               {backingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
               {backingUp ? t`Preparing…` : t`Download my data`}
-            </button>
+            </Pill>
           </div>
-        </section>
+        </PanelSection>
 
         {/* ── About ────────────────────────────────────────────────────── */}
-        <section id="about" className="scroll-mt-24">
-          <SectionHeader title={t`About`} subtle />
-          <div className="mt-3 rounded-xl border border-border/60 bg-card/50 p-5">
+        <PanelSection id="about" title={t`About`}>
+          <div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2.5">
                 <Info className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm font-semibold text-foreground">Tome</span>
-                <span className="rounded-md border border-border bg-muted px-2 py-0.5 font-mono text-xs text-muted-foreground">
+                <span className="text-[15px] font-semibold text-foreground">Tome</span>
+
+                <span className="rounded-md bg-secondary px-2 py-0.5 font-mono text-[13px] text-muted-foreground">
                   v{tomeVersion}
                 </span>
               </div>
@@ -1847,7 +1868,7 @@ export function SettingsPage() {
                     href={updateInfo.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-1.5 text-xs font-semibold text-primary-foreground transition-all hover:bg-primary/90"
+                    className="inline-flex items-center gap-1.5 h-9 rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
                   >
                     <ArrowUpCircle className="w-3.5 h-3.5" />
                     {(() => { const v = updateInfo.latest; return t`Update to v${v}` })()}
@@ -1857,7 +1878,7 @@ export function SettingsPage() {
                   href="https://github.com/bndct-devops/tome"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-border bg-card px-3 py-1.5 text-xs font-medium text-muted-foreground transition-all hover:bg-muted hover:text-foreground"
+                  className="inline-flex items-center gap-1.5 h-9 rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-surface-hover"
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   GitHub
@@ -1865,14 +1886,14 @@ export function SettingsPage() {
               </div>
             </div>
             {updateInfo && (
-              <p className="mt-3 text-xs text-muted-foreground">
-                <Trans>A newer release is available — the link opens the release notes.
+              <p className="mt-3 text-[13px] text-muted-foreground">
+                <Trans>A newer release is available. The link opens the release notes.
                 Update by pulling the new image and restarting the container.</Trans>
               </p>
             )}
             {SUPPORTERS.length > 0 && (
               <div className="mt-4 border-t border-border/50 pt-4">
-                <p className="text-xs font-medium text-muted-foreground">
+                <p className="text-[13px] font-medium text-muted-foreground">
                   <Trans>Thank you to everyone who supports Tome</Trans>
                 </p>
                 <p className="mt-1.5 text-sm text-foreground">{SUPPORTERS.join(', ')}</p>
@@ -1880,15 +1901,72 @@ export function SettingsPage() {
             )}
             <TelemetrySettings />
           </div>
-        </section>
+        </PanelSection>
 
         </div>
-      </main>
-    </div>
+      </SectionLayout>
+      <ConfirmDialog ask={confirmAsk} onClose={() => setConfirmAsk(null)} />
+    </AppShell>
+  )
+}
+
+/** Small confirm for a destructive action: what happens, Cancel, the action. */
+function ConfirmDialog({ ask, onClose }: { ask: ConfirmAsk | null; onClose: () => void }) {
+  const [busy, setBusy] = useState(false)
+  // Keep the last ask while the dialog animates out.
+  const [shown, setShown] = useState<ConfirmAsk | null>(ask)
+  if (ask && ask !== shown) setShown(ask)
+  async function go() {
+    if (!ask) return
+    setBusy(true)
+    try { await ask.run() } finally { setBusy(false); onClose() }
+  }
+  return (
+    <ModalShell
+      open={ask !== null}
+      onClose={busy ? undefined : onClose}
+      size="sm"
+      title={shown?.title}
+      footer={
+        <>
+          <Pill variant="quiet" onClick={onClose} disabled={busy}><Trans>Cancel</Trans></Pill>
+          <Pill variant="destructive" className="bg-destructive/10 text-destructive" onClick={go} disabled={busy}>
+            {busy ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
+            {shown?.action}
+          </Pill>
+        </>
+      }
+    >
+      <p className="text-[14px] text-muted-foreground">{shown?.body}</p>
+    </ModalShell>
   )
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
+
+/** The KOSync last-sync time: the API sends an ISO string; accept epoch
+ *  seconds too. Unparseable input comes back as it was, never "Invalid Date". */
+function formatSyncTime(value: string | number, locale: string): string {
+  const d = typeof value === 'number'
+    ? new Date(value < 1e12 ? value * 1000 : value)
+    : new Date(/[zZ]|[+-]\d\d:\d\d$/.test(value) ? value : `${value}Z`)
+  return Number.isNaN(d.getTime()) ? String(value) : d.toLocaleString(locale)
+}
+
+/** Long lists show this many rows, then "Show more". */
+const LIST_PREVIEW = 8
+
+function ShowMore({ all, hidden, onToggle }: { all: boolean; hidden: number; onToggle: () => void }) {
+  return (
+    <div className="pt-2">
+      <Pill variant="quiet" onClick={onToggle} className="-ml-4">
+        {all
+          ? <><ChevronUp className="w-3.5 h-3.5" /><Trans>Show less</Trans></>
+          : <><ChevronDown className="w-3.5 h-3.5" /><Plural value={hidden} one="Show # more" other="Show # more" /></>}
+      </Pill>
+    </div>
+  )
+}
 
 function relativeTime(iso: string): string {
   const diff = Date.now() - new Date(iso).getTime()
@@ -1905,20 +1983,6 @@ function relativeTime(iso: string): string {
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function SectionHeader({ title, subtle = false }: { title: string; subtle?: boolean }) {
-  return (
-    <div className="flex items-center gap-3">
-      <h2 className={cn(
-        'font-display text-base font-normal',
-        subtle ? 'text-muted-foreground' : 'text-foreground'
-      )}>
-        {title}
-      </h2>
-      <div className={cn('flex-1 h-px', subtle ? 'bg-border/50' : 'bg-border')} />
-    </div>
-  )
-}
-
 function ConnectBlock({ rows }: { rows: { label: string; value: string; copy?: boolean }[] }) {
   const [copied, setCopied] = useState<string | null>(null)
   function copyValue(value: string) {
@@ -1928,9 +1992,9 @@ function ConnectBlock({ rows }: { rows: { label: string; value: string; copy?: b
     })
   }
   return (
-    <div className="rounded-lg bg-muted/60 border border-border overflow-hidden text-xs">
+    <div className="rounded-[var(--radius-panel)] bg-card overflow-hidden text-[13px] px-1">
       {rows.map(({ label, value, copy }, i) => (
-        <div key={i} className={cn('flex items-center gap-3 px-3 py-2', i > 0 && 'border-t border-border/50')}>
+        <div key={i} className={cn('flex items-center gap-3 px-3 py-2.5', i > 0 && 'border-t border-border/50')}>
           <span className="text-muted-foreground w-20 shrink-0">{label}</span>
           <span className={cn('flex-1 truncate', copy ? 'font-mono text-foreground' : 'text-muted-foreground')}>{value}</span>
           {copy && (
@@ -1961,7 +2025,7 @@ function PasswordField({
 }) {
   return (
     <div>
-      <label className="block text-xs font-medium text-muted-foreground mb-1">{label}</label>
+      <label className="block text-[13px] text-muted-foreground mb-1.5">{label}</label>
       <div className="relative">
         <input
           type={show ? 'text' : 'password'}
@@ -1969,8 +2033,8 @@ function PasswordField({
           onChange={e => onChange(e.target.value)}
           required
           className={cn(
-            'w-full text-sm bg-muted rounded-lg px-3 py-2 focus:outline-none focus:ring-2 focus:ring-ring',
-            error && 'ring-2 ring-destructive'
+            'w-full h-9 rounded-lg bg-secondary pl-3 pr-10 text-[14px] text-foreground focus:outline-none focus:ring-1 focus:ring-ring',
+            error && 'ring-1 ring-destructive'
           )}
         />
         {showToggle && onToggleShow && (
@@ -1998,7 +2062,7 @@ function PluginVersion() {
   }, [])
   if (!label) return null
   return (
-    <span className="text-[10px] font-mono text-muted-foreground bg-muted px-1.5 py-0.5 rounded shrink-0">
+    <span className="text-[12px] font-mono text-muted-foreground bg-secondary px-1.5 py-0.5 rounded shrink-0">
       {label}
     </span>
   )
@@ -2007,7 +2071,7 @@ function PluginVersion() {
 const SETUP_STEPS: { title: MessageDescriptor; body: MessageDescriptor; mono?: string }[] = [
   {
     title: msg`Download the plugin`,
-    body: msg`Click "Download plugin ZIP" above. An API key is automatically created and baked into the plugin — no manual configuration needed.`,
+    body: msg`Click "Download plugin ZIP" above. An API key is automatically created and baked into the plugin, so there is nothing to configure by hand.`,
   },
   {
     title: msg`Copy to KOReader`,
@@ -2038,26 +2102,22 @@ function SetupGuide() {
   const [open, setOpen] = useState(false)
 
   return (
-    <div className="rounded-lg border border-border overflow-hidden text-xs">
-      <button
-        onClick={() => setOpen(v => !v)}
-        className="w-full flex items-center justify-between px-3 py-2.5 text-left hover:bg-accent/50 transition-colors"
-      >
-        <span className="font-medium text-foreground"><Trans>Setup instructions</Trans></span>
-        <span className="text-muted-foreground text-[10px]">{open ? '▲' : '▼'}</span>
-      </button>
+    <div>
+      <Disclosure open={open} onToggle={() => setOpen(v => !v)}>
+        <Trans>Setup instructions</Trans>
+      </Disclosure>
       {open && (
-        <ol className="divide-y divide-border border-t border-border">
+        <ol className="divide-y divide-border/70 border-b border-border/70">
           {SETUP_STEPS.map((step, i) => (
-            <li key={i} className="flex gap-3 px-3 py-3">
-              <span className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0 text-[10px] mt-0.5">
+            <li key={i} className="flex gap-3 py-3">
+              <span className="w-5 h-5 rounded-full bg-primary/10 text-primary font-bold flex items-center justify-center shrink-0 text-[11px] mt-0.5 tabular-nums">
                 {i + 1}
               </span>
-              <div className="space-y-1">
-                <p className="font-medium text-foreground">{i18n._(step.title)}</p>
+              <div className="min-w-0 space-y-1 text-[13px]">
+                <p className="text-[14px] font-medium text-foreground">{i18n._(step.title)}</p>
                 <p className="text-muted-foreground leading-relaxed">{i18n._(step.body)}</p>
                 {step.mono && (
-                  <p className="font-mono text-muted-foreground/70">{step.mono}</p>
+                  <p className="font-mono text-[12px] text-muted-foreground/80 break-all">{step.mono}</p>
                 )}
               </div>
             </li>
@@ -2065,6 +2125,21 @@ function SetupGuide() {
         </ol>
       )}
     </div>
+  )
+}
+
+/** A plain disclosure row: the label and a chevron on a hairline, no box. */
+function Disclosure({ open, onToggle, children }: { open: boolean; onToggle: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-expanded={open}
+      className="group flex w-full items-center gap-2 border-y border-border/70 py-2.5 text-left text-[14px] font-medium text-foreground transition-colors hover:text-primary"
+    >
+      <ChevronRight className={cn('w-4 h-4 text-muted-foreground transition-transform group-hover:text-primary', open && 'rotate-90')} />
+      {children}
+    </button>
   )
 }
 
@@ -2077,16 +2152,16 @@ function ExportButton({ format, label, exporting, onExport }: {
   const { t } = useLingui()
   const busy = exporting === format
   return (
-    <button
+    <Pill
       onClick={() => onExport(format)}
       disabled={exporting !== null}
-      className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted transition-all disabled:opacity-50"
+      variant="secondary"
     >
       {busy
         ? <RefreshCw className="w-3 h-3 animate-spin" />
         : <Download className="w-3 h-3 text-muted-foreground" />
       }
       {busy ? t`Exporting...` : t`Export ${label}`}
-    </button>
+    </Pill>
   )
 }

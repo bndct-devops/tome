@@ -6,22 +6,22 @@
  * than translating anchors, each highlight is re-anchored by its own text: when
  * a section loads we search its document for `highlighted_text` (using
  * foliate's own search matcher), turn the matched Range into a CFI, and draw it
- * through foliate's overlayer. Resolution is lazy and per-section — a highlight
+ * through foliate's overlayer. Resolution is lazy and per-section - a highlight
  * in an unopened chapter costs nothing until that chapter renders, and one
  * whose text can't be found (e.g. spanning a paragraph break, which the
- * text-node haystack can't match across) simply doesn't paint — sync data is
+ * text-node haystack can't match across) simply doesn't paint - sync data is
  * never touched.
  *
  * Disambiguation: when the annotation's chapter matches a TOC label, only
  * sections under that label are searched; otherwise the first textual match in
- * any section wins. Multiple occurrences inside one section take the first —
+ * any section wins. Multiple occurrences inside one section take the first  - 
  * KOReader anchors don't carry an occurrence index we could honour.
  */
 
 export interface ReaderAnnotation {
   id: number
   anchor: string
-  // Set for web-created highlights (anchor "web:…") — paints directly, no search.
+  // Set for web-created highlights (anchor "web:…") - paints directly, no search.
   cfi?: string | null
   highlighted_text: string | null
   note: string | null
@@ -45,14 +45,34 @@ const KO_FILL: Record<string, string> = {
   gray: 'rgba(148,163,184,0.38)',
   grey: 'rgba(148,163,184,0.38)',
 }
-export const fillForColor = (color: string | null): string =>
-  KO_FILL[(color ?? '').toLowerCase()] ?? 'rgba(234,179,8,0.35)'
+// Sepia page (#f7f3e9): the fills above vanish into the cream (a pale yellow
+// on pale yellow), so the sepia page gets deeper, ochre-leaning variants with
+// a higher alpha. The overlayer still paints them at its group opacity, so the
+// text stays readable. Light and dark keep KO_FILL.
+const KO_FILL_SEPIA: Record<string, string> = {
+  red: 'rgba(190,52,40,0.8)',
+  orange: 'rgba(205,98,12,0.85)',
+  yellow: 'rgba(196,128,0,0.95)',
+  green: 'rgba(58,132,52,0.8)',
+  olive: 'rgba(112,122,22,0.85)',
+  cyan: 'rgba(12,128,150,0.75)',
+  blue: 'rgba(42,92,186,0.7)',
+  purple: 'rgba(124,62,168,0.7)',
+  gray: 'rgba(104,94,78,0.7)',
+  grey: 'rgba(104,94,78,0.7)',
+}
+
+/** The fill for a highlight colour on the given reader page theme. */
+export const fillForColor = (color: string | null, theme?: string): string => {
+  const map = theme === 'sepia' ? KO_FILL_SEPIA : KO_FILL
+  return map[(color ?? '').toLowerCase()] ?? map.yellow
+}
 
 const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase()
 
 // foliate modules live in /public as plain ESM (loaded natively by the reader,
 // not bundled). A Vite-transformed dynamic import 500s on public files (?import
-// middleware), so this must be a NATIVE import the bundler can't see — same
+// middleware), so this must be a NATIVE import the bundler can't see - same
 // mechanism view.js itself uses for its relative imports.
 // eslint-disable-next-line @typescript-eslint/no-implied-eval
 const nativeImport = new Function('url', 'return import(url)') as (url: string) => Promise<unknown>
@@ -79,7 +99,8 @@ export class AnnotationPainter {
   private tocLabels = new Set<string>()              // all normalized labels
   private matcher: Matcher | null = null
   private onShow: (a: ReaderAnnotation) => void
-  // Section loads can fire before the annotation fetch / TOC mapping finish —
+  private theme: string | undefined
+  // Section loads can fire before the annotation fetch / TOC mapping finish  - 
   // scanning waits on this so the first chapter isn't scanned against an empty set.
   private ready: Promise<void>
   private markReady!: () => void
@@ -96,7 +117,7 @@ export class AnnotationPainter {
       }
       const a = this.byCfi.get(annotation.value)
       foliate('overlayer').then(({ Overlayer }) => {
-        draw(Overlayer.highlight, { color: fillForColor(a?.color ?? annotation.color ?? null) })
+        draw(Overlayer.highlight, { color: fillForColor(a?.color ?? annotation.color ?? null, this.theme) })
       })
     })
 
@@ -106,7 +127,7 @@ export class AnnotationPainter {
       if (a) this.onShow(a)
     })
 
-    // Overlays are per-section and rebuilt when a section (re)loads — repaint
+    // Overlays are per-section and rebuilt when a section (re)loads - repaint
     // everything already resolved for it (mirrors foliate's own search results).
     view.addEventListener('create-overlay', (e: Event) => {
       const { index } = (e as CustomEvent).detail as { index: number }
@@ -117,7 +138,7 @@ export class AnnotationPainter {
   /** Feed the annotation set and map the TOC; unblocks section scanning. */
   async start(annotations: ReaderAnnotation[]) {
     this.annotations = annotations.filter(a => a.highlighted_text)
-    // Web-created highlights carry their own CFI — register + paint directly.
+    // Web-created highlights carry their own CFI - register + paint directly.
     for (const a of this.annotations) {
       if (a.cfi) this.register(a, a.cfi)
     }
@@ -126,6 +147,13 @@ export class AnnotationPainter {
     } finally {
       this.markReady()
     }
+  }
+
+  /** The reader page theme the fills are picked for; repaints on a change. */
+  setTheme(theme: string) {
+    if (theme === this.theme) return
+    this.theme = theme
+    this.paintResolved(-1)
   }
 
   /** Paint a highlight just created in this session (already has its CFI). */
@@ -172,7 +200,7 @@ export class AnnotationPainter {
             this.sectionLabels.set(resolved.index, label)
           }
           if (label) this.tocLabels.add(label)
-        } catch { /* unresolvable TOC entry — skip */ }
+        } catch { /* unresolvable TOC entry - skip */ }
         if (item.subitems?.length) {
           await walk(item.subitems as { label: string; href: string; subitems?: unknown[] }[])
         }
@@ -209,7 +237,7 @@ export class AnnotationPainter {
         this.cfiById.set(a.id, cfi)
         this.byCfi.set(cfi, a)
         this.view.addAnnotation({ value: cfi, color: a.color })
-      } catch { /* malformed range — leave unresolved */ }
+      } catch { /* malformed range - leave unresolved */ }
     }
   }
 

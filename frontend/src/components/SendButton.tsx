@@ -14,8 +14,9 @@ interface SendStatus {
 
 interface SendButtonProps {
   books: { id: number; title: string; files: BookFile[] }[]
-  /** 'rail' = full-width book-detail action; 'bulk' = compact dashboard action. */
-  variant?: 'rail' | 'bulk'
+  /** 'rail' = full-width action; 'bulk' = compact dashboard action;
+   *  'pill' = the book page's secondary large pill. */
+  variant?: 'rail' | 'bulk' | 'pill'
   disabled?: boolean
 }
 
@@ -44,8 +45,19 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
     const onDoc = (e: MouseEvent) => {
       if (wrapRef.current && !wrapRef.current.contains(e.target as Node)) setMenuOpen(false)
     }
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      // Closing the menu is all Escape does here; the page behind keeps its own Escape.
+      e.preventDefault()
+      e.stopPropagation()
+      setMenuOpen(false)
+    }
     document.addEventListener('mousedown', onDoc)
-    return () => document.removeEventListener('mousedown', onDoc)
+    window.addEventListener('keydown', onKey, true)
+    return () => {
+      document.removeEventListener('mousedown', onDoc)
+      window.removeEventListener('keydown', onKey, true)
+    }
   }, [menuOpen])
 
   async function sendToKoreader() {
@@ -60,7 +72,7 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
       if (res.queued > 0) {
         {
           const n = res.queued
-          toast.success(t`Queued ${n} to KOReader — arrives next time KOReader syncs`)
+          toast.success(t`Queued ${n} to KOReader, arrives next time KOReader syncs`)
         }
       } else {
         toast.info(t`Already in your KOReader inbox`)
@@ -78,9 +90,53 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
   // Send-to-Device button.
   /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const btn = variant === 'bulk'
-    ? 'flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all'
-    : 'flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-xs font-medium border border-border bg-card text-foreground hover:bg-muted disabled:opacity-50 transition-all duration-200'
+    ? 'flex items-center gap-1.5 h-9 px-3.5 rounded-full text-[14px] font-medium bg-secondary text-foreground hover:bg-surface-hover disabled:opacity-50 transition-colors'
+    : 'flex items-center justify-center gap-2 h-9 px-4 rounded-full text-[14px] font-medium bg-secondary text-foreground hover:bg-surface-hover disabled:opacity-50 transition-colors'
   /* eslint-enable lingui/no-unlocalized-strings */
+
+  if (variant === 'pill') {
+    /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
+    const half = 'inline-flex h-11 items-center gap-2 bg-secondary text-[15px] font-medium text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50'
+    /* eslint-enable lingui/no-unlocalized-strings */
+    if (!status?.koreader) {
+      return (
+        <>
+          <button type="button" onClick={() => setModalOpen(true)} disabled={disabled} className={`${half} rounded-full px-5`}>
+            <Send className="w-4 h-4" />
+            <Trans>Send to device</Trans>
+          </button>
+          <SendToDeviceModal open={modalOpen} onClose={() => setModalOpen(false)} books={books} />
+        </>
+      )
+    }
+    return (
+      <>
+        <div ref={wrapRef} className="relative inline-flex">
+          <button type="button" onClick={sendToKoreader} disabled={disabled || sending} className={`${half} rounded-l-full pl-5 pr-3`}>
+            {sending ? <Loader2 className="w-4 h-4 animate-spin" /> : <Send className="w-4 h-4" />}
+            <Trans>Send to KOReader</Trans>
+            <span className="text-[10px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+              <Trans>Beta</Trans>
+            </span>
+          </button>
+          <button type="button" onClick={() => setMenuOpen(o => !o)} disabled={disabled} aria-label={t`More send options`}
+            className={`${half} rounded-r-full border-l border-background/70 pl-2.5 pr-3.5`}>
+            <ChevronDown className="w-4 h-4 text-muted-foreground" />
+          </button>
+          {menuOpen && (
+            <div role="menu" className="absolute left-0 top-full z-40 mt-1.5 min-w-[13rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-card p-1 shadow-lg ring-1 ring-panel-ring">
+              <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setModalOpen(true) }}
+                className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] text-foreground hover:bg-secondary transition-colors">
+                <Mail className="w-4 h-4 text-muted-foreground" />
+                <Trans>Send via email…</Trans>
+              </button>
+            </div>
+          )}
+        </div>
+        <SendToDeviceModal open={modalOpen} onClose={() => setModalOpen(false)} books={books} />
+      </>
+    )
+  }
 
   // Feature off (or unknown) → plain email button, current behaviour.
   if (!status?.koreader) {
@@ -92,7 +148,7 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
           className={variant === 'rail' ? `mt-2 w-full ${btn} hover:-translate-y-0.5 hover:shadow-sm` : btn}
         >
           <Send className="w-3.5 h-3.5 text-muted-foreground" />
-          <Trans>Send to Device</Trans>
+          <Trans>Send to device</Trans>
         </button>
         <SendToDeviceModal open={modalOpen} onClose={() => setModalOpen(false)} books={books} />
       </>
@@ -112,7 +168,7 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
             ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
             : <Send className="w-3.5 h-3.5 text-muted-foreground" />}
           <Trans>Send to KOReader</Trans>
-          <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground border border-border rounded px-1 leading-tight">
+          <span className="ml-1 text-[11px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             <Trans>Beta</Trans>
           </span>
         </button>
@@ -125,10 +181,11 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
           <ChevronDown className="w-3.5 h-3.5" />
         </button>
         {menuOpen && (
-          <div className="absolute right-0 top-full mt-1 z-20 min-w-[12rem] rounded-lg border border-border bg-card shadow-lg py-1">
+          <div role="menu" className="absolute right-0 top-full mt-1.5 z-20 min-w-[12rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-card p-1 shadow-lg ring-1 ring-panel-ring">
             <button
+              role="menuitem"
               onClick={() => { setMenuOpen(false); setModalOpen(true) }}
-              className="w-full flex items-center gap-2 px-3 py-2 text-xs text-foreground hover:bg-muted transition-colors"
+              className="w-full flex items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] text-foreground hover:bg-secondary transition-colors"
             >
               <Mail className="w-3.5 h-3.5 text-muted-foreground" />
               <Trans>Send via email…</Trans>

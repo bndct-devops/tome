@@ -13,7 +13,7 @@ export function ImpersonationBanner() {
       <span><Trans>Viewing as <strong>{impersonatedUsername}</strong></Trans></span>
       <button
         onClick={exitImpersonation}
-        className="ml-2 px-3 py-1 rounded-md bg-amber-950/15 hover:bg-amber-950/25 transition-colors text-xs font-semibold"
+        className="ml-2 px-3 py-1 rounded-md bg-amber-950/15 hover:bg-amber-950/25 transition-colors text-[13px] font-semibold"
       >
         <Trans>Exit impersonation</Trans>
       </button>

@@ -1,10 +1,11 @@
 import { useEffect, useState } from 'react'
 import { Trans } from '@lingui/react/macro'
-import { t } from '@lingui/core/macro'
-import { AlertCircle, Check, ChevronDown, ChevronUp, Loader2, Search, Sparkles, X } from 'lucide-react'
+import { t, plural } from '@lingui/core/macro'
+import { AlertCircle, ArrowRight, Check, ChevronDown, ChevronUp, Loader2, Search } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
+import { Checkbox, Pill } from '@/components/page'
 import type { MetadataCandidate } from '@/lib/books'
 import { CoverImage } from './CoverImage'
 import { coverSrc } from '@/lib/covers'
@@ -132,7 +133,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
 
       const body: Record<string, unknown> = {}
 
-      // Title and author are always applied — candidate versions are cleaner than filenames
+      // Title and author are always applied; candidate versions are cleaner than filenames
       if (candidate.title) body.title = candidate.title
       if (candidate.author) body.author = candidate.author
 
@@ -167,7 +168,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
           body: JSON.stringify(body),
         })
       } catch {
-        // non-fatal — continue with rest
+        // non-fatal: continue with rest
       }
       applied++
       setProgress({ done: applied, total: toApply.length })
@@ -192,263 +193,227 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
   const needsReview = results.filter(r => r.best_match_index === null && r.candidates.length > 0).length
   const noMatch = results.filter(r => r.candidates.length === 0).length
 
+  const sourceName = (src: string) =>
+    /* eslint-disable lingui/no-unlocalized-strings -- provider names */
+    src === 'hardcover' ? 'Hardcover' : src === 'google_books' ? 'Google Books' : src === 'anilist' ? 'AniList' : 'Open Library'
+    /* eslint-enable lingui/no-unlocalized-strings */
+
+  const footer = doneState ? (
+    <>
+      <Pill variant="quiet" onClick={handleClose}><Trans>Close</Trans></Pill>
+      {doneState.uncertain.length > 0 && onReviewUncertain && (
+        <Pill variant="primary" onClick={() => { onReviewUncertain(doneState.uncertain); handleClose() }}>
+          {(() => { const n = doneState.uncertain.length; return <Trans>Review {n} uncertain</Trans> })()}
+        </Pill>
+      )}
+    </>
+  ) : (
+    <>
+      <span className="mr-auto text-[13px] text-muted-foreground">
+        {applying && progress
+          ? (() => { const done = progress.done; const total = progress.total; return <Trans>Applying {done}/{total}…</Trans> })()
+          : !loading && results.length > 0 ? (() => { const ok = approvedCount(); const total = results.length; return t`${ok} of ${total} approved` })() : ''}
+      </span>
+      <Pill variant="quiet" onClick={handleClose} disabled={applying}><Trans>Cancel</Trans></Pill>
+      <Pill variant="primary" onClick={applyAll} disabled={applying || loading || approvedCount() === 0}>
+        {applying ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+        {(() => { const n = approvedCount(); return n > 0 ? <Trans>Apply {n} approved</Trans> : <Trans>Apply approved</Trans> })()}
+      </Pill>
+    </>
+  )
+
   return (
-    <ModalShell open={open} onClose={handleClose} className="w-full max-w-3xl">
-      <div className="bg-background border border-border rounded-2xl shadow-xl shadow-accent-soft max-h-[90vh] flex flex-col">
-        {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
-          <div className="flex items-center gap-2 font-semibold text-sm">
-            <Sparkles className="h-4 w-4 text-primary" />
-            <Trans>Fetch Metadata</Trans>
-            {(() => { const n = bookIds.length; return <span className="text-muted-foreground font-normal"><Trans>— {n} books</Trans></span> })()}
-          </div>
-          <button onClick={handleClose} disabled={applying} className="text-muted-foreground hover:text-foreground transition-colors disabled:opacity-50">
-            <X className="h-4 w-4" />
-          </button>
+    <ModalShell
+      open={open}
+      onClose={handleClose}
+      hideClose={applying}
+      closeOnBackdrop={!applying}
+      title={<Trans>Fetch metadata</Trans>}
+      eyebrow={(() => { const n = bookIds.length; return plural(n, { one: '# book', other: '# books' }) })()}
+      size="lg"
+      footer={footer}
+    >
+      {/* Options */}
+      {!doneState && !loading && results.length > 0 && (
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-border/70 pb-3">
+          <Checkbox
+            checked={fillMissingOnly}
+            onChange={e => setFillMissingOnly(e.target.checked)}
+            label={<Trans>Fill missing fields only</Trans>}
+          />
+          <span className="text-[13px] text-muted-foreground sm:ml-auto">
+            {t`${matched} matched`}{needsReview > 0 ? t` · ${needsReview} needs review` : ''}{noMatch > 0 ? t` · ${noMatch} no match` : ''}
+          </span>
         </div>
+      )}
 
-        {/* Options bar */}
-        {!loading && results.length > 0 && (
-          <div className="px-6 py-2.5 border-b border-border bg-muted/30 flex items-center gap-4 shrink-0">
-            <label className="flex items-center gap-2 text-xs cursor-pointer select-none">
-              <input
-                type="checkbox"
-                checked={fillMissingOnly}
-                onChange={e => setFillMissingOnly(e.target.checked)}
-                className="rounded border-border"
-              />
-              <span className="text-muted-foreground"><Trans>Fill missing fields only</Trans></span>
-            </label>
-            <span className="text-xs text-muted-foreground ml-auto">
-              {t`${matched} matched`}{needsReview > 0 ? t` · ${needsReview} needs review` : ''}{noMatch > 0 ? t` · ${noMatch} no match` : ''}
-            </span>
-          </div>
-        )}
+      {doneState && (
+        <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
+          <Check className="h-10 w-10 text-success" />
+          <p className="font-display text-[20px] font-bold text-foreground"><Trans>Batch complete</Trans></p>
+          <p className="text-[14px] text-muted-foreground">
+            {(() => { const n = doneState.applied; return <Trans>Applied metadata to {n} books.</Trans> })()}
+            {doneState.uncertain.length > 0 && (() => { const n = doneState.uncertain.length; return t` ${n} had no confident match.` })()}
+          </p>
+        </div>
+      )}
 
-        {/* Body */}
-        <div className="flex-1 overflow-y-auto">
-          {doneState && (
-            <div className="flex flex-col items-center justify-center py-16 gap-4 text-center">
-              <Check className="w-12 h-12 text-success" />
-              <h2 className="text-lg font-semibold"><Trans>Batch complete</Trans></h2>
-              <p className="text-sm text-muted-foreground">
-                {(() => { const n = doneState.applied; return <Trans>Applied metadata to {n} books.</Trans> })()}
-                {doneState.uncertain.length > 0 && (() => { const n = doneState.uncertain.length; return t` ${n} had no confident match.` })()}
-              </p>
-              <div className="flex items-center gap-2">
-                {doneState.uncertain.length > 0 && onReviewUncertain && (
-                  <button
-                    onClick={() => { onReviewUncertain(doneState.uncertain); handleClose() }}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all"
-                  >
-                    {(() => { const n = doneState.uncertain.length; return <Trans>Review {n} Uncertain</Trans> })()}
-                  </button>
-                )}
-                <button
-                  onClick={handleClose}
-                  className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
-                >
-                  <Trans>Close</Trans>
-                </button>
-              </div>
-            </div>
-          )}
+      {!doneState && loading && (
+        <div className="flex flex-col items-center justify-center gap-3 py-16">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          {(() => { const n = bookIds.length; return <p className="text-[14px] text-muted-foreground"><Trans>Searching {n} books…</Trans></p> })()}
+        </div>
+      )}
 
-          {!doneState && loading && (
-            <div className="flex flex-col items-center justify-center py-16 gap-3">
-              <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-              {(() => { const n = bookIds.length; return <p className="text-sm text-muted-foreground"><Trans>Searching {n} books…</Trans></p> })()}
-            </div>
-          )}
+      {!doneState && error && (
+        <p className="flex items-center gap-2 py-4 text-[14px] text-destructive">
+          <AlertCircle className="h-4 w-4 shrink-0" />
+          {error}
+        </p>
+      )}
 
-          {!doneState && error && (
-            <div className="flex items-center gap-2 m-6 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
-              <AlertCircle className="h-4 w-4 shrink-0" />
-              {error}
-            </div>
-          )}
+      {!doneState && !loading && results.length > 0 && (
+        <ul>
+          {results.map(result => {
+            const state = rowState[result.book_id] ?? { approved: false, selectedIndex: null, expanded: false }
+            const idx = state.selectedIndex ?? result.best_match_index
+            const match = idx !== null ? result.candidates[idx] : null
+            const hasMatch = match !== null
+            const adds: string[] = []
+            if (match) {
+              if (match.description && !result.book_description) adds.push(t`description`)
+              if (match.cover_url && !result.book_cover_path) adds.push(t`cover`)
+              if (match.publisher && !result.book_publisher) adds.push(t`publisher`)
+              if (match.year && !result.book_year) adds.push(t`year`)
+              if (match.series && !result.book_series) adds.push(t`series`)
+            }
 
-          {!doneState && !loading && results.length > 0 && (
-            <div className="divide-y divide-border">
-              {results.map(result => {
-                const state = rowState[result.book_id] ?? { approved: false, selectedIndex: null, expanded: false }
-                const idx = state.selectedIndex ?? result.best_match_index
-                const match = idx !== null ? result.candidates[idx] : null
-                const hasMatch = match !== null
+            return (
+              <li key={result.book_id} className="border-b border-border/70 py-3">
+                <div className={cn('flex items-start gap-3', !(state.approved && hasMatch) && 'opacity-60')}>
+                  {/* Approve checkbox */}
+                  <Checkbox
+                    checked={state.approved && hasMatch}
+                    disabled={!hasMatch}
+                    onChange={() => toggleApproved(result.book_id)}
+                    aria-label={t`Approve`}
+                    className="mt-3.5"
+                  />
 
-                return (
-                  <div key={result.book_id} className={cn('px-6 py-3', state.approved && hasMatch ? '' : 'opacity-60')}>
-                    <div className="flex items-start gap-3">
-                      {/* Approve checkbox */}
-                      <input
-                        type="checkbox"
-                        checked={state.approved && hasMatch}
-                        disabled={!hasMatch}
-                        onChange={() => toggleApproved(result.book_id)}
-                        className="mt-1 rounded border-border shrink-0"
-                      />
-
-                      {/* Current book */}
-                      <div className="relative w-8 h-12 shrink-0 rounded border border-border overflow-hidden">
+                  <div className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:gap-3">
+                    {/* Current book */}
+                    <div className="flex min-w-0 flex-1 items-start gap-3">
+                      <div className="relative h-12 w-8 shrink-0 overflow-hidden rounded-[6px] bg-secondary">
                         <CoverImage
                           src={result.book_cover_path ? API + coverSrc(result.book_id, { w: 160 }) : null}
                           alt=""
                           iconClassName="h-3 w-3"
                         />
                       </div>
-
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium leading-tight line-clamp-1">{result.book_title}</p>
+                      <div className="min-w-0 flex-1">
+                        <p className="line-clamp-2 text-[15px] font-medium leading-snug text-foreground">{result.book_title}</p>
                         {result.book_author && (
-                          <p className="text-xs text-muted-foreground">{result.book_author}</p>
-                        )}
-                      </div>
-
-                      {/* Arrow */}
-                      <div className="text-muted-foreground/40 shrink-0 mt-2">→</div>
-
-                      {/* Match preview */}
-                      {hasMatch && match ? (
-                        <div className="flex-1 min-w-0 flex items-start gap-2">
-                          {match.cover_url && (
-                            <img
-                              src={match.cover_url}
-                              alt=""
-                              className="w-8 h-12 object-cover rounded border border-border shrink-0"
-                              onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
-                            />
-                          )}
-                          <div className="min-w-0 flex-1">
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <p className="text-sm font-medium line-clamp-1">{match.title}</p>
-                              <span className="shrink-0 text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                                {/* eslint-disable-next-line lingui/no-unlocalized-strings -- provider names */}
-                                {match.source === 'hardcover' ? 'Hardcover' : match.source === 'google_books' ? 'Google' : 'OpenLib'}
-                              </span>
-                            </div>
-                            <div className="flex gap-2 flex-wrap mt-0.5">
-                              {match.description && !result.book_description && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">+desc</span>
-                              )}
-                              {match.cover_url && !result.book_cover_path && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">+cover</span>
-                              )}
-                              {match.publisher && !result.book_publisher && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">+pub</span>
-                              )}
-                              {match.year && !result.book_year && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">+year</span>
-                              )}
-                              {match.series && !result.book_series && (
-                                <span className="text-[10px] px-1.5 py-0.5 rounded bg-primary/10 text-primary border border-primary/20">+series</span>
-                              )}
-                              {!match.description && !match.cover_url && !match.publisher && !match.year && !match.series && (
-                                <span className="text-[10px] text-muted-foreground"><Trans>no new fields</Trans></span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="flex-1 flex items-center gap-1.5">
-                          <span className="text-xs text-muted-foreground italic"><Trans>No match found</Trans></span>
-                          <button
-                            onClick={() => { onManualSearch(result.book_id); handleClose() }}
-                            className="text-xs text-primary hover:underline flex items-center gap-1"
-                          >
-                            <Search className="h-3 w-3" /> <Trans>Search manually</Trans>
-                          </button>
-                        </div>
-                      )}
-
-                      {/* Expand / manual search buttons */}
-                      <div className="flex items-center gap-1 shrink-0">
-                        {hasMatch && result.candidates.length > 1 && (
-                          <button
-                            onClick={() => toggleExpanded(result.book_id)}
-                            className="p-1 text-muted-foreground hover:text-foreground transition-colors"
-                            title={t`Pick different candidate`}
-                          >
-                            {state.expanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
-                          </button>
+                          <p className="text-[13px] text-muted-foreground">{result.book_author}</p>
                         )}
                       </div>
                     </div>
 
-                    {/* Candidate picker (expanded) */}
-                    {state.expanded && result.candidates.length > 1 && (
-                      <div className="mt-2 ml-11 space-y-1.5">
-                        {result.candidates.map((c, i) => (
-                          <button
-                            key={i}
-                            onClick={() => selectCandidate(result.book_id, i)}
-                            className={cn(
-                              'w-full text-left flex items-start gap-2 px-2.5 py-2 rounded-lg border text-xs transition-colors',
-                              (state.selectedIndex ?? result.best_match_index) === i
-                                ? 'border-primary/40 bg-primary/5'
-                                : 'border-border bg-card hover:bg-muted'
-                            )}
-                          >
-                            {c.cover_url && (
-                              <img src={c.cover_url} alt="" className="w-6 h-9 object-cover rounded shrink-0"
-                                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
-                            )}
-                            <div className="min-w-0">
-                              <span className="font-medium line-clamp-1">{c.title}</span>
-                              {c.author && <span className="text-muted-foreground ml-1">· {c.author}</span>}
-                              <span className="ml-1 text-[9px] px-1 py-0.5 rounded bg-muted text-muted-foreground border border-border">
-                                {/* eslint-disable-next-line lingui/no-unlocalized-strings -- provider names */}
-                              {c.source === 'hardcover' ? 'Hardcover' : c.source === 'google_books' ? 'Google' : 'OpenLib'}
-                              </span>
-                              {c.year && <span className="text-muted-foreground ml-1">· {c.year}</span>}
-                              {c.description && <p className="text-muted-foreground line-clamp-1 mt-0.5">{c.description}</p>}
-                            </div>
-                            {(state.selectedIndex ?? result.best_match_index) === i && (
-                              <Check className="h-3.5 w-3.5 text-primary shrink-0 mt-0.5 ml-auto" />
-                            )}
-                          </button>
-                        ))}
+                    <ArrowRight className="mt-4 hidden h-4 w-4 shrink-0 text-muted-foreground/50 sm:block" />
+
+                    {/* Match preview */}
+                    {hasMatch && match ? (
+                      <div className="flex min-w-0 flex-1 items-start gap-3">
+                        {match.cover_url ? (
+                          <img
+                            src={match.cover_url}
+                            alt=""
+                            className="h-12 w-8 shrink-0 rounded-[6px] object-cover"
+                            onError={e => { (e.target as HTMLImageElement).style.display = 'none' }}
+                          />
+                        ) : <div className="h-12 w-8 shrink-0 rounded-[6px] bg-secondary" />}
+                        <div className="min-w-0 flex-1">
+                          <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{sourceName(match.source)}</p>
+                          <p className="line-clamp-2 text-[15px] font-medium leading-snug text-foreground">{match.title}</p>
+                          <p className="text-[13px] text-primary">
+                            {adds.length > 0
+                              ? adds.map(a => `+ ${a}`).join('  ')
+                              : <span className="text-muted-foreground"><Trans>no new fields</Trans></span>}
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1 sm:pt-3">
+                        <span className="text-[14px] text-muted-foreground"><Trans>No match found</Trans></span>
+                        <button
+                          type="button"
+                          onClick={() => { onManualSearch(result.book_id); handleClose() }}
+                          className="inline-flex items-center gap-1 text-[14px] text-primary hover:underline underline-offset-4"
+                        >
+                          <Search className="h-3.5 w-3.5" /> <Trans>Search manually</Trans>
+                        </button>
                       </div>
                     )}
                   </div>
-                )
-              })}
-            </div>
-          )}
-        </div>
 
-        {!doneState && (
-          <div className="px-6 py-4 border-t border-border flex items-center justify-between gap-3 shrink-0">
-            {applying && progress ? (
-              <span className="text-xs text-muted-foreground">
-                {(() => { const done = progress.done; const total = progress.total; return <Trans>Applying {done}/{total}…</Trans> })()}
-              </span>
-            ) : (
-              <span className="text-xs text-muted-foreground">
-                {!loading && results.length > 0 ? (() => { const ok = approvedCount(); const total = results.length; return t`${ok} of ${total} approved` })() : ''}
-              </span>
-            )}
-            <div className="flex items-center gap-2">
-              <button
-                onClick={handleClose}
-                disabled={applying}
-                className="px-3 py-1.5 rounded-lg text-sm text-muted-foreground hover:text-foreground hover:bg-muted transition-colors disabled:opacity-50"
-              >
-                <Trans>Cancel</Trans>
-              </button>
-              <button
-                onClick={applyAll}
-                disabled={applying || loading || approvedCount() === 0}
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-              >
-                {applying
-                  ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  : <Check className="h-3.5 w-3.5" />}
-                {(() => { const n = approvedCount(); return n > 0 ? <Trans>Apply {n} Approved</Trans> : <Trans>Apply Approved</Trans> })()}
-              </button>
-            </div>
-          </div>
-        )}
-      </div>
+                  {/* Pick a different candidate */}
+                  <div className="w-8 shrink-0">
+                    {hasMatch && result.candidates.length > 1 && (
+                      <Pill
+                        variant="quiet"
+                        icon
+                        onClick={() => toggleExpanded(result.book_id)}
+                        title={t`Pick different candidate`}
+                        aria-label={t`Pick different candidate`}
+                        aria-expanded={state.expanded}
+                        className="mt-1.5 h-8 w-8"
+                      >
+                        {state.expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                      </Pill>
+                    )}
+                  </div>
+                </div>
+
+                {/* Candidate picker (expanded) */}
+                {state.expanded && result.candidates.length > 1 && (
+                  <ul className="ml-[30px] mt-2 border-t border-border/70">
+                    {result.candidates.map((c, i) => {
+                      const picked = (state.selectedIndex ?? result.best_match_index) === i
+                      return (
+                        <li key={i} className="border-b border-border/70 last:border-b-0">
+                          <button
+                            type="button"
+                            onClick={() => selectCandidate(result.book_id, i)}
+                            className={cn(
+                              '-mx-2 flex w-[calc(100%+1rem)] items-start gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-secondary/70',
+                              picked && 'bg-secondary/60',
+                            )}
+                          >
+                            {c.cover_url ? (
+                              <img src={c.cover_url} alt="" className="h-9 w-6 shrink-0 rounded-[4px] object-cover"
+                                onError={e => { (e.target as HTMLImageElement).style.display = 'none' }} />
+                            ) : <div className="h-9 w-6 shrink-0 rounded-[4px] bg-secondary" />}
+                            <div className="min-w-0 flex-1">
+                              <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                                {sourceName(c.source)}{c.year ? ` · ${c.year}` : ''}
+                              </p>
+                              <p className="line-clamp-1 text-[14px] font-medium text-foreground">
+                                {c.title}
+                                {c.author && <span className="font-normal text-muted-foreground"> · {c.author}</span>}
+                              </p>
+                              {c.description && <p className="mt-0.5 line-clamp-1 text-[13px] text-muted-foreground">{c.description}</p>}
+                            </div>
+                            {picked && <Check className="ml-auto mt-1 h-4 w-4 shrink-0 text-primary" />}
+                          </button>
+                        </li>
+                      )
+                    })}
+                  </ul>
+                )}
+              </li>
+            )
+          })}
+        </ul>
+      )}
     </ModalShell>
   )
 }

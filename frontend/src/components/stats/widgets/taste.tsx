@@ -1,4 +1,4 @@
-// Taste-tab stats widgets (ratings) — chart/content-only, shared by StatsPage and the Lab.
+// Taste-tab stats widgets (ratings) - chart/content-only, shared by StatsPage and the Lab.
 import {
   ResponsiveContainer,
   BarChart,
@@ -18,7 +18,8 @@ import {
   CartesianGrid,
 } from 'recharts'
 import { FileText } from 'lucide-react'
-import { formatDuration } from '@/lib/utils'
+import { formatDate, formatDuration, formatLongDate } from '@/lib/utils'
+import { dayIso, evenDateTicks, isoDay } from '@/components/stats/axis'
 import { StarRating } from '@/components/StarRating'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
@@ -29,7 +30,7 @@ import { coverSrc } from '@/lib/covers'
 type Ratings = StatsResponse['ratings']
 
 function Empty({ text }: { text?: string }) {
-  return <p className="text-sm text-muted-foreground text-center py-10">{text ?? t`No ratings yet.`}</p>
+  return <p className="py-2 text-[14px] text-muted-foreground">{text ?? t`No ratings yet.`}</p>
 }
 
 function Stars({ value }: { value: number }) {
@@ -51,7 +52,7 @@ function Cover({ id, has, alt }: { id: number | null; has: boolean; alt: string 
   )
 }
 
-// 1 ── How you rate: 1–5★ histogram ─────────────────────────────────────────────
+// 1 ── How you rate: 1-5★ histogram ─────────────────────────────────────────────
 export function RatingDistribution({ data }: { data: Ratings['distribution'] }) {
   const { accent, tick, cursor } = useChartColors()
   const total = data.reduce((s, d) => s + d.count, 0)
@@ -85,9 +86,9 @@ export function TasteByGenre({ data }: { data: Ratings['by_category'] }) {
       <div className="flex h-full flex-col justify-center gap-3">
         {data.map((d) => (
           <div key={d.category}>
-            <div className="mb-1 flex items-center justify-between text-xs">
+            <div className="mb-1 flex items-center justify-between text-[13px]">
               <span className="truncate font-medium text-foreground">{d.category}</span>
-              <span className="tabular-nums text-muted-foreground">{d.avg.toFixed(1)} · {d.count}</span>
+              <span className="text-muted-foreground">{d.avg.toFixed(1)} · {d.count}</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full" style={{ width: `${(d.avg / 5) * 100}%`, backgroundColor: accent }} />
@@ -123,7 +124,7 @@ function RatedRow({ b }: { b: Ratings['books'][number] }) {
       <Cover id={b.book_id} has={b.has_cover} alt="" />
       <div className="min-w-0 flex-1">
         <a href={`/books/${b.book_id}`} className="line-clamp-1 text-sm font-medium text-foreground hover:text-primary transition-colors">{b.title}</a>
-        {b.author && <p className="truncate text-xs text-muted-foreground">{b.author}</p>}
+        {b.author && <p className="truncate text-[13px] text-muted-foreground">{b.author}</p>}
       </div>
       <Stars value={b.rating} />
     </div>
@@ -133,17 +134,20 @@ function RatedRow({ b }: { b: Ratings['books'][number] }) {
 // 3 ── Highest & lowest rated books ──────────────────────────────────────────────
 export function TopRatedBooks({ books }: { books: Ratings['books'] }) {
   if (books.length === 0) return <Empty />
-  const top = books.slice(0, 5)
-  const low = books.length > 8 ? books.slice(-4).reverse() : []
+  // Highest first; the lowest half shows once there are enough books for
+  // the two lists not to be the same books.
+  const topN = books.length >= 4 ? Math.min(5, Math.ceil(books.length / 2)) : books.length
+  const top = books.slice(0, topN)
+  const low = books.slice(topN).slice(-4).reverse()
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-2.5">
-        {low.length > 0 && <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Highest</Trans></p>}
+        {low.length > 0 && <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Highest</Trans></p>}
         {top.map((b) => <RatedRow key={b.book_id} b={b} />)}
       </div>
       {low.length > 0 && (
         <div className="flex flex-col gap-2.5">
-          <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Lowest</Trans></p>
+          <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Lowest</Trans></p>
           {low.map((b) => <RatedRow key={b.book_id} b={b} />)}
         </div>
       )}
@@ -156,11 +160,15 @@ export function RatingVsTime({ books }: { books: Ratings['books'] }) {
   const { accent, tick, cursor } = useChartColors()
   const pts = books.filter((b) => b.seconds > 0).map((b) => ({ hours: +(b.seconds / 3600).toFixed(1), rating: b.rating, title: b.title }))
   if (pts.length === 0) return <Empty text={t`No rated books with reading time yet.`} />
+  // Round hour ticks (5h, 10h, 20h steps), not recharts' 7h / 14h / 21h.
+  const maxH = Math.max(1, ...pts.map((p) => p.hours))
+  const stepH = [1, 2, 5, 10, 20, 50, 100].find((st) => Math.ceil(maxH / st) <= 6) ?? 200
+  const xTicks = Array.from({ length: Math.ceil(maxH / stepH) + 1 }, (_, i) => i * stepH)
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <ScatterChart margin={{ top: 8, right: 12, bottom: 4, left: 0 }}>
         <CartesianGrid stroke={tick} strokeOpacity={0.15} />
-        <XAxis type="number" dataKey="hours" name="Hours" tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}h`} />
+        <XAxis type="number" dataKey="hours" name="Hours" domain={[0, xTicks[xTicks.length - 1]]} ticks={xTicks} interval={0} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} tickFormatter={(v: number) => `${v}h`} />
         <YAxis type="number" dataKey="rating" domain={[0, 5.5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 10, fill: tick }} width={24} axisLine={false} tickLine={false} />
         <Tooltip
           cursor={cursor} wrapperStyle={{ outline: 'none' }} isAnimationActive={false}
@@ -196,21 +204,44 @@ export function BestRatedSeries({ series }: { series: Ratings['series'] }) {
 export function RatingTrend({ trend }: { trend: Ratings['trend'] }) {
   const { accent, tick, cursor } = useChartColors()
   if (trend.length < 2) return <Empty text={t`Rate a few books to see a trend.`} />
-  const fmt = (d: string) => {
-    try { return new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', year: '2-digit' }) } catch { return d }
+  // A real time axis: points sit at their day, ticks are the shared even
+  // day intervals (as on the pace chart), so the gaps between labels match time.
+  const points = trend
+    .map((p) => ({ ...p, day: isoDay(p.date) }))
+    .sort((a, b) => a.day - b.day)
+  const first = points[0].date
+  const last = points[points.length - 1].date
+  const span = points[points.length - 1].day - points[0].day
+  const xTicks = span > 0 ? evenDateTicks(first, last).map(isoDay) : [points[0].day]
+  // Over ~13 months the ticks are a quarter apart: month and year read better.
+  const tickLabel = (day: number) => {
+    const iso = dayIso(day)
+    if (span <= 400) return formatDate(iso)
+    const d = new Date(iso + 'T00:00:00')
+    return `${d.toLocaleDateString(undefined, { month: 'short' })} '${String(d.getFullYear()).slice(-2)}`
   }
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
-      <LineChart data={trend} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
+      <LineChart data={points} margin={{ top: 8, right: 16, bottom: 0, left: 0 }}>
         <CartesianGrid stroke={tick} strokeOpacity={0.15} vertical={false} />
-        <XAxis dataKey="date" tickFormatter={fmt} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} minTickGap={28} />
+        <XAxis
+          dataKey="day"
+          type="number"
+          domain={[points[0].day, points[points.length - 1].day]}
+          ticks={xTicks}
+          interval={0}
+          tickFormatter={tickLabel}
+          tick={{ fontSize: 10, fill: tick }}
+          axisLine={false}
+          tickLine={false}
+        />
         <YAxis domain={[0, 5.5]} ticks={[1, 2, 3, 4, 5]} tick={{ fontSize: 10, fill: tick }} width={24} axisLine={false} tickLine={false} />
         <Tooltip
           cursor={cursor} wrapperStyle={{ outline: 'none' }} isAnimationActive={false}
           content={({ active, payload }) => {
             if (!active || !payload?.length) return null
             const d = payload[0].payload
-            return <ChartTooltip><div className="font-medium">{d.rating}★</div><div className="text-muted-foreground">{fmt(d.date)}</div></ChartTooltip>
+            return <ChartTooltip><div className="font-medium">{d.rating}★</div><div className="text-muted-foreground">{formatLongDate(d.date)}</div></ChartTooltip>
           }}
         />
         <Line type="monotone" dataKey="rating" stroke={accent} strokeWidth={2} dot={{ r: 2.5, fill: accent }} isAnimationActive={false} />

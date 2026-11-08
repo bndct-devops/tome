@@ -75,3 +75,22 @@ def test_update_check_admin_only(client: TestClient, db: Session, monkeypatch):
     token = create_access_token(subject=member.id)
     r = client.get("/api/meta/update-check", headers={"Authorization": f"Bearer {token}"})
     assert r.status_code == 403
+
+
+def test_feedback_line_is_lifted_out_of_the_section():
+    from backend.api.meta import changelog_feedback_url, parse_changelog_section
+    text = (
+        "## [Unreleased]\n\n## [3.0.0] - 2026-11-08 - \"Rebind\"\n\n"
+        "Feedback: https://github.com/bndct-devops/tome/discussions/300\n\n"
+        "### Changed\n- **A quieter web app.** Every page.\n\n## [2.8.0]\n\nFeedback: https://example.org/old\n"
+    )
+    assert changelog_feedback_url(text, "3.0.0") == "https://github.com/bndct-devops/tome/discussions/300"
+    assert changelog_feedback_url(text, "2.7.0") is None
+    entries = parse_changelog_section(text, "3.0.0")
+    assert [e["title"] for e in entries] == ["A quieter web app."]
+
+
+def test_whats_new_carries_feedback_url(client: TestClient):
+    r = client.get("/api/meta/whats-new")
+    assert r.status_code == 200
+    assert "feedback_url" in r.json()

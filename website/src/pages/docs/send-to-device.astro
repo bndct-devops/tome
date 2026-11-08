@@ -35,8 +35,7 @@ TOME_SMTP_FROM=tome@example.com   # optional, defaults to TOME_SMTP_USER`
 
   <Callout variant="info" title="Members and admins only">
     Sending requires the <strong>member</strong> or <strong>admin</strong> role. Guests can still
-    download books manually, but the send button is hidden for them. See
-    <a href={withBase("/docs/users-and-roles")}>Users &amp; roles</a>.
+    download books manually, but the send button is hidden for them. See <a href={withBase("/docs/users-and-roles")}>Users &amp; roles</a>.
   </Callout>
 
   <h2>1. Configure SMTP (admin, one-time)</h2>
@@ -92,14 +91,13 @@ TOME_SMTP_FROM=tome@example.com   # optional, defaults to TOME_SMTP_USER`
   </table>
   <p>
     The feature is considered "configured" once <code>TOME_SMTP_HOST</code> is set together with
-    either <code>TOME_SMTP_USER</code> and <code>TOME_SMTP_PASSWORD</code>, or
-    <code>TOME_SMTP_FROM</code> for a server that needs no authentication. See the full env
+    either <code>TOME_SMTP_USER</code> and <code>TOME_SMTP_PASSWORD</code>, or <code>TOME_SMTP_FROM</code> for a server that needs no authentication. See the full env
     var list in <a href={withBase("/docs/configuration")}>Configuration</a>.
   </p>
 
   <h2>2. Add a device</h2>
   <p>
-    Each user adds their own devices under <strong>Settings → Send to Device</strong>: a name and
+    Each user adds their own devices under <strong>Settings → Send to device</strong>: a name and
     an email address. Up to 10 per user.
   </p>
   <div class="docs-shot">
@@ -107,16 +105,13 @@ TOME_SMTP_FROM=tome@example.com   # optional, defaults to TOME_SMTP_USER`
   </div>
 
   <Callout variant="warning" title="Kindle: approve the sender first">
-    Amazon silently drops documents from unknown senders. Add your <code>TOME_SMTP_FROM</code>
-    address to your
-    <a href="https://www.amazon.com/hz/mycd/myx#/home/settings/payment">Approved Personal Document
-    E-mail List</a> (Content &amp; Devices → Preferences → Personal Document Settings), and use your
-    <code>@kindle.com</code> Send-to-Kindle address as the device email.
+    Amazon silently drops documents from unknown senders. Add your <code>TOME_SMTP_FROM</code> address to your <a href="https://www.amazon.com/hz/mycd/myx#/home/settings/payment">Approved Personal Document
+    E-mail List</a> (Content &amp; Devices → Preferences → Personal Document Settings), and use your <code>@kindle.com</code> Send-to-Kindle address as the device email.
   </Callout>
 
   <h2>3. Send a book</h2>
   <p>
-    Open any book and click <strong>Send to Device</strong> below the download buttons. Pick a
+    Open any book and click <strong>Send to device</strong> next to the Resume and download buttons. Pick a
     device, pick a format if the book has more than one, and send.
   </p>
   <div class="docs-shot">
@@ -126,7 +121,7 @@ TOME_SMTP_FROM=tome@example.com   # optional, defaults to TOME_SMTP_USER`
   <h3>Sending in bulk</h3>
   <p>
     On the dashboard, click <strong>Select</strong>, choose books, then <strong>Send to
-    Device</strong> in the action bar. Up to 25 books per send; each arrives as its own email.
+    device</strong> in the action bar. Up to 25 books per send; each arrives as its own email.
     Tome reuses a single SMTP connection for the whole batch.
   </p>
   <div class="docs-shot">

@@ -1,4 +1,4 @@
-// Phase 4 word-count stats widgets — words read, true WPM, book length.
+// Phase 4 word-count stats widgets - words read, true WPM, book length.
 // All all-time (range-independent), powered by Book.word_count + reconciled read-time.
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
@@ -11,7 +11,7 @@ import { t, plural } from '@lingui/core/macro'
 import { coverSrc } from '@/lib/covers'
 
 function Empty({ text }: { text?: string }) {
-  return <p className="py-10 text-center text-sm text-muted-foreground">{text ?? t`No word counts yet.`}</p>
+  return <p className="py-2 text-[14px] text-muted-foreground">{text ?? t`No word counts yet.`}</p>
 }
 
 // Compact number: 1_240_000 -> "1.2M", 84_300 -> "84k", 932 -> "932".
@@ -45,15 +45,15 @@ export function WordsRead({ data }: { data: StatsResponse['words'] }) {
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
         <span className="text-3xl font-bold leading-none text-foreground">{compact(data.total_words)}</span>
-        <span className="text-xs text-muted-foreground">{plural(data.books_counted, { one: 'words read · # book', other: 'words read · # books' })}</span>
+        <span className="text-[13px] text-muted-foreground">{plural(data.books_counted, { one: 'words read · # book', other: 'words read · # books' })}</span>
       </div>
       {years.length >= 2 && (
         <div className="flex flex-col gap-1.5">
           {years.map((y) => (
             <div key={y.year}>
-              <div className="mb-0.5 flex items-center justify-between text-xs">
+              <div className="mb-0.5 flex items-center justify-between text-[13px]">
                 <span className="font-medium text-foreground">{y.year}</span>
-                <span className="tabular-nums text-muted-foreground">{compact(y.words)}</span>
+                <span className="text-muted-foreground">{compact(y.words)}</span>
               </div>
               <div className="h-1.5 overflow-hidden rounded-full bg-muted">
                 <div className="h-full rounded-full" style={{ width: `${(y.words / maxYear) * 100}%`, backgroundColor: accent }} />
@@ -63,7 +63,7 @@ export function WordsRead({ data }: { data: StatsResponse['words'] }) {
         </div>
       )}
       {(() => { const avg = compact(avgPerBook); return (
-      <p className="text-xs text-muted-foreground"><Trans>avg <span className="font-medium text-foreground">{avg}</span> words per book</Trans></p>
+      <p className="text-[13px] text-muted-foreground"><Trans>avg <span className="font-medium text-foreground">{avg}</span> words per book</Trans></p>
       ) })()}
     </div>
   )
@@ -75,16 +75,16 @@ function WpmRow({ b }: { b: StatsResponse['wpm']['books'][number] }) {
       <Cover id={b.book_id} has={b.has_cover} alt="" />
       <div className="min-w-0 flex-1">
         <a href={`/books/${b.book_id}`} className="line-clamp-1 text-sm font-medium text-foreground transition-colors hover:text-primary">{b.title}</a>
-        {b.author && <p className="truncate text-xs text-muted-foreground">{b.author}</p>}
+        {b.author && <p className="truncate text-[13px] text-muted-foreground">{b.author}</p>}
       </div>
-      <span className="shrink-0 text-sm font-bold tabular-nums text-foreground">{b.wpm.toLocaleString()}<span className="ml-0.5 text-[10px] font-normal text-muted-foreground">wpm</span></span>
+      <span className="shrink-0 text-sm font-bold text-foreground">{Math.round(b.wpm).toLocaleString()}<span className="ml-0.5 text-[12px] font-normal text-muted-foreground">wpm</span></span>
     </div>
   )
 }
 
 // 2 ── True WPM: words ÷ reconciled read-time, overall + fastest/slowest ─────────
 // The fastest/slowest lists go side-by-side once the tile is wide enough
-// (container query, not viewport) — so a wide tile fills with two columns
+// (container query, not viewport) - so a wide tile fills with two columns
 // instead of one tall list with dead space on the right.
 export function TrueWpm({ data }: { data: StatsResponse['wpm'] }) {
   if (!data || data.books_counted === 0) return <Empty text={t`No timed reading with word counts yet.`} />
@@ -93,17 +93,17 @@ export function TrueWpm({ data }: { data: StatsResponse['wpm'] }) {
   return (
     <div className="@container flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
-        <span className="text-3xl font-bold leading-none text-foreground">{data.overall.toLocaleString()}</span>
-        <span className="text-xs text-muted-foreground">{plural(data.books_counted, { one: 'words/min · across # book', other: 'words/min · across # books' })}</span>
+        <span className="text-3xl font-bold leading-none text-foreground">{Math.round(data.overall).toLocaleString()}</span>
+        <span className="text-[13px] text-muted-foreground">{plural(data.books_counted, { one: 'words/min · across # book', other: 'words/min · across # books' })}</span>
       </div>
       <div className="grid grid-cols-1 gap-x-8 gap-y-2.5 @md:grid-cols-2">
         <div className="flex flex-col gap-2.5">
-          {fast.length > 0 && slow.length > 0 && <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Fastest</Trans></p>}
+          {fast.length > 0 && slow.length > 0 && <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Fastest</Trans></p>}
           {fast.map((b) => <WpmRow key={b.book_id} b={b} />)}
         </div>
         {slow.length > 0 && (
           <div className="flex flex-col gap-2.5">
-            <p className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Slowest</Trans></p>
+            <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Slowest</Trans></p>
             {slow.map((b) => <WpmRow key={b.book_id} b={b} />)}
           </div>
         )}
@@ -114,7 +114,7 @@ export function TrueWpm({ data }: { data: StatsResponse['wpm'] }) {
 
 // 4 ── Re-reads: books whose pages you've revisited on a later day ──────────────
 export function ReReads({ data }: { data: StatsResponse['rereads'] }) {
-  if (!data || data.books.length === 0) return <Empty text={t`No re-reads yet — pages you revisit on a later day show up here.`} />
+  if (!data || data.books.length === 0) return <Empty text={t`No re-reads yet. Pages you revisit on a later day show up here.`} />
   return (
     <div className="flex flex-col gap-2.5">
       {data.books.slice(0, 8).map((b) => (
@@ -122,11 +122,11 @@ export function ReReads({ data }: { data: StatsResponse['rereads'] }) {
           <Cover id={b.book_id} has={b.has_cover} alt="" />
           <div className="min-w-0 flex-1">
             <a href={`/books/${b.book_id}`} className="line-clamp-1 text-sm font-medium text-foreground transition-colors hover:text-primary">{b.title}</a>
-            {b.author && <p className="truncate text-xs text-muted-foreground">{b.author}</p>}
+            {b.author && <p className="truncate text-[13px] text-muted-foreground">{b.author}</p>}
           </div>
-          <span className="shrink-0 text-right text-sm font-bold tabular-nums text-foreground">
+          <span className="shrink-0 text-right text-sm font-bold text-foreground">
             {b.reread_pages.toLocaleString()}
-            <span className="ml-0.5 text-[10px] font-normal text-muted-foreground">pages{b.pct ? ` · ${b.pct}%` : ''}</span>
+            <span className="ml-0.5 text-[12px] font-normal text-muted-foreground">pages{b.pct ? ` · ${b.pct}%` : ''}</span>
           </span>
         </div>
       ))}
@@ -157,7 +157,7 @@ export function BookLength({ data }: { data: StatsResponse['book_lengths'] }) {
           </BarChart>
         </ResponsiveContainer>
       </div>
-      <p className="truncate text-[11px] text-muted-foreground">
+      <p className="truncate text-[12px] text-muted-foreground">
         {(() => { const avg = compact(data.avg_words); const median = compact(data.median_words); return (
           <Trans>avg <span className="font-medium text-foreground">{avg}</span> · median {median}</Trans>
         ) })()}

@@ -49,8 +49,7 @@ const visibilitySvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagra
   </table>
 
   <Callout variant="info" title="Roles replace the old permission flags">
-    Tome used to ship with 14 granular permission booleans. They're deprecated — the
-    <code>role</code> field is the source of truth now. The flags are still in the schema for
+    Tome used to ship with 14 granular permission booleans. They're deprecated — the <code>role</code> field is the source of truth now. The flags are still in the schema for
     backwards-compatibility but new permission logic should branch on role.
   </Callout>
 
@@ -147,14 +146,13 @@ const visibilitySvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagra
   <Steps>
     <li>On the new device, open Tome and click <strong>Use a Quick Connect code</strong>.</li>
     <li>A 6-character code appears (e.g. <code>JX7-Q9P</code>). The code is good for 5 minutes.</li>
-    <li>On a device you're already signed in on, open <strong>Settings → Quick Connect</strong>, enter the code, and confirm.</li>
+    <li>On a device you're already signed in on, open <strong>Settings → Account and security → Quick Connect</strong>, enter the code, and confirm.</li>
     <li>The new device gets a fresh JWT and signs in. The code is single-use.</li>
   </Steps>
 
   <h2>Force password change</h2>
   <p>
-    When an admin creates a new user, they pick a temporary password and Tome flags the user
-    <code>must_change_password</code>. On first login, the user can't access anything until they
+    When an admin creates a new user, they pick a temporary password and Tome flags the user <code>must_change_password</code>. On first login, the user can't access anything until they
     pick a new password. Reduces the "I sent it in Slack and forgot" risk.
   </p>
 
@@ -172,7 +170,7 @@ const visibilitySvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagra
   </Callout>
 
   <div class="docs-shot-bare">
-    <ThemedShot client:load name="users-create-modal" alt="New user modal with role dropdown" />
+    <ThemedShot client:load name="users-create-modal" alt="New user dialog with the role choice" />
   </div>
 
   <h2>Setting up a family share — worked example</h2>
@@ -195,6 +193,6 @@ const visibilitySvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagra
     <li>Make each friend a <strong>member</strong>, not admin (unless you trust them to manage users).</li>
     <li>Each member uploads their own books. By default those books are visible only to admins and the uploader — not to other members.</li>
     <li>For books you want to <em>share</em>, the uploader creates a library, assigns the relevant friends, and adds the book to that library.</li>
-    <li>Each member can browse "All books I have access to" or filter to "Just mine" on the dashboard.</li>
+    <li>Each member can browse everything they have access to, or filter the Library to "My books".</li>
   </Steps>
 </DocsLayout>

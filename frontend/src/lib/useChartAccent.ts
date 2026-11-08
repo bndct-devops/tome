@@ -27,7 +27,7 @@ export function useChartAccent(): string {
 
 export interface ChartColors {
   accent: string
-  /** Axis-tick / chart-label color — the theme's muted foreground. */
+  /** Axis-tick / chart-label color - the theme's muted foreground. */
   tick: string
   /** Recharts Tooltip `cursor` prop: subtle hover wash that works on light and dark. */
   cursor: { fill: string; fillOpacity: number }

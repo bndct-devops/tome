@@ -1,171 +1,113 @@
-// Record hero videos for all 3 themes against the showcase instance.
+// Record the hero video for the website (website/public/hero-{light,dark,amber}.webm)
+// and the README (docs/screenshots/hero.gif) against the showcase instance.
 //
 // Usage:
-//   scripts/run-showcase.sh           # in another terminal
-//   node frontend/scripts/record-hero.mjs
+//   scripts/run-showcase.sh                  # backend :8090 + frontend :5174
+//   cd frontend && node scripts/record-hero.mjs [theme...]
 //
-// Output: website/public/hero-{light,dark,amber}.webm
+// Env: BASE (default http://localhost:5174), API (default http://localhost:8090), OUT.
+// The first ten seconds warm the page's caches inside the recording and are cut
+// off with ffmpeg afterwards; without ffmpeg the raw file is kept as hero-<theme>.webm.
 import { chromium } from 'playwright'
-import { rename, readdir, unlink } from 'node:fs/promises'
+import { readdir, rename, rm, mkdir, writeFile } from 'node:fs/promises'
+import { execFileSync } from 'node:child_process'
 import path from 'node:path'
-
-const BASE = process.env.TOME_SCREENSHOT_BASE ?? 'http://localhost:5174'
-const API = 'http://localhost:8090'
-const USER = 'benedict'
-const PASS = 'showcase'
-
 const __dir = path.dirname(new URL(import.meta.url).pathname)
-const TMP_DIR = path.resolve(__dir, '../../docs/_herotmp')
-const OUT_DIR = path.resolve(__dir, '../../website/public')
-
+const BASE = process.env.BASE ?? 'http://localhost:5174'
+const API = process.env.API ?? 'http://localhost:8090'
+const OUT = process.env.OUT ?? path.resolve(__dir, '../../website/public')
 const VIEWPORT = { width: 1400, height: 900 }
-const THEMES = ['light', 'dark', 'amber']
+const THEMES = process.argv.slice(2).length ? process.argv.slice(2) : ['light', 'dark', 'amber']
 
-async function getToken() {
-  const res = await fetch(`${API}/api/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ username: USER, password: PASS }),
-  })
-  const { access_token } = await res.json()
-  return access_token
+const r = await fetch(`${API}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'benedict', password: 'showcase' }) })
+const { access_token: token } = await r.json()
+
+async function scrollMain(page, distance, duration) {
+  await page.evaluate(({ distance, duration }) => new Promise(resolve => {
+    const el = document.querySelector('main') ?? document.scrollingElement
+    const start = el.scrollTop, t0 = performance.now()
+    const step = now => {
+      const p = Math.min((now - t0) / duration, 1)
+      const e = p < 0.5 ? 2 * p * p : 1 - Math.pow(-2 * p + 2, 2) / 2
+      el.scrollTop = start + distance * e
+      p < 1 ? requestAnimationFrame(step) : resolve()
+    }
+    requestAnimationFrame(step)
+  }), { distance, duration })
+}
+const pause = (page, ms) => page.waitForTimeout(ms)
+async function moveTo(page, locator) {
+  const box = await locator.boundingBox(); if (!box) return
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2, { steps: 18 })
+}
+async function clickSoft(page, locator, settle = 1200) {
+  if (!(await locator.count())) { console.log('  missing:', locator.toString()); return false }
+  await moveTo(page, locator.first()); await pause(page, 250); await locator.first().click(); await pause(page, settle); return true
 }
 
-async function recordTheme(token, theme) {
-  const tmpDir = path.join(TMP_DIR, theme)
-  await import('node:fs').then(fs => fs.mkdirSync(tmpDir, { recursive: true }))
+async function record(theme) {
+  const tmp = path.join(OUT, `_tmp_${theme}`); await mkdir(tmp, { recursive: true })
+  const browser = await chromium.launch()
+  const init = ([t, th]) => { localStorage.setItem('tome_token', t); localStorage.setItem('tome_theme', th); localStorage.setItem('tome_sidebar', 'open'); localStorage.setItem('tome_seen_version', '1.0.0'); sessionStorage.setItem('tome_follows_disabled', '1') }
+  // warm the caches in a context that is not recorded
+  const warm = await browser.newContext({ viewport: VIEWPORT }); await warm.addInitScript(init, [token, theme])
+  const wp = await warm.newPage(); for (const u of ['/', '/?tab=books', '/?tab=series', '/stats', '/calendar']) { await wp.goto(`${BASE}${u}`); await wp.waitForLoadState('networkidle').catch(() => {}) }
+  await warm.close()
 
-  const browser = await chromium.launch({ headless: true })
-  const context = await browser.newContext({
-    viewport: VIEWPORT,
-    deviceScaleFactor: 1,
-    recordVideo: { dir: tmpDir, size: VIEWPORT },
-  })
+  const ctx = await browser.newContext({ viewport: VIEWPORT, recordVideo: { dir: tmp, size: VIEWPORT } })
+  await ctx.addInitScript(init, [token, theme])
+  const page = await ctx.newPage()
+  const t0 = Date.now()
+  // warm the in-memory caches inside the recorded page; this stretch is cut off afterwards
+  for (const u of ['/stats', '/calendar', '/?tab=series', '/?tab=books']) { await page.goto(`${BASE}${u}`); await page.waitForLoadState('networkidle').catch(() => {}); await pause(page, 900) }
+  await page.goto(`${BASE}/`); await page.waitForLoadState('networkidle').catch(() => {}); await pause(page, 900)
+  const cutAt = (Date.now() - t0) / 1000
+  await pause(page, 1400)
 
-  // Use a non-recording browser to log in, set theme, and pre-warm the page
-  const warmBrowser = await chromium.launch({ headless: true })
-  const warmContext = await warmBrowser.newContext({ viewport: VIEWPORT, deviceScaleFactor: 1 })
-  const warmPage = await warmContext.newPage()
-  await warmPage.goto(`${BASE}/login`, { waitUntil: 'domcontentloaded', timeout: 30000 })
-  await warmPage.evaluate(({ t, theme }) => {
-    localStorage.setItem('tome_token', t)
-    localStorage.setItem('tome_sidebar', 'open')
-    localStorage.setItem('tome_theme', theme)
-  }, { t: token, theme })
-  await warmPage.goto(`${BASE}/`, { waitUntil: 'domcontentloaded', timeout: 60000 })
-  await warmPage.locator('button:has-text("All Books")').first().waitFor({ state: 'visible', timeout: 20000 })
-  // Page is warm — grab the storage state so the recording context starts authenticated
-  const storageState = await warmContext.storageState()
-  await warmBrowser.close()
+  // 1. Home: hero, then the rows and the numbers
+  await scrollMain(page, 520, 1400); await pause(page, 900)
+  await scrollMain(page, -520, 1000); await pause(page, 500)
 
-  // Now start the recording context with auth already in place
-  const page = await context.newPage()
-  await page.addInitScript(({ t, theme }) => {
-    localStorage.setItem('tome_token', t)
-    localStorage.setItem('tome_sidebar', 'open')
-    localStorage.setItem('tome_theme', theme)
-  }, { t: token, theme })
-  await page.goto(`${BASE}/`, { waitUntil: 'domcontentloaded', timeout: 60000 })
-  await page.locator('button:has-text("All Books")').first().waitFor({ state: 'visible', timeout: 20000 })
-  // Minimal pause — page is already warm, content is cached
-  await page.waitForTimeout(200)
-
-  await smoothScroll(page, 400, 1000)
-  await page.waitForTimeout(600)
-  await smoothScroll(page, -400, 1000)
-  await page.waitForTimeout(400)
-
-  // 2. All Books
-  await page.locator('button:has-text("All Books")').first().click()
-  await page.waitForTimeout(1500)
-
-  // 3. Book detail
-  const bookCard = page.locator('img[loading="lazy"]').first()
-  if (await bookCard.isVisible()) {
-    await bookCard.click()
-    await page.waitForTimeout(2500)
+  // 2. A cover in Recently added opens the Quick look; Open page goes to the book
+  const h = page.getByRole('heading', { name: /recently added/i }).first()
+  const block = h.locator('xpath=ancestor::*[self::section or self::div][2]')
+  let cover = block.locator('button:has(img)').nth(1)
+  if (!(await cover.count())) cover = block.locator('img').nth(1)
+  await cover.scrollIntoViewIfNeeded().catch(() => {}); await pause(page, 600)
+  if (await clickSoft(page, cover, 1600)) {
+    const open = page.getByRole('button', { name: /open page/i }).or(page.getByRole('link', { name: /open page/i }))
+    if (!(await clickSoft(page, open, 1800))) { await page.keyboard.press('Escape'); await pause(page, 600) }
   }
+  // 3. Book page: reading stats
+  if (page.url().includes('/books/')) { await scrollMain(page, 560, 1500); await pause(page, 1100) }
 
-  // 4. Series view
-  await page.goBack()
-  await page.waitForTimeout(1000)
-  await page.locator('button:has-text("Series")').first().click()
-  await page.waitForTimeout(2000)
+  // 4. Series grid, then Berserk
+  await clickSoft(page, page.getByRole('link', { name: 'Series', exact: true }).or(page.locator('aside').getByText('Series', { exact: true })), 1500)
+  await clickSoft(page, page.getByText('Berserk', { exact: true }).first(), 1800)
+  await scrollMain(page, 520, 1500); await pause(page, 1000)
 
-  // 5. Berserk series detail
-  const berserk = page.locator('text=Berserk').first()
-  if (await berserk.isVisible()) {
-    await berserk.click()
-    await page.waitForTimeout(2500)
-    await smoothScroll(page, 500, 1500)
-    await page.waitForTimeout(1000)
-  }
+  // 5. Stats: the board, then Habits
+  await clickSoft(page, page.getByRole('link', { name: 'Stats', exact: true }).or(page.locator('aside').getByText('Stats', { exact: true })), 1800)
+  await scrollMain(page, 480, 1400); await pause(page, 800)
+  await clickSoft(page, page.getByRole('button', { name: 'Habits', exact: true }), 1800)
 
-  // 6. Stats
-  await page.goto(`${BASE}/stats`, { waitUntil: 'domcontentloaded', timeout: 60000 })
-  await page.waitForTimeout(2000)
-  await smoothScroll(page, 400, 1200)
-  await page.waitForTimeout(1000)
+  // 6. Calendar
+  await clickSoft(page, page.getByRole('link', { name: 'Calendar', exact: true }).or(page.locator('aside').getByText('Calendar', { exact: true })), 2200)
 
-  // 7. Habits tab
-  const habitsBtn = page.locator('button:has-text("Habits")').first()
-  if (await habitsBtn.isVisible()) {
-    await habitsBtn.click()
-    await page.waitForTimeout(2000)
-  }
-
-  await page.waitForTimeout(1000)
-
-  await page.close()
-  await context.close()
-  await browser.close()
-
-  // Find the generated video and move it to the output
-  const files = await readdir(tmpDir)
-  const fs = await import('node:fs')
-  const webm = files.find(f => f.endsWith('.webm') && fs.statSync(path.join(tmpDir, f)).size > 0)
-  if (webm) {
-    const dest = path.join(OUT_DIR, `hero-${theme}.webm`)
-    await rename(path.join(tmpDir, webm), dest)
-    console.log(`  ${theme}: ${dest}`)
-  }
-
-  // Clean up tmp
-  const remaining = await readdir(tmpDir)
-  for (const f of remaining) await unlink(path.join(tmpDir, f)).catch(() => {})
-  await import('node:fs').then(fs => fs.rmdirSync(tmpDir, { recursive: true }))
+  await page.close(); await ctx.close(); await browser.close()
+  const f = (await readdir(tmp)).find(x => x.endsWith('.webm'))
+  const raw = path.join(OUT, `raw-${theme}.webm`), out = path.join(OUT, `hero-${theme}.webm`)
+  if (f) await rename(path.join(tmp, f), raw)
+  await rm(tmp, { recursive: true, force: true })
+  try {
+    execFileSync('ffmpeg', ['-v', 'error', '-y', '-ss', String(cutAt), '-i', raw, '-c:v', 'libvpx-vp9', '-b:v', '0', '-crf', '32', '-row-mt', '1', '-an', out])
+    await rm(raw)
+    if (theme === 'light') {
+      const gif = path.resolve(__dir, '../../docs/screenshots/hero.gif')
+      execFileSync('ffmpeg', ['-v', 'error', '-y', '-i', out, '-vf', 'fps=10,scale=760:-1:flags=lanczos,split[s0][s1];[s0]palettegen=max_colors=192:stats_mode=diff[p];[s1][p]paletteuse=dither=bayer:bayer_scale=4:diff_mode=rectangle', gif])
+      console.log('  gif', gif)
+    }
+  } catch (e) { console.log('  ffmpeg not available or failed, keeping the raw recording as', out); await rename(raw, out).catch(() => {}) }
+  console.log('recorded', theme, 'trimmed', cutAt.toFixed(1), 's of warm-up')
 }
-
-async function smoothScroll(page, distance, duration) {
-  await page.evaluate(({ distance, duration }) => {
-    return new Promise((resolve) => {
-      const start = window.scrollY
-      const startTime = performance.now()
-      function step(now) {
-        const elapsed = now - startTime
-        const progress = Math.min(elapsed / duration, 1)
-        const ease = progress < 0.5
-          ? 2 * progress * progress
-          : 1 - Math.pow(-2 * progress + 2, 2) / 2
-        window.scrollTo(0, start + distance * ease)
-        if (progress < 1) requestAnimationFrame(step)
-        else resolve()
-      }
-      requestAnimationFrame(step)
-    })
-  }, { distance, duration })
-}
-
-async function run() {
-  const token = await getToken()
-  console.log('Recording hero videos…')
-  for (const theme of THEMES) {
-    console.log(`  Recording ${theme}…`)
-    await recordTheme(token, theme)
-  }
-  // Clean up tmp root
-  await import('node:fs').then(fs => fs.rmSync(TMP_DIR, { recursive: true, force: true }))
-  console.log('Done.')
-}
-
-run().catch((e) => { console.error(e); process.exit(1) })
+for (const t of THEMES) await record(t)

@@ -10,13 +10,13 @@ interface CompletionRate {
 export function CompletionRateCard({ data }: { data: CompletionRate | undefined }) {
   if (!data) return null
   return (
-    <div className="bg-card border border-border rounded-xl p-4 flex flex-col gap-1">
+    <div className="flex flex-col gap-1">
       <div className="flex items-center gap-1.5 text-muted-foreground">
         <BookCheck className="w-3.5 h-3.5" />
-        <span className="text-xs"><Trans>Completion Rate</Trans></span>
+        <span className="text-[14px]"><Trans>Completion rate</Trans></span>
       </div>
-      <p className="text-2xl font-bold text-foreground leading-tight">{data.pct}%</p>
-      <p className="text-xs text-muted-foreground">
+      <p className="font-display text-[30px] font-bold leading-none text-foreground">{data.pct}%</p>
+      <p className="text-[14px] text-muted-foreground">
         {(() => { const fin = data.finished, st = data.started; return <Trans>{fin} of {st} started · all time</Trans> })()}
       </p>
     </div>

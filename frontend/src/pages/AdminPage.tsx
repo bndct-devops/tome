@@ -1,16 +1,19 @@
 import { Fragment, useEffect, useState, useRef, useCallback } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
-  Users, Plus, Pencil, Trash2, Shield, Check, X,
-  ChevronDown, ChevronUp, Loader2, ArrowLeft,
-  RefreshCw, FolderInput, HardDrive, Database,
-  BookOpen, Folder, Trash, Tag, LogIn,
-  Activity, ChevronsUpDown, Copy, GitMerge,
-  User, Eye, ExternalLink, Send, Mail, Sparkles, Search, Layers,
+  Plus, Pencil, Trash2, Shield, Check, X,
+  ChevronDown, ChevronUp, Loader2,
+  RefreshCw, FolderInput,
+  BookOpen, Folder, Trash, LogIn,
+  Activity, ChevronsUpDown, GitMerge,
+  User, Eye, ExternalLink, Send, Search, Layers,
 } from 'lucide-react'
 import { DOCS, docsLink } from '@/lib/docs'
 import { MetadataManager } from '@/components/MetadataManager'
-import { HScrollRow } from '@/components/HScrollRow'
+import { AppShell } from '@/components/AppShell'
+import { SectionLayout, SectionNav, SectionSidebar, PanelSection, TABLE_HEAD } from '@/components/SectionNav'
+import { PageBody, Pill, Stat, StatStrip, Input, Select, FormLabel, Checkbox, Radio, PillGroup } from '@/components/page'
+import { ModalShell } from '@/components/ModalShell'
 import { LibraryHealthTab } from '@/components/LibraryHealth'
 import { CoverAudit } from '@/components/CoverAudit'
 import { InstanceBackup } from '@/components/InstanceBackup'
@@ -21,7 +24,7 @@ import { Trans, useLingui, Plural } from '@lingui/react/macro'
 import { t, plural, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import { api } from '@/lib/api'
-import { cn } from '@/lib/utils'
+import { cn, formatLongDate } from '@/lib/utils'
 import { IconPicker } from '@/components/Sidebar'
 import { CoverImage } from '@/components/CoverImage'
 import type { BookType } from '@/lib/books'
@@ -102,86 +105,52 @@ function UserModal({ user, onClose, onSaved }: {
     }
   }
 
-  const roles: { value: 'admin' | 'member' | 'guest'; label: string; Icon: typeof Shield }[] = [
-    { value: 'guest', label: t`Guest`, Icon: Eye },
-    { value: 'member', label: t`Member`, Icon: User },
-    { value: 'admin', label: t`Admin`, Icon: Shield },
+  const roles: { value: 'admin' | 'member' | 'guest'; label: string }[] = [
+    { value: 'guest', label: t`Guest` },
+    { value: 'member', label: t`Member` },
+    { value: 'admin', label: t`Admin` },
   ]
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm">
-      <div className="bg-card border border-border rounded-2xl shadow-xl shadow-accent-soft w-full max-w-md">
-        <div className="flex items-center justify-between p-4 border-b border-border">
-          <h2 className="text-sm font-semibold">{user ? t`Edit User` : t`New User`}</h2>
-          <button onClick={onClose} className="p-1 rounded hover:bg-accent transition-colors">
-            <X className="w-4 h-4" />
-          </button>
+    <ModalShell
+      open
+      onClose={onClose}
+      size="sm"
+      title={user ? t`Edit user` : t`New user`}
+      footer={
+        <>
+          <Pill type="button" variant="quiet" onClick={onClose}><Trans>Cancel</Trans></Pill>
+          <Pill type="submit" form="admin-user-form" disabled={saving} variant="primary">
+            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+            {user ? t`Save` : t`Create`}
+          </Pill>
+        </>
+      }
+    >
+      <form id="admin-user-form" onSubmit={handleSubmit} className="flex flex-col gap-4 pt-1">
+        <div>
+          <FormLabel htmlFor="admin-user-name"><Trans>Username</Trans></FormLabel>
+          <Input id="admin-user-name" value={username} onChange={e => setUsername(e.target.value)} required placeholder={t`username`} />
         </div>
-        <form onSubmit={handleSubmit} className="p-4 flex flex-col gap-3">
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground"><Trans>Username</Trans></label>
-            <input value={username} onChange={e => setUsername(e.target.value)} required
-              className="h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              placeholder="username" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground"><Trans>Email</Trans></label>
-            <input type="email" value={email} onChange={e => setEmail(e.target.value)} required
-              className="h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              placeholder="user@example.com" />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground">
-              <Trans>Password</Trans> {user && <span className="text-muted-foreground/60"><Trans>(leave blank to keep)</Trans></span>}
-            </label>
-            <input type="password" value={password} onChange={e => setPassword(e.target.value)} required={!user}
-              className="h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              placeholder={user ? '••••••••' : t`password`} />
-          </div>
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-medium text-muted-foreground"><Trans>Role</Trans></label>
-            <div className="flex rounded-lg border border-border overflow-hidden">
-              {roles.map(({ value, label, Icon }) => (
-                <button
-                  key={value}
-                  type="button"
-                  onClick={() => setRole(value)}
-                  className={cn(
-                    'flex-1 flex items-center justify-center gap-1.5 px-2 py-2 text-xs font-medium transition-colors',
-                    role === value
-                      ? 'bg-primary text-primary-foreground'
-                      : 'bg-muted text-muted-foreground hover:bg-muted/80'
-                  )}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
-                </button>
-              ))}
-            </div>
-          </div>
-          {user && !isSelf && (
-            <label className="flex items-center gap-2 cursor-pointer select-none">
-              <div onClick={() => setIsActive(v => !v)}
-                className={cn('w-4 h-4 rounded border flex items-center justify-center transition-colors cursor-pointer',
-                  isActive ? 'bg-primary border-primary' : 'border-border')}>
-                {isActive && <Check className="w-3 h-3 text-primary-foreground" />}
-              </div>
-              <span className="text-sm"><Trans>Active</Trans></span>
-            </label>
-          )}
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <div className="flex justify-end gap-2 mt-1">
-            <button type="button" onClick={onClose}
-              className="px-3 py-1.5 text-sm rounded-md border border-border hover:bg-accent transition-colors"><Trans>Cancel</Trans></button>
-            <button type="submit" disabled={saving}
-              className="px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors flex items-center gap-1.5 disabled:opacity-50">
-              {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-              {user ? t`Save` : t`Create`}
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
+        <div>
+          <FormLabel htmlFor="admin-user-email"><Trans>Email</Trans></FormLabel>
+          <Input id="admin-user-email" type="email" value={email} onChange={e => setEmail(e.target.value)} required placeholder="user@example.com" />
+        </div>
+        <div>
+          <FormLabel htmlFor="admin-user-password" hint={user ? t`(leave blank to keep)` : undefined}><Trans>Password</Trans></FormLabel>
+          <Input id="admin-user-password" type="password" value={password} onChange={e => setPassword(e.target.value)} required={!user}
+            placeholder={user ? '••••••••' : t`password`} />
+        </div>
+        <div>
+          <FormLabel><Trans>Role</Trans></FormLabel>
+          <PillGroup value={role} onChange={setRole} options={roles} aria-label={t`Role`} />
+        </div>
+        {user && !isSelf && (
+          <Checkbox checked={isActive} onChange={e => setIsActive(e.target.checked)} label={<Trans>Active</Trans>} />
+        )}
+        {error && <p className="text-[13px] text-destructive">{error}</p>}
+      </form>
+    </ModalShell>
   )
 }
 
@@ -223,46 +192,46 @@ function RestrictionEditor({ user, onSaved }: { user: UserData; onSaved: (u: Use
   }
 
   return (
-    <div className="mt-3 pt-3 border-t border-border flex flex-col gap-3">
+    <div className="mt-4 flex flex-col gap-3 max-w-xl">
       <div className="flex flex-col gap-1">
-        <label className="text-xs text-muted-foreground">
-          <Trans>Hidden tags — books carrying any of these tags are invisible to this user (comma-separated)</Trans>
+        <label className="text-[13px] text-muted-foreground">
+          <Trans>Hidden tags: books carrying any of these tags are invisible to this user (comma-separated)</Trans>
         </label>
-        <input
+        <Input
           value={tags}
           onChange={(e) => { setTags(e.target.value); setSaved(false) }}
           placeholder={t`e.g. adult, mature`}
-          className="rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
         />
       </div>
       <div className="flex items-center gap-2 flex-wrap">
-        <label className="text-xs text-muted-foreground shrink-0"><Trans>Downloads per day</Trans></label>
-        <input
+        <label className="text-[13px] text-muted-foreground shrink-0"><Trans>Downloads per day</Trans></label>
+        <Input
           value={limit}
           onChange={(e) => { setLimit(e.target.value); setSaved(false) }}
           inputMode="numeric"
           placeholder={t`unlimited`}
-          className="w-28 rounded-lg border border-border bg-background px-3 py-1.5 text-sm"
+          className="w-28"
         />
-        <span className="text-xs text-muted-foreground"><Trans>blank = unlimited, 0 = downloads disabled</Trans></span>
+        <span className="text-[13px] text-muted-foreground"><Trans>blank = unlimited, 0 = downloads disabled</Trans></span>
+
       </div>
       <div className="flex items-center gap-2">
-        <button
+        <Pill
           onClick={save}
           disabled={saving}
-          className="rounded-md bg-primary text-primary-foreground px-3 py-1.5 text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50"
+          variant="secondary"
         >
           {saving ? t`Saving…` : t`Save restrictions`}
-        </button>
-        {saved && <span className="text-xs text-success"><Trans>Saved</Trans></span>}
-        {error && <span className="text-xs text-destructive">{error}</span>}
+        </Pill>
+        {saved && <span className="text-[13px] text-success"><Trans>Saved</Trans></span>}
+        {error && <span className="text-[13px] text-destructive">{error}</span>}
       </div>
     </div>
   )
 }
 
 function UsersTab() {
-  const { t, i18n } = useLingui()
+  const { t } = useLingui()
   const { user: me, impersonate } = useAuth()
   const navigate = useNavigate()
   const [users, setUsers] = useState<UserData[]>([])
@@ -320,124 +289,128 @@ function UsersTab() {
     } finally { setPermSaving(null) }
   }
 
+  const roleOptions: { value: 'admin' | 'member' | 'guest'; label: string; Icon: typeof Shield }[] = [
+    { value: 'guest', label: t`Guest`, Icon: Eye },
+    { value: 'member', label: t`Member`, Icon: User },
+    { value: 'admin', label: t`Admin`, Icon: Shield },
+  ]
+
   return (
-    <div>
-      {error && (
-        <div className="mb-4 px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive flex items-center justify-between gap-2">
-          {error}
-          <button onClick={() => setError(null)} className="shrink-0 hover:opacity-70 transition-opacity"><X className="w-3.5 h-3.5" /></button>
-        </div>
-      )}
-      <div className="flex items-center justify-between mb-4 gap-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <p className="text-sm text-muted-foreground"><Plural value={users.length} one="# user" other="# users" /></p>
+    <PanelSection
+      description={
+        <span className="inline-flex flex-wrap items-center gap-x-3 gap-y-1">
+          <Plural value={users.length} one="# user" other="# users" />
           <a
             href={docsLink(DOCS.usersAndRoles)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
+            className="inline-flex items-center gap-1 hover:text-primary transition-colors"
           >
             <Trans>Roles guide</Trans> <ExternalLink className="w-3 h-3" />
           </a>
+        </span>
+      }
+      action={
+        <Pill variant="primary" onClick={() => { setModalUser(null); setModalOpen(true) }}>
+          <Plus className="w-4 h-4" /> <Trans>New user</Trans>
+        </Pill>
+      }
+    >
+      {error && (
+        <div className="mb-4 px-3 py-2 rounded-lg bg-destructive/10 text-[14px] text-destructive flex items-center justify-between gap-2">
+          {error}
+          <button onClick={() => setError(null)} className="shrink-0 hover:opacity-70 transition-opacity"><X className="w-3.5 h-3.5" /></button>
         </div>
-        <button onClick={() => { setModalUser(null); setModalOpen(true) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-sm rounded-md bg-primary text-primary-foreground hover:bg-primary/90 transition-colors">
-          <Plus className="w-3.5 h-3.5" /> <Trans>New User</Trans>
-        </button>
-      </div>
+      )}
 
       {loading ? (
         <div className="flex justify-center py-16">
           <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="border-y border-border/70 divide-y divide-border/70">
+          <div className={cn('hidden sm:flex items-center gap-3 py-2.5', TABLE_HEAD)}>
+            <span className="flex-1"><Trans>User</Trans></span>
+            <span className="w-24"><Trans>Added</Trans></span>
+            <span className="w-[164px]" />
+          </div>
           {users.map(u => (
-            <div key={u.id} className="border border-border rounded-xl bg-card overflow-hidden">
-              <div className="flex items-center gap-3 px-4 py-3">
-                <div className="flex items-center gap-2 flex-1 min-w-0">
-                  <div className={cn('w-8 h-8 rounded-full flex items-center justify-center shrink-0 text-xs font-bold',
-                    u.role === 'admin' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground')}>
+            <div key={u.id}>
+              <div className="flex items-center gap-3 py-3">
+                <div className="flex items-center gap-3 flex-1 min-w-0">
+                  <div className={cn('w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-[13px] font-bold',
+                    u.role === 'admin' ? 'bg-primary/10 text-primary' : 'bg-secondary text-muted-foreground')}>
                     {u.username[0].toUpperCase()}
                   </div>
                   <div className="min-w-0">
-                    <div className="flex items-center gap-1.5">
-                      <span className="text-sm font-medium truncate">{u.username}</span>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[15px] font-medium text-foreground truncate">{u.username}</span>
                       {u.role === 'admin' && (
-                        <span className="flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full bg-primary/10 text-primary border border-primary/20">
+                        <span className="inline-flex items-center gap-0.5 text-[12px] font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
                           <Shield className="w-2.5 h-2.5" /> <Trans>Admin</Trans>
                         </span>
                       )}
                       {!u.is_active && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-destructive/10 text-destructive border border-destructive/20"><Trans>Inactive</Trans></span>
+                        <span className="text-[12px] font-medium px-2 py-0.5 rounded-full bg-destructive/10 text-destructive"><Trans>Inactive</Trans></span>
                       )}
                       {u.id === me?.id && (
-                        <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-muted text-muted-foreground border border-border"><Trans>You</Trans></span>
+                        <span className="text-[12px] font-medium px-2 py-0.5 rounded-full bg-secondary text-muted-foreground"><Trans>You</Trans></span>
                       )}
                     </div>
-                    <p className="text-xs text-muted-foreground truncate">{u.email}</p>
+                    <p className="text-[13px] text-muted-foreground truncate">{u.email}</p>
                   </div>
                 </div>
-                <div className="hidden sm:block text-xs text-muted-foreground shrink-0">
-                  {new Date(u.created_at).toLocaleDateString(i18n.locale)}
+                <div className="hidden sm:block w-24 text-[13px] text-muted-foreground shrink-0 whitespace-nowrap">
+                  {formatLongDate(u.created_at)}
                 </div>
-                <div className="flex items-center gap-1 shrink-0">
-                  <button onClick={() => setExpandedId(expandedId === u.id ? null : u.id)}
-                    className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground" title={t`Role`}>
-                    {expandedId === u.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-                  </button>
-                  <button onClick={() => { setModalUser(u); setModalOpen(true) }}
-                    className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-foreground" title={t`Edit`}>
-                    <Pencil className="w-3.5 h-3.5" />
-                  </button>
-                  {u.id !== me?.id && (
-                    <button onClick={() => handleImpersonate(u.id)} disabled={impersonating === u.id}
-                      className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-warning" title={t`Log in as this user`}>
-                      {impersonating === u.id
-                        ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                        : <LogIn className="w-3.5 h-3.5" />}
-                    </button>
-                  )}
-                  {u.id !== me?.id && (
-                    deleteConfirm === u.id ? (
-                      <div className="flex items-center gap-1">
-                        <button onClick={() => handleDelete(u.id)} disabled={deleting === u.id}
-                          className="px-2 py-1 text-xs rounded bg-destructive text-destructive-foreground hover:bg-destructive/90 flex items-center gap-1">
-                          {deleting === u.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />} <Trans>Confirm</Trans>
-                        </button>
-                        <button onClick={() => setDeleteConfirm(null)}
-                          className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground">
-                          <X className="w-3.5 h-3.5" />
-                        </button>
-                      </div>
-                    ) : (
-                      <button onClick={() => setDeleteConfirm(u.id)}
-                        className="p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground hover:text-destructive" title={t`Delete`}>
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
-                    )
+                <div className="flex items-center justify-end sm:justify-start gap-0.5 shrink-0 sm:w-[164px]">
+                  {u.id !== me?.id && deleteConfirm === u.id ? (
+                    <>
+                      <Pill variant="destructive" className="bg-destructive/10 text-destructive" onClick={() => handleDelete(u.id)} disabled={deleting === u.id}>
+                        {deleting === u.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />} <Trans>Delete</Trans>
+                      </Pill>
+                      <Pill variant="quiet" icon aria-label={t`Cancel`} title={t`Cancel`} onClick={() => setDeleteConfirm(null)}>
+                        <X className="w-4 h-4" />
+                      </Pill>
+                    </>
+                  ) : (
+                    <>
+                      <Pill variant="quiet" icon aria-label={t`Role`} title={t`Role`} onClick={() => setExpandedId(expandedId === u.id ? null : u.id)}>
+                        {expandedId === u.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                      </Pill>
+                      <Pill variant="quiet" icon aria-label={t`Edit`} title={t`Edit`} onClick={() => { setModalUser(u); setModalOpen(true) }}>
+                        <Pencil className="w-4 h-4" />
+                      </Pill>
+                      {u.id !== me?.id && (
+                        <Pill variant="quiet" icon aria-label={t`Log in as this user`} title={t`Log in as this user`} className="hover:text-warning"
+                          onClick={() => handleImpersonate(u.id)} disabled={impersonating === u.id}>
+                          {impersonating === u.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <LogIn className="w-4 h-4" />}
+                        </Pill>
+                      )}
+                      {u.id !== me?.id && (
+                        <Pill variant="destructive" icon aria-label={t`Delete`} title={t`Delete`} onClick={() => setDeleteConfirm(u.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Pill>
+                      )}
+                    </>
                   )}
                 </div>
               </div>
               {expandedId === u.id && (
-                <div className="border-t border-border px-4 py-3 bg-muted/30">
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs text-muted-foreground shrink-0"><Trans>Role</Trans></span>
-                    <div className="flex rounded-lg border border-border overflow-hidden">
-                      {([
-                        { value: 'guest', label: t`Guest`, Icon: Eye },
-                        { value: 'member', label: t`Member`, Icon: User },
-                        { value: 'admin', label: t`Admin`, Icon: Shield },
-                      ] as { value: 'admin' | 'member' | 'guest'; label: string; Icon: typeof Shield }[]).map(({ value, label, Icon }) => (
+                <div className="pb-4 sm:pl-12">
+                  <div className="flex items-center gap-3 flex-wrap">
+                    <span className="text-[13px] text-muted-foreground shrink-0"><Trans>Role</Trans></span>
+                    <div className="flex gap-1 rounded-full bg-secondary p-1">
+                      {roleOptions.map(({ value, label, Icon }) => (
                         <button
                           key={value}
                           onClick={() => updateRole(u.id, value)}
                           disabled={permSaving === u.id}
                           className={cn(
-                            'flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors',
+                            'flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-medium transition-colors',
                             u.role === value
                               ? 'bg-primary text-primary-foreground'
-                              : 'bg-muted text-muted-foreground hover:bg-muted/80'
+                              : 'text-muted-foreground hover:text-foreground'
                           )}
                         >
                           <Icon className="w-3.5 h-3.5" />
@@ -460,7 +433,7 @@ function UsersTab() {
         </div>
       )}
       {modalOpen && <UserModal user={modalUser} onClose={() => setModalOpen(false)} onSaved={handleSaved} />}
-    </div>
+    </PanelSection>
   )
 }
 
@@ -497,20 +470,19 @@ function ScannerTab() {
   }
 
   const typeSelector = (
-    <div className="mt-3">
-      <label className="block text-xs text-muted-foreground mb-1"><Trans>Assign type to new books</Trans></label>
-      <select
+    <div className="max-w-md">
+      <label className="block text-[13px] text-muted-foreground mb-1.5"><Trans>Assign type to new books</Trans></label>
+      <Select
         value={defaultTypeId}
         onChange={e => setDefaultTypeId(e.target.value ? Number(e.target.value) : '')}
-        className="tome-select w-full text-sm bg-background border border-border rounded-lg px-3 py-1.5 text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
       >
         <option value="">{t`No type (staging / admin only)`}</option>
         {bookTypes.map(t => (
           <option key={t.id} value={t.id}>{t.label}</option>
         ))}
-      </select>
+      </Select>
       {!defaultTypeId && (
-        <p className="text-xs text-warning mt-1">
+        <p className="text-[13px] text-warning mt-1.5">
           <Trans>Without a type, new books are only visible to admins until assigned.</Trans>
         </p>
       )}
@@ -518,56 +490,46 @@ function ScannerTab() {
   )
 
   return (
-    <div className="flex flex-col gap-4 max-w-xl mx-auto w-full">
-      <div className="border border-border rounded-xl bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold"><Trans>Scan Library</Trans></h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            <Trans>Walk the library directory and add any new book files found.</Trans>
-          </p>
-        </div>
-        <div className="px-4 py-3">
-          {scanning ? (
-            <div className="flex flex-col items-center justify-center py-4 gap-2">
-              <BookAnimation variant="refresh" className="block w-12 h-12 text-primary" />
-              <p className="text-sm text-muted-foreground"><Trans>Scanning…</Trans></p>
-            </div>
-          ) : (
-            <>
-              {typeSelector}
-              <button onClick={handleScan} disabled={scanning || importing}
-                className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors disabled:opacity-50">
-                <RefreshCw className="w-4 h-4" />
-                <Trans>Scan Now</Trans>
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+    <>
+      <PanelSection
+        title={<Trans>Scan library</Trans>}
+        description={<Trans>Walk the library directory and add any new book files found.</Trans>}
+      >
+        {scanning ? (
+          <div className="flex items-center gap-3 py-2">
+            <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
+            <p className="text-[14px] text-muted-foreground"><Trans>Scanning…</Trans></p>
+          </div>
+        ) : (
+          <div className="flex flex-col items-start gap-4">
+            {typeSelector}
+            <Pill variant="primary" onClick={handleScan} disabled={scanning || importing}>
+              <RefreshCw className="w-4 h-4" />
+              <Trans>Scan now</Trans>
+            </Pill>
+          </div>
+        )}
+      </PanelSection>
 
-      <div className="border border-border rounded-xl bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold"><Trans>Import from Incoming</Trans></h3>
-          <p className="text-xs text-muted-foreground mt-0.5">
-            <Trans>Process files dropped into the <code className="text-[11px] bg-muted px-1 rounded">incoming/</code> directory and move them into the library.</Trans>
-          </p>
-        </div>
-        <div className="px-4 py-3">
+      <PanelSection
+        title={<Trans>Import from incoming</Trans>}
+        description={<Trans>Process files dropped into the <code className="text-[13px] bg-secondary px-1 rounded">incoming/</code> directory and move them into the library.</Trans>}
+      >
+        <div className="flex flex-col items-start gap-4">
           {typeSelector}
-          <button onClick={handleImport} disabled={importing || scanning}
-            className="mt-3 flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground text-sm hover:bg-primary/90 transition-colors disabled:opacity-50">
+          <Pill variant="secondary" onClick={handleImport} disabled={importing || scanning}>
             {importing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
-            {importing ? t`Importing…` : t`Import Now`}
-          </button>
+            {importing ? t`Importing…` : t`Import now`}
+          </Pill>
         </div>
-      </div>
+      </PanelSection>
 
       {lastResult && (
-        <div className="border border-success/30 bg-success/5 rounded-xl px-4 py-3 text-sm">
-          <p className="font-medium text-foreground mb-1">
+        <div className="-mt-4 rounded-lg bg-success/10 px-4 py-3 text-[14px]">
+          <p className="font-medium text-foreground mb-0.5">
             {lastResult.type === 'scan' ? t`Scan complete` : t`Import complete`}
           </p>
-          <p className="text-muted-foreground text-xs">
+          <p className="text-muted-foreground text-[13px]">
             {(() => {
               const r = lastResult.result
               const added = r.added, skipped = r.skipped, dups = r.duplicates, errs = r.errors
@@ -578,7 +540,7 @@ function ScannerTab() {
           </p>
         </div>
       )}
-    </div>
+    </>
   )
 }
 
@@ -617,100 +579,80 @@ function ServerTab() {
   )
 
   return (
-    <div className="flex flex-col gap-4 max-w-xl mx-auto w-full">
-      {/* Instance backup / restore */}
-      <InstanceBackup />
-      {/* Stats */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { icon: BookOpen, label: t`Books`, value: stats?.book_count ?? 0 },
-          { icon: Users, label: t`Users`, value: stats?.user_count ?? 0 },
-          { icon: Database, label: t`Database`, value: `${stats?.db_size_mb ?? 0} MB` },
-          { icon: HardDrive, label: t`Covers`, value: `${stats?.covers_size_mb ?? 0} MB` },
-        ].map(({ icon: Icon, label, value }) => (
-          <div key={label} className="border border-border rounded-xl bg-card px-4 py-3">
-            <div className="flex items-center gap-1.5 text-muted-foreground mb-1">
-              <Icon className="w-3.5 h-3.5" />
-              <span className="text-xs">{label}</span>
-            </div>
-            <p className="text-lg font-semibold text-foreground">{value}</p>
-          </div>
-        ))}
-      </div>
+    <>
+      <PanelSection>
+        <StatStrip cols={4}>
+          <Stat size={30} label={t`Books`} value={stats?.book_count ?? 0} />
+          <Stat size={30} label={t`Users`} value={stats?.user_count ?? 0} />
+          <Stat size={30} label={t`Database`} value={stats?.db_size_mb ?? 0} unit="MB" />
+          <Stat size={30} label={t`Covers`} value={stats?.covers_size_mb ?? 0} unit="MB" />
+        </StatStrip>
+        {stats && (
+          <p className="mt-3 text-[13px] text-muted-foreground">
+            {/* eslint-disable-next-line lingui/no-unlocalized-strings -- version line */}
+            {`Tome v${stats.tome_version} · Python ${stats.python_version}`}
+          </p>
+        )}
+      </PanelSection>
 
-      {/* Paths */}
-      <div className="border border-border rounded-xl bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-border">
-          <h3 className="text-sm font-semibold"><Trans>Directories</Trans></h3>
-        </div>
-        <div className="divide-y divide-border">
+      <PanelSection title={<Trans>Directories</Trans>}>
+        <div className="border-y border-border/70 divide-y divide-border/70">
           {[
             { label: t`Library`, path: stats?.library_dir },
             { label: t`Data`, path: stats?.data_dir },
             { label: t`Incoming`, path: stats?.incoming_dir },
           ].map(({ label, path }) => (
-            <div key={label} className="flex items-start gap-3 px-4 py-2.5">
+            <div key={label} className="flex items-start gap-3 py-3">
               <Folder className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
               <div className="min-w-0">
-                <p className="text-xs font-medium text-muted-foreground">{label}</p>
-                <p className="text-xs text-foreground font-mono break-all">{path ?? '—'}</p>
+                <p className="text-[13px] text-muted-foreground">{label}</p>
+                <p className="text-[14px] text-foreground font-mono break-all">{path ?? '-'}</p>
               </div>
             </div>
           ))}
         </div>
-      </div>
+      </PanelSection>
 
-      {/* Danger zone */}
-      <div className="border border-destructive/30 rounded-xl bg-card overflow-hidden">
-        <div className="px-4 py-3 border-b border-destructive/20">
-          <h3 className="text-sm font-semibold text-destructive"><Trans>Danger Zone</Trans></h3>
-        </div>
-        <div className="px-4 py-3">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <p className="text-sm font-medium"><Trans>Clear cover cache</Trans></p>
+      <InstanceBackup />
+
+      <section>
+        <h2 className="font-display text-[20px] leading-none font-bold text-destructive"><Trans>Danger zone</Trans></h2>
+        <div className="mt-5 border-y border-destructive/30 py-4">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="min-w-0">
+              <p className="text-[15px] font-medium text-foreground"><Trans>Clear cover cache</Trans></p>
               {(() => { const count = stats?.covers_count ?? 0; const mb = stats?.covers_size_mb ?? 0; return (
-              <p className="text-xs text-muted-foreground mt-0.5">
+              <p className="text-[13px] text-muted-foreground mt-0.5">
                 <Trans>Delete all {count} cached cover files ({mb} MB).
                 Covers will be re-extracted on next access.</Trans>
               </p>
               ) })()}
               {clearResult != null && (
-                <p className="text-xs text-success mt-1"><Trans>{clearResult} covers deleted.</Trans></p>
+                <p className="text-[13px] text-success mt-1"><Trans>{clearResult} covers deleted.</Trans></p>
               )}
               {error && (
-                <p className="text-xs text-destructive mt-1">{error}</p>
+                <p className="text-[13px] text-destructive mt-1">{error}</p>
               )}
             </div>
             {confirmClear ? (
-              <div className="flex items-center gap-1.5 shrink-0">
-                <button onClick={handleClearCovers} disabled={clearing}
-                  className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md bg-destructive text-destructive-foreground hover:bg-destructive/90 transition-colors disabled:opacity-50">
+              <div className="flex items-center gap-1 shrink-0">
+                <Pill variant="destructive" className="bg-destructive/10 text-destructive" onClick={handleClearCovers} disabled={clearing}>
                   {clearing ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash className="w-3.5 h-3.5" />}
                   <Trans>Confirm</Trans>
-                </button>
-                <button onClick={() => setConfirmClear(false)}
-                  className="p-1.5 rounded-md hover:bg-accent text-muted-foreground transition-colors">
-                  <X className="w-3.5 h-3.5" />
-                </button>
+                </Pill>
+                <Pill variant="quiet" icon aria-label={t`Cancel`} title={t`Cancel`} onClick={() => setConfirmClear(false)}>
+                  <X className="w-4 h-4" />
+                </Pill>
               </div>
             ) : (
-              <button onClick={() => setConfirmClear(true)}
-                className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-destructive/40 text-destructive hover:bg-destructive/10 transition-colors">
+              <Pill variant="destructive" className="shrink-0 text-destructive" onClick={() => setConfirmClear(true)}>
                 <Trash className="w-3.5 h-3.5" /> <Trans>Clear</Trans>
-              </button>
+              </Pill>
             )}
           </div>
         </div>
-      </div>
-
-      {stats && (
-        <p className="text-xs text-muted-foreground text-center pt-1">
-          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- version line */}
-          {`Tome v${stats.tome_version} · Python ${stats.python_version}`}
-        </p>
-      )}
-    </div>
+      </section>
+    </>
   )
 }
 
@@ -878,88 +820,78 @@ function TypeLayoutField({
       : null
 
   return (
-    <div className="col-span-2 space-y-2">
-      <label className="text-xs text-muted-foreground block"><Trans>Layout</Trans></label>
-      <div className={cn('space-y-1.5', form.advanced && 'opacity-60')} role="radiogroup" aria-label={t`Layout`}>
+    <div className="sm:col-span-2 space-y-3">
+      <FormLabel className="mb-0"><Trans>Layout</Trans></FormLabel>
+      <div className={cn('flex flex-col gap-3', form.advanced && 'opacity-60')} role="radiogroup" aria-label={t`Layout`}>
         {LAYOUT_PRESETS.map(name => {
           const example = preview?.presets[name]?.paths[0]?.path
           return (
-            <label
+            <Radio
               key={name}
-              className={cn(
-                'flex items-start gap-2.5 px-3 py-2 rounded-lg border cursor-pointer transition-colors',
-                form.layout_preset === name ? 'border-primary/60 bg-primary/5' : 'border-border hover:bg-muted/50',
-              )}
-            >
-              <input
-                type="radio"
-                name={`layout-${bookTypeId ?? 'new'}`}
-                value={name}
-                checked={form.layout_preset === name}
-                onChange={() => onChange({ layout_preset: name })}
-                className="mt-0.5 accent-primary"
-              />
-              <span className="min-w-0 flex-1">
-                <span className="text-sm font-medium block">{presetText[name].label}</span>
-                <span className="text-xs text-muted-foreground block">{presetText[name].description}</span>
-                <span className="text-xs font-mono text-foreground/80 block mt-0.5 break-all">
-                  {example ?? '\u00a0'}
-                </span>
-              </span>
-            </label>
+              name={`layout-${bookTypeId ?? 'new'}`}
+              value={name}
+              checked={form.layout_preset === name}
+              onChange={() => onChange({ layout_preset: name })}
+              className="flex"
+              label={<span className="text-[14px] font-medium">{presetText[name].label}</span>}
+              description={
+                <>
+                  <span className="block">{presetText[name].description}</span>
+                  <span className="mt-0.5 block font-mono text-foreground/80 break-all">{example ?? ' '}</span>
+                </>
+              }
+            />
           )
         })}
       </div>
-      {sampleNote && <p className="text-xs text-muted-foreground">{sampleNote}</p>}
+      {sampleNote && <p className="text-[13px] text-muted-foreground">{sampleNote}</p>}
 
-      <label className="flex items-center gap-2 text-sm cursor-pointer pt-1">
-        <input
-          type="checkbox"
-          checked={form.advanced}
-          onChange={e => toggleAdvanced(e.target.checked)}
-          className="accent-primary"
-        />
-        <Trans>Advanced: custom template</Trans>
-      </label>
+      <Checkbox
+        checked={form.advanced}
+        onChange={e => toggleAdvanced(e.target.checked)}
+        label={<Trans>Advanced: custom template</Trans>}
+        className="pt-1"
+      />
 
       {form.advanced && (
-        <div className="space-y-2 pl-6">
-          <input
-            ref={templateRef}
-            value={form.layout_template}
-            onChange={e => onChange({ layout_template: e.target.value })}
-            maxLength={255}
-            spellCheck={false}
-            aria-label={t`Template`}
-            aria-invalid={error !== null}
-            className={cn(
-              'w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring font-mono',
-              error && 'border-destructive focus:ring-destructive',
-            )}
-          />
-          {error && <p className="text-xs text-destructive">{error}</p>}
-          <div className="flex items-start justify-between gap-3">
-            <p className="text-xs text-muted-foreground">
-              <Trans>Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series.</Trans>
-            </p>
-            <button
-              type="button"
-              onClick={() => setShowReference(v => !v)}
-              aria-expanded={showReference}
-              className="shrink-0 flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-            >
-              <Trans>Template reference</Trans>
-              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', showReference && 'rotate-180')} />
-            </button>
+        <div className="space-y-4 sm:pl-7">
+          <div>
+            <FormLabel htmlFor={`layout-template-${bookTypeId ?? 'new'}`}><Trans>Template</Trans></FormLabel>
+            <Input
+              id={`layout-template-${bookTypeId ?? 'new'}`}
+              ref={templateRef}
+              value={form.layout_template}
+              onChange={e => onChange({ layout_template: e.target.value })}
+              maxLength={255}
+              spellCheck={false}
+              aria-invalid={error !== null}
+              invalid={error !== null}
+              className="font-mono"
+            />
+            {error && <p className="mt-1.5 text-[13px] text-destructive">{error}</p>}
+            <div className="mt-1.5 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+              <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
+                <Trans>Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series.</Trans>
+              </p>
+              <button
+                type="button"
+                onClick={() => setShowReference(v => !v)}
+                aria-expanded={showReference}
+                className="shrink-0 flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <Trans>Template reference</Trans>
+                <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', showReference && 'rotate-180')} />
+              </button>
+            </div>
           </div>
           {showReference && (
-            <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5 rounded-lg border border-border bg-muted/30 px-3 py-2.5">
+            <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5">
               {[
                 { heading: t`Fields`, rows: fieldRows },
                 { heading: t`Syntax`, rows: syntaxRows },
               ].map((group, gi) => (
                 <Fragment key={group.heading}>
-                  <p className={cn('col-span-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground', gi > 0 && 'pt-1.5')}>
+                  <p className={cn('col-span-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground', gi > 0 && 'pt-2')}>
                     {group.heading}
                   </p>
                   {group.rows.map(row => (
@@ -968,12 +900,12 @@ function TypeLayoutField({
                         type="button"
                         onMouseDown={e => e.preventDefault()}
                         onClick={() => insertToken(row.token)}
-                        title={t`Insert ${row.token}`}
-                        className="justify-self-start font-mono text-[11px] leading-none px-1.5 py-1 rounded border border-border bg-muted text-foreground/90 hover:border-primary/50 hover:bg-primary/10 transition-colors"
+                        title={(() => { const token = row.token; return t`Insert ${token}` })()}
+                        className="justify-self-start font-mono text-[12px] leading-none px-2 py-1.5 rounded-md bg-secondary text-foreground/90 hover:bg-primary/10 hover:text-foreground transition-colors"
                       >
                         {row.token}
                       </button>
-                      <span className="text-xs text-muted-foreground">{row.description}</span>
+                      <span className="text-[13px] text-muted-foreground">{row.description}</span>
                     </Fragment>
                   ))}
                 </Fragment>
@@ -981,50 +913,116 @@ function TypeLayoutField({
             </div>
           )}
           {!error && preview && preview.paths.length > 0 && (
-            <div className="border border-border rounded-lg overflow-hidden">
-              <table className="w-full text-xs table-fixed">
-                <thead className="bg-muted/50 text-muted-foreground">
-                  <tr>
-                    <th className="text-left font-medium px-3 py-1.5 w-1/3"><Trans>Book</Trans></th>
-                    <th className="text-left font-medium px-3 py-1.5"><Trans>Path</Trans></th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border">
-                  {preview.paths.map((row, i) => (
-                    <tr key={i}>
-                      <td className="px-3 py-1.5 truncate" title={row.title}>{row.title}</td>
-                      <td className="px-3 py-1.5 font-mono break-all">{row.path}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+            <div>
+              <FormLabel><Trans>Preview</Trans></FormLabel>
+              <div className="border-y border-border/70 divide-y divide-border/70">
+                {preview.paths.map((row, i) => (
+                  <div key={i} className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-x-4 gap-y-0.5 py-2">
+                    <span className="truncate text-[13px] text-muted-foreground" title={row.title}>{row.title}</span>
+                    <span className="font-mono text-[13px] text-foreground break-all">{row.path}</span>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </div>
       )}
 
-      <p className="text-xs text-muted-foreground">
-        <Trans>Saving never moves files. Changed layouts show as misplaced in Library Health; use Dry Run All and Reorganize All to move them.</Trans>
+      <p className="text-[13px] text-muted-foreground">
+        <Trans>Saving never moves files. Changed layouts show as misplaced in Library health; use Dry run all and Reorganize all to move them.</Trans>
       </p>
     </div>
   )
 }
 
-function TypeFolderField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+function TypeFolderField({ value, onChange, id }: { value: string; onChange: (v: string) => void; id: string }) {
   const { t } = useLingui()
   return (
-    <div className="col-span-2">
-      <label className="text-xs text-muted-foreground mb-1 block"><Trans>Folder</Trans></label>
-      <input
+    <div className="sm:col-span-2">
+      <FormLabel htmlFor={id}><Trans>Folder</Trans></FormLabel>
+      <Input
+        id={id}
         value={value}
         onChange={e => onChange(e.target.value)}
         placeholder={t`e.g. Manga`}
         maxLength={64}
-        className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
       />
-      <p className="text-xs text-muted-foreground mt-1">
-        <Trans>Optional. Books of this type are stored in this folder inside the library. Leave empty for no folder. Existing books move only when you run Reorganize in Library Health.</Trans>
+      <p className="text-[13px] text-muted-foreground mt-1.5">
+        <Trans>Optional. Books of this type are stored in this folder inside the library. Leave empty for no folder. Existing books move only when you run Reorganize in Library health.</Trans>
       </p>
+    </div>
+  )
+}
+
+/** The add and the edit form: the same inline panel on the list's hairlines. */
+function TypeForm({
+  heading, form, setForm, bookTypeId, saving, error, onLayoutError, saveDisabled, onCancel, onSave,
+}: {
+  heading: React.ReactNode
+  form: TypeFormState
+  setForm: (fn: (f: TypeFormState) => TypeFormState) => void
+  bookTypeId: number | null
+  saving: boolean
+  error: string | null
+  onLayoutError: (e: string | null) => void
+  saveDisabled: boolean
+  onCancel: () => void
+  onSave: () => void
+}) {
+  const { t } = useLingui()
+  const key = bookTypeId ?? 'new'
+  return (
+    <div className="py-5 space-y-4">
+      <p className="text-[15px] font-semibold text-foreground">{heading}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <div>
+          <FormLabel htmlFor={`type-label-${key}`}><Trans>Label</Trans></FormLabel>
+          <Input
+            id={`type-label-${key}`}
+            value={form.label}
+            onChange={e => setForm(f => ({ ...f, label: e.target.value }))}
+            placeholder={t`e.g. Novel`}
+          />
+        </div>
+        <div>
+          <FormLabel htmlFor={`type-color-${key}`}><Trans>Color</Trans></FormLabel>
+          <Select
+            id={`type-color-${key}`}
+            value={form.color}
+            onChange={e => setForm(f => ({ ...f, color: e.target.value as ColorOption }))}
+          >
+            {COLOR_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
+          </Select>
+        </div>
+        <div>
+          <FormLabel><Trans>Icon</Trans></FormLabel>
+          <IconPicker value={form.icon} onChange={v => setForm(f => ({ ...f, icon: v }))} />
+        </div>
+        <div>
+          <FormLabel htmlFor={`type-sort-${key}`}><Trans>Sort order</Trans></FormLabel>
+          <Input
+            id={`type-sort-${key}`}
+            type="number"
+            value={form.sort_order}
+            onChange={e => setForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
+          />
+        </div>
+        <TypeFolderField id={`type-folder-${key}`} value={form.folder} onChange={v => setForm(f => ({ ...f, folder: v }))} />
+        <TypeLayoutField
+          form={form}
+          bookTypeId={bookTypeId}
+          onChange={patch => setForm(f => ({ ...f, ...patch }))}
+          onError={onLayoutError}
+        />
+      </div>
+      {error && <p className="text-[13px] text-destructive">{error}</p>}
+      <div className="flex items-center gap-2 justify-end">
+        <Pill onClick={onCancel} variant="quiet"><Trans>Cancel</Trans></Pill>
+        <Pill onClick={onSave} disabled={saveDisabled} variant="primary">
+          {saving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
+          <Trans>Save</Trans>
+        </Pill>
+      </div>
     </div>
   )
 }
@@ -1115,182 +1113,84 @@ function TypesTab() {
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold flex items-center gap-2">
-          <Tag className="w-4 h-4 text-muted-foreground" /> <Trans>Book Types</Trans>
-        </h2>
-        <button
-          onClick={() => { setShowAdd(a => !a); setAddError(null) }}
-          className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-border bg-card hover:bg-muted transition-all"
+    <PanelSection
+      description={<Trans>Book types sort the library into categories. Each type has its own library, icon, colour and folder layout.</Trans>}
+      action={
+        <Pill
+          onClick={() => { setShowAdd(a => !a); setAddError(null); setEditId(null) }}
+          variant="secondary"
         >
-          <Plus className="w-3.5 h-3.5" /> <Trans>Add Type</Trans>
-        </button>
-      </div>
-
-      {/* Add form */}
-      {showAdd && (
-        <div className="border border-border rounded-xl bg-card p-4 space-y-3">
-          <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wide"><Trans>New Type</Trans></h3>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block"><Trans>Label</Trans></label>
-              <input
-                value={addForm.label}
-                onChange={e => setAddForm(f => ({ ...f, label: e.target.value }))}
-                placeholder={t`e.g. Novel`}
-                className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block"><Trans>Color</Trans></label>
-              <select
-                value={addForm.color}
-                onChange={e => setAddForm(f => ({ ...f, color: e.target.value as ColorOption }))}
-                className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-              >
-                {COLOR_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-              </select>
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block"><Trans>Icon</Trans></label>
-              <IconPicker value={addForm.icon} onChange={v => setAddForm(f => ({ ...f, icon: v }))} />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground mb-1 block"><Trans>Sort Order</Trans></label>
-              <input
-                type="number"
-                value={addForm.sort_order}
-                onChange={e => setAddForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
-                className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-              />
-            </div>
-            <TypeFolderField value={addForm.folder} onChange={v => setAddForm(f => ({ ...f, folder: v }))} />
-            <TypeLayoutField
-              form={addForm}
-              bookTypeId={null}
-              onChange={patch => setAddForm(f => ({ ...f, ...patch }))}
-              onError={setAddLayoutError}
-            />
-          </div>
-          {addError && <p className="text-xs text-destructive">{addError}</p>}
-          <div className="flex items-center gap-2 justify-end">
-            <button onClick={() => setShowAdd(false)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Trans>Cancel</Trans></button>
-            <button
-              onClick={handleAdd}
-              disabled={addSaving || !addForm.label.trim() || layoutInvalid(addForm, addLayoutError)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-            >
-              {addSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-              <Trans>Save</Trans>
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Types list */}
-      {loading ? (
+          <Plus className="w-3.5 h-3.5" /> <Trans>Add type</Trans>
+        </Pill>
+      }
+    >
+      {loading && types.length === 0 && !showAdd ? (
         <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
-      ) : types.length === 0 ? (
-        <p className="text-sm text-muted-foreground text-center py-8"><Trans>No book types yet.</Trans></p>
       ) : (
-        <div className="border border-border rounded-xl bg-card overflow-hidden divide-y divide-border">
+        <div className={cn('border-y border-border/70 divide-y divide-border/70', loading && 'opacity-60')}>
+          {showAdd && (
+            <TypeForm
+              heading={<Trans>New type</Trans>}
+              form={addForm}
+              setForm={setAddForm}
+              bookTypeId={null}
+              saving={addSaving}
+              error={addError}
+              onLayoutError={setAddLayoutError}
+              saveDisabled={addSaving || !addForm.label.trim() || layoutInvalid(addForm, addLayoutError)}
+              onCancel={() => setShowAdd(false)}
+              onSave={handleAdd}
+            />
+          )}
+          {types.length === 0 && !showAdd && (
+            <p className="text-[14px] text-muted-foreground py-4"><Trans>No book types yet.</Trans></p>
+          )}
           {types.map(bt => (
             <div key={bt.id}>
               {editId === bt.id ? (
-                <div className="p-4 space-y-3">
-                  <div className="grid grid-cols-2 gap-3">
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block"><Trans>Label</Trans></label>
-                      <input
-                        value={editForm.label}
-                        onChange={e => setEditForm(f => ({ ...f, label: e.target.value }))}
-                        className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block"><Trans>Color</Trans></label>
-                      <select
-                        value={editForm.color}
-                        onChange={e => setEditForm(f => ({ ...f, color: e.target.value as ColorOption }))}
-                        className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                      >
-                        {COLOR_OPTIONS.map(c => <option key={c} value={c}>{c}</option>)}
-                      </select>
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block"><Trans>Icon</Trans></label>
-                      <IconPicker value={editForm.icon} onChange={v => setEditForm(f => ({ ...f, icon: v }))} />
-                    </div>
-                    <div>
-                      <label className="text-xs text-muted-foreground mb-1 block"><Trans>Sort Order</Trans></label>
-                      <input
-                        type="number"
-                        value={editForm.sort_order}
-                        onChange={e => setEditForm(f => ({ ...f, sort_order: Number(e.target.value) }))}
-                        className="tome-select w-full px-3 py-1.5 text-sm rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
-                      />
-                    </div>
-                    <TypeFolderField value={editForm.folder} onChange={v => setEditForm(f => ({ ...f, folder: v }))} />
-                    <TypeLayoutField
-                      form={editForm}
-                      bookTypeId={bt.id}
-                      onChange={patch => setEditForm(f => ({ ...f, ...patch }))}
-                      onError={setEditLayoutError}
-                    />
-                  </div>
-                  {editError && <p className="text-xs text-destructive">{editError}</p>}
-                  <div className="flex items-center gap-2 justify-end">
-                    <button onClick={() => setEditId(null)} className="px-3 py-1.5 rounded-lg text-xs text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"><Trans>Cancel</Trans></button>
-                    <button
-                      onClick={handleEdit}
-                      disabled={editSaving || !editForm.label.trim() || layoutInvalid(editForm, editLayoutError)}
-                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium bg-primary text-primary-foreground hover:opacity-90 disabled:opacity-50 transition-all"
-                    >
-                      {editSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Check className="w-3.5 h-3.5" />}
-                      <Trans>Save</Trans>
-                    </button>
-                  </div>
-                </div>
+                <TypeForm
+                  heading={(() => { const label = bt.label; return <Trans>Edit {label}</Trans> })()}
+                  form={editForm}
+                  setForm={setEditForm}
+                  bookTypeId={bt.id}
+                  saving={editSaving}
+                  error={editError}
+                  onLayoutError={setEditLayoutError}
+                  saveDisabled={editSaving || !editForm.label.trim() || layoutInvalid(editForm, editLayoutError)}
+                  onCancel={() => setEditId(null)}
+                  onSave={handleEdit}
+                />
               ) : (
-                <div className="flex items-center gap-3 px-4 py-3">
+                <div className="flex items-center gap-3 py-2.5">
                   <div className={cn('w-3 h-3 rounded-full shrink-0', COLOR_DOT[(bt.color ?? 'blue') as ColorOption] ?? 'bg-gray-400')} />
-                  <span className="text-sm font-medium flex-1">{bt.label}</span>
-                  <span className="text-xs text-muted-foreground hidden sm:block">{bt.icon}</span>
-                  {bt.folder && <span className="text-xs text-muted-foreground hidden sm:block font-mono">{`${bt.folder}/`}</span>}
-                  <span className="text-xs text-muted-foreground hidden sm:block font-mono">{bt.slug}</span>
+                  <span className="text-[15px] font-medium text-foreground flex-1 min-w-0 truncate">{bt.label}</span>
+                  <span className="text-[13px] text-muted-foreground hidden sm:block">{bt.icon}</span>
+                  {bt.folder && <span className="text-[13px] text-muted-foreground hidden sm:block font-mono">{`${bt.folder}/`}</span>}
+                  <span className="text-[13px] text-muted-foreground hidden sm:block font-mono">{bt.slug}</span>
                   {deleteConfirmId === bt.id ? (
                     <div className="flex items-center gap-1.5 shrink-0">
-                      {deleteError && <span className="text-xs text-destructive mr-1">{deleteError}</span>}
-                      <button
+                      {deleteError && <span className="text-[13px] text-destructive mr-1">{deleteError}</span>}
+                      <Pill
                         onClick={() => handleDelete(bt.id)}
-                        className="flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-destructive text-destructive-foreground hover:opacity-90 transition-colors"
+                        variant="destructive" className="bg-destructive/10 text-destructive"
                       >
-                        <Trash2 className="w-3 h-3" /> <Trans>Confirm</Trans>
-                      </button>
-                      <button
+                        <Trash2 className="w-3.5 h-3.5" /> <Trans>Confirm</Trans>
+                      </Pill>
+                      <Pill
+                        variant="quiet" icon aria-label={t`Cancel`} title={t`Cancel`}
                         onClick={() => { setDeleteConfirmId(null); setDeleteError(null) }}
-                        className="p-1 rounded hover:bg-muted transition-colors text-muted-foreground"
                       >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                        <X className="w-4 h-4" />
+                      </Pill>
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1 shrink-0">
-                      <button
-                        onClick={() => startEdit(bt)}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-foreground"
-                        title={t`Edit`}
-                      >
-                        <Pencil className="w-3.5 h-3.5" />
-                      </button>
-                      <button
-                        onClick={() => { setDeleteConfirmId(bt.id); setDeleteError(null) }}
-                        className="p-1.5 rounded-md hover:bg-muted transition-colors text-muted-foreground hover:text-destructive"
-                        title={t`Delete`}
-                      >
-                        <Trash2 className="w-3.5 h-3.5" />
-                      </button>
+                    <div className="flex items-center gap-0.5 shrink-0">
+                      <Pill variant="quiet" icon aria-label={t`Edit`} title={t`Edit`} onClick={() => { startEdit(bt); setShowAdd(false) }}>
+                        <Pencil className="w-4 h-4" />
+                      </Pill>
+                      <Pill variant="destructive" icon aria-label={t`Delete`} title={t`Delete`} onClick={() => { setDeleteConfirmId(bt.id); setDeleteError(null) }}>
+                        <Trash2 className="w-4 h-4" />
+                      </Pill>
                     </div>
                   )}
                 </div>
@@ -1299,7 +1199,7 @@ function TypesTab() {
           ))}
         </div>
       )}
-    </div>
+    </PanelSection>
   )
 }
 
@@ -1316,21 +1216,21 @@ const ACTION_CATEGORIES: { value: string; label: MessageDescriptor }[] = [
 /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map */
 const ACTION_COLORS: Record<string, string> = {
   'auth.login': 'bg-success/10 text-success border-success/20',
-  'auth.login_failed': 'bg-destructive/10 text-destructive border-destructive/20',
-  'auth.logout': 'bg-muted text-muted-foreground border-border',
+  'auth.login_failed': 'bg-destructive/10 text-destructive',
+  'auth.logout': 'bg-secondary text-muted-foreground',
   'auth.password_changed': 'bg-info/10 text-info border-info/20',
   'auth.impersonated': 'bg-warning/10 text-warning border-warning/20',
   'books.downloaded': 'bg-primary/10 text-primary border-primary/20',
   'books.uploaded': 'bg-success/10 text-success border-success/20',
-  'books.deleted': 'bg-destructive/10 text-destructive border-destructive/20',
+  'books.deleted': 'bg-destructive/10 text-destructive',
   'books.metadata_edited': 'bg-info/10 text-info border-info/20',
   'books.bulk_metadata_edited': 'bg-info/10 text-info border-info/20',
   'users.created': 'bg-success/10 text-success border-success/20',
   'users.updated': 'bg-info/10 text-info border-info/20',
-  'users.deleted': 'bg-destructive/10 text-destructive border-destructive/20',
+  'users.deleted': 'bg-destructive/10 text-destructive',
   'libraries.created': 'bg-success/10 text-success border-success/20',
   'libraries.updated': 'bg-info/10 text-info border-info/20',
-  'libraries.deleted': 'bg-destructive/10 text-destructive border-destructive/20',
+  'libraries.deleted': 'bg-destructive/10 text-destructive',
 }
 /* eslint-enable lingui/no-unlocalized-strings */
 
@@ -1373,66 +1273,76 @@ function AuditTab() {
 
   function fmt(iso: string) {
     const d = new Date(iso)
-    return d.toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'medium' })
+    return d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' })
   }
 
   const totalPages = Math.ceil(total / perPage)
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold"><Trans>Audit Log</Trans></h2>
-        <div className="flex items-center gap-2 flex-wrap">
-          <select value={filterAction} onChange={e => { setFilterAction(e.target.value); setPage(1) }}
-            className="tome-select text-xs border border-border rounded-lg px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary">
+    <PanelSection>
+      <div className="flex items-end gap-3 flex-wrap mb-5">
+        <div>
+          <FormLabel htmlFor="audit-action"><Trans>Action</Trans></FormLabel>
+          <Select id="audit-action" value={filterAction} onChange={e => { setFilterAction(e.target.value); setPage(1) }} className="w-auto min-w-[10rem]">
             {ACTION_CATEGORIES.map(c => <option key={c.value} value={c.value}>{i18n._(c.label)}</option>)}
-          </select>
-          <input type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }}
-            className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
-          <input type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(1) }}
-            className="text-xs border border-border rounded-lg px-2 py-1.5 bg-background text-foreground focus:outline-none focus:ring-1 focus:ring-primary" />
+          </Select>
+        </div>
+        <div>
+          <FormLabel htmlFor="audit-from"><Trans>From</Trans></FormLabel>
+          <Input id="audit-from" type="date" value={fromDate} onChange={e => { setFromDate(e.target.value); setPage(1) }} className="w-auto [color-scheme:light] dark:[color-scheme:dark]" />
+        </div>
+        <div>
+          <FormLabel htmlFor="audit-to"><Trans>To</Trans></FormLabel>
+          <Input id="audit-to" type="date" value={toDate} onChange={e => { setToDate(e.target.value); setPage(1) }} className="w-auto [color-scheme:light] dark:[color-scheme:dark]" />
         </div>
       </div>
 
-      {loading ? (
+      {loading && items.length === 0 ? (
         <div className="flex justify-center py-16">
           <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
         </div>
       ) : items.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground text-sm"><Trans>No audit entries yet.</Trans></div>
+        <div className="py-4 text-muted-foreground text-[14px]"><Trans>No audit entries yet.</Trans></div>
       ) : (
-        <div className="flex flex-col gap-1">
+        <div className={cn('border-y border-border/70 divide-y divide-border/70 transition-opacity', loading && 'opacity-50')}>
+          <div className={cn('hidden sm:flex items-center gap-3 py-2.5', TABLE_HEAD)}>
+            <span className="w-7" />
+            <span className="flex-1"><Trans>Action</Trans></span>
+            <span className="w-28"><Trans>User</Trans></span>
+            <span className="w-44"><Trans>Time</Trans></span>
+            <span className="w-3.5" />
+          </div>
           {items.map(entry => {
             // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
-            const colorClass = ACTION_COLORS[entry.action] ?? 'bg-muted text-muted-foreground border-border'
+            const colorClass = ACTION_COLORS[entry.action] ?? 'bg-secondary text-muted-foreground'
             const isExpanded = expandedId === entry.id
             const parsed = entry.details ? (() => { try { return JSON.parse(entry.details) } catch { return null } })() : null
             return (
-              <div key={entry.id} className="border border-border rounded-xl bg-card overflow-hidden">
-                <button className="w-full text-left flex items-center gap-3 px-4 py-3 hover:bg-accent/50 transition-colors"
+              <div key={entry.id}>
+                <button className="w-full text-left flex items-center gap-3 py-2.5 hover:bg-secondary/50 transition-colors"
                   onClick={() => setExpandedId(isExpanded ? null : entry.id)}>
                   {/* User avatar */}
-                  <div className="w-7 h-7 rounded-full bg-muted flex items-center justify-center text-xs font-bold text-muted-foreground shrink-0">
+                  <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[12px] font-bold text-muted-foreground shrink-0">
                     {entry.username ? entry.username[0].toUpperCase() : '?'}
                   </div>
-                  {/* Action badge */}
-                  <span className={cn('text-[10px] font-mono px-1.5 py-0.5 rounded border shrink-0', colorClass)}>
-                    {entry.action}
-                  </span>
-                  {/* Resource title */}
-                  {entry.resource_title && (
-                    <span className="text-xs text-foreground font-medium truncate flex-1 min-w-0">
-                      {entry.resource_title}
+                  <div className="flex-1 min-w-0 flex items-center gap-2">
+                    {/* Action badge */}
+                    <span className={cn('text-[12px] font-mono px-2 py-0.5 rounded-md shrink-0', colorClass)}>
+                      {entry.action}
                     </span>
-                  )}
-                  <div className="ml-auto flex items-center gap-3 shrink-0">
-                    <span className="text-xs text-muted-foreground hidden sm:block">{entry.username ?? '—'}</span>
-                    <span className="text-xs text-muted-foreground">{fmt(entry.created_at)}</span>
-                    {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                    {/* Resource title */}
+                    {entry.resource_title && (
+                      <span className="text-[14px] text-foreground font-medium truncate min-w-0">
+                        {entry.resource_title}
+                      </span>
+                    )}
                   </div>
+                  <span className="w-28 text-[13px] text-muted-foreground hidden sm:block truncate">{entry.username ?? '-'}</span>
+                  <span className="sm:w-44 text-[13px] text-muted-foreground whitespace-nowrap shrink-0">{fmt(entry.created_at)}</span>
+                  {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
                 </button>
                 {isExpanded && (
-                  <div className="px-4 pb-3 pt-0 border-t border-border bg-muted/30 text-xs text-muted-foreground flex flex-col gap-1.5">
+                  <div className="pb-3 pl-10 text-[13px] text-muted-foreground flex flex-col gap-1.5">
                     {entry.ip_address && <div><span className="font-medium text-foreground"><Trans>IP:</Trans></span> {entry.ip_address}</div>}
                     {entry.resource_type && entry.resource_id && (
                       <div><span className="font-medium text-foreground"><Trans>Resource:</Trans></span> {entry.resource_type} #{entry.resource_id}</div>
@@ -1440,7 +1350,7 @@ function AuditTab() {
                     {parsed && (
                       <div>
                         <span className="font-medium text-foreground"><Trans>Details:</Trans></span>
-                        <pre className="mt-1 p-2 rounded bg-background text-[10px] overflow-x-auto border border-border">
+                        <pre className="mt-1.5 p-3 rounded-[var(--radius-panel)] bg-card text-[12px] overflow-x-auto">
                           {JSON.stringify(parsed, null, 2)}
                         </pre>
                       </div>
@@ -1455,19 +1365,17 @@ function AuditTab() {
 
       {/* Pagination */}
       {totalPages > 1 && (
-        <div className="flex items-center justify-center gap-2 pt-2">
-          <button onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}
-            className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent disabled:opacity-40 transition-colors">
+        <div className="flex items-center justify-center gap-2 pt-5">
+          <Pill variant="secondary" onClick={() => setPage(p => Math.max(1, p - 1))} disabled={page === 1}>
             <Trans>Previous</Trans>
-          </button>
-          <span className="text-xs text-muted-foreground">{page} / {totalPages}</span>
-          <button onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}
-            className="px-3 py-1.5 text-xs rounded-lg border border-border hover:bg-accent disabled:opacity-40 transition-colors">
+          </Pill>
+          <span className="text-[13px] text-muted-foreground tabular-nums px-2">{page} / {totalPages}</span>
+          <Pill variant="secondary" onClick={() => setPage(p => Math.min(totalPages, p + 1))} disabled={page === totalPages}>
             <Trans>Next</Trans>
-          </button>
+          </Pill>
         </div>
       )}
-    </div>
+    </PanelSection>
   )
 }
 
@@ -1491,7 +1399,7 @@ interface SyncRecord {
 type SyncSortKey = 'book_title' | 'username' | 'status' | 'progress_pct' | 'last_synced' | 'device' | 'source'
 
 function relativeTime(iso: string | null): string {
-  if (!iso) return '—'
+  if (!iso) return '-'
   const diff = Date.now() - new Date(iso).getTime()
   const mins = Math.floor(diff / 60_000)
   if (mins < 1) return t`just now`
@@ -1501,6 +1409,14 @@ function relativeTime(iso: string | null): string {
   const days = Math.floor(hrs / 24)
   if (days < 30) return t`${days}d ago`
   return new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' })
+}
+
+/** Progress is stored as a fraction (0-1). A few rows written outside the
+ *  API (seed scripts, old clients) hold a percentage instead; read anything
+ *  above 1 as one, and never show more than 100%. */
+function formatSyncPct(v: number): string {
+  const pct = Math.min(100, Math.max(0, v > 1 ? v : v * 100))
+  return `${pct.toFixed(1)}%`
 }
 
 const SYNC_STATUS_LABELS: Record<string, MessageDescriptor> = {
@@ -1513,13 +1429,13 @@ function StatusBadge({ status }: { status: SyncRecord['status'] }) {
   /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const cls =
     status === 'read'
-      ? 'bg-success/10 text-success border-success/20'
+      ? 'bg-success/10 text-success'
       : status === 'reading'
-        ? 'bg-info/10 text-info border-info/20'
-        : 'bg-muted text-muted-foreground border-border'
+        ? 'bg-info/10 text-info'
+        : 'bg-secondary text-muted-foreground'
   /* eslint-enable lingui/no-unlocalized-strings */
   return (
-    <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded border whitespace-nowrap', cls)}>
+    <span className={cn('text-[12px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap', cls)}>
       {SYNC_STATUS_LABELS[status] ? i18n._(SYNC_STATUS_LABELS[status]) : status}
     </span>
   )
@@ -1530,11 +1446,11 @@ function SourceBadge({ source }: { source: SyncRecord['source'] }) {
   /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const cls =
     source === 'tomesync'
-      ? 'bg-primary/10 text-primary border-primary/20'
-      : 'bg-muted text-muted-foreground border-border'
+      ? 'bg-primary/10 text-primary'
+      : 'bg-secondary text-muted-foreground'
   /* eslint-enable lingui/no-unlocalized-strings */
   return (
-    <span className={cn('text-[10px] font-medium px-1.5 py-0.5 rounded border whitespace-nowrap', cls)}>
+    <span className={cn('text-[12px] font-medium px-2 py-0.5 rounded-full whitespace-nowrap', cls)}>
       {source === 'tomesync' ? 'TomeSync' : t`Web`}
     </span>
   )
@@ -1563,7 +1479,7 @@ function SyncStatusTab() {
       await api.delete(`/admin/sync-status/${r.user_id}/${r.book_id}`)
       setRecords(prev => prev.filter(x => !(x.user_id === r.user_id && x.book_id === r.book_id)))
     } catch {
-      // silently ignore — user stays in list
+      // silently ignore - user stays in list
     } finally {
       setDeleting(null)
     }
@@ -1599,10 +1515,10 @@ function SyncStatusTab() {
     const active = sortKey === col
     return (
       <th
-        className="px-3 py-2.5 text-left text-xs font-medium text-muted-foreground cursor-pointer select-none hover:text-foreground transition-colors"
+        className={cn('px-2.5 first:pl-0 py-2.5 text-left whitespace-nowrap cursor-pointer select-none hover:text-foreground transition-colors', TABLE_HEAD, 'tracking-[0.04em]')}
         onClick={() => handleSort(col)}
       >
-        <span className="flex items-center gap-1">
+        <span className="flex items-center gap-0.5">
           {label}
           {active ? (
             sortDir === 'asc'
@@ -1626,49 +1542,51 @@ function SyncStatusTab() {
 
   if (error) {
     return (
-      <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
-        {error}
-      </div>
+      <PanelSection>
+        <div className="px-3 py-2 rounded-lg bg-destructive/10 text-[14px] text-destructive">
+          {error}
+        </div>
+      </PanelSection>
     )
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-sm font-semibold"><Trans>Sync Status</Trans></h2>
-        <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+    <PanelSection
+      action={
+        <span className="flex items-center gap-1.5 text-[13px] font-normal text-muted-foreground">
           <Activity className="w-3.5 h-3.5" />
-          <span><Plural value={records.length} one="# record" other="# records" /></span>
-        </div>
-      </div>
-
+          <Plural value={records.length} one="# record" other="# records" />
+        </span>
+      }
+    >
       {sorted.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">
+        <div className="py-4 text-muted-foreground text-[14px]">
           <Trans>No reading activity yet. Records appear when users start reading books.</Trans>
         </div>
       ) : (
-        <div className="border border-border rounded-xl overflow-hidden">
+        <div className="border-y border-border/70">
           <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead className="border-b border-border bg-muted/40">
+            <table className="w-full text-[13px]">
+              <thead className="border-b border-border/70">
                 <tr>
                   <ColHeader label={t`Book`} col="book_title" />
                   <ColHeader label={t`User`} col="username" />
                   <ColHeader label={t`Status`} col="status" />
                   <ColHeader label={t`Progress`} col="progress_pct" />
-                  <ColHeader label={t`Last Synced`} col="last_synced" />
+                  <ColHeader label={t`Last synced`} col="last_synced" />
                   <ColHeader label={t`Device`} col="device" />
                   <ColHeader label={t`Source`} col="source" />
-                  <th className="px-3 py-2.5 w-8" />
+                  <th className="pl-3 pr-0 py-2.5 w-10" />
+
                 </tr>
               </thead>
-              <tbody className="divide-y divide-border">
+              <tbody className="divide-y divide-border/70">
                 {sorted.map((r, i) => {
                   const key = `${r.user_id}-${r.book_id}`
                   const isDeleting = deleting === key
                   return (
-                  <tr key={`${key}-${i}`} className="bg-card hover:bg-accent/40 transition-colors">
-                    <td className="px-3 py-2.5 max-w-[220px]">
+                  <tr key={`${key}-${i}`} className="hover:bg-secondary/50 transition-colors">
+                    <td className="pl-0 pr-2.5 py-2.5 max-w-[200px]">
                       <div className="font-medium text-foreground truncate" title={r.book_title}>{r.book_title}</div>
                       {r.book_author && (
                         <div className="text-muted-foreground truncate" title={r.book_author}>{r.book_author}</div>
@@ -1679,31 +1597,31 @@ function SyncStatusTab() {
                         </div>
                       )}
                     </td>
-                    <td className="px-3 py-2.5 text-foreground font-medium whitespace-nowrap">{r.username}</td>
-                    <td className="px-3 py-2.5"><StatusBadge status={r.status} /></td>
-                    <td className="px-3 py-2.5 whitespace-nowrap">
-                      {r.progress_pct != null
-                        ? `${(r.progress_pct * 100).toFixed(1)}%`
-                        : '—'}
+                    <td className="px-2.5 py-2.5 text-foreground font-medium whitespace-nowrap">{r.username}</td>
+                    <td className="px-2.5 py-2.5"><StatusBadge status={r.status} /></td>
+                    <td className="px-2.5 py-2.5 whitespace-nowrap">
+                      {r.progress_pct != null ? formatSyncPct(r.progress_pct) : '-'}
                     </td>
-                    <td className="px-3 py-2.5 whitespace-nowrap text-muted-foreground" title={r.last_synced ?? undefined}>
+                    <td className="px-2.5 py-2.5 whitespace-nowrap text-muted-foreground" title={r.last_synced ?? undefined}>
                       {relativeTime(r.last_synced)}
                     </td>
-                    <td className="px-3 py-2.5 text-muted-foreground max-w-[140px] truncate" title={r.device ?? undefined}>
-                      {r.device ?? '—'}
+                    <td className="px-2.5 py-2.5 text-muted-foreground max-w-[140px] truncate" title={r.device ?? undefined}>
+                      {r.device ?? '-'}
                     </td>
-                    <td className="px-3 py-2.5"><SourceBadge source={r.source} /></td>
-                    <td className="px-3 py-2.5">
-                      <button
+                    <td className="px-2.5 py-2.5"><SourceBadge source={r.source} /></td>
+                    <td className="pl-3 pr-0 py-1.5 text-right">
+                      <Pill
+                        variant="destructive"
+                        icon
                         onClick={() => handleDelete(r)}
                         disabled={isDeleting}
-                        className="p-1 rounded text-muted-foreground hover:text-destructive hover:bg-destructive/10 transition-colors disabled:opacity-40"
+                        aria-label={t`Delete sync record`}
                         title={t`Delete sync record`}
                       >
                         {isDeleting
-                          ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                          : <Trash2 className="w-3.5 h-3.5" />}
-                      </button>
+                          ? <Loader2 className="w-4 h-4 animate-spin" />
+                          : <Trash2 className="w-4 h-4" />}
+                      </Pill>
                     </td>
                   </tr>
                   )
@@ -1713,7 +1631,7 @@ function SyncStatusTab() {
           </div>
         </div>
       )}
-    </div>
+    </PanelSection>
   )
 }
 
@@ -1744,15 +1662,15 @@ interface DuplicatesResponse {
 }
 
 const MATCH_REASON_LABEL: Record<DuplicateGroup['match_reason'], MessageDescriptor> = {
-  content_hash: msg`Exact Match`,
+  content_hash: msg`Exact match`,
   isbn: msg`Same ISBN`,
-  same_series_volume: msg`Same Series Volume`,
-  similar_title: msg`Similar Title`,
+  same_series_volume: msg`Same series volume`,
+  similar_title: msg`Similar title`,
 }
 
 /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map */
 const MATCH_REASON_STYLE: Record<DuplicateGroup['match_reason'], string> = {
-  content_hash: 'bg-destructive/10 text-destructive border-destructive/20',
+  content_hash: 'bg-destructive/10 text-destructive',
   isbn: 'bg-warning/10 text-warning border-warning/20',
   same_series_volume: 'bg-purple-500/10 text-purple-600 border-purple-500/20',
   similar_title: 'bg-info/10 text-info border-info/20',
@@ -1760,7 +1678,7 @@ const MATCH_REASON_STYLE: Record<DuplicateGroup['match_reason'], string> = {
 /* eslint-enable lingui/no-unlocalized-strings */
 
 function formatBytes(bytes: number | null): string {
-  if (bytes == null) return '—'
+  if (bytes == null) return '-'
   if (bytes < 1024) return `${bytes} B`
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
   return `${(bytes / 1024 / 1024).toFixed(1)} MB`
@@ -1869,34 +1787,38 @@ function DuplicatesTab() {
 
   if (error) {
     return (
-      <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
-        {error}
-      </div>
+      <PanelSection>
+        <div className="px-3 py-2 rounded-lg bg-destructive/10 text-[14px] text-destructive">
+          {error}
+        </div>
+      </PanelSection>
     )
   }
 
   return (
-    <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          <Copy className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold"><Trans>Duplicate Detection</Trans></h2>
-        </div>
-        <button
+    <PanelSection
+
+      description={groups.length > 0 ? <>
+        {plural(groups.length, { one: '# duplicate group found.', other: '# duplicate groups found.' })}{' '}
+        <Trans>Pick which book to keep and an action per group (Merge, Delete others or Dismiss), then apply everything at once.</Trans>
+      </> : <Trans>No duplicates found. Your library looks clean.</Trans>}
+      action={
+        <Pill
           onClick={fetchGroups}
-          className="flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground"
+          variant="secondary"
         >
           <RefreshCw className="w-3.5 h-3.5" />
           <Trans>Refresh</Trans>
-        </button>
-      </div>
-
+        </Pill>
+      }
+    >
+    <div className="flex flex-col gap-6">
       {applyResult && (
         <div className={cn(
-          'rounded-xl border p-4 text-xs space-y-1',
+          'rounded-lg px-4 py-3 text-[13px] space-y-1',
           applyResult.failed.length
-            ? 'border-warning/20 bg-warning/5'
-            : 'border-success/20 bg-success/5',
+            ? 'bg-warning/10'
+            : 'bg-success/10',
         )}>
           <p className={cn('font-medium', applyResult.failed.length ? 'text-warning' : 'text-success')}>
             <Plural value={applyResult.applied} one="Applied # group" other="Applied # groups" />
@@ -1910,43 +1832,32 @@ function DuplicatesTab() {
         </div>
       )}
 
-      {groups.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">
-          <Trans>No duplicates found. Your library looks clean.</Trans>
-        </div>
-      ) : (
-        <div className="flex flex-col gap-4">
-          <p className="text-xs text-muted-foreground">
-            {plural(groups.length, { one: '# duplicate group found.', other: '# duplicate groups found.' })}{' '}
-            <Trans>Pick which book to keep and an action per group — Merge, Delete Others, or Dismiss — then apply everything at once.</Trans>
-          </p>
+      {groups.length === 0 ? null : (
+        <div className="flex flex-col border-t border-border/70">
           {groups.map(group => {
             const decision = decisions[group.group_id]
             const othersCount = group.books.filter(b => b.id !== keepIds[group.group_id]).length
             return (
-              <div key={group.group_id} className={cn(
-                'border rounded-xl bg-card overflow-hidden transition-colors',
-                decision ? 'border-primary/40' : 'border-border',
-              )}>
+              <div key={group.group_id} data-testid="duplicate-group" className="border-b border-border/70 py-5">
                 {/* Group header */}
-                <div className="flex items-center justify-between px-4 py-3 border-b border-border bg-muted/30">
+                <div className="flex items-center justify-between gap-3 flex-wrap">
                   <span className={cn(
-                    'text-[10px] font-medium px-2 py-0.5 rounded border',
+                    'text-[12px] font-medium px-2 py-0.5 rounded border',
                     MATCH_REASON_STYLE[group.match_reason],
                   )}>
                     {i18n._(MATCH_REASON_LABEL[group.match_reason])}
                   </span>
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1.5 flex-wrap">
                     <button
                       onClick={() => toggleDecision(group.group_id, 'dismiss')}
                       disabled={applying}
                       className={cn(
-                        'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50',
+                        'flex items-center gap-1.5 h-9 px-4 text-[14px] font-medium rounded-full transition-colors disabled:opacity-50',
                         decision === 'dismiss'
-                          ? 'bg-accent text-foreground border-primary/40'
-                          : 'border-border hover:bg-accent text-muted-foreground',
+                          ? 'bg-foreground text-background'
+                          : 'bg-secondary text-foreground hover:bg-surface-hover',
                       )}
-                      title={t`Queue: not a duplicate — never show this group again`}
+                      title={t`Queue: not a duplicate, never show this group again`}
                     >
                       <X className="w-3.5 h-3.5" />
                       <Trans>Dismiss</Trans>
@@ -1955,10 +1866,10 @@ function DuplicatesTab() {
                       onClick={() => toggleDecision(group.group_id, 'merge')}
                       disabled={applying || keepIds[group.group_id] == null}
                       className={cn(
-                        'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50',
+                        'flex items-center gap-1.5 h-9 px-4 text-[14px] font-medium rounded-full transition-colors disabled:opacity-50',
                         decision === 'merge'
-                          ? 'bg-primary text-primary-foreground border-primary'
-                          : 'border-border hover:bg-accent text-muted-foreground',
+                          ? 'bg-primary text-primary-foreground'
+                          : 'bg-secondary text-foreground hover:bg-surface-hover',
                       )}
                       title={t`Queue: fold the other copies into the kept book`}
                     >
@@ -1969,45 +1880,45 @@ function DuplicatesTab() {
                       onClick={() => toggleDecision(group.group_id, 'delete')}
                       disabled={applying || keepIds[group.group_id] == null}
                       className={cn(
-                        'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md border transition-colors disabled:opacity-50',
+                        'flex items-center gap-1.5 h-9 px-4 text-[14px] font-medium rounded-full transition-colors disabled:opacity-50',
                         decision === 'delete'
-                          ? 'bg-destructive text-destructive-foreground border-destructive'
-                          : 'border-border hover:bg-accent text-muted-foreground',
+                          ? 'bg-destructive text-destructive-foreground'
+                          : 'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
                       )}
-                      title={t`Queue: keep the selected book and delete the others — their files are removed from disk`}
+                      title={t`Queue: keep the selected book and delete the others. Their files are removed from disk.`}
                     >
                       <Trash2 className="w-3.5 h-3.5" />
-                      {decision === 'delete' ? plural(othersCount, { one: 'Delete # other', other: 'Delete # others' }) : t`Delete Others`}
+                      {decision === 'delete' ? plural(othersCount, { one: 'Delete # other', other: 'Delete # others' }) : t`Delete others`}
                     </button>
                   </div>
                 </div>
 
                 {/* Books */}
-                <div className="flex flex-wrap gap-4 px-4 py-4">
+                <div className="flex flex-wrap gap-3 pt-4">
                   {group.books.map(book => {
                     const isKeep = keepIds[group.group_id] === book.id
                     return (
                       <label
                         key={book.id}
                         className={cn(
-                          'flex flex-col gap-2 p-3 rounded-lg border cursor-pointer transition-all select-none w-full sm:w-56',
+                          'flex flex-col gap-2 p-3 rounded-lg cursor-pointer transition-colors select-none w-full sm:w-60',
                           isKeep
-                            ? 'border-primary bg-primary/5 ring-1 ring-primary/30'
-                            : 'border-border bg-background hover:border-primary/50',
+                            ? 'bg-primary/10 ring-1 ring-primary/40'
+                            : 'bg-card hover:bg-secondary',
                         )}
                       >
                         <div className="flex items-start gap-3">
                           {/* Radio */}
-                          <input
-                            type="radio"
+                          <Radio
                             name={`keep-${group.group_id}`}
                             value={book.id}
                             checked={isKeep}
                             onChange={() => setKeepIds(prev => ({ ...prev, [group.group_id]: book.id }))}
-                            className="mt-0.5 shrink-0 accent-primary"
+                            aria-label={t`Keep this one`}
+                            className="shrink-0"
                           />
                           {/* Cover */}
-                          <div className="relative w-10 h-14 rounded bg-muted shrink-0 overflow-hidden">
+                          <div className="relative w-10 h-14 rounded-[6px] bg-muted shrink-0 overflow-hidden" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
                             <CoverImage
                               src={book.cover_path ? coverSrc(book.id, { w: 160 }) : null}
                               alt=""
@@ -2016,15 +1927,15 @@ function DuplicatesTab() {
                           </div>
                           {/* Meta */}
                           <div className="flex flex-col gap-0.5 min-w-0 flex-1">
-                            <p className="text-xs font-medium text-foreground leading-snug line-clamp-2">{book.title}</p>
+                            <p className="text-[14px] font-medium text-foreground leading-snug line-clamp-2">{book.title}</p>
                             {book.subtitle && (
-                              <p className="text-[10px] text-muted-foreground line-clamp-1">{book.subtitle}</p>
+                              <p className="text-[12px] text-muted-foreground line-clamp-1">{book.subtitle}</p>
                             )}
                             {book.author && (
-                              <p className="text-[10px] text-muted-foreground">{book.author}</p>
+                              <p className="text-[12px] text-muted-foreground">{book.author}</p>
                             )}
                             {book.year && (
-                              <p className="text-[10px] text-muted-foreground">{book.year}</p>
+                              <p className="text-[12px] text-muted-foreground">{book.year}</p>
                             )}
                           </div>
                         </div>
@@ -2035,21 +1946,21 @@ function DuplicatesTab() {
                               <span
                                 key={f.id}
                                 className={cn(
-                                  'text-[10px] px-1.5 py-0.5 rounded border font-mono',
+                                  'text-[12px] px-2 py-0.5 rounded-full font-mono',
                                   f.path_exists
-                                    ? 'bg-muted text-muted-foreground border-border'
-                                    : 'bg-destructive/10 text-destructive border-destructive/20',
+                                    ? 'bg-secondary text-muted-foreground'
+                                    : 'bg-destructive/10 text-destructive',
                                 )}
                                 title={f.path_exists ? undefined : t`File is missing from disk`}
                               >
                                 {f.format.toUpperCase()} {formatBytes(f.file_size)}
-                                {!f.path_exists && t` — MISSING`}
+                                {!f.path_exists && t` (missing)`}
                               </span>
                             ))}
                           </div>
                         )}
                         {isKeep && (
-                          <span className="text-[10px] font-medium text-primary"><Trans>Keep this one</Trans></span>
+                          <span className="text-[12px] font-medium text-primary"><Trans>Keep this one</Trans></span>
                         )}
                       </label>
                     )
@@ -2060,9 +1971,9 @@ function DuplicatesTab() {
           })}
 
           {(decidedGroups.length > 0 || applying) && (
-            <div className="sticky bottom-16 sm:bottom-4 z-10 flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-xl border border-border bg-card shadow-lg">
+            <div className="sticky bottom-16 sm:bottom-4 z-10 mt-5 flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-[var(--radius-panel)] bg-card shadow-lg ring-1 ring-border/70">
               {/* bottom-16 below sm clears the fixed keyboard-shortcuts FAB */}
-              <span className="text-xs text-muted-foreground min-w-0">
+              <span className="text-[13px] text-muted-foreground min-w-0">
                 {[
                   mergeCount > 0 ? plural(mergeCount, { one: 'merge # group', other: 'merge # groups' }) : null,
                   deleteBookCount > 0 ? plural(deleteBookCount, { one: 'delete # book (removes files)', other: 'delete # books (removes files)' }) : null,
@@ -2071,25 +1982,25 @@ function DuplicatesTab() {
               </span>
               <div className="flex items-center gap-2 shrink-0 ml-auto">
                 {confirmApply && !applying && (
-                  <button
+                  <Pill
                     onClick={() => setConfirmApply(false)}
-                    className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground"
+                    variant="secondary"
                   >
                     <Trans>Cancel</Trans>
-                  </button>
+                  </Pill>
                 )}
-                <button
+                <Pill
                   onClick={() => { setDecisions({}); setConfirmApply(false) }}
                   disabled={applying}
-                  className="px-3 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground disabled:opacity-50"
+                  variant="secondary"
                 >
                   <Trans>Clear</Trans>
-                </button>
+                </Pill>
                 <button
                   onClick={() => confirmApply ? applyAll() : setConfirmApply(true)}
                   disabled={applying}
                   className={cn(
-                    'flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-md transition-opacity disabled:opacity-50',
+                    'flex items-center gap-1.5 h-9 px-4 text-[14px] font-semibold rounded-full transition-opacity disabled:opacity-50',
                     deleteBookCount > 0
                       ? 'bg-destructive text-destructive-foreground hover:opacity-90'
                       : 'bg-primary text-primary-foreground hover:opacity-90',
@@ -2103,8 +2014,8 @@ function DuplicatesTab() {
                     return applying
                       ? t`Applying ${done}/${total}…`
                       : confirmApply
-                      ? plural(n, { one: 'Confirm — apply # decision', other: 'Confirm — apply # decisions' })
-                      : t`Apply All (${n})`
+                      ? plural(n, { one: 'Confirm: apply # decision', other: 'Confirm: apply # decisions' })
+                      : t`Apply all (${n})`
                   })()}
                 </button>
               </div>
@@ -2113,6 +2024,7 @@ function DuplicatesTab() {
         </div>
       )}
     </div>
+    </PanelSection>
   )
 }
 
@@ -2219,67 +2131,68 @@ function FulfillPicker({
 
   const displayBooks = searchQuery.trim() ? searchResults : suggestedBooks
 
-  // Whole-series wishes are standing wants — they are not fulfilled by a single
+  // Whole-series wishes are standing wants - they are not fulfilled by a single
   // volume. Instead of the book picker, offer a deliberate "mark complete".
   if (isWholeSeries) {
     const n = wish.suggested_book_ids?.length ?? 0
     return (
-      <div className="border border-primary/20 bg-primary/5 rounded-xl p-4 space-y-3">
+      <div className="border-t border-border/70 pt-4 space-y-3">
         <div className="flex items-center justify-between">
-          {(() => { const title = wish.title; return <p className="text-xs font-semibold text-foreground"><Trans>Complete series: {title}</Trans></p> })()}
-          <button onClick={onCancel} className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors">
-            <X className="w-3.5 h-3.5" />
-          </button>
+          {(() => { const title = wish.title; return <p className="text-[15px] font-semibold text-foreground"><Trans>Complete series: {title}</Trans></p> })()}
+          <Pill variant="quiet" icon aria-label={t`Cancel`} title={t`Cancel`} onClick={onCancel}>
+            <X className="w-4 h-4" />
+          </Pill>
         </div>
-        <p className="text-xs text-muted-foreground leading-relaxed">
-          <Trans>This is a whole-series wish — it stays open as volumes arrive.</Trans>{' '}
+        <p className="text-[13px] text-muted-foreground leading-relaxed">
+          <Trans>This is a whole-series wish. It stays open as volumes arrive.</Trans>{' '}
           {n > 0
             ? plural(n, { one: '# matching volume currently in the library.', other: '# matching volumes currently in the library.' })
             : t`No matching volumes in the library yet.`}{' '}
           <Trans>Mark it complete when you consider the series fully available; the requester will be notified.</Trans>
         </p>
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && <p className="text-[13px] text-destructive">{error}</p>}
         <div className="flex items-center justify-end gap-2 pt-1">
-          <button onClick={onCancel} className="px-2.5 py-1 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground">
+          <Pill onClick={onCancel} variant="quiet">
             <Trans>Cancel</Trans>
-          </button>
-          <button
+          </Pill>
+          <Pill
             onClick={handleComplete}
             disabled={fulfilling}
-            className="flex items-center gap-1 px-3 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
+            variant="primary"
           >
             {fulfilling ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
             <Trans>Mark complete</Trans>
-          </button>
+          </Pill>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="border border-primary/20 bg-primary/5 rounded-xl p-4 space-y-3">
+    <div className="border-t border-border/70 pt-4 space-y-3">
       <div className="flex items-center justify-between">
-        {(() => { const title = wish.title; return <p className="text-xs font-semibold text-foreground"><Trans>Fulfill: {title}</Trans></p> })()}
-        <button onClick={onCancel} className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors">
-          <X className="w-3.5 h-3.5" />
-        </button>
+        {(() => { const title = wish.title; return <p className="text-[15px] font-semibold text-foreground"><Trans>Fulfill: {title}</Trans></p> })()}
+        <Pill variant="quiet" icon aria-label={t`Cancel`} title={t`Cancel`} onClick={onCancel}>
+          <X className="w-4 h-4" />
+        </Pill>
       </div>
 
       {/* Search */}
       <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground pointer-events-none" />
-        <input
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-muted-foreground pointer-events-none" />
+        <Input
           value={searchQuery}
           onChange={e => handleSearchChange(e.target.value)}
           placeholder={suggestedBooks.length > 0 ? t`Search for a different book…` : t`Search for a book in the library…`}
-          className="w-full h-8 pl-7 pr-3 text-xs rounded-lg border border-border bg-background focus:outline-none focus:ring-1 focus:ring-ring"
+          className="pl-8"
         />
         {searching && <Loader2 className="absolute right-2.5 top-1/2 -translate-y-1/2 w-3 h-3 text-muted-foreground animate-spin" />}
       </div>
 
       {/* Suggested / search results */}
       {!searchQuery && suggestedBooks.length > 0 && (
-        <p className="text-[10px] text-muted-foreground"><Plural value={suggestedBooks.length} one="Suggested match:" other="Suggested matches:" /></p>
+        <p className="text-[12px] text-muted-foreground"><Plural value={suggestedBooks.length}
+ one="Suggested match:" other="Suggested matches:" /></p>
       )}
       {displayBooks.length > 0 && (
         <div className="space-y-1.5 max-h-48 overflow-y-auto">
@@ -2287,11 +2200,12 @@ function FulfillPicker({
             <button
               key={book.id}
               onClick={() => setSelectedId(book.id)}
+              // The ring is inset: the list scrolls, and an outer ring is clipped to its corners.
               className={cn(
-                'w-full flex items-center gap-2 p-2 rounded-lg border text-left transition-all',
+                'w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors',
                 selectedId === book.id
-                  ? 'border-primary bg-primary/10 ring-1 ring-primary/30'
-                  : 'border-border bg-background hover:border-primary/40'
+                  ? 'bg-secondary ring-1 ring-inset ring-foreground/25'
+                  : 'hover:bg-secondary'
               )}
             >
               <div className="w-7 h-10 rounded bg-muted shrink-0 overflow-hidden flex items-center justify-center">
@@ -2302,35 +2216,36 @@ function FulfillPicker({
                 )}
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-xs font-medium text-foreground truncate">{book.title}</p>
-                {book.author && <p className="text-[10px] text-muted-foreground truncate">{book.author}</p>}
+                <p className="text-[14px] font-medium text-foreground truncate">{book.title}</p>
+                {book.author && <p className="text-[12px] text-muted-foreground truncate">{book.author}</p>}
               </div>
+              {selectedId === book.id && <Check className="w-4 h-4 text-foreground shrink-0 mr-1" />}
             </button>
           ))}
         </div>
       )}
 
       {!searchQuery && suggestedBooks.length === 0 && !searching && (
-        <p className="text-xs text-muted-foreground"><Trans>No suggested match yet — search for the book to link, or upload it first.</Trans></p>
+        <p className="text-[13px] text-muted-foreground"><Trans>No suggested match yet. Search for the book to link, or upload it first.</Trans></p>
       )}
       {searchQuery && !searching && searchResults.length === 0 && (
-        <p className="text-xs text-muted-foreground"><Trans>No books found. Upload the book first, then fulfill.</Trans></p>
+        <p className="text-[13px] text-muted-foreground"><Trans>No books found. Upload the book first, then fulfill.</Trans></p>
       )}
 
-      {error && <p className="text-xs text-destructive">{error}</p>}
+      {error && <p className="text-[13px] text-destructive">{error}</p>}
 
       <div className="flex items-center justify-end gap-2 pt-1">
-        <button onClick={onCancel} className="px-2.5 py-1 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground">
+        <Pill onClick={onCancel} variant="quiet">
           <Trans>Cancel</Trans>
-        </button>
-        <button
+        </Pill>
+        <Pill
           onClick={handleSubmit}
           disabled={fulfilling || !selectedId}
-          className="flex items-center gap-1 px-3 py-1 text-xs rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-50"
+          variant="primary"
         >
           {fulfilling && <Loader2 className="w-3 h-3 animate-spin" />}
           <Trans>Fulfill</Trans>
-        </button>
+        </Pill>
       </div>
     </div>
   )
@@ -2383,50 +2298,37 @@ function WishlistTab() {
     }
   }
 
-  const STATUS_TABS: { id: WishStatus; label: string }[] = [
-    { id: 'open', label: t`Open` },
-    { id: 'fulfilled', label: t`Fulfilled` },
-    { id: 'dismissed', label: t`Dismissed` },
+  const STATUS_TABS: { value: WishStatus; label: string }[] = [
+    { value: 'open', label: t`Open` },
+    { value: 'fulfilled', label: t`Fulfilled` },
+    { value: 'dismissed', label: t`Dismissed` },
   ]
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between flex-wrap gap-2">
-        <div className="flex items-center gap-2">
-          <Sparkles className="w-4 h-4 text-muted-foreground" />
-          <h2 className="text-sm font-semibold"><Trans>Wishlist</Trans></h2>
-          <a
-            href={docsLink(DOCS.wishlist)}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors"
-          >
-            <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
-        <div className="flex items-center gap-1">
-          {STATUS_TABS.map(t => (
-            <button
-              key={t.id}
-              onClick={() => setStatusFilter(t.id)}
-              className={cn(
-                'px-3 py-1.5 rounded-md text-xs font-medium transition-all',
-                statusFilter === t.id
-                  ? 'bg-muted text-foreground shadow-sm'
-                  : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-              )}
-            >
-              {t.label}
-            </button>
-          ))}
-          <button onClick={load} className="ml-1 p-1.5 rounded-md hover:bg-accent transition-colors text-muted-foreground" title={t`Refresh`}>
-            <RefreshCw className="w-3.5 h-3.5" />
-          </button>
-        </div>
-      </div>
+    <PanelSection
+      description={
+        <span className="flex flex-wrap items-center gap-1.5">
+          <PillGroup size="sm" value={statusFilter} onChange={setStatusFilter} options={STATUS_TABS} aria-label={t`Wish status`} />
+          <Pill variant="quiet" icon onClick={load} aria-label={t`Refresh`} title={t`Refresh`}>
+            <RefreshCw className="w-4 h-4" />
+          </Pill>
+        </span>
+      }
+      action={
+        <a
+          href={docsLink(DOCS.wishlist)}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+        >
+          <Trans>Learn more</Trans> <ExternalLink className="w-3.5 h-3.5" />
+        </a>
+      }
+    >
+    <div className="space-y-5">
 
       {error && (
-        <div className="px-3 py-2 rounded-lg bg-destructive/10 border border-destructive/20 text-sm text-destructive">
+        <div className="px-3 py-2 rounded-lg bg-destructive/10 text-[14px] text-destructive">
           {error}
         </div>
       )}
@@ -2436,18 +2338,18 @@ function WishlistTab() {
           <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
         </div>
       ) : wishes.length === 0 ? (
-        <div className="text-center py-16 text-muted-foreground text-sm">
+        <div className="py-4 text-muted-foreground text-[14px]">
           {statusFilter === 'open' ? <Trans>No open wishes.</Trans>
             : statusFilter === 'fulfilled' ? <Trans>No fulfilled wishes.</Trans>
             : <Trans>No dismissed wishes.</Trans>}
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="border-y border-border/70 divide-y divide-border/70">
           {wishes.map(wish => (
-            <div key={wish.id} className="border border-border rounded-xl bg-card overflow-hidden">
-              <div className="flex items-start gap-3 p-3">
+            <div key={wish.id}>
+              <div className="flex items-start gap-4 py-3.5">
                 {/* Cover */}
-                <div className="w-10 h-14 rounded bg-muted shrink-0 overflow-hidden flex items-center justify-center">
+                <div className="w-10 h-[60px] rounded-[6px] bg-muted shrink-0 overflow-hidden flex items-center justify-center" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
                   {wish.cover_url ? (
                     <img
                       src={wish.cover_url}
@@ -2464,25 +2366,25 @@ function WishlistTab() {
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">{wish.title}</p>
-                      {wish.author && <p className="text-xs text-muted-foreground truncate">{wish.author}</p>}
+                      <p className="text-[15px] font-medium text-foreground leading-snug line-clamp-2">{wish.title}</p>
+                      {wish.author && <p className="text-[13px] text-muted-foreground truncate">{wish.author}</p>}
                       {wish.series && wish.series_index != null && (
-                        <p className="text-xs text-muted-foreground/70">
+                        <p className="text-[13px] text-muted-foreground/70">
                           {wish.series} #{wish.series_index}
                         </p>
                       )}
                       {wish.series && wish.series_index == null && (
-                        <span className="mt-0.5 self-start inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-muted border border-border text-muted-foreground font-medium">
+                        <span className="mt-1 self-start inline-flex items-center gap-1 text-[12px] px-2 py-0.5 rounded-full bg-secondary text-muted-foreground font-medium">
                           <Layers className="w-2.5 h-2.5" />
                           <Trans>Whole series</Trans>
                         </span>
                       )}
                       {wish.note && (
-                        <p className="text-xs text-muted-foreground italic mt-0.5 line-clamp-1">{wish.note}</p>
+                        <p className="text-[13px] text-muted-foreground italic mt-0.5 line-clamp-1">{wish.note}</p>
                       )}
                     </div>
                     <div className="flex items-center gap-1.5 shrink-0">
-                      <span className="hidden sm:block text-[10px] text-muted-foreground whitespace-nowrap">
+                      <span className="hidden sm:block text-[13px] text-muted-foreground whitespace-nowrap mr-1">
                         {wish.requester_username && (
                           <span className="mr-1 font-medium text-foreground">{wish.requester_username}</span>
                         )}
@@ -2492,48 +2394,47 @@ function WishlistTab() {
                         <>
                           {dismissConfirmId === wish.id ? (
                             <div className="flex items-center gap-1">
-                              <button
+                              <Pill
                                 onClick={() => handleDismiss(wish.id)}
                                 disabled={dismissing === wish.id}
-                                className="flex items-center gap-1 px-2 py-1 text-xs rounded bg-destructive text-destructive-foreground hover:opacity-90 transition-colors disabled:opacity-50"
+                                variant="destructive" className="bg-destructive/10 text-destructive"
                               >
                                 {dismissing === wish.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
                                 <Trans>Confirm</Trans>
-                              </button>
-                              <button
-                                onClick={() => setDismissConfirmId(null)}
-                                className="p-1 rounded hover:bg-accent text-muted-foreground transition-colors"
-                              >
-                                <X className="w-3.5 h-3.5" />
-                              </button>
+                              </Pill>
+                              <Pill variant="quiet" icon aria-label={t`Cancel`} title={t`Cancel`} onClick={() => setDismissConfirmId(null)}>
+                                <X className="w-4 h-4" />
+                              </Pill>
                             </div>
                           ) : (
-                            <button
+                            <Pill
                               onClick={() => { setDismissConfirmId(wish.id); setFulfillingId(null) }}
-                              className="flex items-center gap-1 px-2 py-1.5 text-xs rounded-md border border-border hover:bg-accent transition-colors text-muted-foreground"
+                              variant="quiet"
                               title={t`Dismiss wish`}
                             >
                               <X className="w-3 h-3" />
                               <Trans>Dismiss</Trans>
-                            </button>
+                            </Pill>
                           )}
-                          <button
+                          <Pill
                             onClick={() => {
                               setFulfillingId(wish.id)
                               setDismissConfirmId(null)
                               setActionError(prev => { const n = { ...prev }; delete n[wish.id]; return n })
                             }}
-                            className="flex items-center gap-1 px-2 py-1.5 text-xs rounded-md bg-primary text-primary-foreground hover:opacity-90 transition-all"
+                            variant="secondary"
+                            // Fixed width: "Fulfill" and "Complete" differ, and the row's meta and Dismiss would shift.
+                            className="min-w-[7.5rem]"
                           >
                             <Check className="w-3 h-3" />
                             {wish.series && wish.series_index == null ? t`Complete` : t`Fulfill`}
-                          </button>
+                          </Pill>
                         </>
                       )}
                       {wish.status === 'fulfilled' && wish.fulfilled_book_id && (
                         <Link
                           to={`/books/${wish.fulfilled_book_id}`}
-                          className="text-xs text-primary hover:underline"
+                          className="text-[14px] text-primary hover:underline"
                         >
                           <Trans>View book</Trans>
                         </Link>
@@ -2548,21 +2449,21 @@ function WishlistTab() {
                   {/* Single-book wishes: suggested-match hint */}
                   {wish.suggested_book_ids && wish.suggested_book_ids.length > 0 && wish.status === 'open' && fulfillingId !== wish.id && !(wish.series && wish.series_index == null) && (
                     <div className="mt-1.5 flex items-center gap-1.5">
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-warning/10 text-warning border border-warning/20 font-medium">
+                      <span className="text-[12px] px-2 py-0.5 rounded-full bg-warning/20 text-foreground font-medium">
                         <Plural value={wish.suggested_book_ids.length} one="# suggested match" other="# suggested matches" />
                       </span>
                     </div>
                   )}
 
                   {actionError[wish.id] && (
-                    <p className="text-xs text-destructive mt-1">{actionError[wish.id]}</p>
+                    <p className="text-[13px] text-destructive mt-1">{actionError[wish.id]}</p>
                   )}
                 </div>
               </div>
 
               {/* Fulfill picker (inline) */}
               {fulfillingId === wish.id && (
-                <div className="border-t border-border p-3">
+                <div className="pb-4 sm:pl-14">
                   <FulfillPicker
                     wish={wish}
                     onFulfill={(bookId) => handleFulfill(wish.id, bookId)}
@@ -2575,6 +2476,7 @@ function WishlistTab() {
         </div>
       )}
     </div>
+    </PanelSection>
   )
 }
 
@@ -2586,18 +2488,18 @@ export function AdminPage() {
   const { t } = useLingui()
   const { user } = useAuth()
   const [tab, setTab] = useState<Tab>('users')
-  // Keep the active tab visible in the scrollable bar (no-op when it all fits)
-  useEffect(() => {
-    document.getElementById(`admin-tab-${tab}`)?.scrollIntoView({ inline: 'nearest', block: 'nearest' })
-  }, [tab])
 
   if (!isAdmin(user)) {
     return (
-      <div className="flex flex-col items-center justify-center min-h-screen gap-3">
-        <Shield className="w-10 h-10 text-muted-foreground" />
-        <p className="text-sm text-muted-foreground"><Trans>Admin access required.</Trans></p>
-        <Link to="/" className="text-sm text-primary hover:underline"><Trans>Go back</Trans></Link>
-      </div>
+      <AppShell>
+        <PageBody width="reading">
+          <div className="flex flex-col items-center justify-center py-24 gap-3 text-center">
+            <Shield className="w-10 h-10 text-muted-foreground" />
+            <p className="text-[15px] text-muted-foreground"><Trans>Admin access required.</Trans></p>
+            <Link to="/" className="text-[14px] text-primary hover:underline"><Trans>Go back</Trans></Link>
+          </div>
+        </PageBody>
+      </AppShell>
     )
   }
 
@@ -2606,11 +2508,11 @@ export function AdminPage() {
     { id: 'scanner', label: t`Scanner` },
     { id: 'server', label: t`Server` },
     { id: 'types', label: t`Types` },
-    { id: 'audit', label: t`Audit Log` },
+    { id: 'audit', label: t`Audit log` },
     { id: 'metadata', label: t`Metadata` },
     { id: 'library', label: t`Library` },
-    { id: 'wordcount', label: t`Word Counts` },
-    { id: 'sync', label: t`Sync Status` },
+    { id: 'wordcount', label: t`Word counts` },
+    { id: 'sync', label: t`Sync status` },
     { id: 'duplicates', label: t`Duplicates` },
     { id: 'covers', label: t`Covers` },
     { id: 'email', label: t`Email` },
@@ -2618,55 +2520,62 @@ export function AdminPage() {
   ]
 
   return (
-    <div className="min-h-screen bg-background">
-      <header className="sticky top-0 z-40 border-b border-border bg-background/80 backdrop-blur-sm safe-top">
-        <div className="flex items-center px-4 h-14 mx-auto max-w-4xl">
-          <div className="flex items-center gap-3">
-            <Link to="/" className="p-2 rounded-lg hover:bg-accent transition-colors text-muted-foreground hover:text-foreground">
-              <ArrowLeft className="w-4 h-4" />
-            </Link>
-            <div className="flex items-center gap-2">
-              <Shield className="w-4 h-4 text-muted-foreground" />
-              <span className="text-sm font-semibold"><Trans>Admin</Trans></span>
-            </div>
-          </div>
+    <AppShell sidebar={<SectionSidebar title={<Trans>Admin</Trans>} />}>
+      <SectionLayout
+        sidebar
+        wide={tab === 'metadata'}
+        title={tabs.find(x => x.id === tab)?.label}
+        eyebrow={<Trans>Admin</Trans>}
+        nav={
+          <SectionNav
+            items={tabs}
+            active={tab}
+            onSelect={id => {
+              setTab(id as Tab)
+              // A new panel starts at its top, also when the old one was scrolled.
+              const main = document.querySelector('main')
+              if (main && main.scrollTop > 0) main.scrollTo({ top: 0 })
+            }}
+            label={t`Admin sections`}
+            placement="sidebar"
+          />
+        }
+      >
+        <div className="flex flex-col gap-12">
+          {tab === 'users' && <UsersTab />}
+          {tab === 'scanner' && <ScannerTab />}
+          {tab === 'server' && <ServerTab />}
+          {tab === 'types' && <TypesTab />}
+          {tab === 'audit' && <AuditTab />}
+          {tab === 'metadata' && (
+            <PanelSection>
+              <MetadataManager />
+            </PanelSection>
+          )}
+          {tab === 'library' && (
+            <PanelSection>
+              <LibraryHealthTab />
+            </PanelSection>
+          )}
+          {tab === 'wordcount' && (
+            <PanelSection>
+              <WordCountTab />
+            </PanelSection>
+          )}
+          {tab === 'sync' && <SyncStatusTab />}
+          {tab === 'duplicates' && <DuplicatesTab />}
+          {tab === 'covers' && (
+            <PanelSection
+              description={<Trans>Books with a missing or low-resolution cover.</Trans>}
+            >
+              <CoverAudit />
+            </PanelSection>
+          )}
+          {tab === 'email' && <EmailTab />}
+          {tab === 'wishlist' && <WishlistTab />}
         </div>
-        {/* HScrollRow, not bare overflow-x-auto: on phones 8 of 13 tabs were
-            off-screen with nothing hinting the bar scrolls (UX sweep finding).
-            The active tab also keeps itself in view. */}
-        <div className="border-t border-border/50">
-          <HScrollRow>
-            <div className="flex items-center gap-1 px-4 py-1.5 mx-auto max-w-4xl">
-              {tabs.map(t => (
-                <button key={t.id} id={`admin-tab-${t.id}`} onClick={() => setTab(t.id)}
-                  className={cn(
-                    'shrink-0 px-3 py-1.5 rounded-md text-xs font-medium transition-all whitespace-nowrap',
-                    tab === t.id ? 'bg-muted text-foreground shadow-sm' : 'text-muted-foreground hover:text-foreground hover:bg-muted/50'
-                  )}>
-                  {t.label}
-                </button>
-              ))}
-            </div>
-          </HScrollRow>
-        </div>
-      </header>
-
-      <main className={cn('mx-auto px-4 py-6', tab === 'metadata' ? 'max-w-7xl' : 'max-w-4xl')}>
-        {tab === 'users' && <UsersTab />}
-        {tab === 'scanner' && <ScannerTab />}
-        {tab === 'server' && <ServerTab />}
-        {tab === 'types' && <TypesTab />}
-        {tab === 'audit' && <AuditTab />}
-        {tab === 'metadata' && <MetadataManager />}
-        {tab === 'library' && <LibraryHealthTab />}
-        {tab === 'wordcount' && <WordCountTab />}
-        {tab === 'sync' && <SyncStatusTab />}
-        {tab === 'duplicates' && <DuplicatesTab />}
-        {tab === 'covers' && <CoverAudit />}
-        {tab === 'email' && <EmailTab />}
-        {tab === 'wishlist' && <WishlistTab />}
-      </main>
-    </div>
+      </SectionLayout>
+    </AppShell>
   )
 }
 
@@ -2745,119 +2654,125 @@ function EmailTab() {
   }
 
   return (
-    <div className="space-y-6">
+    <>
       {/* SMTP Status */}
-      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <Mail className="w-4 h-4 text-muted-foreground" />
-            <h3 className="text-sm font-semibold text-foreground"><Trans>SMTP Status</Trans></h3>
-          </div>
-          <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-xs text-muted-foreground hover:text-primary transition-colors">
-            <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
+      <PanelSection
+        title={<Trans>SMTP status</Trans>}
+        action={
+          <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+            <Trans>Learn more</Trans> <ExternalLink className="w-3.5 h-3.5" />
           </a>
-        </div>
-
+        }
+      >
         {smtpStatus?.configured ? (
           <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-success" />
-              <span className="text-xs font-medium text-success"><Trans>Configured</Trans></span>
+              <span className="text-[13px] font-medium text-success"><Trans>Configured</Trans></span>
             </div>
-            <div className="rounded-lg bg-muted/60 border border-border text-xs divide-y divide-border/50">
-              <div className="flex items-center gap-3 px-3 py-2">
+            <div className="border-y border-border/70 text-[14px] divide-y divide-border/70">
+              <div className="flex items-center gap-3 py-2.5">
                 <span className="text-muted-foreground w-20 shrink-0"><Trans>Host</Trans></span>
                 <span className="font-mono text-foreground">{smtpStatus.host}</span>
               </div>
-              <div className="flex items-center gap-3 px-3 py-2">
+              <div className="flex items-center gap-3 py-2.5">
                 <span className="text-muted-foreground w-20 shrink-0"><Trans>Port</Trans></span>
                 <span className="font-mono text-foreground">{smtpStatus.port}</span>
               </div>
-              <div className="flex items-center gap-3 px-3 py-2">
+              <div className="flex items-center gap-3 py-2.5">
                 <span className="text-muted-foreground w-20 shrink-0"><Trans>From</Trans></span>
                 <span className="font-mono text-foreground">{smtpStatus.from_address || t`(not set)`}</span>
               </div>
             </div>
 
             {/* Test email */}
-            <form onSubmit={handleTestEmail} className="flex items-end gap-2">
+            <form onSubmit={handleTestEmail} className="flex items-end gap-2 max-w-md pt-2">
               <div className="flex-1">
-                <label className="block text-xs font-medium text-muted-foreground mb-1"><Trans>Send test email</Trans></label>
-                <input
+                <FormLabel htmlFor="smtp-test-email"><Trans>Send test email</Trans></FormLabel>
+                <Input
+                  id="smtp-test-email"
                   type="email"
                   value={testEmail}
                   onChange={e => { setTestEmail(e.target.value); setTestResult(null) }}
                   placeholder="test@example.com"
-                  className="w-full h-9 rounded-md border border-border bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
                 />
               </div>
-              <button
+              <Pill
                 type="submit"
                 disabled={testSending || !testEmail.trim()}
-                className="flex items-center gap-1.5 h-9 px-3 rounded-md text-sm font-medium bg-primary text-primary-foreground hover:opacity-90 transition-all disabled:opacity-40 shrink-0"
+                variant="primary" className="shrink-0"
               >
                 {testSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
                 {testSending ? t`Sending…` : t`Test`}
-              </button>
+              </Pill>
             </form>
-            {testResult?.ok && <p className="text-xs text-success"><Trans>Test email sent successfully.</Trans></p>}
-            {testResult && !testResult.ok && <p className="text-xs text-destructive">{testResult.error}</p>}
+            {testResult?.ok && <p className="text-[13px] text-success"><Trans>Test email sent successfully.</Trans></p>}
+            {testResult && !testResult.ok && <p className="text-[13px] text-destructive">{testResult.error}</p>}
           </div>
         ) : (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 rounded-full bg-warning" />
-              <span className="text-xs font-medium text-warning dark:text-warning"><Trans>Not configured</Trans></span>
+              <span className="text-[13px] font-medium text-warning"><Trans>Not configured</Trans></span>
             </div>
-            <p className="text-xs text-muted-foreground">
-              <Trans>Set the following environment variables to enable Send to Device:</Trans>
+            <p className="text-[14px] text-muted-foreground">
+              <Trans>Set these environment variables to enable Send to device.</Trans>
             </p>
-            <code className="block text-xs font-mono bg-muted rounded-lg px-3 py-2 text-muted-foreground whitespace-pre-wrap">TOME_SMTP_HOST{'\n'}TOME_SMTP_USER{'\n'}TOME_SMTP_PASSWORD</code>
+            {/* eslint-disable lingui/no-unlocalized-strings -- env variable names */}
+            <div className="border-y border-border/70 divide-y divide-border/70 text-[14px]">
+              {[
+                { name: 'TOME_SMTP_HOST', note: t`Required. The mail server.` },
+                { name: 'TOME_SMTP_PORT', note: t`Optional. Defaults to 587.` },
+                { name: 'TOME_SMTP_USER', note: t`Optional. Set it together with the password when the server needs a login.` },
+                { name: 'TOME_SMTP_PASSWORD', note: t`Optional. Set it together with the user.` },
+                { name: 'TOME_SMTP_FROM', note: t`The sender address. Required when there is no user; otherwise the user is used.` },
+              ].map(row => (
+                <div key={row.name} className="grid grid-cols-1 sm:grid-cols-[13rem_minmax(0,1fr)] gap-x-4 gap-y-0.5 py-2.5">
+                  <code className="font-mono text-[13px] text-foreground">{row.name}</code>
+                  <span className="text-[13px] text-muted-foreground">{row.note}</span>
+                </div>
+              ))}
+            </div>
+            {/* eslint-enable lingui/no-unlocalized-strings */}
           </div>
         )}
-      </div>
+      </PanelSection>
 
       {/* All Devices */}
-      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Send className="w-4 h-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground"><Trans>All Devices</Trans></h3>
-          <span className="text-xs text-muted-foreground">({allDevices.length})</span>
-        </div>
-
+      <PanelSection
+        title={<Trans>All devices</Trans>}
+        action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums">{allDevices.length}</span>}
+      >
         {allDevices.length > 0 ? (
-          <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
-            <div className="hidden sm:grid grid-cols-[8rem_1fr_1fr_7rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40">
+          <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
+            <div className="hidden sm:grid grid-cols-[8rem_minmax(0,1fr)_minmax(0,1fr)_7rem] gap-x-3 py-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
               <span><Trans>User</Trans></span>
               <span><Trans>Device</Trans></span>
               <span><Trans>Email</Trans></span>
               <span><Trans>Added</Trans></span>
             </div>
             {allDevices.map(d => (
-              <div key={d.id} className="flex sm:grid sm:grid-cols-[8rem_1fr_1fr_7rem] items-center gap-2 sm:gap-0 px-3 py-2.5 hover:bg-muted/30 transition-colors">
+              <div key={d.id} className="flex sm:grid sm:grid-cols-[8rem_minmax(0,1fr)_minmax(0,1fr)_7rem] items-center gap-2 sm:gap-x-3 py-2.5">
                 <span className="text-foreground font-medium truncate">{d.username}</span>
                 <span className="text-foreground truncate">{d.device_name}</span>
                 <span className="text-muted-foreground font-mono truncate">{d.device_email}</span>
-                <span className="text-muted-foreground hidden sm:block">{new Date(d.created_at).toLocaleDateString(i18n.locale)}</span>
+                <span className="text-muted-foreground hidden sm:block whitespace-nowrap">{formatLongDate(d.created_at)}</span>
               </div>
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground"><Trans>No users have added devices yet.</Trans></p>
+          <p className="text-[14px] text-muted-foreground"><Trans>No users have added devices yet.</Trans></p>
         )}
-      </div>
+      </PanelSection>
 
       {/* Send History */}
-      <div className="rounded-xl border border-border bg-card p-5 space-y-4">
-        <div className="flex items-center gap-2">
-          <Activity className="w-4 h-4 text-muted-foreground" />
-          <h3 className="text-sm font-semibold text-foreground"><Trans>Send History</Trans></h3>
-          <span className="text-xs text-muted-foreground"><Trans>(last 100)</Trans></span>
-        </div>
-
+      <PanelSection
+        title={<Trans>Send history</Trans>}
+        action={<span className="text-[14px] font-normal text-muted-foreground"><Trans>(last 100)</Trans></span>}
+      >
         {history.length > 0 ? (
-          <div className="rounded-lg border border-border overflow-hidden text-xs divide-y divide-border">
-            <div className="hidden sm:grid grid-cols-[10rem_6rem_1fr_1fr_5rem] px-3 py-2 text-[10px] font-semibold uppercase tracking-wide text-muted-foreground bg-muted/40">
+          <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
+            <div className="hidden sm:grid grid-cols-[10rem_6rem_minmax(0,1fr)_minmax(0,1fr)_5rem] gap-x-3 py-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
               <span><Trans>Time</Trans></span>
               <span><Trans>User</Trans></span>
               <span><Trans>Book</Trans></span>
@@ -2865,7 +2780,7 @@ function EmailTab() {
               <span><Trans>Status</Trans></span>
             </div>
             {history.map(h => (
-              <div key={h.id} className="flex sm:grid sm:grid-cols-[10rem_6rem_1fr_1fr_5rem] items-center gap-2 sm:gap-0 px-3 py-2 hover:bg-muted/30 transition-colors">
+              <div key={h.id} className="flex sm:grid sm:grid-cols-[10rem_6rem_minmax(0,1fr)_minmax(0,1fr)_5rem] items-center gap-2 sm:gap-x-3 py-2.5">
                 <span className="text-muted-foreground shrink-0">
                   {new Date(h.created_at).toLocaleString(i18n.locale, {
                     month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit',
@@ -2875,7 +2790,7 @@ function EmailTab() {
                 <span className="text-foreground truncate">{h.book_title}</span>
                 <span className="text-muted-foreground truncate">{h.device_name || h.device_email}</span>
                 <span className={cn(
-                  'text-xs font-medium',
+                  'text-[13px] font-medium',
                   h.status === 'ok' ? 'text-success' : 'text-destructive'
                 )}>
                   {h.status === 'ok' ? t`Sent` : t`Failed`}
@@ -2884,9 +2799,9 @@ function EmailTab() {
             ))}
           </div>
         ) : (
-          <p className="text-xs text-muted-foreground"><Trans>No books have been sent yet.</Trans></p>
+          <p className="text-[14px] text-muted-foreground"><Trans>No books have been sent yet.</Trans></p>
         )}
-      </div>
-    </div>
+      </PanelSection>
+    </>
   )
 }

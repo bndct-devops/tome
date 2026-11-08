@@ -8,6 +8,7 @@ import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ImpersonationBanner } from '@/components/ImpersonationBanner'
 import { ForcePasswordChange } from '@/components/ForcePasswordChange'
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal'
+import { useLingui } from '@lingui/react/macro'
 import { LoginPage } from '@/pages/LoginPage'
 import { DashboardPage } from '@/pages/DashboardPage'
 import { BookDetailPage } from '@/pages/BookDetailPage'
@@ -63,6 +64,7 @@ function AppRoutes() {
 
   useEffect(() => { if (user) prefetchPages() }, [user])
 
+  const { t } = useLingui()
   const isAuthenticatedPage = user != null && !UNAUTHENTICATED_PATHS.includes(location.pathname)
 
   useEffect(() => {
@@ -105,7 +107,7 @@ function AppRoutes() {
         <Route path="/setup" element={setupNeeded ? <SetupPage /> : <Navigate to="/login" replace />} />
         <Route path="/login" element={setupNeeded ? <Navigate to="/setup" replace /> : <LoginPage />} />
         <Route path="/auth/callback" element={<OidcCallbackPage />} />
-        {/* Public share view — deliberately outside ProtectedRoute; the token
+        {/* Public share view - deliberately outside ProtectedRoute; the token
             is the capability. */}
         <Route path="/share/:token" element={<SharePage />} />
         <Route
@@ -208,12 +210,13 @@ function AppRoutes() {
       </Routes>
       </Suspense>
 
-      {/* Global keyboard shortcuts FAB — only on authenticated pages */}
-      {isAuthenticatedPage && (
+      {/* Global keyboard shortcuts button: authenticated pages, desktop only, never over the reader */}
+      {isAuthenticatedPage && !location.pathname.startsWith('/reader/') && (
         <button
           onClick={() => setShortcutsOpen(s => !s)}
-          title="Keyboard shortcuts (?)"
-          className="fixed bottom-5 right-5 z-40 w-9 h-9 rounded-full bg-card border border-border shadow-md flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-all"
+          title={t`Keyboard shortcuts (?)`}
+          aria-label={t`Keyboard shortcuts`}
+          className="fixed bottom-5 right-5 z-40 hidden md:flex w-9 h-9 rounded-full bg-card shadow-md ring-1 ring-panel-ring items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-colors"
         >
           <Keyboard className="w-4 h-4" />
         </button>

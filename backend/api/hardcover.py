@@ -22,6 +22,7 @@ from backend.models.book import Book
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
 from backend.services import hardcover_sync
+from backend.services.hardcover_token import hardcover_auth
 from backend.services.audit import audit
 
 logger = logging.getLogger(__name__)
@@ -95,8 +96,7 @@ async def hardcover_link(
         raise HTTPException(status_code=422, detail="Token must not be empty")
     # Hardcover requires the literal "Bearer " prefix in the authorization
     # header (verified against the live API); people paste both forms.
-    if not token.lower().startswith("bearer "):
-        token = "Bearer " + token
+    token = hardcover_auth(token)
     try:
         identity = await hardcover_sync.verify_token(token)
     except hardcover_sync.HardcoverAuthError:

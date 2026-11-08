@@ -1,4 +1,4 @@
-// Reading Timeline — your reading life as a horizontal ribbon. One lane per
+// Reading Timeline - your reading life as a horizontal ribbon. One lane per
 // series (standalones get their own), named in a frozen left rail; every book
 // is a bar spanning its first to last active day, daily ticks inside carrying
 // that day's minutes as intensity (one hue, sequential). Data is lifetime and
@@ -104,14 +104,14 @@ function buildLanes(books: TimelineBook[]): LaneGroup[] {
     })
   }
   // Most recently active on top: the view opens scrolled to today, so the
-  // top-right corner — the first thing seen — is the reading happening now.
+  // top-right corner - the first thing seen - is the reading happening now.
   lanes.sort((a, z) => z.lastDay - a.lastDay || z.firstDay - a.firstDay)
   return lanes
 }
 
 // Session-lived cache: switching tabs remounts the widget; the ribbon should
 // reappear instantly, not re-fetch and flash its loading state every visit.
-// Keyed by user id — logout/login and admin impersonation don't full-reload
+// Keyed by user id - logout/login and admin impersonation don't full-reload
 // the SPA, so an unkeyed cache would flash the previous account's timeline.
 let cachedData: TimelineResponse | null = null
 let cachedForUser: number | null = null
@@ -119,7 +119,7 @@ let cachedForUser: number | null = null
 const ZOOM_KEY = 'tome_timeline_zoom'
 const initialZoom = () => {
   const raw = localStorage.getItem(ZOOM_KEY)
-  if (raw === null) return 2 // Number(null) is 0 — don't let a fresh browser start zoomed out
+  if (raw === null) return 2 // Number(null) is 0 - don't let a fresh browser start zoomed out
   const z = Number(raw)
   return Number.isInteger(z) && z >= 0 && z < ZOOMS.length ? z : 2
 }
@@ -145,7 +145,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
   const scrollRef = useRef<HTMLDivElement>(null)
   const colors = useChartColors()
   const navigate = useNavigate()
-  // Touch: first tap on a bar shows the tooltip, second tap navigates —
+  // Touch: first tap on a bar shows the tooltip, second tap navigates  - 
   // tap-navigating instantly made "inspect" impossible on phones.
   // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
   const coarse = useMemo(() => window.matchMedia('(pointer: coarse)').matches, [])
@@ -167,7 +167,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
 
   const lanes = useMemo(() => (data && data.books.length ? buildLanes(data.books) : null), [data])
 
-  // Panel width, live — zooming out floors at fit-width so the ribbon never
+  // Panel width, live - zooming out floors at fit-width so the ribbon never
   // leaves dead space to the right of today on a wide screen.
   const [containerW, setContainerW] = useState(0)
   useEffect(() => {
@@ -179,7 +179,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
     return () => ro.disconnect()
   }, [data])
 
-  // Phones get a narrow rail — the full 200px rail ate half the viewport.
+  // Phones get a narrow rail - the full 200px rail ate half the viewport.
   const railW = containerW > 0 && containerW < NARROW_BELOW ? RAIL_W_NARROW : RAIL_W
 
   const model = useMemo(() => {
@@ -213,7 +213,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
     }
   }, [data, lanes, zoom, containerW, railW])
 
-  // Land on the recent end — that's where the reading is.
+  // Land on the recent end - that's where the reading is.
   useEffect(() => {
     const el = scrollRef.current
     if (el && model) el.scrollLeft = el.scrollWidth
@@ -221,10 +221,10 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
 
   if (failed) return <Empty text={t`Couldn't load the timeline.`} />
   if (!data) return <Empty text={t`Loading your reading life…`} pulse />
-  if (!model || !lanes) return <Empty text={t`No reading history yet — sessions and imported KOReader history land here.`} />
+  if (!model || !lanes) return <Empty text={t`No reading history yet. Sessions and imported KOReader history land here.`} />
 
   const ppd = model.ppd
-  const atFitFloor = ppd > ZOOMS[zoom] + 0.001 // preset already below fit — zooming out changes nothing
+  const atFitFloor = ppd > ZOOMS[zoom] + 0.001 // preset already below fit - zooming out changes nothing
 
   // Resolve the hovered/tapped position to the day under the cursor, so the
   // tooltip answers at day resolution, not just book totals.
@@ -247,15 +247,15 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
       <div className="flex items-center justify-end gap-1">
         {standalone && (
           <div className="mr-auto flex items-baseline gap-2">
-            <h3 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground"><Trans>Reading Timeline</Trans></h3>
-            <span className="rounded bg-muted px-1.5 py-0.5 text-[10px] text-muted-foreground"><Trans>lifetime</Trans></span>
+            <h3 className="font-display text-[20px] font-bold leading-6 text-foreground"><Trans>Reading timeline</Trans></h3>
+            <span className="text-[13px] text-muted-foreground"><Trans>lifetime</Trans></span>
           </div>
         )}
         <button
           onClick={() => setZoom((z) => Math.max(0, z - 1))}
           disabled={zoom === 0 || atFitFloor}
           aria-label={t`Zoom out`}
-          className="rounded-md border border-border p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
+          className="grid h-8 w-8 place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:opacity-40"
         >
           <Minus className="h-3.5 w-3.5" />
         </button>
@@ -263,7 +263,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
           onClick={() => setZoom((z) => Math.min(ZOOMS.length - 1, z + 1))}
           disabled={zoom === ZOOMS.length - 1}
           aria-label={t`Zoom in`}
-          className="rounded-md border border-border p-1 text-muted-foreground hover:text-foreground disabled:opacity-40"
+          className="grid h-8 w-8 place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:opacity-40"
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
@@ -271,7 +271,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
 
       <div
         ref={scrollRef}
-        className="min-h-0 flex-1 overflow-auto rounded-lg border border-border"
+        className="min-h-0 flex-1 overflow-auto"
         onMouseLeave={clearHover}
         onScroll={clearHover}
         onClick={(e) => {
@@ -280,9 +280,9 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
         }}
       >
         <div style={{ width: railW + model.width }}>
-          {/* axis row — sticky against vertical scroll; corner sticky both ways */}
-          <div className="sticky top-0 z-30 flex border-b border-border bg-card" style={{ height: AXIS_H }}>
-            <div className="sticky left-0 z-10 shrink-0 border-r border-border bg-card" style={{ width: railW }} />
+          {/* axis row - sticky against vertical scroll; corner sticky both ways */}
+          <div className="sticky top-0 z-30 flex border-b border-border/70 bg-background" style={{ height: AXIS_H }}>
+            <div className="sticky left-0 z-10 shrink-0 bg-background" style={{ width: railW }} />
             <div className="relative" style={{ width: model.width }}>
               {model.months
                 .filter((m) => m.x < model.width - 42)
@@ -302,13 +302,13 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
             const laneH = Math.max(lane.subCount * SUB_H + 6, 36)
             const padTop = (laneH - lane.subCount * SUB_H) / 2
             return (
-              <div key={lane.key} className="flex border-b border-border/60" style={{ height: laneH }}>
+              <div key={lane.key} className="flex border-b border-border/70" style={{ height: laneH }}>
                 <div
-                  className="sticky left-0 z-20 flex shrink-0 flex-col justify-center overflow-hidden border-r border-border bg-card px-2.5"
+                  className="sticky left-0 z-20 flex shrink-0 flex-col justify-center overflow-hidden bg-background pr-2.5"
                   style={{ width: railW }}
                 >
-                  <span className="truncate text-[11px] font-medium leading-tight">{lane.label}</span>
-                  <span className="truncate text-[10px] leading-tight text-muted-foreground">
+                  <span className="truncate text-[13px] font-medium leading-tight">{lane.label}</span>
+                  <span className="truncate text-[12px] leading-tight text-muted-foreground">
                     {lane.placed.length > 1 ? (() => { const n = lane.placed.length; return t`${n} vols · ` })() : ''}
                     {formatDuration(lane.totalSeconds)}
                   </span>
@@ -316,7 +316,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
                 <div className="relative" style={{ width: model.width }}>
                   {/* month grid + today, per lane so the rail stays clean */}
                   {model.months.map((m) => (
-                    <div key={m.x} className="absolute bottom-0 top-0 w-px bg-border/60" style={{ left: m.x }} />
+                    <div key={m.x} className="absolute bottom-0 top-0 w-px bg-border/40" style={{ left: m.x }} />
                   ))}
                   <div className="absolute bottom-0 top-0 w-px" style={{ left: model.todayX, background: colors.accent, opacity: 0.5 }} />
 
@@ -343,7 +343,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
                         onMouseLeave={() => {
                           if (!coarse) setHover(null)
                         }}
-                        aria-label={(() => { const title = b.title; const dur = formatDuration(b.total_seconds); const from = b.first_day; const to = b.last_day; return t`${title} — ${dur} between ${from} and ${to}` })()}
+                        aria-label={(() => { const title = b.title; const dur = formatDuration(b.total_seconds); const from = b.first_day; const to = b.last_day; return t`${title}, ${dur} between ${from} and ${to}` })()}
                         className="group absolute block cursor-pointer overflow-hidden rounded-[4px] border transition-transform hover:-translate-y-px"
                         style={{
                           left: x,
@@ -387,7 +387,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
           // re-anchor position:fixed to the tile and trap z-index in its stacking
           // context, putting the tooltip far from the cursor and behind siblings.
           <div
-            className="pointer-events-none fixed z-50 flex max-w-[300px] gap-2.5 rounded-lg border border-border bg-card px-3 py-2 text-xs shadow-xl"
+            className="pointer-events-none fixed z-50 flex max-w-[300px] gap-2.5 rounded-lg bg-card px-3 py-2 text-[13px] shadow-lg ring-1 ring-panel-ring"
             style={{ left: Math.min(hover.x + 14, window.innerWidth - 320), top: Math.min(hover.y + 16, window.innerHeight - 110) }}
           >
             {hover.b.has_cover && (
@@ -397,7 +397,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
               <div className="truncate font-semibold">{hover.b.title}</div>
               {hover.b.author && <div className="truncate text-muted-foreground">{hover.b.author}</div>}
               <div className="mt-1 text-muted-foreground">
-                {formatDate(hover.b.first_day)} – {formatDate(hover.b.last_day)} · {plural(hover.b.days.length, { one: '# day', other: '# days' })}
+                {(() => { const first = formatDate(hover.b.first_day), last = formatDate(hover.b.last_day); return t`${first} to ${last}` })()} · {plural(hover.b.days.length, { one: '# day', other: '# days' })}
               </div>
               <div className="text-muted-foreground">
                 {formatDuration(hover.b.total_seconds)}

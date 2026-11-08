@@ -36,7 +36,7 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
 
   if (!data || data.length === 0) {
     return (
-      <p className="text-sm text-muted-foreground text-center py-8"><Trans>No session data.</Trans></p>
+      <p className="py-2 text-[14px] text-muted-foreground"><Trans>No session data.</Trans></p>
     )
   }
 
@@ -44,7 +44,8 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
 
   function getFillOpacity(seconds: number): number {
     if (seconds === 0) return 0.08
-    return 0.2 + (seconds / maxSeconds) * 0.8
+    // The lowest reading level starts well clear of empty, so it reads in amber too.
+    return 0.36 + (seconds / maxSeconds) * 0.64
   }
 
   const CELL = 14
@@ -123,7 +124,7 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
           // re-anchor position:fixed to the tile and trap z-index in its stacking
           // context, putting the tooltip far from the cursor and behind siblings.
           <div
-            className="fixed z-50 pointer-events-none bg-card border border-border rounded-lg shadow-xl px-3 py-2 text-xs"
+            className="fixed z-50 pointer-events-none bg-card rounded-lg shadow-lg ring-1 ring-panel-ring px-3 py-2 text-[13px]"
             style={{
               left: Math.min(tooltip.x + 12, window.innerWidth - 180),
               top: tooltip.y - 44,

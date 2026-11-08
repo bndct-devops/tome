@@ -17,7 +17,7 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
   const { accent, success } = useChartColors()
   if (!data || data.length === 0) {
     return (
-      <div className="bg-card border border-border rounded-xl p-8 text-center text-muted-foreground text-sm">
+      <div className="py-8 text-center text-muted-foreground text-[14px]">
         <Trans>No series with reading history yet.</Trans>
       </div>
     )
@@ -33,7 +33,7 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
             e.preventDefault()
             window.location.href = `/?series=${encodeURIComponent(s.series)}&tab=books`
           }}
-          className="group bg-card border border-border rounded-xl p-4 flex items-start gap-3 hover:bg-accent/30 transition-colors"
+          className="group bg-secondary/50 rounded-[14px] p-4 flex items-start gap-3 hover:bg-secondary transition-colors"
         >
           <div className="w-9 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
             {s.sample_book_id ? (
@@ -52,7 +52,7 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
             <p className="text-sm font-medium text-foreground truncate group-hover:text-primary transition-colors">
               {s.series}
             </p>
-            <p className="text-xs text-muted-foreground mt-0.5">
+            <p className="text-[13px] text-muted-foreground mt-0.5">
               {s.read} of {s.total} read
               {s.reading > 0 && (() => { const n = s.reading; return t` · ${n} in progress` })()}
             </p>
@@ -66,8 +66,8 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
                   }}
                 />
               </div>
-              <span className="text-[10px] text-muted-foreground tabular-nums shrink-0">
-                {s.pct}%
+              <span className="w-9 shrink-0 text-right text-[12px] text-muted-foreground">
+                {Math.round(s.pct)}%
               </span>
             </div>
           </div>

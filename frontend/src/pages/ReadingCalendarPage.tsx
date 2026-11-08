@@ -20,6 +20,7 @@ import {
   Flame, Gauge, List, Moon, Trophy, X, type LucideIcon,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
+import { PageBody, PageHeader, Pill } from '@/components/page'
 import { api } from '@/lib/api'
 import { cn, formatDuration } from '@/lib/utils'
 import type { StreakSummary } from '@/components/stats/shared'
@@ -101,9 +102,17 @@ function bookLabel(b: BookRef): string {
   return b.series && b.series_index != null ? `${b.series} #${+b.series_index}` : b.title
 }
 
+// The last month seen, so coming back to the calendar paints at once and
+// refreshes underneath instead of starting from the skeleton.
+const monthCache = new Map<string, MonthResponse>()
+
 export function ReadingCalendarPage() {
   const [params, setParams] = useSearchParams()
-  const [data, setData] = useState<MonthResponse | null>(null)
+  const nowMonthInit = isoOf(new Date()).slice(0, 7)
+  const [data, setData] = useState<MonthResponse | null>(() => {
+    const m = new URLSearchParams(window.location.search).get('month')
+    return monthCache.get(/^\d{4}-\d{2}$/.test(m ?? '') ? m! : nowMonthInit) ?? null
+  })
   const [error, setError] = useState(false)
   const nowMonth = isoOf(new Date()).slice(0, 7)
   const month = /^\d{4}-\d{2}$/.test(params.get('month') ?? '') ? params.get('month')! : nowMonth
@@ -112,8 +121,8 @@ export function ReadingCalendarPage() {
   useEffect(() => {
     let live = true
     api.get<MonthResponse>(`/stats/calendar?month=${month}&tz_offset=${tzOffset()}`)
-      .then(r => { if (live) { setData(r); setError(false) } })
-      .catch(() => { if (live) setError(true) })
+      .then(r => { monthCache.set(month, r); if (live) { setData(r); setError(false) } })
+      .catch(() => { if (live && !monthCache.has(month)) setError(true) })
     return () => { live = false }
   }, [month])
 
@@ -131,7 +140,8 @@ export function ReadingCalendarPage() {
 
   // While the next month loads, the one on screen stays, dimmed, so nothing
   // flashes empty; the skeleton is only for the very first open.
-  const shown = data?.month === month ? data : null
+  // A month seen before paints from the cache while the fresh answer loads.
+  const shown = data?.month === month ? data : (monthCache.get(month) ?? null)
   const view = shown ?? data
   const viewMonth = view?.month ?? month
   const stale = !!view && !shown
@@ -176,18 +186,20 @@ export function ReadingCalendarPage() {
     <AppShell>
       {/* Desktop: the page is one viewport tall; the grid stays put and the day card
           scrolls in its own lane, so a long day never scrolls the calendar away. */}
-      <div className="mx-auto max-w-6xl px-4 py-6 animate-in fade-in slide-in-from-bottom-1 duration-300 motion-reduce:animate-none lg:flex lg:h-full lg:flex-col">
-        <MonthNav month={month} isCurrent={month === today.slice(0, 7)} canPrev={canPrev} canNext={canNext}
+      <PageBody width="wide" className="lg:h-full lg:pb-6">
+        {/* The title follows the month on screen, so it changes together with
+            the grid when the new month lands, not on the click. */}
+        <MonthNav month={view ? viewMonth : month} isCurrent={month === today.slice(0, 7)} canPrev={canPrev} canNext={canNext}
           onPrev={() => go({ month: shiftMonth(month, -1), day: null })}
           onNext={() => go({ month: shiftMonth(month, 1), day: null })}
           onToday={() => go({ month: today.slice(0, 7), day: null })} />
 
-        {error && <p className="mt-10 text-center text-sm text-muted-foreground"><Trans>Could not load your reading calendar.</Trans></p>}
+        {error && <p className="mt-3 text-center text-sm text-muted-foreground"><Trans>Could not load your reading calendar.</Trans></p>}
         {!error && (
-          <div className={cn('mt-8 grid gap-8 transition-opacity duration-200 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[minmax(0,1fr)]', stale && 'opacity-50')}>
+          <div className={cn('grid gap-8 transition-opacity duration-200 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[minmax(0,1fr)]', stale && 'opacity-50')}>
             <div className="min-w-0 space-y-8 lg:min-h-0 lg:overflow-y-auto lg:pb-2">
               {view
-                ? <div key={viewMonth} className="animate-in fade-in duration-300 motion-reduce:animate-none"><Headline data={view} month={viewMonth} /></div>
+                ? <Headline data={view} month={viewMonth} />
                 : <div className="h-[88px]" aria-hidden />}
               <div key={`grid-${viewMonth}`} className={cn('motion-reduce:animate-none', slide)}>
                 <MonthGrid data={view} month={viewMonth} today={today} selected={selected} fallback={panelDay}
@@ -195,13 +207,14 @@ export function ReadingCalendarPage() {
               </div>
             </div>
             <aside className="hidden lg:block lg:min-h-0 lg:overflow-y-auto lg:pb-2">
-              {view && panelDay ? <DayCard day={panelDay} /> : view ? (
-                <p className={cn(CARD, 'px-6 py-16 text-center text-sm text-muted-foreground')}><Trans>No reading this month yet.</Trans></p>
-              ) : null}
+              {/* One card that stays mounted across month switches: it keeps the
+                  last day (dimmed with the grid) while the next one loads, and
+                  shows the empty-month line in the same frame. */}
+              {view ? <DayCard day={panelDay} /> : null}
             </aside>
           </div>
         )}
-      </div>
+      </PageBody>
       {selected && <MobileSheet onClose={() => go({ day: null })}><DayCard day={selected} onClose={() => go({ day: null })} /></MobileSheet>}
     </AppShell>
   )
@@ -212,19 +225,22 @@ function MonthNav({ month, isCurrent, canPrev, canNext, onPrev, onNext, onToday 
 }) {
   const { t } = useLingui()
   const label = new Date(+month.slice(0, 4), +month.slice(5) - 1, 1).toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
-  // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
-  const btn = 'grid h-8 w-8 place-items-center rounded-full text-foreground transition-colors hover:bg-muted disabled:opacity-30 disabled:hover:bg-transparent'
   return (
-    <div className="flex flex-wrap items-center gap-2">
-      <h1 className="mr-1 font-display text-2xl leading-none text-foreground tabular-nums">{label}</h1>
-      <button className={btn} onClick={onPrev} disabled={!canPrev} aria-label={t`Previous month`}><ChevronLeft className="h-4 w-4" /></button>
-      <button className={btn} onClick={onNext} disabled={!canNext} aria-label={t`Next month`}><ChevronRight className="h-4 w-4" /></button>
-      {!isCurrent && (
-        <button onClick={onToday} className="ml-1 rounded-full bg-muted px-3 py-1 text-xs font-medium text-foreground transition-colors hover:bg-muted/70">
-          <Trans>Today</Trans>
-        </button>
-      )}
-    </div>
+    <PageHeader
+      eyebrow={<Trans>Calendar</Trans>}
+      title={<span className="tabular-nums">{label}</span>}
+      actions={
+        <>
+          {!isCurrent && (
+            <Pill variant="quiet" onClick={onToday}>
+              <Trans>Today</Trans>
+            </Pill>
+          )}
+          <Pill variant="quiet" icon onClick={onPrev} disabled={!canPrev} aria-label={t`Previous month`}><ChevronLeft className="h-5 w-5" /></Pill>
+          <Pill variant="quiet" icon onClick={onNext} disabled={!canNext} aria-label={t`Next month`}><ChevronRight className="h-5 w-5" /></Pill>
+        </>
+      }
+    />
   )
 }
 
@@ -261,9 +277,9 @@ function Headline({ data, month }: { data: MonthResponse; month: string }) {
   )
 }
 
-// The desktop day card paints its own frame only once it has something to show,
-// fading in as a whole; a frame that fills in afterwards reads as a flash.
-const CARD = 'rounded-[22px] bg-card animate-in fade-in duration-300 motion-reduce:animate-none'
+// The desktop day card paints its own frame only once it has something to show.
+// No fade: it appears whole, and a switch only dims what is there.
+const CARD = 'rounded-[22px] bg-card'
 const WEEKDAYS = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'short' })) // Monday-first (2024-01-01 is a Monday)
 const CELL = 'min-h-14 p-1.5 sm:min-h-24 sm:p-2'
 // Weekends shaded, as on a desktop calendar. Opaque on purpose: the grid's
@@ -282,7 +298,8 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
   const byDay = useMemo(() => new Map((data?.days ?? []).map(d => [d.date, d])), [data])
   const scale = data?.scale_seconds ?? 0
   // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
-  const land = 'animate-in fade-in duration-300 motion-reduce:animate-none'
+  // Cell contents appear with the month; nothing fades in from zero.
+  const land = ''
   const first = parseDay(`${month}-01`)
   const lead = (first.getDay() + 6) % 7 // Monday-first, like the weekly streak
   const count = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
@@ -292,8 +309,11 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
   // Days of the neighbouring months that complete the first and last week; they jump there.
   const outside = (iso: string, n: number, col: number) => (
     <button key={iso} onClick={() => onJump(iso)} disabled={iso > today} aria-label={shortDay(iso)}
-      className={cn(CELL, cellBg(col), 'flex flex-col items-start text-left transition-colors enabled:hover:bg-muted/40 disabled:cursor-default')}>
-      <span className="font-display text-xs leading-none text-muted-foreground/40 sm:text-sm">{n}</span>
+      className={cn(CELL, cellBg(col), 'flex flex-col items-stretch gap-1 text-left transition-colors enabled:hover:bg-muted/40 disabled:cursor-default')}>
+      {/* Same wrapper and number box as an in-month day, so the numbers line up across a row. */}
+      <span className="flex items-start justify-between gap-1">
+        <span className="grid h-6 w-6 place-items-center rounded-full font-display text-xs leading-none text-muted-foreground/70 sm:text-sm">{n}</span>
+      </span>
     </button>
   )
 
@@ -328,16 +348,18 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
                 // The highlights are marked important so they beat the weekend tint,
                 // whose theme variant would otherwise sort after them.
                 future ? 'cursor-default' : !isSelected && 'hover:bg-muted/50!',
-                selected === iso && 'bg-muted/70!',
+                // Selected: full muted plus an inset hairline, so it stays apart
+                // from the weekend tint (which is itself a muted mix) in every theme.
+                selected === iso && 'bg-muted! shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--foreground)_28%,transparent)]',
                 // The desktop panel opens on a default day; only mark it where the panel shows.
-                !selected && fallback === iso && 'lg:bg-muted/70!',
+                !selected && fallback === iso && 'lg:bg-muted! lg:shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--foreground)_28%,transparent)]',
                 'focus-visible:bg-muted/70!',
               )}
             >
               <span className="flex items-start justify-between gap-1">
                 <span className={cn(
                   'grid h-6 w-6 place-items-center rounded-full font-display text-xs leading-none sm:text-sm',
-                  future ? 'text-muted-foreground/40' : 'text-foreground',
+                  future ? 'text-muted-foreground/70' : 'text-foreground',
                   // Today is the accent circle, as on every calendar.
                   isToday && 'bg-primary text-primary-foreground',
                 )}>{i + 1}</span>
@@ -410,14 +432,19 @@ function chapterRange(chapters: string[], to: (a: string, b: string) => string):
   return to(chapters[0], chapters[chapters.length - 1])
 }
 
-function DayCard({ day, onClose }: { day: string; onClose?: () => void }) {
+function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () => void }) {
   const { t } = useLingui()
   const [data, setData] = useState<DayResponse | null>(null)
   useEffect(() => {
+    if (!dayProp) return
     let live = true
-    api.get<DayResponse>(`/stats/calendar/day?day=${day}&tz_offset=${tzOffset()}`).then(r => { if (live) setData(r) }).catch(() => {})
+    api.get<DayResponse>(`/stats/calendar/day?day=${dayProp}&tz_offset=${tzOffset()}`).then(r => { if (live) setData(r) }).catch(() => {})
     return () => { live = false }
-  }, [day])
+  }, [dayProp])
+  if (!dayProp) {
+    return <p className={cn(CARD, 'px-6 py-16 text-center text-sm text-muted-foreground')}><Trans>No reading this month yet.</Trans></p>
+  }
+  const day = dayProp
 
   const title = parseDay(day).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
   const header = (
@@ -455,7 +482,7 @@ function DayCard({ day, onClose }: { day: string; onClose?: () => void }) {
   const axisStart = new Date(+day.slice(0, 4), +day.slice(5, 7) - 1, +day.slice(8), 4).getTime() / 1000
   const midnight = axisStart + 20 * 3600
   const pos = (e: number) => Math.min(100, Math.max(0, ((e - axisStart) / 86400) * 100))
-  const hhmm = (e: number) => new Date(e * 1000).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
+  const hhmm = (e: number) => new Date(e * 1000).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })
   const bookIdx = new Map(data.books.map((b, i) => [b.book_id, i]))
   const pastMidnight = data.sittings.some(s => s.end > midnight)
   const main = data.books[0]
@@ -464,7 +491,8 @@ function DayCard({ day, onClose }: { day: string; onClose?: () => void }) {
 
   const quip = (() => {
     const mainTitle = main.title
-    const dur = formatDuration(data.seconds)
+    // A duration never breaks across lines ("2h / 0m").
+    const dur = formatDuration(data.seconds).replace(/ /g, '\u00a0')
     if (finished[0] && started[0]) { const a = finished[0].title, b = started[0].title; return t`Finished ${a} and went straight into ${b}.` }
     if (finished[0]) { const a = finished[0].title; return t`Finished ${a}.` }
     if (data.is_month_best) return t`Your biggest reading day this month: ${dur} with ${mainTitle}.`
@@ -512,7 +540,7 @@ function DayCard({ day, onClose }: { day: string; onClose?: () => void }) {
       <div className="grid grid-cols-4 gap-3">
         {stats.map(s => (
           <div key={s.label} className="min-w-0">
-            <p className="font-display text-lg leading-tight text-foreground tabular-nums">{s.value}</p>
+            <p className="whitespace-nowrap font-display text-lg leading-tight text-foreground tabular-nums">{s.value}</p>
             <p className="truncate text-[11px] text-muted-foreground">{s.label}</p>
           </div>
         ))}
@@ -534,13 +562,13 @@ function DayCard({ day, onClose }: { day: string; onClose?: () => void }) {
               style={{ left: `${pos(s.start)}%`, width: `${Math.max(0.6, pos(s.end) - pos(s.start))}%`, background: shades[Math.min(bookIdx.get(s.book_id) ?? 0, 2)] }} />
           ))}
         </div>
-        <div className="relative mt-1 h-4 text-[10.5px] text-muted-foreground tabular-nums">
+        <div className="relative mt-1 h-4 text-[10.5px] text-muted-foreground proportional-nums">
           {[2, 8, 14, 20].map(h => (
             <span key={h} className="absolute -translate-x-1/2" style={{ left: `${(h / 24) * 100}%` }}>{hhmm(axisStart + h * 3600)}</span>
           ))}
         </div>
-        <p className="mt-1 text-xs text-muted-foreground tabular-nums">
-          {data.sittings.map(s => `${hhmm(s.start)} (${formatDuration(s.end - s.start)})`).join(', ')}
+        <p className="mt-1 text-xs text-muted-foreground proportional-nums">
+          {data.sittings.map(s => `${hhmm(s.start)}\u00a0(${formatDuration(s.end - s.start).replace(/ /g, '\u00a0')})`).join(', ')}
         </p>
       </div>
     </div>

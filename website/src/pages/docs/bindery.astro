@@ -53,17 +53,15 @@ services:
 
   <h3>Manual review</h3>
   <p>
-    Default behavior, recommended for any library you care about. Files arrive in
-    <code>/bindery</code>, get parsed, and queue up in <strong>Admin → Unreviewed</strong>. An
-    admin opens each entry, eyeballs the detected metadata, edits if necessary, and clicks
-    <strong>Accept</strong> — only then does the book move into the canonical library folder and
+    Default behavior, recommended for any library you care about. Files arrive in <code>/bindery</code>, get parsed, and queue up under <strong>Bindery → Unreviewed</strong>. An
+    admin opens each entry, eyeballs the detected metadata, edits if necessary, and clicks <strong>Accept</strong> — only then does the book move into the canonical library folder and
     become visible to non-admin users.
   </p>
 
   <Steps>
     <li>Copy files into <code>/bindery</code> (cp, rsync, smb, whatever).</li>
     <li>Tome detects them within a few seconds and parses metadata from the file + filename.</li>
-    <li>They appear in <strong>Admin → Unreviewed</strong> with a counter badge in the sidebar.</li>
+    <li>They appear under <strong>Bindery → Unreviewed</strong>, with a counter badge on Bindery in the sidebar.</li>
     <li>Open each, check the detected title / author / series / volume. Use <strong>Fetch metadata</strong> to populate description and cover.</li>
     <li>Click <strong>Accept</strong> to publish, or <strong>Reject</strong> to delete the file from <code>/bindery</code>.</li>
   </Steps>
@@ -71,8 +69,7 @@ services:
   <h3>Reviewing a batch</h3>
   <p>
     Select several files and hit <strong>Review</strong> for a batch view: shared fields
-    (series, author, book type, <strong>libraries</strong>) with per-field
-    <strong>Apply to all</strong>, plus a compact row per file.
+    (series, author, book type, <strong>libraries</strong>) with per-field <strong>Apply to all</strong>, plus a compact row per file.
   </p>
   <div class="docs-shot">
     <ThemedShot client:load name="bindery-review" alt="Batch review: shared fields with apply-to-all, per-file rows, and the metadata suggestions panel targeting the selected file" />
@@ -81,9 +78,8 @@ services:
     <li>
       <strong>Libraries in one step</strong> — pick the libraries a book should land in right in
       the review form (or for the whole batch), instead of filing each book afterwards from its
-      detail page. The book type's own library is always added automatically. There's also an
-      <strong>Add to libraries</strong> picker in the Bindery toolbar itself: set it once and the
-      next <strong>Quick Accept</strong> or <strong>Review</strong> run files everything into
+      detail page. The book type's own library is always added automatically. There's also an <strong>Add to libraries</strong> picker in the Bindery toolbar itself: set it once and the
+      next <strong>Quick accept</strong> or <strong>Review</strong> run files everything into
       those libraries, then it resets.
     </li>
     <li>
@@ -93,12 +89,11 @@ services:
     </li>
     <li>
       <strong>Match all</strong> — fetches and applies the best candidate to <em>every</em> file
-      in the batch. Trust the matcher, eyeball the rows, <strong>Accept All</strong>.
+      in the batch. Trust the matcher, eyeball the rows, <strong>Accept all</strong>.
     </li>
   </ul>
   <p>
-    If you fully trust the matches, skip review entirely: select files and use
-    <strong>Quick Accept</strong> — it fetches, applies the best candidate, and accepts each file
+    If you fully trust the matches, skip review entirely: select files and use <strong>Quick accept</strong> — it fetches, applies the best candidate, and accepts each file
     in one pass.
   </p>
 
@@ -111,8 +106,7 @@ services:
   </p>
 
   <Callout variant="warning" title="Don't point auto-import at a noisy folder">
-    Auto-import treats every readable EPUB/CBZ/PDF as a candidate. If your <code>/bindery</code>
-    volume is also the destination for downloads from torrent clients, rsync syncs, or anything
+    Auto-import treats every readable EPUB/CBZ/PDF as a candidate. If your <code>/bindery</code> volume is also the destination for downloads from torrent clients, rsync syncs, or anything
     else that produces transient files, you'll get garbage in your library. Use a dedicated
     folder.
   </Callout>

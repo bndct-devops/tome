@@ -60,7 +60,7 @@ export function ThemePill({ className }: { className?: string }) {
   }
 
   return (
-    <div className={cn('inline-flex gap-0.5 p-0.5 rounded-full bg-muted/60 border border-border', className)} role="group" aria-label={t`Theme`}>
+    <div className={cn('inline-flex gap-0.5 p-0.5 rounded-full bg-secondary', className)} role="group" aria-label={t`Theme`}>
       {BUILT_IN.map(({ id, icon: Icon, label }) => (
         <Fragment key={id}>
           {/* hairline between the neutral core and the warm pair */}

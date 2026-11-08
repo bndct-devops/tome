@@ -16,9 +16,7 @@ const changelogHtml = marked.parse(changelogRaw.slice(changelogRaw.indexOf('## [
   <SectionHero section="reference" />
   <h1>Changelog</h1>
   <p>
-    Release notes per version, newest first — generated straight from
-    <a href="https://github.com/bndct-devops/tome/blob/main/CHANGELOG.md"><code>CHANGELOG.md</code></a>
-    in the repo, the single source of truth. Release codenames follow a book-craft theme
+    Release notes per version, newest first — generated straight from <a href="https://github.com/bndct-devops/tome/blob/main/CHANGELOG.md"><code>CHANGELOG.md</code></a> in the repo, the single source of truth. Release codenames follow a book-craft theme
     (Codex, Vellum, Marginalia, Signature&hellip;).
   </p>
   <DocsMeta />
@@ -32,8 +30,7 @@ const changelogHtml = marked.parse(changelogRaw.slice(changelogRaw.indexOf('## [
   <Fragment set:html={changelogHtml} />
 
   <Callout variant="tip" title="Upgrading from 0.x">
-    Pull the latest image and recreate the container. Migrations run on startup. Your data in
-    <code>/data</code> and <code>/books</code> stays put. Existing JWTs survive; API tokens
+    Pull the latest image and recreate the container. Migrations run on startup. Your data in <code>/data</code> and <code>/books</code> stays put. Existing JWTs survive; API tokens
     survive; KOReader plugins should be re-downloaded only if their server URL changed.
   </Callout>
 </DocsLayout>

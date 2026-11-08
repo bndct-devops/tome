@@ -15,7 +15,7 @@ export const DOCS_NAV: DocGroup[] = [
   {
     label: 'Features',
     items: [
-      { href: '/docs/home',               title: 'Home & focus mode' },
+      { href: '/docs/home',               title: 'Home' },
       { href: '/docs/books',              title: 'Managing books' },
       { href: '/docs/libraries',          title: 'Libraries & shelves' },
       { href: '/docs/reader',             title: 'Built-in reader' },

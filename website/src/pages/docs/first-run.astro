@@ -23,8 +23,7 @@ import { withBase } from '../../lib/path'
   </Steps>
 
   <Callout variant="info" title="Only the first user gets the setup screen">
-    Once an account exists, the setup wizard never reappears. Subsequent users get created from
-    <strong>Admin → Users</strong> by the admin. See <a href={withBase("/docs/users-and-roles")}>Users &
+    Once an account exists, the setup wizard never reappears. Subsequent users get created from <strong>Admin → Users</strong> by the admin. See <a href={withBase("/docs/users-and-roles")}>Users &
     roles</a>.
   </Callout>
 
@@ -42,18 +41,14 @@ import { withBase } from '../../lib/path'
   <Callout variant="tip" title="Organise on disk before the first scan">
     The cleaner your folder structure, the cleaner your library. Series in their own folders
     (<code>library/Berserk/Berserk v01.cbz</code>), standalones by author
-    (<code>library/Brandon Sanderson/Mistborn (2006).epub</code>). See the
-    <a href={withBase("/docs/series#how-series-are-detected")}>series detection rules</a>.
-    If you want manga, comics and books in separate top-level folders, set a
-    <a href={withBase("/docs/admin#type-folders")}>folder per book type</a> before this scan.
+    (<code>library/Brandon Sanderson/Mistborn (2006).epub</code>). See the <a href={withBase("/docs/series#how-series-are-detected")}>series detection rules</a>.
+    If you want manga, comics and books in separate top-level folders, set a <a href={withBase("/docs/admin#type-folders")}>folder per book type</a> before this scan.
   </Callout>
 
   <h2>Fetch richer metadata (optional)</h2>
   <p>
     Tome can fetch description and cover art from Hardcover, Google Books, and Open Library.
-    Hardcover has the best coverage for modern fiction and manga — grab a free API token at
-    <a href="https://hardcover.app/account/api">hardcover.app/account/api</a> and set
-    <code>TOME_HARDCOVER_TOKEN</code> in your compose file.
+    Hardcover has the best coverage for modern fiction and manga — grab a free API token at <a href="https://hardcover.app/account/api">hardcover.app/account/api</a> and set <code>TOME_HARDCOVER_TOKEN</code> in your compose file.
   </p>
   <p>
     Without a Hardcover token, Tome still uses Google Books and Open Library — the lookup just
@@ -67,7 +62,7 @@ import { withBase } from '../../lib/path'
   </p>
   <Steps>
     <li>In Tome, open <strong>Settings → KOReader</strong>.</li>
-    <li>Click <strong>Download Plugin</strong>. You get a <code>.koplugin</code> file pre-baked with your server URL and a fresh API key.</li>
+    <li>Click <strong>Download plugin</strong>. You get a <code>.koplugin</code> file pre-baked with your server URL and a fresh API key.</li>
     <li>Drop it into your reader's <code>plugins/</code> folder, restart KOReader.</li>
     <li>Reading sessions start syncing immediately. <a href={withBase("/docs/koreader")}>Full instructions</a>.</li>
   </Steps>

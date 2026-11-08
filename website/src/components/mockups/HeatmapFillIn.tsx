@@ -63,13 +63,13 @@ export function HeatmapFillIn() {
 
   return (
     <div className="p-4">
-      <div className="flex items-start gap-2">
+      <div className="flex items-start gap-2 min-w-0">
         <div className="flex flex-col gap-[3px] pt-1 pr-1">
           {DOWS.map((d, i) => (
-            <div key={i} className="text-[9px] text-[var(--muted)] leading-none h-3 flex items-center">{i % 2 ? d : ''}</div>
+            <div key={i} className="text-[9px] text-[var(--muted)] leading-none h-3 flex items-center">{i % 2 === 0 ? d : ''}</div>
           ))}
         </div>
-        <div className="flex gap-[3px]">
+        <div className="flex gap-[3px] overflow-x-auto max-w-full">
           {weeks.map((week, wi) => (
             <div key={wi} className="flex flex-col gap-[3px]">
               {week.map(idx => (

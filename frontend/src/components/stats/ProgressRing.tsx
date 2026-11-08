@@ -2,7 +2,7 @@ import type { ReactNode } from 'react'
 import { useChartAccent } from '@/lib/useChartAccent'
 
 interface ProgressRingProps {
-  /** Progress percentage 0–100+. Arc is clamped at 100% visually. */
+  /** Progress percentage 0-100+. Arc is clamped at 100% visually. */
   pct: number
   /** Outer diameter in px (default 80) */
   size?: number

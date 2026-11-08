@@ -1,4 +1,4 @@
-// Library-tab stats widgets — chart/content-only, shared by StatsPage and the Lab.
+// Library-tab stats widgets - chart/content-only, shared by StatsPage and the Lab.
 import { Fragment, useState } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
@@ -15,40 +15,38 @@ import {
   Tooltip,
   Legend,
 } from 'recharts'
-import { BookCheck, Clock, Trophy, Flame, Activity, Calendar, FileText, ArrowUpDown, ChevronUp, ChevronDown, type LucideIcon } from 'lucide-react'
+import { FileText, ArrowUpDown, ChevronUp, ChevronDown } from 'lucide-react'
 import { cn, formatDuration } from '@/lib/utils'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
+import { axisDuration, niceDurationTicks } from '@/components/stats/axis'
 import { SessionLog } from '@/components/stats/SessionLog'
 import { coverSrc } from '@/lib/covers'
 
 export function YearInReview({ summary }: { summary: StatsResponse['year_summary'] }) {
   if (!summary) {
     return (
-      <div className="flex h-full items-center justify-center px-4 text-center text-xs text-muted-foreground">
+      <div className="py-2 text-[14px] text-muted-foreground">
         <Trans>Select <span className="mx-1 font-medium text-foreground">1y</span> or <span className="mx-1 font-medium text-foreground">All</span> to see your year in review.</Trans>
       </div>
     )
   }
-  // Compact (no nested StatCard frame) so all six fit a 2-row tile without clipping.
-  const items: { icon: LucideIcon; label: string; value: string }[] = [
-    { icon: BookCheck, label: t`Books Finished`, value: String(summary.books_finished) },
-    { icon: Clock, label: t`Total Hours`, value: `${summary.total_hours}h` },
-    { icon: Trophy, label: t`Top Genre`, value: summary.top_genre ?? '--' },
-    { icon: Flame, label: t`Longest Streak`, value: `${summary.longest_streak_days}d` },
-    { icon: Activity, label: t`Total Sessions`, value: String(summary.total_sessions) },
-    { icon: Calendar, label: t`Most Active Month`, value: summary.most_active_month ?? '--' },
+  // Six bare numbers (the Stat look at 30px), no nested frames or icons.
+  const items: { label: string; value: string }[] = [
+    { label: t`Books finished`, value: String(summary.books_finished) },
+    { label: t`Total hours`, value: `${summary.total_hours}h` },
+    { label: t`Top genre`, value: summary.top_genre ?? '--' },
+    { label: t`Longest streak`, value: `${summary.longest_streak_days}d` },
+    { label: t`Total sessions`, value: String(summary.total_sessions) },
+    { label: t`Most active month`, value: summary.most_active_month ?? '--' },
   ]
   return (
-    <div className="grid h-full grid-cols-2 gap-2 sm:grid-cols-3">
+    <div className="grid grid-cols-2 gap-x-6 gap-y-5 pb-1 sm:grid-cols-3">
       {items.map((it) => (
-        <div key={it.label} className="flex flex-col justify-center rounded-lg border border-border bg-muted/20 px-3 py-1.5">
-          <div className="flex items-center gap-1 text-muted-foreground">
-            <it.icon className="h-3 w-3 shrink-0" />
-            <span className="truncate text-[10px]">{it.label}</span>
-          </div>
-          <p className="truncate text-base font-bold leading-tight text-foreground sm:text-lg">{it.value}</p>
+        <div key={it.label} className="min-w-0">
+          <div className="truncate text-[13px] text-muted-foreground">{it.label}</div>
+          <p className="mt-1.5 truncate font-display text-[30px] font-bold leading-none text-foreground">{it.value}</p>
         </div>
       ))}
     </div>
@@ -57,7 +55,7 @@ export function YearInReview({ summary }: { summary: StatsResponse['year_summary
 
 export function CategoryBreakdown({ data }: { data: StatsResponse['by_category'] }) {
   const palette = useChartPalette()
-  if (data.length === 0) return <p className="text-sm text-muted-foreground text-center py-12"><Trans>No category data.</Trans></p>
+  if (data.length === 0) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No category data.</Trans></p>
   const total = data.reduce((s, c) => s + c.seconds, 0)
   return (
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
@@ -93,13 +91,16 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
   const palette = useChartPalette()
   const { tick, cursor } = useChartColors()
   const categories = Array.from(new Set(data.flatMap((d) => Object.keys(d).filter((k) => k !== 'month')))).sort()
-  if (categories.length === 0) return <p className="text-sm text-muted-foreground text-center py-12"><Trans>No category data.</Trans></p>
+  if (categories.length === 0) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No category data.</Trans></p>
 
   const chartData = data.map((d) => {
     const entry: Record<string, number | string> = { month: d.month as string }
     for (const cat of categories) entry[cat] = Math.round(((d[cat] as number) || 0) / 60)
     return entry
   })
+  // Stacked: the top tick covers the busiest month's total, in round hours.
+  const stackMax = Math.max(0, ...chartData.map((e) => categories.reduce((sum, c) => sum + ((e[c] as number) || 0), 0)))
+  const yTicks = niceDurationTicks(stackMax * 60).map((sec) => sec / 60)
   const formatMonth = (m: string) => {
     try {
       return new Date(m + '-01T00:00:00').toLocaleDateString(undefined, { month: 'short' })
@@ -111,7 +112,7 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
     <ResponsiveContainer initialDimension={{ width: 1, height: 1 }} width="100%" height="100%">
       <ComposedChart data={chartData} margin={{ top: 4, right: 4, bottom: 0, left: 0 }}>
         <XAxis dataKey="month" tickFormatter={formatMonth} tick={{ fontSize: 10, fill: tick }} axisLine={false} tickLine={false} />
-        <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => (v >= 60 ? `${Math.round(v / 60)}h` : `${v}m`)} />
+        <YAxis ticks={yTicks} domain={[0, yTicks[yTicks.length - 1]]} interval={0} tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => axisDuration(v * 60)} />
         <Tooltip
           cursor={cursor}
           wrapperStyle={{ outline: 'none' }}
@@ -148,11 +149,11 @@ export function GenreOverTime({ data, chartType = 'area' }: { data: StatsRespons
   )
 }
 
-// One series, front and center — config picks which. Cover, progress, counts.
+// One series, front and center - config picks which. Cover, progress, counts.
 export function SeriesSpotlight({ data, series }: { data: StatsResponse['series_completion']; series?: string }) {
   const { accent } = useChartColors()
   const entry = (series ? data.find((s) => s.series === series) : undefined) ?? data[0]
-  if (!entry) return <p className="text-sm text-muted-foreground text-center py-8"><Trans>No series read yet.</Trans></p>
+  if (!entry) return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No series read yet.</Trans></p>
   return (
     <div className="flex h-full items-center gap-3">
       <img
@@ -163,13 +164,13 @@ export function SeriesSpotlight({ data, series }: { data: StatsResponse['series_
       />
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-semibold text-foreground">{entry.series}</p>
-        <p className="mt-0.5 text-xs text-muted-foreground">
+        <p className="mt-0.5 text-[13px] text-muted-foreground">
           {(() => { const read = entry.read; const total = entry.total; return <Trans>{read} of {total} read</Trans> })()}{entry.reading > 0 ? (() => { const n = entry.reading; return t` · ${n} reading` })() : ''}
         </p>
         <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-muted">
           <div className="h-full rounded-full" style={{ width: `${Math.min(entry.pct, 100)}%`, backgroundColor: accent }} />
         </div>
-        <p className="mt-1 text-right text-[10px] tabular-nums text-muted-foreground">{entry.pct}%</p>
+        <p className="mt-1 text-right text-[12px] text-muted-foreground">{entry.pct}%</p>
       </div>
     </div>
   )
@@ -207,9 +208,9 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
 
   return (
     <div className="overflow-x-auto">
-      <table className="w-full text-xs">
+      <table className="w-full text-[13px]">
         <thead>
-          <tr className="border-b border-border text-[11px] font-medium text-muted-foreground">
+          <tr className="border-b border-border text-[12px] font-medium text-muted-foreground">
             <th className="text-left py-2 px-2 w-10" />
             <th className="text-left py-2 px-2"><Trans>Title</Trans></th>
             <th className="text-left py-2 px-2 hidden sm:table-cell"><Trans>Author</Trans></th>
@@ -238,9 +239,9 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
                   <a href={`/books/${b.book_id}`} className="font-medium text-foreground hover:text-primary transition-colors line-clamp-1">{b.title}</a>
                 </td>
                 <td className="py-1.5 px-2 text-muted-foreground hidden sm:table-cell truncate max-w-[160px]">{b.author || '--'}</td>
-                <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{formatDuration(b.seconds)}</td>
-                <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{b.sessions}</td>
-                <td className="py-1.5 px-2 text-right text-muted-foreground tabular-nums">{b.pages_turned}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground">{formatDuration(b.seconds)}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground">{b.sessions}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground">{b.pages_turned}</td>
                 <td className="py-1.5 px-2">
                   <button
                     onClick={() => setOpenBook(openBook === b.book_id ? null : b.book_id)}
@@ -263,7 +264,7 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
         </tbody>
       </table>
       {hasMore && (
-        <button onClick={() => setExpanded(!expanded)} className="flex items-center justify-center gap-1.5 py-2 text-xs text-primary hover:text-primary/80 transition-colors w-full">
+        <button onClick={() => setExpanded(!expanded)} className="flex items-center justify-center gap-1.5 py-2 text-[13px] text-primary hover:text-primary/80 transition-colors w-full">
           <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', expanded && 'rotate-180')} />
           <span>{expanded ? t`Show less` : (() => { const n = sorted.length; return t`Show all (${n} books)` })()}</span>
         </button>

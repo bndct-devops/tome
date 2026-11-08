@@ -1,5 +1,5 @@
 /**
- * Reading goals — types, API calls, and per-kind display metadata.
+ * Reading goals - types, API calls, and per-kind display metadata.
  * All per-kind display logic derives from the GOAL_META map; its preset
  * chips are the curated on-ramp shown in the goal editor.
  */
@@ -31,7 +31,7 @@ export interface Goal {
   book_type_label: string | null
   current: number
   pct: number
-  /** Target prorated to the elapsed window — month/year only, null otherwise. */
+  /** Target prorated to the elapsed window - month/year only, null otherwise. */
   expected: number | null
   /** Present only for daily-period goals */
   days_hit_this_week?: number
@@ -60,7 +60,7 @@ interface GoalMeta extends Omit<GoalMetaDef, 'label' | 'caption' | 'inputUnit'> 
 const GOAL_META: Record<GoalKind, GoalMetaDef> = {
   books_per_year: {
     label: msg`Books this year`,
-    caption: msg`Year Challenge`,
+    caption: msg`Year challenge`,
     unit: '',
     inputUnit: msg`books`,
     placeholder: 24,
