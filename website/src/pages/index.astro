@@ -40,6 +40,17 @@ const competitors = [
   { name: 'Kavita',       tagline: 'Featureful all-rounder',
     cells: ['no', 'no', 'yes (v0.8.7+)', 'yes', 'yes', 'progress only', 'polished'] },
 ]
+// Footer version: read from the repo at build time so it never goes stale.
+import { readFileSync } from 'node:fs'
+const releaseLabel = (() => {
+  try {
+    const py = readFileSync(new URL('../../../pyproject.toml', import.meta.url), 'utf8')
+    const v = py.match(/^version\s*=\s*"([^"]+)"/m)?.[1]
+    const cl = readFileSync(new URL('../../../CHANGELOG.md', import.meta.url), 'utf8')
+    const name = v ? cl.match(new RegExp('^## \\[' + v.replace(/\./g, '\\.') + '\\][^\n]*?"([^"]+)"', 'm'))?.[1] : undefined
+    return v ? `v${v}${name ? ' · ' + name : ''}` : 'tome.bndct.sh'
+  } catch { return 'tome.bndct.sh' }
+})()
 ---
 <BaseLayout title="Tome — A self-hosted ebook library that knows how you read">
   <SiteHeader />
@@ -119,7 +130,7 @@ const competitors = [
           <span class="setup-card-label">With TomeSync</span>
         </div>
         <ol class="setup-steps">
-          <li>Click <strong>Download Plugin</strong> in Tome's Settings</li>
+          <li>Click <strong>Download plugin ZIP</strong> in Tome's Settings</li>
           <li>Drop the <code>.koplugin</code> into KOReader's plugins folder</li>
           <li>Restart KOReader. Done.</li>
         </ol>
@@ -242,7 +253,7 @@ const competitors = [
     <div class="text-center mb-12 reveal">
       <h2 class="text-3xl md:text-5xl font-bold tracking-tight mb-4">Pick a theme. Read your way.</h2>
       <p class="text-lg md:text-xl text-[var(--muted)] max-w-2xl mx-auto leading-relaxed">
-        Three themes built in — Light, Dark, Amber — plus custom palettes for the colour-coordinators.
+        Five themes built in: Light, Dark, Black, Amber and Ember, plus custom palettes for the colour-coordinators.
         Click below to try one. (Your choice carries into the docs too.)
       </p>
     </div>
@@ -357,15 +368,15 @@ const competitors = [
             <li><a href="/docs/koreader" class="hover:text-[var(--fg)] transition-colors">KOReader / TomeSync</a></li>
             <li><a href="/docs/opds" class="hover:text-[var(--fg)] transition-colors">OPDS</a></li>
             <li><a href="/docs/stats" class="hover:text-[var(--fg)] transition-colors">Stats</a></li>
-            <li><a href="/docs/reader" class="hover:text-[var(--fg)] transition-colors">Web Reader</a></li>
+            <li><a href="/docs/reader" class="hover:text-[var(--fg)] transition-colors">Web reader</a></li>
           </ul>
         </div>
         <div>
           <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Admin</h4>
           <ul class="space-y-2 text-sm text-[var(--muted)]">
-            <li><a href="/docs/users-and-roles" class="hover:text-[var(--fg)] transition-colors">Users &amp; Roles</a></li>
+            <li><a href="/docs/users-and-roles" class="hover:text-[var(--fg)] transition-colors">Users &amp; roles</a></li>
             <li><a href="/docs/bindery" class="hover:text-[var(--fg)] transition-colors">Bindery</a></li>
-            <li><a href="/docs/api-tokens" class="hover:text-[var(--fg)] transition-colors">API Tokens</a></li>
+            <li><a href="/docs/api-tokens" class="hover:text-[var(--fg)] transition-colors">API tokens</a></li>
             <li><a href="/docs/configuration" class="hover:text-[var(--fg)] transition-colors">Configuration</a></li>
           </ul>
         </div>
@@ -380,7 +391,7 @@ const competitors = [
       </div>
       <div class="flex flex-col md:flex-row items-center justify-between gap-3 pt-6 border-t border-[var(--border)] text-sm text-[var(--muted)]">
         <div>AGPL-3.0 · <a href="https://github.com/bndct-devops/tome" class="hover:text-[var(--fg)] transition-colors">bndct-devops/tome</a></div>
-        <div>v1.0 · Codex</div>
+        <div>{releaseLabel}</div>
       </div>
     </div>
   </footer>

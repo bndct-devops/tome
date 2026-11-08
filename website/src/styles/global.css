@@ -422,7 +422,10 @@ html { scroll-behavior: smooth; }
   margin: 0;
 }
 .docs-shot {
-  margin: 24px 0;
+  /* shrink to the image: small crops (a dialog, a tile) must not be upscaled */
+  width: fit-content;
+  max-width: 100%;
+  margin: 24px auto;
   border: 1px solid var(--border);
   border-radius: 12px;
   overflow: hidden;
@@ -430,7 +433,8 @@ html { scroll-behavior: smooth; }
 }
 .docs-shot img {
   display: block;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: auto;
 }
 /* For shots that already render their own card frame (modals, section cards).
@@ -442,8 +446,10 @@ html { scroll-behavior: smooth; }
 }
 .docs-shot-bare img {
   display: block;
-  width: 100%;
+  width: auto;
+  max-width: 100%;
   height: auto;
+  margin: 0 auto;
   border-radius: 12px;
 }
 .docs-shot-caption {
@@ -1163,4 +1169,12 @@ html.theme-dark .setup-steps li { background: oklch(1 0 0 / 0.04); }
     mask-image: none;
     -webkit-mask-image: none;
   }
+}
+
+/* Phones: wide tables scroll inside the article instead of being cut by the page's overflow-x: hidden. */
+.docs-article table { display: block; max-width: 100%; overflow-x: auto; -webkit-overflow-scrolling: touch; }
+/* Comparison table on tablets: the header must fit a wrapped product name, and the whole thing scrolls sideways. */
+.comparison-scroll-wrapper { overflow-x: auto; overflow-y: visible; -webkit-overflow-scrolling: touch; }
+@media (max-width: 768px) {
+  .cmp-card-header, .cmp-header-spacer { min-height: 136px; }
 }
