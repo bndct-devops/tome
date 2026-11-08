@@ -6,6 +6,11 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- **The arm64 image builds again.** The two frontend build stages run on the
+  build host instead of under emulation; the 3.0.0 image build had crashed
+  there while compiling the classic bundle.
+
 ## [3.0.0] - 2026-11-08 - "Rebind"
 
 Feedback: https://github.com/bndct-devops/tome/discussions/292

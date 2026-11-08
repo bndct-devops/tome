@@ -1,5 +1,7 @@
-# Build frontend
-FROM node:22-alpine AS frontend-build
+# Build frontend. The Node stages produce static files, so they run natively on
+# the build host (BUILDPLATFORM) for every target platform instead of under
+# qemu, which is slow and crashed the arm64 build with an illegal instruction.
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-build
 WORKDIR /app/frontend
 COPY frontend/package*.json ./
 RUN npm ci --legacy-peer-deps
@@ -8,7 +10,7 @@ RUN npm run build
 
 # Build the classic frontend: the look of the last 2.x release, frozen at its
 # tag, for servers that set TOME_UI=classic. It talks to the same API.
-FROM node:22-alpine AS frontend-classic-build
+FROM --platform=$BUILDPLATFORM node:22-alpine AS frontend-classic-build
 ARG CLASSIC_UI_TAG=v2.8.0
 WORKDIR /src
 ADD https://github.com/bndct-devops/tome/archive/refs/tags/${CLASSIC_UI_TAG}.tar.gz /src/classic.tar.gz
