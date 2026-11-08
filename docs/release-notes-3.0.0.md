@@ -1,15 +1,17 @@
-# v3.0.0 "Frontispiece"
+# v3.0.0 "Rebind"
 
-A frontispiece is the picture facing a book's title page: the first thing
-you see when you open it. This release is the new face of Tome. Every page
-of the web app was rebuilt in one quiet vocabulary, and the old look stays
-one setting away.
+To rebind a book is to give it a new cover and spine and leave the pages as
+they are. That is this release: every page of the web app was rebuilt in one
+quiet vocabulary, and the server, your data and the KOReader plugin did not
+change. The old look stays one setting away.
 
 <!-- Video: drag the launch MP4 (tome-3.0-launch.mp4, path in the handover) into this
      release's description; GitHub turns it into a player. The GIF below
      is the fallback for the README. -->
 
 ![Tome 3.0: Home, a quick look, the book page, a series, Stats and the Calendar](https://raw.githubusercontent.com/bndct-devops/tome/main/docs/screenshots/hero.gif)
+
+![Home in Tome 3.0](https://raw.githubusercontent.com/bndct-devops/tome/main/docs/screenshots/home.png)
 
 ## Highlights
 

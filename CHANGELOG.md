@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.0.0] - 2026-11-08 - "Rebind"
+
 ### Added
 - **Preview a book without touching your progress.** The book page has a
   quiet "Preview" next to Resume: the book opens in the web reader as usual,
