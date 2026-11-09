@@ -31,6 +31,8 @@ interface FocusBook {
   series_index: number | null
   description: string | null
   has_cover: boolean
+  /** Known from a reader's sync only: Tome has no file to open. */
+  no_file?: boolean
   progress: number
   device: string | null
   synced: boolean
@@ -391,10 +393,16 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
             )}
             <ProgressBar pct={b.progress} className="mt-4" />
             <div className="mt-3.5 flex flex-wrap items-center gap-3">
-              <Pill variant="primary" size="lg" onClick={() => navigate(`/reader/${b.book_id}`)}>
-                <Play className="w-4 h-4 fill-current" />
-                <Trans>Resume</Trans>
-              </Pill>
+              {b.no_file ? (
+                <span className="inline-flex h-9 items-center rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground">
+                  <Trans>On your reader</Trans>
+                </span>
+              ) : (
+                <Pill variant="primary" size="lg" onClick={() => navigate(`/reader/${b.book_id}`)}>
+                  <Play className="w-4 h-4 fill-current" />
+                  <Trans>Resume</Trans>
+                </Pill>
+              )}
               {b.last_sync && (
                 <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
                   <RefreshCw className="w-3.5 h-3.5" />

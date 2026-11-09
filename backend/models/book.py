@@ -10,6 +10,15 @@ if TYPE_CHECKING:
     from backend.models.library import BookType, Library
 
 
+# Book.status values. "active" is a book in the library. "no_file" is a book
+# Tome only knows from a reader's sync: it has a title and reading history but
+# no file, so everything that lists or serves library books (which filters on
+# "active") leaves it out. Reading surfaces (Home, stats, calendar) count both.
+BOOK_ACTIVE = "active"
+BOOK_NO_FILE = "no_file"
+READING_STATUSES = (BOOK_ACTIVE, BOOK_NO_FILE)
+
+
 class Book(Base):
     __tablename__ = "books"
 

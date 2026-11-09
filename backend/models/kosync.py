@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
@@ -161,3 +161,32 @@ class KOSyncSessionReceipt(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
     reading_session: Mapped[Optional["ReadingSession"]] = relationship("ReadingSession")  # type: ignore[name-defined]
+
+
+class KOSyncDocumentMeta(Base):
+    """What a reader said about one of its files: name, title, author.
+
+    KOSync identifies a file by a hash only. Readers that also send document
+    metadata with a progress push (KOReader's optional metadata field, used by
+    CrossInk's "Send Document Metadata") tell Tome which book that hash is,
+    which is what lets a sideloaded file be matched to a library book or get a
+    book record of its own.
+    """
+    __tablename__ = "kosync_document_meta"
+    __table_args__ = (UniqueConstraint("user_id", "document"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    document: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    filename: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    title: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    authors: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    isbn: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    series: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    series_index: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
+    # The user deleted the file-less book made for this file: do not make it
+    # again on the next sync. Linking the document by hand lifts it.
+    ignored: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)

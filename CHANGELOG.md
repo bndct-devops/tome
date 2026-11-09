@@ -19,10 +19,32 @@ All notable changes to Tome are documented here. Format loosely follows
   sent again; whatever is still waiting on the device is. Sessions carry no
   page counts, and a session for a book Tome cannot identify counts toward
   your totals but stays off the calendar, listed as "(book not linked yet)",
-  until you link the document on the book's page. A session you trim or
-  delete in Tome stays that way when the reader sends it again. Other KOSync
-  apps are unaffected. Tested with the firmware's own upload code in its
-  desktop simulator, not yet on a reader.
+  until the document is linked (see the next entry for how that now happens
+  by itself). A session you trim or delete in Tome stays that way when the
+  reader sends it again. Other KOSync apps are unaffected. Tested with the
+  firmware's own upload code in its desktop simulator, not yet on a reader.
+- **Sideloaded books are recognised from what the reader says about them
+  (experimental).** A file you copied to your reader yourself is only a hash
+  to Tome, so its progress and reading had no book to belong to. When the
+  reader also sends the file's title and author with its progress (on
+  CrossInk: turn on Send Document Metadata in the sync settings), Tome now
+  sorts it out on the next sync. If exactly one book in your library is the
+  same book, the file is linked to it. If none is, Tome adds the book
+  without a file, so the reading shows on Home, in the stats, the calendar
+  and the session list under its real title. Such a book has its own page,
+  where you can set a cover or fix its details. It is yours alone, and it
+  stays out of the library, the series pages, search, OPDS, the KOReader
+  plugin, the apps and the duplicates page, since there is nothing to open
+  or download. When you later add the real file, use Link KOReader sync on
+  its page: the reading, read status, finish date, rating and review move
+  over and the file-less entry is removed. Delete a file-less book and Tome
+  stops tracking that file; a link by hand brings it back.
+  "The same book" is exact, never similar: the same title and the same
+  authors (in any order), and no disagreement about the volume, so volume 2
+  of a series whose volumes share one title is not put on volume 1. A
+  shared ISBN counts only when the title or the author agrees too, and a
+  title without an author is never matched. When several library books fit,
+  Tome leaves the choice to you.
 
 ### Changed
 - Pages per minute on a book's page is now worked out only from sittings
@@ -31,6 +53,11 @@ All notable changes to Tome are documented here. Format loosely follows
 - Linking a KOReader sync document to a book now requires a book you can
   see; a book in someone else's private library answers as not found.
 - The account data export includes the stats a reader uploaded.
+- The Link KOReader sync picker on a book's page shows the title the reader
+  sent for a document, when it sent one, next to device, progress and date.
+- A KOSync push that names its book no longer claims the oldest pending
+  OPDS download as a guess. That guess stays only for apps that send no
+  metadata.
 
 ### Fixed
 - **The arm64 image builds again.** The two frontend build stages run on the

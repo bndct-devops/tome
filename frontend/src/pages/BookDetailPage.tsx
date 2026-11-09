@@ -147,6 +147,8 @@ interface KosyncUnlinkedDoc {
   percentage: number
   device: string | null
   timestamp: number
+  /** What the reader called the file, when it sent metadata. */
+  title?: string | null
 }
 
 interface KosyncStatus {
@@ -778,7 +780,7 @@ export function BookDetailPage() {
           )}
         </div>
       )}
-      {canEdit && (
+      {canEdit && book.status !== 'no_file' && (
         <Pill variant="quiet" onClick={() => setShowShare(true)} title={t`Share this book as a public page with its metadata only`} aria-label={t`Share`}>
           <Share2 className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Share</Trans></span>
         </Pill>
@@ -1073,7 +1075,12 @@ export function BookDetailPage() {
     </div>
   ) : null
 
-  const actionRow = (readable || book.files.length > 0) ? (
+  // A book Tome only knows from a reader's sync: nothing to read or download here.
+  const actionRow = book.status === 'no_file' ? (
+    <p className="mt-5 max-w-[60ch] text-[14px] leading-relaxed text-muted-foreground">
+      <Trans>Tome has no file for this book. It was added from your reader's sync so the reading has a place. If you add the book to your library, use Link KOReader sync on its page to move the reading there.</Trans>
+    </p>
+  ) : (readable || book.files.length > 0) ? (
     <div className="mt-5 flex flex-wrap items-center gap-2">
       {readable && (
         <Pill variant="primary" size="lg" onClick={() => navigate(`/reader/${book.id}`)}>
@@ -1127,7 +1134,7 @@ export function BookDetailPage() {
             className="w-auto max-w-[18rem]">
             {kosyncUnlinked.map(d => (
               <option key={d.document} value={d.document}>
-                {d.device || t`unknown device`} · {Math.round(d.percentage * 100)}% · {shortDay(new Date(d.timestamp * 1000))}
+                {d.title ? `${d.title} · ` : ''}{d.device || t`unknown device`} · {Math.round(d.percentage * 100)}% · {shortDay(new Date(d.timestamp * 1000))}
               </option>
             ))}
           </Select>

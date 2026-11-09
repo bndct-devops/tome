@@ -48,7 +48,7 @@ from backend.api import device_books as device_books_api
 from backend.api import hardcover as hardcover_api
 from backend.models.kosync import (  # noqa: F401
     KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory,
-    KOSyncDeviceStats, KOSyncDailyStats, KOSyncSessionReceipt,
+    KOSyncDeviceStats, KOSyncDailyStats, KOSyncSessionReceipt, KOSyncDocumentMeta,
 )
 from backend.models.opds_pin import OpdsPin  # noqa: F401
 from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition  # noqa: F401

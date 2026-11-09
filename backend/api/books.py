@@ -21,7 +21,7 @@ from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.security import get_current_user
 from backend.core.permissions import require_role, user_can_see_book
-from backend.models.book import Book, BookFile, BookTag
+from backend.models.book import READING_STATUSES, Book, BookFile, BookTag
 from backend.models.user_book_status import UserBookStatus
 from backend.services.audit import audit
 from backend.services import cover_thumbs
@@ -1265,7 +1265,7 @@ def get_book_annotations(
     from backend.models.tome_sync import Annotation
 
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not book or book.status not in READING_STATUSES:
         raise HTTPException(status_code=404, detail="Book not found")
     if not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
@@ -1373,7 +1373,7 @@ def get_book_estimate(
 
 def _visible_book_or_404(db: Session, current_user: User, book_id: int) -> Book:
     book = db.get(Book, book_id)
-    if not book or book.status != "active" or not user_can_see_book(db, current_user, book):
+    if not book or book.status not in READING_STATUSES or not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
     return book
 
@@ -1505,7 +1505,7 @@ def get_book_reading_stats(
     )
 
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not book or book.status not in READING_STATUSES:
         raise HTTPException(status_code=404, detail="Book not found")
     if not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
@@ -1554,7 +1554,7 @@ def add_manual_reading_session(
     from backend.services.reading_stats import compute_book_reading_stats
 
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not book or book.status not in READING_STATUSES:
         raise HTTPException(status_code=404, detail="Book not found")
     if not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
@@ -1646,7 +1646,7 @@ def clear_imported_history(
     from backend.models.ko_stats import KoStatsBookMatch, PageStat
 
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not book or book.status not in READING_STATUSES:
         raise HTTPException(status_code=404, detail="Book not found")
     if not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
@@ -2406,6 +2406,11 @@ def _delete_book_record(book: Book, db: Session, actor: User) -> None:
     deleted_id, deleted_title = book.id, book.title
     file_paths = [Path(bf.file_path) for bf in book.files]
     cover_file = settings.covers_dir / book.cover_path if book.cover_path else None
+
+    # A file-less book made from a reader's sync must not come back from the
+    # same files on the next sync.
+    from backend.services.kosync_books import forget_documents
+    forget_documents(db, book)
 
     from backend.services.fts import unindex_book
     unindex_book(db, book.id)

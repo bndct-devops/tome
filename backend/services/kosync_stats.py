@@ -324,14 +324,22 @@ def attach_sessions(
     return query.update({ReadingSession.book_id: book_id}, synchronize_session=False)
 
 
-def unlinked_session_ids(db: Session, session_ids: list[int]) -> set[int]:
-    """Which of these sessions were uploaded by a reader (as opposed to
-    belonging to a book that has since been deleted)."""
+def unlinked_session_titles(db: Session, user_id: int, session_ids: list[int]) -> dict[int, Optional[str]]:
+    """Which of these book-less sessions were uploaded by a reader (as opposed
+    to belonging to a book that has since been deleted), each with a label
+    from the reader's own description of the file when it sent one."""
     if not session_ids:
-        return set()
-    return {
-        r[0] for r in db.query(KOSyncSessionReceipt.reading_session_id)
+        return {}
+    from backend.services.kosync_books import titles_for
+
+    documents = dict(
+        db.query(KOSyncSessionReceipt.reading_session_id, KOSyncSessionReceipt.document)
         .filter(KOSyncSessionReceipt.reading_session_id.in_(session_ids))
+    )
+    titles = titles_for(db, user_id, sorted(set(documents.values())))
+    return {
+        sid: (f"{titles[doc]} (not linked yet)" if doc in titles else None)
+        for sid, doc in documents.items()
     }
 
 

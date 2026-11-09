@@ -6558,6 +6558,10 @@ msgstr ""
 msgid "On this day"
 msgstr ""
 
+#: src/components/home/HomeTab.tsx
+msgid "On your reader"
+msgstr ""
+
 #: src/components/TelemetryConsentCard.tsx
 #~ msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes."
 #~ msgstr ""
@@ -9713,6 +9717,10 @@ msgstr ""
 #: src/pages/LoginPage.tsx
 #: src/pages/SetupPage.tsx
 msgid "Tome · Your personal library"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+msgid "Tome has no file for this book. It was added from your reader's sync so the reading has a place. If you add the book to your library, use Link KOReader sync on its page to move the reading there."
 msgstr ""
 
 #: src/components/ConnectPhoneModal.tsx

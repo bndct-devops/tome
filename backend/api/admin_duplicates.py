@@ -23,13 +23,17 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.security import get_current_user
 from backend.core.permissions import require_role
-from backend.models.book import Book, BookTag
+from backend.models.book import BOOK_NO_FILE, Book, BookTag
 from backend.models.duplicate_dismissal import DuplicateDismissal
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
 from backend.services.audit import audit
 
 router = APIRouter()
+
+# Duplicates are about library copies. A book Tome only knows from a reader's
+# sync (no file) is never one.
+_HAS_FILE = Book.status != BOOK_NO_FILE
 
 
 # ── Schemas ──────────────────────────────────────────────────────────────────
@@ -147,13 +151,13 @@ def get_duplicates(
     hash_dupes: list[list[Book]] = []
     hash_counts = (
         db.query(Book.content_hash, func.count(Book.id).label("cnt"))
-        .filter(Book.content_hash.isnot(None))
+        .filter(Book.content_hash.isnot(None), _HAS_FILE)
         .group_by(Book.content_hash)
         .having(func.count(Book.id) > 1)
         .all()
     )
     for row in hash_counts:
-        books = db.query(Book).filter(Book.content_hash == row.content_hash).all()
+        books = db.query(Book).filter(Book.content_hash == row.content_hash, _HAS_FILE).all()
         if len(books) > 1:
             hash_dupes.append(books)
 
@@ -163,13 +167,13 @@ def get_duplicates(
     isbn_dupes: list[list[Book]] = []
     isbn_counts = (
         db.query(Book.isbn, func.count(Book.id).label("cnt"))
-        .filter(Book.isbn.isnot(None))
+        .filter(Book.isbn.isnot(None), _HAS_FILE)
         .group_by(Book.isbn)
         .having(func.count(Book.id) > 1)
         .all()
     )
     for row in isbn_counts:
-        books = db.query(Book).filter(Book.isbn == row.isbn).all()
+        books = db.query(Book).filter(Book.isbn == row.isbn, _HAS_FILE).all()
         if len(books) > 1:
             isbn_dupes.append(books)
 
@@ -193,7 +197,7 @@ def get_duplicates(
         )
         .filter(Book.author.isnot(None), Book.author != "")
         .filter(Book.series.isnot(None), Book.series != "")
-        .filter(Book.series_index.isnot(None))
+        .filter(Book.series_index.isnot(None), _HAS_FILE)
         .group_by(func.lower(Book.author), func.lower(Book.series), Book.series_index)
         .having(func.count(Book.id) > 1)
         .all()
@@ -205,6 +209,7 @@ def get_duplicates(
                 func.lower(Book.author) == row[0],
                 func.lower(Book.series) == row[1],
                 Book.series_index == row[2],
+                _HAS_FILE,
             )
             .all()
         )
@@ -219,7 +224,7 @@ def get_duplicates(
 
     # Strategy 4: similar title+author (skip pairs with different series_index)
     title_dupes: list[list[Book]] = []
-    all_books = db.query(Book).all()
+    all_books = db.query(Book).filter(_HAS_FILE).all()
 
     author_groups: dict[str, list[Book]] = {}
     for book in all_books:
@@ -309,6 +314,12 @@ def merge_duplicates(
 
     if body.keep_id in body.remove_ids:
         raise HTTPException(status_code=400, detail="keep_id must not appear in remove_ids")
+
+    # A book without a file is one user's reading record, not a library copy:
+    # merging would hide a real file inside it, or delete the record.
+    involved = db.query(Book.id).filter(Book.id.in_([body.keep_id, *body.remove_ids]), ~_HAS_FILE).first()
+    if involved:
+        raise HTTPException(status_code=400, detail="A book without a file cannot be merged")
 
     merged_count = 0
     dropped_missing_files = 0

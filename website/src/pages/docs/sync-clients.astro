@@ -64,6 +64,36 @@ import { withBase } from '../../lib/path'
     device, progress and date, and one click links the right one.
   </p>
 
+  <h3>Sideloaded books that name themselves (experimental)</h3>
+  <p>
+    Some clients can send the file's title and author along with the position. CrossInk
+    calls the switch <strong>Send Document Metadata</strong>. With that on, Tome needs no
+    manual link:
+  </p>
+  <ul>
+    <li><strong>The book is in your library:</strong> if exactly one book you can see has
+      the same title and the same authors, the file is linked to it. A shared ISBN also
+      counts when the title or the author agrees.</li>
+    <li><strong>The book is not in your library:</strong> Tome adds it without a file, so
+      its progress and reading show on Home, in the stats and on the calendar under its
+      real title. It has a page of its own for a cover and details, and stays out of the
+      library, OPDS, the plugin and the apps, because there is nothing to download.</li>
+    <li><strong>Several books fit:</strong> Tome does not choose. Use the manual picker;
+      it shows the title the reader sent.</li>
+  </ul>
+  <p>
+    When you add the real file later, open its page and use <em>Link KOReader sync</em>:
+    the reading, read status, finish date and rating move over and the file-less entry is
+    removed. Deleting a file-less book tells Tome to stop tracking that file; linking the
+    document by hand brings it back.
+  </p>
+  <p>
+    Matching is exact, never by similarity. Case, spacing and the order of several authors
+    do not matter; the volume does. A reader that says "volume 2", or a file named like
+    volume 2, is not linked to a book Tome has as volume 1, even when both carry the bare
+    series name as their title. A title without an author is never matched.
+  </p>
+
   <div class="docs-shot">
     <ThemedShot client:load name="kosync-link" alt="The Link KOReader sync picker on a book page, offering an unlinked Readest document" />
   </div>
@@ -91,8 +121,10 @@ import { withBase } from '../../lib/path'
     <li>Sessions have time but no page counts, so they don't feed pages-per-minute.</li>
     <li>A session for a book Tome can't identify still counts toward your totals and is listed
       as "(book not linked yet)". It appears on the calendar once the document is linked:
-      automatically when the reader next syncs progress for a book you downloaded from Tome,
-      or by hand with <em>Link KOReader sync</em> on the book's page.</li>
+      automatically when the reader next syncs progress for a book you downloaded from Tome
+      or, with <strong>Send Document Metadata</strong> on, for any book (see
+      <em>Sideloaded books that name themselves</em> above), or by hand with
+      <em>Link KOReader sync</em> on the book's page.</li>
     <li>A session you trim or delete in Tome stays that way, even when the reader sends it again.</li>
   </ul>
 

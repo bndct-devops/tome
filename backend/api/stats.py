@@ -15,7 +15,7 @@ from backend.core.security import get_current_user
 from backend.models.user import User
 from backend.models.user_dashboard import UserDashboard
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
-from backend.models.book import Book, BookFile
+from backend.models.book import READING_STATUSES, Book, BookFile
 from backend.models.user_book_status import UserBookStatus
 from backend.models.user_series_rating import UserSeriesRating
 from backend.models.library import BookType
@@ -712,7 +712,7 @@ def get_stats(
         .filter(
             UserBookStatus.user_id == current_user.id,
             UserBookStatus.rating.isnot(None),
-            Book.status == "active",
+            Book.status.in_(READING_STATUSES),
             book_visibility_filter(db, current_user),
         )
         .all()
@@ -1339,7 +1339,7 @@ def get_reading_timeline(
         b.id: b
         for b in db.query(Book).filter(
             Book.id.in_(per_book.keys()),
-            Book.status == "active",
+            Book.status.in_(READING_STATUSES),
             book_visibility_filter(db, current_user),
         )
     }
@@ -1506,9 +1506,9 @@ def list_sessions(
 
     # A session a KOSync reader uploaded for a file Tome has not matched to a
     # book yet has no book either; that is not a deleted book.
-    from backend.services.kosync_stats import unlinked_session_ids
-    not_linked = unlinked_session_ids(
-        db, [e[2].id for e in page if e[1] == "session" and e[2].book_id is None])
+    from backend.services.kosync_stats import unlinked_session_titles
+    not_linked = unlinked_session_titles(
+        db, current_user.id, [e[2].id for e in page if e[1] == "session" and e[2].book_id is None])
 
     out = []
     for _, kind, r in page:
@@ -1518,7 +1518,8 @@ def list_sessions(
                 "kind": "session",
                 "counted": r.id not in superseded_ids,
                 "book_id": r.book_id,
-                "book_title": r.book_title or ("(book not linked yet)" if r.id in not_linked else "(deleted book)"),
+                "book_title": r.book_title or (
+                    (not_linked[r.id] or "(book not linked yet)") if r.id in not_linked else "(deleted book)"),
                 "started_at": (r.started_at.isoformat() + "Z") if r.started_at else None,
                 "ended_at": (r.ended_at.isoformat() + "Z") if r.ended_at else None,
                 "duration_seconds": r.duration_seconds,

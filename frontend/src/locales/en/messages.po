@@ -6558,6 +6558,10 @@ msgstr "On the server"
 msgid "On this day"
 msgstr "On this day"
 
+#: src/components/home/HomeTab.tsx
+msgid "On your reader"
+msgstr "On your reader"
+
 #: src/components/TelemetryConsentCard.tsx
 #~ msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes."
 #~ msgstr "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes."
@@ -9714,6 +9718,10 @@ msgstr "Token name"
 #: src/pages/SetupPage.tsx
 msgid "Tome · Your personal library"
 msgstr "Tome · Your personal library"
+
+#: src/pages/BookDetailPage.tsx
+msgid "Tome has no file for this book. It was added from your reader's sync so the reading has a place. If you add the book to your library, use Link KOReader sync on its page to move the reading there."
+msgstr "Tome has no file for this book. It was added from your reader's sync so the reading has a place. If you add the book to your library, use Link KOReader sync on its page to move the reading there."
 
 #: src/components/ConnectPhoneModal.tsx
 msgid "Tome Reader is in free beta for iPhone until 31 December 2026."
