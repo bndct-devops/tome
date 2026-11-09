@@ -368,8 +368,13 @@ def link_kosync_document(
     from backend.models.book import Book
     from backend.models.kosync import KOSyncUser, KOSyncProgress, KOSyncDocumentMap
 
+    from backend.core.permissions import user_can_see_book
+    from backend.services.kosync_stats import attach_sessions, has_sessions_for
+
     book = db.get(Book, book_id)
-    if not book:
+    # The user's progress and sessions end up on this book, so it has to be
+    # one they can see (same answer as a missing book).
+    if not book or not user_can_see_book(db, current_user, book):
         raise HTTPException(404, "Book not found")
 
     kosync_user = db.query(KOSyncUser).filter(KOSyncUser.username == current_user.username).first()
@@ -380,7 +385,8 @@ def link_kosync_document(
         KOSyncProgress.user_id == kosync_user.id,
         KOSyncProgress.document == body.document,
     ).first()
-    if not progress:
+    # A reader can upload sessions for a file it never synced a position for.
+    if not progress and not has_sessions_for(db, current_user.id, body.document):
         raise HTTPException(404, "Document not found in sync history")
 
     # Upsert document map
@@ -396,15 +402,19 @@ def link_kosync_document(
             document=body.document,
             book_id=book_id,
         ))
+    # Reading sessions uploaded for this document follow the link (also when
+    # it corrects an earlier wrong one).
+    attach_sessions(db, current_user.id, body.document, book_id, relink=True)
 
     # Shared sticky-completion rule — same semantics as a KOSync push landing
     # on an already-linked book (position-sync: tracks the report, downward
     # included; never un-finishes a read book; finishes at 0.99).
-    from backend.services.book_progress import apply_progress_to_status
-    apply_progress_to_status(
-        db, user_id=current_user.id, book_id=book_id,
-        pct=progress.percentage, monotonic=False,
-    )
+    if progress:
+        from backend.services.book_progress import apply_progress_to_status
+        apply_progress_to_status(
+            db, user_id=current_user.id, book_id=book_id,
+            pct=progress.percentage, monotonic=False,
+        )
 
     db.commit()
     return {"ok": True}

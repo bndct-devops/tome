@@ -226,6 +226,10 @@ def update_progress(
                 db, user_id=user.user_id, book_id=doc_map.book_id,
                 pct=float(percentage), monotonic=False,
             )
+            # Sessions a stats-capable reader uploaded before this document
+            # was linked have no book yet; they belong to this one.
+            from backend.services.kosync_stats import attach_sessions
+            attach_sessions(db, user.user_id, document, doc_map.book_id)
             if history_entry:
                 history_entry.book_id = doc_map.book_id
             db.commit()

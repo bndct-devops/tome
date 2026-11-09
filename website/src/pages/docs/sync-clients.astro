@@ -68,6 +68,34 @@ import { withBase } from '../../lib/path'
     <ThemedShot client:load name="kosync-link" alt="The Link KOReader sync picker on a book page, offering an unlinked Readest document" />
   </div>
 
+  <h2>Reading stats from CrossInk (experimental)</h2>
+  <p>
+    KOSync itself only carries a position, so most KOSync apps add nothing to your stats.
+    <a href="https://github.com/uxjulia/CrossInk" target="_blank" rel="noopener">CrossInk</a>,
+    the firmware for Xteink readers, is the exception from version 2.0: it can also send its
+    reading sessions, and Tome accepts them. Each sitting arrives with its book, start, end
+    and active reading time, and counts in the stats pages, the calendar and streaks.
+  </p>
+  <Steps>
+    <li>Set the sync password in <strong>Settings → KOReader</strong> if you haven't. An account
+      registered from the reader itself is not tied to a Tome user and gets no stats.</li>
+    <li>On the reader, <strong>Authenticate</strong> against your Tome server again. That is
+      when it checks what the server supports.</li>
+    <li>Turn on <strong>Reading Stats</strong> under <strong>What to Sync</strong>, then sync.
+      Leave <strong>Clippings</strong> off: Tome doesn't take them, so that step would
+      show as failed on every sync.</li>
+  </Steps>
+  <ul>
+    <li>The reader syncs with one server. While it points at Tome, it sends nothing to
+      CrossPoint Sync, and reading it already sent there is not sent to Tome.</li>
+    <li>Sessions have time but no page counts, so they don't feed pages-per-minute.</li>
+    <li>A session for a book Tome can't identify still counts toward your totals and is listed
+      as "(book not linked yet)". It appears on the calendar once the document is linked:
+      automatically when the reader next syncs progress for a book you downloaded from Tome,
+      or by hand with <em>Link KOReader sync</em> on the book's page.</li>
+    <li>A session you trim or delete in Tome stays that way, even when the reader sends it again.</li>
+  </ul>
+
   <h2>Troubleshooting</h2>
   <ul>
     <li><strong>"401 Unauthorized"</strong> — the sync password doesn't match. Set it again in <strong>Settings → KOReader</strong>; re-saving overwrites the old credential.</li>
@@ -76,5 +104,9 @@ import { withBase } from '../../lib/path'
     <li><strong>The app doesn't jump to the web position</strong> — some clients only apply a
       pulled position when it's ahead of the local one, or ask before jumping backwards.
       Check the client's conflict setting (KOReader: <strong>Progress sync → Sync behaviour</strong>).</li>
+    <li><strong>CrossInk shows stats as "Not supported"</strong> — it remembers the answer from
+      the last time you authenticated. Set the sync password in <strong>Settings → KOReader</strong>,
+      make sure the server is on a Tome version with stats support, then authenticate on the
+      reader again.</li>
   </ul>
 </DocsLayout>

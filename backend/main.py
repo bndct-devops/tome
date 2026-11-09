@@ -20,6 +20,7 @@ from backend.api import downloads
 from backend.api import opds
 from backend.api import opds_pins
 from backend.api import kosync
+from backend.api import kosync_stats
 from backend.api import tome_sync
 from backend.api import stats
 from backend.api import reading_calendar as reading_calendar_api
@@ -45,7 +46,10 @@ from backend.api import annotations as annotations_api
 from backend.api import sync_code as sync_code_api
 from backend.api import device_books as device_books_api
 from backend.api import hardcover as hardcover_api
-from backend.models.kosync import KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory  # noqa: F401
+from backend.models.kosync import (  # noqa: F401
+    KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory,
+    KOSyncDeviceStats, KOSyncDailyStats, KOSyncSessionReceipt,
+)
 from backend.models.opds_pin import OpdsPin  # noqa: F401
 from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition  # noqa: F401
 from backend.models.user_book_status import UserBookStatus  # noqa: F401
@@ -925,6 +929,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     app.include_router(opds.router)  # mounted at /opds, not /api
     app.include_router(opds_pins.router, prefix="/api")
     app.include_router(kosync.router, prefix="/api")  # mounted at /api/v1/
+    app.include_router(kosync_stats.router, prefix="/api")  # /api/v1/api/v1/stats/ (sic)
     app.include_router(tome_sync.router, prefix="/api")
     app.include_router(reading_calendar_api.router, prefix="/api")
     app.include_router(stats.router, prefix="/api")

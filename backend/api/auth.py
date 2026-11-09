@@ -320,6 +320,8 @@ def export_my_data(
         KOSyncUser,
         KOSyncProgress,
         KOSyncDocumentMap,
+        KOSyncDailyStats,
+        KOSyncDeviceStats,
         ReadingHistory,
     )
 
@@ -474,6 +476,23 @@ def export_my_data(
                     "synced_at": h.synced_at.isoformat() if h.synced_at else None,
                 }
                 for h in reading_history
+            ],
+            # Stats a reader uploaded over the KOSync account (the sessions
+            # themselves are in reading_sessions above).
+            "device_stats": [
+                {
+                    "device_id": d.device_id,
+                    "device": d.device,
+                    "snapshot": d.snapshot,
+                    "updated_at": d.updated_at.isoformat() if d.updated_at else None,
+                }
+                for d in db.query(KOSyncDeviceStats).filter(KOSyncDeviceStats.user_id == current_user.id).all()
+            ],
+            "daily_stats": [
+                {"device_id": d.device_id, "day": d.day, "seconds": d.seconds}
+                for d in db.query(KOSyncDailyStats)
+                .filter(KOSyncDailyStats.user_id == current_user.id)
+                .order_by(KOSyncDailyStats.day).all()
             ],
         },
     }

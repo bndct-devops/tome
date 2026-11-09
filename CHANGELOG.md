@@ -6,6 +6,32 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Reading stats from CrossInk readers (experimental).** An Xteink reader
+  running CrossInk 2.0 or newer can now send its reading sessions to Tome
+  over the same KOReader Sync account it already uses for progress. Each
+  sitting arrives with its book, start, end and active reading time, and
+  shows up in the stats pages, the calendar and streaks like any other
+  session. On the reader, authenticate again against your Tome server and
+  turn on Reading Stats under What to Sync; the sync account has to be the
+  one from Settings > KOReader, since that is what ties it to your Tome
+  user. Reading the device has already delivered to another server is not
+  sent again; whatever is still waiting on the device is. Sessions carry no
+  page counts, and a session for a book Tome cannot identify counts toward
+  your totals but stays off the calendar, listed as "(book not linked yet)",
+  until you link the document on the book's page. A session you trim or
+  delete in Tome stays that way when the reader sends it again. Other KOSync
+  apps are unaffected. Tested with the firmware's own upload code in its
+  desktop simulator, not yet on a reader.
+
+### Changed
+- Pages per minute on a book's page is now worked out only from sittings
+  that counted page turns. Reading time from a source that reports none
+  (the web reader, a CrossInk reader) no longer makes the pace look slower.
+- Linking a KOReader sync document to a book now requires a book you can
+  see; a book in someone else's private library answers as not found.
+- The account data export includes the stats a reader uploaded.
+
 ### Fixed
 - **The arm64 image builds again.** The two frontend build stages run on the
   build host instead of under emulation; the 3.0.0 image build had crashed

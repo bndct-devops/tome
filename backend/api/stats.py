@@ -1504,6 +1504,12 @@ def list_sessions(
         .filter(ReadingSession.id.in_(page_ids), rr.superseded_clause()).all()
     ) if page_ids else set()
 
+    # A session a KOSync reader uploaded for a file Tome has not matched to a
+    # book yet has no book either; that is not a deleted book.
+    from backend.services.kosync_stats import unlinked_session_ids
+    not_linked = unlinked_session_ids(
+        db, [e[2].id for e in page if e[1] == "session" and e[2].book_id is None])
+
     out = []
     for _, kind, r in page:
         if kind == "session":
@@ -1512,7 +1518,7 @@ def list_sessions(
                 "kind": "session",
                 "counted": r.id not in superseded_ids,
                 "book_id": r.book_id,
-                "book_title": r.book_title or "(deleted book)",
+                "book_title": r.book_title or ("(book not linked yet)" if r.id in not_linked else "(deleted book)"),
                 "started_at": (r.started_at.isoformat() + "Z") if r.started_at else None,
                 "ended_at": (r.ended_at.isoformat() + "Z") if r.ended_at else None,
                 "duration_seconds": r.duration_seconds,

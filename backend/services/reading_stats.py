@@ -12,13 +12,17 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import NamedTuple, Optional
 
-from sqlalchemy import func, Integer
+from sqlalchemy import case, func, Integer
 from sqlalchemy.orm import Session
 
 from backend.models.book import Book
 from backend.models.tome_sync import ReadingSession
 from backend.models.user_book_status import UserBookStatus
 from backend.services.reading_day import DayCtx
+
+# Seconds of a session, counted only when the session also counted page turns:
+# the denominator for pages-per-minute.
+_PACED_SECONDS = case((ReadingSession.pages_turned > 0, ReadingSession.duration_seconds), else_=0)
 
 
 # Days of recent reading the finish-date estimate averages over.
@@ -92,6 +96,7 @@ def compute_book_reading_stats(
         func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("total_seconds"),
         func.count(ReadingSession.id).label("sessions"),
         func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages_turned"),
+        func.coalesce(func.sum(_PACED_SECONDS), 0).label("paced_seconds"),
         func.min(ReadingSession.started_at).label("first_read"),
         func.max(
             func.coalesce(ReadingSession.ended_at, ReadingSession.started_at)
@@ -106,10 +111,12 @@ def compute_book_reading_stats(
         round(total_seconds / sessions) if sessions > 0 else 0
     )
 
-    # Pace: pages per minute
-    total_minutes = total_seconds / 60.0
-    if total_minutes > 0 and pages_turned > 0:
-        pace_pages_per_min: Optional[float] = round(pages_turned / total_minutes, 2)
+    # Pace: pages per minute, over the sittings that counted pages. Time from
+    # a source that reports none (a KOSync reader's uploaded sessions, the web
+    # reader) would otherwise read as very slow reading.
+    paced_minutes = (int(agg.paced_seconds) if agg and agg.paced_seconds else 0) / 60.0
+    if paced_minutes > 0 and pages_turned > 0:
+        pace_pages_per_min: Optional[float] = round(pages_turned / paced_minutes, 2)
     else:
         pace_pages_per_min = None
 
@@ -222,6 +229,7 @@ def compute_book_reading_stats(
             func.coalesce(func.sum(ReadingSession.pages_turned), 0),
             func.min(ReadingSession.started_at),
             func.max(func.coalesce(ReadingSession.ended_at, ReadingSession.started_at)),
+            func.coalesce(func.sum(_PACED_SECONDS), 0),
         ).one()
         add_secs, add_count, add_pages = int(add_agg[0] or 0), int(add_agg[1] or 0), int(add_agg[2] or 0)
 
@@ -273,9 +281,11 @@ def compute_book_reading_stats(
         if last_dt:
             last_read = last_dt.isoformat() + "Z"
 
-        total_minutes = total_seconds / 60.0
-        if total_minutes > 0 and pages_turned > 0:
-            pace_pages_per_min = round(pages_turned / total_minutes, 2)
+        # Page-stats time always has pages; additive sessions only where they
+        # counted some (same rule as above).
+        paced_minutes = (ps_seconds + int(add_agg[5] or 0)) / 60.0
+        if paced_minutes > 0 and pages_turned > 0:
+            pace_pages_per_min = round(pages_turned / paced_minutes, 2)
 
     # ── Journey: cumulative progress per reading day (the progress line) ──────
     # Augments each session_timeline day with the furthest-progress reached, so
