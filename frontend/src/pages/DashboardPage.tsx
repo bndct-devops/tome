@@ -110,7 +110,7 @@ const READING_STATUS_LABELS: Record<string, MessageDescriptor> = {
 }
 const MISSING_LABELS: Record<string, MessageDescriptor> = {
   cover: msg`Cover`, description: msg`Description`, author: msg`Author`,
-  series: msg`Series`, any: msg`Any`,
+  series: msg`Series`, any: msg`Any`, file: msg`File`,
 }
 const SERIES_STATUS_LABELS: Record<string, MessageDescriptor> = {
   ongoing: msg`ongoing`, finished: msg`finished`, hiatus: msg`hiatus`,
@@ -650,6 +650,11 @@ export function DashboardPage() {
 
   async function bulkDownload() {
     if (!selected.size) return
+    const chosen = books.filter(b => selected.has(b.id))
+    if (chosen.length === selected.size && chosen.every(b => b.files.length === 0)) {
+      toastError(t`None of the selected books has a file to download`)
+      return
+    }
     setBulkPending(true)
     try {
       const token = localStorage.getItem('tome_token')
@@ -658,7 +663,10 @@ export function DashboardPage() {
         headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
         body: JSON.stringify({ book_ids: [...selected] }),
       })
-      if (!resp.ok) throw new Error('Download failed')
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => null) as { detail?: unknown } | null
+        throw new Error(typeof body?.detail === 'string' ? body.detail : t`Download failed`)
+      }
       const blob = await resp.blob()
       const url = URL.createObjectURL(blob)
       const a = document.createElement('a')
@@ -679,8 +687,34 @@ export function DashboardPage() {
     if (!selected.size) return
     setBulkPending(true)
     try {
+      // Books without a file (a reader's sync) are personal records: the
+      // server never puts them in a library. Count them for the toast - all
+      // of the user's own are listed by "missing=file", so a select-all that
+      // reaches past the loaded pages is counted right too.
+      let noFile = books.filter(b => selected.has(b.id) && b.status === 'no_file').length
+      if (books.filter(b => selected.has(b.id)).length < selected.size) {
+        try {
+          const res = await api.get<{ ids: number[] }>('/books/ids?include_no_file=true&missing=file')
+          noFile = res.ids.filter(id => selected.has(id)).length
+        } catch {
+          // keep the loaded-books count
+        }
+      }
       await api.post(`/libraries/${libId}/books`, { book_ids: [...selected] })
-      toastSuccess(plural(selected.size, { one: 'Added # book to library', other: 'Added # books to library' }))
+      const added = selected.size - noFile
+      if (noFile === 0) {
+        toastSuccess(plural(added, { one: 'Added # book to library', other: 'Added # books to library' }))
+      } else if (added === 0) {
+        toast.info(plural(noFile, {
+          one: 'Not added: # book without a file stays out of libraries',
+          other: 'Not added: # books without a file stay out of libraries',
+        }))
+      } else {
+        toastSuccess(plural(noFile, {
+          one: `Added ${added} to library; # book without a file was left out`,
+          other: `Added ${added} to library; # books without a file were left out`,
+        }))
+      }
       clearSelection()
       setBulkLibMenu(false)
       loadLibraries()
@@ -795,6 +829,9 @@ export function DashboardPage() {
 
   function buildFilterParams(): URLSearchParams {
     const params = new URLSearchParams()
+    // The user's own books without a file (made from their reader's sync)
+    // belong in their Library; the API leaves them out unless asked.
+    params.set('include_no_file', 'true')
     if (search) params.set('q', search)
     if (filterSeries) params.set('series', filterSeries)
     if (filterNoSeries) params.set('no_series', 'true')
@@ -1054,7 +1091,7 @@ export function DashboardPage() {
       if (e.key === 'Enter') {
         if (prev !== null && booksRef.current[prev]) {
           const b = booksRef.current[prev]
-          if (groupActiveRef.current && b.series) {
+          if (groupActiveRef.current && b.series && b.status !== 'no_file') {
             navigate(`/?tab=series&series_detail=${encodeURIComponent(b.series)}`)
           } else {
             navigate(`/books/${b.id}`)
@@ -1866,6 +1903,7 @@ export function DashboardPage() {
                   { value: 'author', label: t`Author` },
                   { value: 'series', label: t`Series` },
                   { value: 'any', label: t`Any` },
+                  { value: 'file', label: t`File` },
                 ]).map(({ value, label }) => (
                   <button key={value} type="button" onClick={() => setFilter('missing', value)} className={opt(filterMissing === value)}>
                     {label}
@@ -1959,8 +1997,9 @@ export function DashboardPage() {
               {isMember(user) && (
                 <SendButton
                   variant="bulk"
-                  disabled={bulkPending || selected.size === 0}
-                  books={books.filter(b => selected.has(b.id)).map(b => ({ id: b.id, title: b.title, files: b.files }))}
+                  disabled={bulkPending || !books.some(b => selected.has(b.id) && b.files.length > 0)}
+                  // Books without a file (a reader's sync) have nothing to send.
+                  books={books.filter(b => selected.has(b.id) && b.files.length > 0).map(b => ({ id: b.id, title: b.title, files: b.files }))}
                 />
               )}
               <Pill
@@ -2121,14 +2160,14 @@ export function DashboardPage() {
               <AnimatePresence mode="popLayout" initial={false}>
               {books.map((book, i) => (
                 <m.div
-                  key={`${cardView}-${groupActive && book.series ? 'stack-' : ''}${book.id}`}
+                  key={`${cardView}-${groupActive && book.series && book.status !== 'no_file' ? 'stack-' : ''}${book.id}`}
                   layout
                   initial={false}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.92 }}
                   transition={{ layout: { duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }, duration: 0.15 }}
                 >
-                {groupActive && book.series ? (
+                {groupActive && book.series && book.status !== 'no_file' ? (
                   <SeriesStackCard
                     book={book}
                     count={book.series_count ?? 1}

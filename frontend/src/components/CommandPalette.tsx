@@ -124,7 +124,7 @@ export function CommandPalette() {
     }
     debounceRef.current = setTimeout(() => {
       api
-        .get<BookHit[]>(`/books?q=${encodeURIComponent(query.trim())}&limit=6`)
+        .get<BookHit[]>(`/books?q=${encodeURIComponent(query.trim())}&limit=6&include_no_file=true`)
         .then((r) => setBooks(Array.isArray(r) ? r : []))
         .catch(() => setBooks([]))
     }, 150)

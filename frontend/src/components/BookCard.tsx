@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Eye, Star } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useLingui } from '@lingui/react/macro'
+import { Trans, useLingui } from '@lingui/react/macro'
 import type { Book, ReadingStatus } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { cn, progressPercent } from '@/lib/utils'
@@ -92,6 +92,9 @@ export function BookCard({
 
   const coverUrl = book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null
   const hasReadableFile = book.files?.some(f => ['epub', 'cbz', 'cbr', 'pdf'].includes(f.format))
+  // A record made from the user's reader sync: Tome has no file for it, so
+  // it takes the format badge's place and offers nothing that needs a file.
+  const noFile = book.status === 'no_file'
 
   // Progress bar width for the cover bottom strip (progressPct is 0-1 from the API)
   // Floor at 4% so a just-started book still shows a visible nub instead of nothing
@@ -179,7 +182,11 @@ export function BookCard({
             <RatingStars rating={rating} size={12} />
           </div>
         ) : null}
-        {showFormatBadge && book.files.length > 0 && (
+        {noFile ? (
+          <span className="shrink-0 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+            <Trans>No file</Trans>
+          </span>
+        ) : showFormatBadge && book.files.length > 0 && (
           <span className="shrink-0 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             {book.files[0].format}
           </span>
@@ -266,8 +273,12 @@ export function BookCard({
           />
         )}
 
-        {/* Format badge - top right */}
-        {showFormatBadge && book.files.length > 0 && (
+        {/* Format badge - top right; "No file" in its place for a reader-sync record */}
+        {noFile ? (
+          <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-background/70 backdrop-blur-sm text-foreground/90 border border-border/50">
+            <Trans>No file</Trans>
+          </span>
+        ) : showFormatBadge && book.files.length > 0 && (
           <span className="absolute top-1.5 right-1.5 px-1.5 py-0.5 rounded text-[9px] font-semibold uppercase bg-background/70 backdrop-blur-sm text-foreground/90 border border-border/50">
             {book.files[0].format}
           </span>

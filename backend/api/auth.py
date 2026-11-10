@@ -320,10 +320,13 @@ def export_my_data(
         KOSyncUser,
         KOSyncProgress,
         KOSyncDocumentMap,
+        KOSyncBookStats,
+        KOSyncClipping,
         KOSyncDailyStats,
         KOSyncDeviceStats,
         ReadingHistory,
     )
+    from backend.services.kosync_clippings import item_out as clipping_out
 
     # Pre-load book metadata for every book the user has touched, so we can
     # decorate references with title/author/content_hash without N+1.
@@ -493,6 +496,29 @@ def export_my_data(
                 for d in db.query(KOSyncDailyStats)
                 .filter(KOSyncDailyStats.user_id == current_user.id)
                 .order_by(KOSyncDailyStats.day).all()
+            ],
+            # The latest per-book stats snapshot each reader uploaded, per
+            # document (the book it counts for is in document_map above).
+            "book_stats": [
+                {
+                    "device_id": b.device_id,
+                    "document": b.document,
+                    "pages": b.pages,
+                    "seconds": b.seconds,
+                    "snapshot": b.snapshot,
+                    "updated_at": b.updated_at.isoformat() if b.updated_at else None,
+                }
+                for b in db.query(KOSyncBookStats)
+                .filter(KOSyncBookStats.user_id == current_user.id)
+                .order_by(KOSyncBookStats.device_id, KOSyncBookStats.document).all()
+            ],
+            # Clippings a CrossInk reader synced, per document, as the reader
+            # would get them back (deleted ones are tombstones with no text).
+            "clippings": [
+                {"document": c.document, **clipping_out(c, reader=False)}
+                for c in db.query(KOSyncClipping)
+                .filter(KOSyncClipping.user_id == current_user.id)
+                .order_by(KOSyncClipping.revision).all()
             ],
         },
     }

@@ -35,9 +35,23 @@ def audit(
     resource_title: str | None = None,
     details: dict[str, Any] | None = None,
     ip: str | None = None,
+    commit: bool = True,
 ) -> None:
     """Write one audit log entry. Fire-and-forget — swallows exceptions so it
-    never breaks a request."""
+    never breaks a request.
+
+    ``commit=False`` only adds the entry to the caller's transaction, for a
+    caller that must stay atomic (it commits or rolls back the entry with its
+    own changes). Errors then propagate, since rolling back here would undo
+    the caller's work too."""
+    if not commit:
+        db.add(AuditLog(
+            user_id=user_id, username=username, action=action,
+            resource_type=resource_type, resource_id=resource_id,
+            resource_title=resource_title,
+            details=json.dumps(details) if details else None, ip_address=ip,
+        ))
+        return
     try:
         entry = AuditLog(
             user_id=user_id,

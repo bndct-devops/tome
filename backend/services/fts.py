@@ -15,6 +15,8 @@ same transaction the caller commits. The book must already be flushed (have an
 id). For paths that add tags via `db.add(BookTag(...))` rather than the
 relationship, flush before calling so `book.tags` reflects them.
 """
+import unicodedata
+
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -95,3 +97,49 @@ def search_book_ids(db: Session, q: str) -> set[int]:
         id_sets.append({row[0] for row in like_rows})
 
     return set.intersection(*id_sets) if id_sets else set()
+
+
+# ── Matching outside the index ───────────────────────────────────────────────
+# Books without a file (made from a reader's sync) are not in books_fts: the
+# startup backfill rebuilds it from active books only. The list endpoint
+# matches a user's own (few) file-less books in Python with the same rules
+# search_book_ids applies, so a query finds them the way it would find an
+# active book with the same fields.
+
+def _fold(value: str) -> str:
+    """Case and accent folding like ``trigram remove_diacritics 1``:
+    lower-case, then drop combining marks ("Ölmühle" -> "olmuhle")."""
+    decomposed = unicodedata.normalize("NFD", value.lower())
+    return unicodedata.normalize(
+        "NFC", "".join(ch for ch in decomposed if not unicodedata.combining(ch)))
+
+
+def _like_fold(value: str) -> str:
+    """SQLite LIKE folding: ASCII letters only, accents kept."""
+    return value.translate(_ASCII_LOWER)
+
+
+_ASCII_LOWER = str.maketrans("ABCDEFGHIJKLMNOPQRSTUVWXYZ", "abcdefghijklmnopqrstuvwxyz")
+
+
+def text_matches(q: str, fields: list[str | None]) -> bool:
+    """True when ``q`` would match a books_fts row holding ``fields`` (title,
+    author, series, description, tags): every whitespace term found in some
+    field. Terms of 3+ characters compare folded (case and diacritics, like the
+    trigram index); shorter ones like the LIKE fallback (ASCII case only)."""
+    terms = [t.replace('"', "") for t in q.split() if t]
+    if not terms:
+        return False
+    values = [f for f in fields if f]
+    folded = [_fold(v) for v in values]
+    like = [_like_fold(v) for v in values]
+    for term in terms:
+        if len(term) >= 3:
+            needle = _fold(term)
+            if not needle or not any(needle in v for v in folded):
+                return False
+        else:
+            needle = _like_fold(term)
+            if not any(needle in v for v in like):
+                return False
+    return True

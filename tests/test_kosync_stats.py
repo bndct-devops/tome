@@ -168,18 +168,19 @@ def test_endpoints_tome_does_not_have_answer_404(client, acc):
     assert client.get(f"{BASE}/stats/streak?tz=-60", headers=h).status_code == 404
 
 
-def test_clippings_fail_without_switching_stats_off(client, acc):
+def test_clippings_never_switch_stats_off(client, acc):
     """The firmware sends clippings through the stats client, where a 404 or
     405 on an upload marks the whole server as having no extended API
-    (recordMissingApi) and stats stop with it. Any other error only fails the
+    (recordMissingApi) and stats stop with it. Clippings are synced (see
+    test_kosync_clippings.py); a refused one is a 400, which only fails the
     clippings step."""
     h = _headers(acc)
-    for r in (
-        client.put(f"{BASE}/clippings/{DOC}", headers=h, json={"items": [{"id": "x", "deleted": 1}]}),
-        client.get(f"{BASE}/clippings/{DOC}?cursor=0&limit=1&format=reader", headers=h),
-    ):
-        assert r.status_code == 501
-        assert r.status_code not in (404, 405)
+    ok = client.put(f"{BASE}/clippings/{DOC}", headers=h, json={"items": [{"id": "x", "deleted": 1}]})
+    assert ok.status_code == 200 and ok.json()["accepted"] == 1
+    page = client.get(f"{BASE}/clippings/{DOC}?cursor=0&limit=1&format=reader", headers=h)
+    assert page.status_code == 200 and page.json()["sync_version"] == 2
+    bad = client.put(f"{BASE}/clippings/{DOC}", headers=h, json={"items": [{"id": "x y"}]})
+    assert bad.status_code == 400
 
 
 # ── one whole sync, in the firmware's order ───────────────────────────────────

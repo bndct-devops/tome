@@ -425,6 +425,17 @@ def get_stats(
         }
 
     # ── Per-book time breakdown (full list, no limit) — reconciled ───────────
+    # For "all time" only, a book's pages also count what the user's KOSync
+    # readers counted themselves (CrossInk per-book snapshots: lifetime totals
+    # with no dates; its sessions carry no pages, so nothing is counted twice).
+    # Any narrower range keeps session/page-stat pages only.
+    reader_extra: dict[int, int] = {}
+    if cutoff is None and range_end is None and win_book:
+        from backend.services.kosync_stats import reader_pages
+        reader_extra = {
+            bid: extra.pages
+            for bid, extra in reader_pages(db, current_user.id, list(win_book)).items()
+        }
     per_book_time = [
         {
             "book_id": bid,
@@ -433,7 +444,7 @@ def get_stats(
             "has_cover": bool(book_meta.get(bid, (None, None, None, None))[2]),
             "seconds": v[0],
             "sessions": v[1],
-            "pages_turned": v[2],
+            "pages_turned": v[2] + reader_extra.get(bid, 0),
         }
         for bid, v in _bsorted()
     ]
@@ -783,6 +794,18 @@ def get_stats(
 
     # ── Lifetime / records / TBR / language (all-time, ignore the date range) ──
     lt_secs, lt_sessions, lt_pages = rr.totals(db, current_user.id, day_ctx, covered, None, None)
+    # All-time pages also count what the user's KOSync readers counted per
+    # book (undated lifetime totals, as in the all-time per-book table), on
+    # books the user can see. Nothing windowed takes them.
+    from backend.services.kosync_stats import reader_pages as _reader_pages
+    _lt_reader = _reader_pages(db, current_user.id)
+    if _lt_reader:
+        _seen = {
+            bid for (bid,) in db.query(Book.id).filter(
+                Book.id.in_(list(_lt_reader)), Book.status.in_(READING_STATUSES),
+                book_visibility_filter(db, current_user))
+        }
+        lt_pages += sum(extra.pages for bid, extra in _lt_reader.items() if bid in _seen)
     all_daily = rr.daily_map(db, current_user.id, day_ctx, covered, None, None)
     lifetime = {
         "seconds": lt_secs,

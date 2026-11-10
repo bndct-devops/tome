@@ -68,7 +68,7 @@ interface CalendarMonth {
 interface HighlightSpotlight {
   on_this_day: boolean
   highlight: {
-    id: number
+    id: number | string  // "clipping:<n>" for a CrossInk clipping
     book_id: number
     book_title: string
     book_author: string | null
@@ -262,7 +262,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
     }).catch(() => {})
     api.get<Book[]>('/books?sort=added_at&order=desc&limit=12').finally(countSettled).then(setRecent).catch(() => {})
     api.get<ActivityEntry[]>('/home/activity').finally(countSettled).then(setActivity).catch(() => {})
-    api.get<HighlightSpotlight>('/annotations/spotlight').finally(countSettled).then(setSpotlight).catch(() => {})
+    api.get<HighlightSpotlight>(`/annotations/spotlight?include_clippings=1&tz_offset=${new Date().getTimezoneOffset()}`).finally(countSettled).then(setSpotlight).catch(() => {})
     listGoals().finally(countSettled).then(setGoals).catch(() => {})
     getFollows().finally(countSettled).then(all => {
       setUpcoming((all ?? [])
@@ -295,7 +295,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
 
   const shuffleSpotlight = () => {
     const cur = spotlight?.highlight?.id
-    api.get<HighlightSpotlight>(`/annotations/spotlight${cur ? `?exclude=${cur}` : ''}`).then(setSpotlight).catch(() => {})
+    api.get<HighlightSpotlight>(`/annotations/spotlight?include_clippings=1&tz_offset=${new Date().getTimezoneOffset()}${cur ? `&exclude=${encodeURIComponent(cur)}` : ''}`).then(setSpotlight).catch(() => {})
   }
 
   const dailyStreak = month?.streaks.current_days ?? stats?.current_streak_days ?? 0

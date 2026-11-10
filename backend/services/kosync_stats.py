@@ -13,8 +13,10 @@ What Tome does with each upload:
   and streaks pick them up like any other session. They carry time but no
   page counts and no progress.
 - daily seconds and the lifetime snapshot are stored and not shown yet.
-- per-book snapshots are acknowledged and dropped (the reader keeps them and
-  sends them again).
+- per-book snapshots are stored, the latest per device and document
+  (``KOSyncBookStats``). Their page counts are the only pages Tome learns
+  about reading done on such a reader; they fill a book's all-time pages and
+  pace (``reader_pages``), never a day, a session or any other window.
 
 An acknowledgment is a promise: the reader deletes an acknowledged session
 from its card, never re-sends an acknowledged day, and prunes old months.
@@ -39,9 +41,16 @@ from dataclasses import dataclass
 from datetime import date, datetime, timezone
 from typing import Any, Callable, Optional
 
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from backend.models.kosync import KOSyncDailyStats, KOSyncDeviceStats, KOSyncSessionReceipt
+from backend.models.kosync import (
+    KOSyncBookStats,
+    KOSyncDailyStats,
+    KOSyncDeviceStats,
+    KOSyncDocumentMap,
+    KOSyncSessionReceipt,
+)
 from backend.models.tome_sync import ReadingSession
 
 MAX_ITEMS = 20                 # per request, every endpoint
@@ -103,7 +112,34 @@ def _device_row(db: Session, user_id: int, device_id: str) -> Optional[KOSyncDev
     )
 
 
+def valid_device_id(value: Any) -> bool:
+    return isinstance(value, str) and bool(_ID.match(value))
+
+
 # ── lifetime snapshot + daily seconds ────────────────────────────────────────
+
+def parse_day(entry: Any) -> tuple[str, int]:
+    """One ``{"date", "seconds"}`` daily entry, validated: (``YYYY-MM-DD``,
+    seconds). Raises ``Rejected``."""
+    if not isinstance(entry, dict) or not isinstance(entry.get("date"), str):
+        raise Rejected("Invalid daily entry")
+    try:
+        day = date.fromisoformat(entry["date"])
+    except ValueError:
+        raise Rejected("Invalid daily date") from None
+    if not 2000 <= day.year <= 2099:
+        raise Rejected("Invalid daily date")
+    return day.isoformat(), _int(entry.get("seconds"), "daily seconds")
+
+
+def snapshot_json(body: dict[str, Any]) -> str:
+    """The stored form of a device's lifetime snapshot. Raises ``Rejected``
+    when it is too large."""
+    snapshot = json.dumps({k: v for k, v in body.items() if k != "daily"}, separators=(",", ":"))
+    if len(snapshot) > MAX_SNAPSHOT_BYTES:
+        raise Rejected("Snapshot too large")
+    return snapshot
+
 
 def store_global(db: Session, user_id: int, body: dict[str, Any]) -> int:
     """Store a device's lifetime snapshot and any daily seconds sent with it.
@@ -120,21 +156,10 @@ def store_global(db: Session, user_id: int, body: dict[str, Any]) -> int:
         if not isinstance(raw_daily, list) or len(raw_daily) > MAX_ITEMS:
             raise Rejected(f"daily must hold at most {MAX_ITEMS} days")
         for entry in raw_daily:
-            if not isinstance(entry, dict) or not isinstance(entry.get("date"), str):
-                raise Rejected("Invalid daily entry")
-            try:
-                day = date.fromisoformat(entry["date"])
-            except ValueError:
-                raise Rejected("Invalid daily date") from None
-            if not 2000 <= day.year <= 2099:
-                raise Rejected("Invalid daily date")
-            seconds = _int(entry.get("seconds"), "daily seconds")
-            key = day.isoformat()
+            key, seconds = parse_day(entry)
             daily[key] = max(daily.get(key, 0), seconds)
 
-    snapshot = json.dumps({k: v for k, v in body.items() if k != "daily"}, separators=(",", ":"))
-    if len(snapshot) > MAX_SNAPSHOT_BYTES:
-        raise Rejected("Snapshot too large")
+    snapshot = snapshot_json(body)
 
     now = datetime.utcnow()
     row = _device_row(db, user_id, device_id)
@@ -145,28 +170,44 @@ def store_global(db: Session, user_id: int, body: dict[str, Any]) -> int:
     row.snapshot = snapshot
     row.updated_at = now
 
-    if daily:
-        existing = {
-            r.day: r
-            for r in db.query(KOSyncDailyStats).filter(
-                KOSyncDailyStats.user_id == user_id,
-                KOSyncDailyStats.device_id == device_id,
-                KOSyncDailyStats.day.in_(list(daily)),
-            )
-        }
-        for day_key, seconds in daily.items():
-            day_row = existing.get(day_key)
-            if day_row is None:
-                db.add(KOSyncDailyStats(
-                    user_id=user_id, device_id=device_id, day=day_key,
-                    seconds=seconds, updated_at=now,
-                ))
-            elif seconds > day_row.seconds:
-                day_row.seconds = seconds
-                day_row.updated_at = now
-
+    merge_daily(db, user_id, device_id, daily, now)
     db.commit()
     return len(daily)
+
+
+def merge_daily(
+    db: Session, user_id: int, device_id: str, daily: dict[str, int], now: datetime,
+) -> dict[str, str]:
+    """Store a device's seconds per day (``YYYY-MM-DD`` -> seconds, already
+    validated), keeping the larger value for a day Tome already has. Returns
+    per day what happened: ``created``, ``raised`` or ``unchanged``. Does not
+    commit."""
+    outcome: dict[str, str] = {}
+    if not daily:
+        return outcome
+    existing = {
+        r.day: r
+        for r in db.query(KOSyncDailyStats).filter(
+            KOSyncDailyStats.user_id == user_id,
+            KOSyncDailyStats.device_id == device_id,
+            KOSyncDailyStats.day.in_(list(daily)),
+        )
+    }
+    for day_key, seconds in daily.items():
+        day_row = existing.get(day_key)
+        if day_row is None:
+            db.add(KOSyncDailyStats(
+                user_id=user_id, device_id=device_id, day=day_key,
+                seconds=seconds, updated_at=now,
+            ))
+            outcome[day_key] = "created"
+        elif seconds > day_row.seconds:
+            day_row.seconds = seconds
+            day_row.updated_at = now
+            outcome[day_key] = "raised"
+        else:
+            outcome[day_key] = "unchanged"
+    return outcome
 
 
 # ── sessions ─────────────────────────────────────────────────────────────────
@@ -180,7 +221,8 @@ class _SessionItem:
     seconds: int
 
 
-def _parse_session(item: dict[str, Any], now_ts: int) -> _SessionItem:
+def parse_session(item: dict[str, Any], now_ts: int) -> _SessionItem:
+    """One session as the reader sends it, validated. Raises ``Rejected``."""
     session_id = item.get("session_id")
     if not isinstance(session_id, str) or not _ID.match(session_id):
         raise Rejected("Invalid session_id")
@@ -207,28 +249,64 @@ def store_sessions(
 ) -> list[str]:
     """Store measured reading sessions. Returns the acknowledged session ids.
 
+    The whole batch is validated before anything is written; see
+    ``stage_sessions`` for what happens to each session.
+    """
+    device_id = _device_id(body)
+    parsed = [parse_session(item, now_ts) for item in _items(body)]
+    stage_sessions(db, user_id, device_id, parsed, resolve_book)
+    db.commit()
+    return [item.session_id for item in parsed]
+
+
+def stage_sessions(
+    db: Session,
+    user_id: int,
+    device_id: str,
+    parsed: list[_SessionItem],
+    resolve_book: Callable[[str], Optional[int]],
+    fallback_name: Optional[str] = None,
+    known_receipts: Optional[dict[str, Optional[KOSyncSessionReceipt]]] = None,
+) -> list[tuple[str, int]]:
+    """Write parsed sessions of one device. Does not commit.
+
     A session seen for the first time becomes a ``ReadingSession`` plus a
     receipt. A session seen before is compared with its receipt: only reading
     time beyond what the reader reported last time is added, so a repeat adds
     nothing, a trimmed session keeps its trim, and a session the user deleted
-    stays deleted. The whole batch is validated before anything is written.
+    stays deleted. Raises ``Rejected`` (409), before writing anything, when a
+    session id already names a different session.
 
     ``resolve_book`` maps a document hash to a book id, or None. A session for
     a book Tome cannot identify is still stored, without a book: see
-    ``attach_sessions``.
-    """
-    device_id = _device_id(body)
-    parsed = [_parse_session(item, now_ts) for item in _items(body)]
+    ``attach_sessions``. The sessions are named after the device's stored
+    snapshot, else ``fallback_name``, else ``FALLBACK_DEVICE``.
 
+    ``known_receipts`` (session id -> receipt, None for none) saves a query
+    per session for a caller that loaded them all at once; ids it does not
+    hold are looked up as usual.
+
+    Returns per item what happened and how many seconds of reading it added:
+    ``created``, ``extended`` (the session grew), ``unchanged``, or
+    ``deleted_in_tome`` (it grew, but the user deleted it in Tome, so it
+    stays deleted).
+    """
     device_row = _device_row(db, user_id, device_id)
-    device_name = (device_row.device if device_row else None) or FALLBACK_DEVICE
+    device_name = (device_row.device if device_row else None) or fallback_name or FALLBACK_DEVICE
 
     # Pass 1, read-only: every item must fit the session its id already names,
-    # in the database or earlier in this request. Nothing is written until the
+    # in the database or earlier in this batch. Nothing is written until the
     # whole batch has passed.
     receipts: dict[str, Optional[KOSyncSessionReceipt]] = {}
     identity: dict[str, tuple[str, datetime]] = {}
     for item in parsed:
+        if item.session_id not in receipts and known_receipts is not None and item.session_id in known_receipts:
+            receipt = known_receipts[item.session_id]
+            receipts[item.session_id] = receipt
+            identity[item.session_id] = (
+                (receipt.document, receipt.started_at) if receipt is not None
+                else (item.document, item.started_at)
+            )
         if item.session_id not in receipts:
             receipt = (
                 db.query(KOSyncSessionReceipt)
@@ -253,6 +331,7 @@ def store_sessions(
     # Pass 2. The app's sessions do not autoflush, so a receipt added for one
     # item is only visible to the next through ``receipts``.
     now = datetime.utcnow()
+    outcomes: list[tuple[str, int]] = []
     for item in parsed:
         receipt = receipts[item.session_id]
         if receipt is None:
@@ -272,9 +351,11 @@ def store_sessions(
             db.add(row)
             db.add(receipt)
             receipts[item.session_id] = receipt
+            outcomes.append(("created", item.seconds))
             continue
         grown = item.seconds - receipt.seconds
         if grown <= 0 and item.ended_at <= receipt.ended_at:
+            outcomes.append(("unchanged", 0))
             continue   # a repeat, or an older checkpoint arriving late
         row = receipt.reading_session
         if row is not None:   # None: the user deleted the session in Tome
@@ -285,9 +366,11 @@ def store_sessions(
         receipt.seconds = max(receipt.seconds, item.seconds)
         receipt.ended_at = max(receipt.ended_at, item.ended_at)
         receipt.updated_at = now
-
-    db.commit()
-    return [item.session_id for item in parsed]
+        if row is None:
+            outcomes.append(("deleted_in_tome", 0))
+        else:
+            outcomes.append(("extended", max(grown, 0)))
+    return outcomes
 
 
 def has_sessions_for(db: Session, user_id: int, document: str) -> bool:
@@ -348,8 +431,10 @@ def unlinked_session_titles(db: Session, user_id: int, session_ids: list[int]) -
 def check_books(body: dict[str, Any]) -> int:
     """Validate a per-book snapshot batch and return how many it holds.
 
-    Nothing is stored: the reader keeps these totals and sends them again, so
-    acknowledging them loses nothing.
+    Only the device id and each item's document are required. Counters that
+    are missing or malformed are stored as unknown rather than refused: a
+    refused batch would block the reader's queue, and these totals are sent
+    again whenever they change.
     """
     _device_id(body)
     items = _items(body)
@@ -358,6 +443,143 @@ def check_books(body: dict[str, Any]) -> int:
         if not isinstance(document, str) or not _DOCUMENT.match(document):
             raise Rejected("Invalid document")
     return len(items)
+
+
+def _counter(value: Any) -> Optional[int]:
+    """A uint32 counter from a snapshot, or None when it is not one."""
+    if isinstance(value, bool) or not isinstance(value, int) or not 0 <= value <= UINT32:
+        return None
+    return value
+
+
+def book_documents(body: dict[str, Any]) -> list[str]:
+    """The distinct documents of a batch that passed ``check_books``, lower-case."""
+    return sorted({item["document"].lower() for item in body["items"]})
+
+
+def store_books(db: Session, user_id: int, body: dict[str, Any]) -> int:
+    """Store a batch of per-book snapshots. Returns the number of items.
+
+    Each item replaces what this device last sent for its document, also when
+    the new numbers are lower (the reader's stats were reset or its card was
+    restored): the snapshot is the reader's current truth. Rows hang off the
+    document; see ``KOSyncBookStats``.
+    """
+    count = check_books(body)
+    latest: dict[str, dict[str, Any]] = {}
+    for item in body["items"]:   # a document sent twice in one batch: the last one counts
+        latest[item["document"].lower()] = item
+    stage_books(db, user_id, body["device_id"], latest)
+    db.commit()
+    return count
+
+
+def stage_books(
+    db: Session, user_id: int, device_id: str, items: dict[str, dict[str, Any]],
+    sent_at: Optional[dict[str, datetime]] = None,
+) -> dict[str, str]:
+    """Write per-book snapshots of one device (document, lower-case -> item,
+    already checked). Does not commit.
+
+    Without ``sent_at`` every item replaces the stored row (the live sync: the
+    newest upload is the reader's truth). With ``sent_at`` (document -> when
+    the reader sent that snapshot) a stored row is only replaced by an item
+    sent later than the row was stored, so older history never overwrites a
+    newer snapshot; the row then keeps the item's own time.
+
+    Returns per document: ``created``, ``replaced``, ``unchanged`` (same
+    numbers) or ``kept_newer`` (Tome's row is newer and stays).
+    """
+    existing = {
+        row.document: row
+        for row in db.query(KOSyncBookStats).filter(
+            KOSyncBookStats.user_id == user_id,
+            KOSyncBookStats.device_id == device_id,
+            KOSyncBookStats.document.in_(list(items)),
+        )
+    }
+    now = datetime.utcnow()
+    outcome: dict[str, str] = {}
+    for document, item in items.items():
+        snapshot = json.dumps(item, separators=(",", ":"))
+        if len(snapshot) > MAX_SNAPSHOT_BYTES:
+            # Keep what Tome uses; the rest of an oversized item is not kept.
+            snapshot = json.dumps({k: item.get(k) for k in ("document", "pages", "seconds")},
+                                  separators=(",", ":"))
+        pages, seconds = _counter(item.get("pages")), _counter(item.get("seconds"))
+        when = sent_at.get(document) if sent_at is not None else None
+        row = existing.get(document)
+        if row is None:
+            row = KOSyncBookStats(user_id=user_id, device_id=device_id, document=document)
+            db.add(row)
+            outcome[document] = "created"
+        elif sent_at is not None and (when is None or when <= row.updated_at):
+            outcome[document] = (
+                "unchanged" if (row.pages, row.seconds) == (pages, seconds) else "kept_newer")
+            continue
+        else:
+            outcome[document] = (
+                "unchanged" if (row.pages, row.seconds, row.snapshot) == (pages, seconds, snapshot)
+                else "replaced")
+        row.pages = pages
+        row.seconds = seconds
+        row.snapshot = snapshot
+        row.updated_at = when or now
+    return outcome
+
+
+def has_snapshot_for(db: Session, user_id: int, document: str) -> bool:
+    """Has this user's reader uploaded a per-book snapshot for ``document``?"""
+    return db.query(KOSyncBookStats.id).filter(
+        KOSyncBookStats.user_id == user_id,
+        KOSyncBookStats.document == document.lower(),
+    ).first() is not None
+
+
+@dataclass
+class ReaderPages:
+    """Pages a user's readers counted on one book, from their latest snapshots.
+
+    ``pages`` is every page the snapshots report. ``paced_pages`` and
+    ``paced_seconds`` are the part that comes with the reader's own reading
+    time, the only pages that may go into a pace, and only over that time.
+    """
+    pages: int = 0
+    paced_pages: int = 0
+    paced_seconds: int = 0
+
+
+def reader_pages(db: Session, user_id: int, book_ids: Optional[list[int]] = None) -> dict[int, ReaderPages]:
+    """Per book, the pages in this user's latest per-book snapshots.
+
+    Only the user's own snapshots, through the user's own document links (a
+    document is linked to one book per user), summed over devices and over
+    every document linked to the book. The caller decides whether the user
+    may see the book. A snapshot whose document is not linked counts nowhere.
+    """
+    query = (
+        db.query(KOSyncBookStats.id, KOSyncDocumentMap.book_id,
+                 KOSyncBookStats.pages, KOSyncBookStats.seconds)
+        .join(KOSyncDocumentMap, (KOSyncDocumentMap.tome_user_id == KOSyncBookStats.user_id)
+              & (func.lower(KOSyncDocumentMap.document) == KOSyncBookStats.document))
+        .filter(KOSyncBookStats.user_id == user_id, KOSyncBookStats.pages > 0)
+    )
+    if book_ids is not None:
+        if not book_ids:
+            return {}
+        query = query.filter(KOSyncDocumentMap.book_id.in_(book_ids))
+    out: dict[int, ReaderPages] = {}
+    seen: set[int] = set()
+    for row_id, book_id, pages, seconds in query.all():
+        if row_id in seen:   # two links differing only in case
+            continue
+        seen.add(row_id)
+        entry = out.setdefault(book_id, ReaderPages())
+        entry.pages += pages
+        if seconds and seconds > 0:
+            entry.paced_pages += pages
+            entry.paced_seconds += seconds
+    return out
 
 
 # ── summary ──────────────────────────────────────────────────────────────────

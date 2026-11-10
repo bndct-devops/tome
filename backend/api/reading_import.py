@@ -137,3 +137,47 @@ def apply_reading_csv(
     audit(db, "reading_import.applied", user_id=current_user.id, username=current_user.username,
           details={"items": len(body.items), "applied": applied, "skipped": skipped})
     return {"ok": True, "applied": applied, "skipped": skipped}
+
+
+# ── CrossPoint Sync account export ───────────────────────────────────────────
+# One file, two steps over the same code path (services/crosspoint_import.py):
+# the preview runs the whole import and rolls it back; the import commits it.
+
+def _crosspoint(file: UploadFile, db: Session, current_user: User, apply: bool) -> dict:
+    from backend.core.permissions import has_role
+    from backend.services import crosspoint_import
+
+    if not has_role(current_user, "member"):
+        raise HTTPException(status_code=403, detail="Importing reading history needs a member account")
+    raw = file.file.read(crosspoint_import.MAX_BYTES + 1)
+    try:
+        return crosspoint_import.execute(db, current_user, raw, apply=apply)
+    except crosspoint_import.Refused as exc:
+        raise HTTPException(status_code=exc.status, detail=exc.detail)
+    except Exception as exc:  # noqa: BLE001  the run rolled itself back
+        log.exception("CrossPoint Sync import failed for user %s", current_user.id)
+        raise HTTPException(
+            status_code=500,
+            detail=f"The import failed and nothing was written ({type(exc).__name__}). "
+                   "Please send the preview report to the Tome developers.",
+        )
+
+
+@router.post("/crosspoint/preview")
+def preview_crosspoint(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """What importing this CrossPoint Sync export would do. Writes nothing."""
+    return _crosspoint(file, db, current_user, apply=False)
+
+
+@router.post("/crosspoint/apply")
+def apply_crosspoint(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Import this CrossPoint Sync export, all or nothing."""
+    return _crosspoint(file, db, current_user, apply=True)

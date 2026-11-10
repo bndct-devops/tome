@@ -76,8 +76,10 @@ import { withBase } from '../../lib/path'
       counts when the title or the author agrees.</li>
     <li><strong>The book is not in your library:</strong> Tome adds it without a file, so
       its progress and reading show on Home, in the stats and on the calendar under its
-      real title. It has a page of its own for a cover and details, and stays out of the
-      library, OPDS, the plugin and the apps, because there is nothing to download.</li>
+      real title. It shows in your own Library and in library search with a
+      <strong>No file</strong> badge, has a page of its own for a cover and details, never
+      goes into a library, and stays out of series pages, OPDS, the plugin and the apps,
+      because there is nothing to download. Only you see it.</li>
     <li><strong>Several books fit:</strong> Tome does not choose. Use the manual picker;
       it shows the title the reader sent.</li>
   </ul>
@@ -112,13 +114,19 @@ import { withBase } from '../../lib/path'
     <li>On the reader, <strong>Authenticate</strong> against your Tome server again. That is
       when it checks what the server supports.</li>
     <li>Turn on <strong>Reading Stats</strong> under <strong>What to Sync</strong>, then sync.
-      Leave <strong>Clippings</strong> off: Tome doesn't take them, so that step would
-      show as failed on every sync.</li>
+      <strong>Clippings</strong> can be switched on there too (see below).</li>
   </Steps>
   <ul>
     <li>The reader syncs with one server. While it points at Tome, it sends nothing to
       CrossPoint Sync, and reading it already sent there is not sent to Tome.</li>
-    <li>Sessions have time but no page counts, so they don't feed pages-per-minute.</li>
+    <li>Sessions have time but no page counts. The reader sends a page total per book
+      instead, so a book's <strong>Pages</strong> and <strong>Pace</strong> on its page, and
+      in the per-book table on the Stats page for <em>All time</em>, include what the reader
+      counted. It does not say on which day pages were turned: daily charts, the calendar,
+      session rows and page goals show no pages for this reading.</li>
+    <li>On CrossInk 2.0.0-rc, <strong>Sync Reading Stats</strong> for more than one book at a
+      time reports a failure with any server. The data still arrives; syncing from inside a
+      book works.</li>
     <li>A session for a book Tome can't identify still counts toward your totals and is listed
       as "(book not linked yet)". It appears on the calendar once the document is linked:
       automatically when the reader next syncs progress for a book you downloaded from Tome
@@ -127,6 +135,17 @@ import { withBase } from '../../lib/path'
       <em>Link KOReader sync</em> on the book's page.</li>
     <li>A session you trim or delete in Tome stays that way, even when the reader sends it again.</li>
   </ul>
+
+  <h3>Clippings (experimental)</h3>
+  <p>
+    A clipping is a passage you save on the reader. With <strong>Clippings</strong> switched on
+    under <strong>What to Sync</strong>, the reader uploads its clippings to Tome and restores
+    the ones made on your other CrossInk readers; a clipping deleted on one reader is removed
+    everywhere. In Tome they appear on the <strong>Highlights</strong> page and in the book's
+    <em>Highlights and notes</em>, marked as CrossInk clippings, as soon as the file is linked
+    to a book. They are read-only here: change or delete them on the reader. They are not sent
+    to KOReader devices and the iOS app does not show them yet.
+  </p>
 
   <h2>Troubleshooting</h2>
   <ul>

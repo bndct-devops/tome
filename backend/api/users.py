@@ -399,8 +399,13 @@ def link_kosync_document(
         KOSyncProgress.user_id == kosync_user.id,
         KOSyncProgress.document == body.document,
     ).first()
-    # A reader can upload sessions for a file it never synced a position for.
-    if not progress and not has_sessions_for(db, current_user.id, body.document):
+    # A reader can upload sessions, clippings or book stats for a file it
+    # never synced a position for.
+    from backend.services.kosync_clippings import has_clippings_for
+    from backend.services.kosync_stats import has_snapshot_for
+    if (not progress and not has_sessions_for(db, current_user.id, body.document)
+            and not has_clippings_for(db, current_user.id, body.document)
+            and not has_snapshot_for(db, current_user.id, body.document)):
         raise HTTPException(404, "Document not found in sync history")
 
     # Upsert document map

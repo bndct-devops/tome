@@ -30,9 +30,10 @@ import logging
 import math
 import re
 import unicodedata
+from dataclasses import dataclass
 from datetime import datetime
 from pathlib import PurePosixPath
-from typing import Any, Optional
+from typing import Any, Callable, Optional
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -181,8 +182,31 @@ def _volume_agrees(meta: KOSyncDocumentMeta, hint: Optional[float], book_index: 
     return not _volume_conflict(meta, hint, book_index)
 
 
+@dataclass(frozen=True)
+class Candidate:
+    """A library book with the keys ``find_match`` compares, folded once."""
+    id: int
+    series_index: Optional[float]
+    title_key: str
+    author_key: tuple[str, ...]
+    isbn_key: str
+
+
+def library_candidates(db: Session, user: User) -> list[Candidate]:
+    """The library books ``find_match`` compares against (active books the
+    user can see), folded once. For a caller resolving many documents in one
+    go; the live sync resolves one document and folds as it compares."""
+    rows = (
+        db.query(Book.id, Book.title, Book.author, Book.isbn, Book.series_index)
+        .filter(Book.status == BOOK_ACTIVE, book_visibility_filter(db, user))
+        .all()
+    )
+    return [Candidate(r.id, r.series_index, _fold(r.title), _author_key(r.author), _isbn(r.isbn)) for r in rows]
+
+
 def find_match(
     db: Session, user: User, meta: KOSyncDocumentMeta, prefer_book_id: Optional[int] = None,
+    candidates: Optional[list[Candidate]] = None,
 ) -> tuple[Optional[Book], bool]:
     """``(book, ambiguous)`` for the reader's description of a file.
 
@@ -198,11 +222,19 @@ def find_match(
     isbn = _isbn(meta.isbn)
     hint = volume_hint(meta)
 
-    rows = (
-        db.query(Book.id, Book.title, Book.author, Book.isbn, Book.series_index)
-        .filter(Book.status == BOOK_ACTIVE, book_visibility_filter(db, user))
-        .all()
-    )
+    rows: list[Any]
+    if candidates is None:
+        rows = (
+            db.query(Book.id, Book.title, Book.author, Book.isbn, Book.series_index)
+            .filter(Book.status == BOOK_ACTIVE, book_visibility_filter(db, user))
+            .all()
+        )
+        title_of: Callable[[Any], str] = lambda r: _fold(r.title)  # noqa: E731
+        authors_of: Callable[[Any], tuple[str, ...]] = lambda r: _author_key(r.author)  # noqa: E731
+        isbn_of: Callable[[Any], str] = lambda r: _isbn(r.isbn)  # noqa: E731
+    else:
+        rows = candidates
+        title_of, authors_of, isbn_of = (lambda r: r.title_key), (lambda r: r.author_key), (lambda r: r.isbn_key)
 
     def pick(ids: list[int]) -> tuple[Optional[Book], bool]:
         if len(ids) == 1:
@@ -214,8 +246,8 @@ def find_match(
     if isbn:
         by_isbn = [
             r.id for r in rows
-            if _isbn(r.isbn) == isbn
-            and (_fold(r.title) == title or (authors and _author_key(r.author) == authors))
+            if isbn_of(r) == isbn
+            and (title_of(r) == title or (authors and authors_of(r) == authors))
             and not _volume_conflict(meta, hint, r.series_index)
         ]
         if by_isbn:
@@ -225,7 +257,7 @@ def find_match(
     if authors:
         by_name = [
             r.id for r in rows
-            if _fold(r.title) == title and _author_key(r.author) == authors
+            if title_of(r) == title and authors_of(r) == authors
             and _volume_agrees(meta, hint, r.series_index)
         ]
         if by_name:
@@ -234,7 +266,7 @@ def find_match(
     # title: the download is the evidence the author spelling lacks.
     if prefer_book_id is not None:
         for r in rows:
-            if r.id == prefer_book_id and _fold(r.title) == title and not _volume_conflict(meta, hint, r.series_index):
+            if r.id == prefer_book_id and title_of(r) == title and not _volume_conflict(meta, hint, r.series_index):
                 return db.get(Book, r.id), False
     if not authors:
         return None, False
@@ -272,16 +304,19 @@ def _document_hints(db: Session, user_id: int, book_id: int) -> set[Optional[flo
 
 def resolve(
     db: Session, user: User, document: str, meta: KOSyncDocumentMeta,
-    prefer_book_id: Optional[int] = None,
+    prefer_book_id: Optional[int] = None, commit: bool = True,
+    candidates: Optional[list[Candidate]] = None,
 ) -> Optional[KOSyncDocumentMap]:
     """Give an unlinked ``document`` its book: a matching library book, or a
     new record without a file. Returns None when several books match, the
     metadata names nothing, or the user deleted this file's record before.
-    Commits."""
+    Commits, unless ``commit`` is False: then it only flushes, and the audit
+    entry joins the caller's transaction (the CrossPoint Sync import).
+    ``candidates``: pre-loaded ``library_candidates`` (see there)."""
     title = display_title(meta)
     if not title or meta.ignored:
         return None
-    book, ambiguous = find_match(db, user, meta, prefer_book_id)
+    book, ambiguous = find_match(db, user, meta, prefer_book_id, candidates=candidates)
     if ambiguous:
         logger.info("kosync: document %s matches several books for user %s, left unlinked", document, user.id)
         return None
@@ -303,13 +338,16 @@ def resolve(
 
     doc_map = KOSyncDocumentMap(tome_user_id=user.id, document=document, book_id=book.id)
     db.add(doc_map)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
 
     if created:
         from backend.services.audit import audit
         audit(db, "books.created_from_reader", user_id=user.id, username=user.username,
               resource_type="book", resource_id=book.id, resource_title=book.title,
-              details={"document": document, "filename": meta.filename})
+              details={"document": document, "filename": meta.filename}, commit=commit)
         logger.info("kosync: created file-less book %s for document %s", book.id, document)
     else:
         logger.info("kosync: linked document %s to book %s by its metadata", document, book.id)

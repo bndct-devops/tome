@@ -51,6 +51,11 @@ def bulk_download(
         for f in book.files
         if Path(f.file_path).exists()
     ]
+    # A selection of only file-less books (made from a reader's sync, nothing
+    # on the server) would otherwise be an empty zip. Mixed with real books
+    # they are simply left out (they contribute no files).
+    if not any(book.files for book in books):
+        raise HTTPException(400, "None of the selected books has a file to download")
     enforce_download_limit(db, current_user, count=len(servable))
 
     buf = io.BytesIO()

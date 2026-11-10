@@ -70,7 +70,7 @@ export function AppShell({
     const t = setTimeout(() => {
       api
         .get<{ id: number; title: string; author: string | null }[]>(
-          `/books?q=${encodeURIComponent(q)}&limit=6`,
+          `/books?q=${encodeURIComponent(q)}&limit=6&include_no_file=true`,
         )
         .then(r => setSearchPreview(Array.isArray(r) ? r : []))
         .catch(() => {})

@@ -77,6 +77,20 @@ import { withBase } from '../../lib/path'
     library (ISBN first, then title/author) with a full preview, and only ever fills gaps —
     statuses, ratings, reviews, and finish dates you already have are never overwritten.
   </p>
+  <p>
+    The same place takes a <strong>CrossPoint Sync account export</strong> (experimental). A
+    CrossInk reader hands each reading session to one sync server and then deletes it, so
+    reading synced to CrossPoint Sync before you switched to Tome only exists there. Export it
+    there (Settings, Account migration, Export account data) and choose the file under
+    <strong>Settings → Import reading history</strong>. You get a preview first: for every book
+    what would happen (linked to a library book, a new book without a file, or left unlinked
+    and why), how many sessions and how much reading time, clippings, the reader's page counts,
+    and what is skipped. Nothing is written until you press Import. The import is all or
+    nothing, importing the same file again adds nothing twice, and nothing already in Tome is
+    changed or lowered. The report can be copied as text, which is what to send along if
+    something in it looks wrong. See <a href={withBase("/docs/sync-clients")}>sync clients</a>
+    for what the live CrossInk sync does.
+  </p>
 
   <h2>Fixing a runaway session</h2>
   <p>

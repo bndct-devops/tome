@@ -12,6 +12,7 @@ import { listDevices, revokeDevice, type ClientDevice } from '@/lib/devices'
 import { DOCS, docsLink } from '@/lib/docs'
 import { NotificationChannels } from '@/components/NotificationChannels'
 import { ReadingImport } from '@/components/ReadingImport'
+import { CrossPointImport } from '@/components/CrossPointImport'
 import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
 import { SettingsNav } from '@/components/SettingsNav'
@@ -30,7 +31,7 @@ import {
   applyTheme, getStoredTheme, THEMES, type ThemeId,
   type CustomTheme, loadCustomThemes, saveCustomTheme, deleteCustomTheme, parseThemeColors,
 } from '@/lib/theme'
-import { useAuth } from '@/contexts/AuthContext'
+import { isMember, useAuth } from '@/contexts/AuthContext'
 import { Trans, Plural, useLingui } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
@@ -1812,6 +1813,8 @@ export function SettingsPage() {
         {/* ── Reading-history import ────────────────────────────────────── */}
         <PanelSection id="import" title={t`Import reading history`}>
           <ReadingImport />
+          {/* KOSync data needs a member account; the routes answer guests 403. */}
+          {isMember(user) && <CrossPointImport />}
         </PanelSection>
 
         <PanelSection

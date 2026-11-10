@@ -33,7 +33,9 @@ def _epoch(dt: datetime) -> int:
     return calendar.timegm(dt.utctimetuple())
 
 
-def _find_or_hash_link(db: Session, tome_user_id: int, document: str) -> Optional[KOSyncDocumentMap]:
+def _find_or_hash_link(
+    db: Session, tome_user_id: int, document: str, commit: bool = True,
+) -> Optional[KOSyncDocumentMap]:
     """Resolve a KOSync document hash to this user's document map.
 
     Existing map wins. Otherwise try a deterministic link: the KOSync
@@ -44,6 +46,8 @@ def _find_or_hash_link(db: Session, tome_user_id: int, document: str) -> Optiona
     guesswork for any file that came from Tome. Only active, visible books
     are linked. Returns None when the file never passed through Tome (the
     caller may fall back to the legacy OPDS heuristic, or a manual link).
+    ``commit=False`` flushes a new link instead of committing it, for a caller
+    that owns the transaction (the CrossPoint Sync import).
     """
     doc_map = (
         db.query(KOSyncDocumentMap)
@@ -72,7 +76,10 @@ def _find_or_hash_link(db: Session, tome_user_id: int, document: str) -> Optiona
 
     doc_map = KOSyncDocumentMap(tome_user_id=tome_user_id, document=document, book_id=hit)
     db.add(doc_map)
-    db.commit()
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     logger.info("kosync: auto-linked document %s to book %s via ko-hash", document, hit)
     return doc_map
 

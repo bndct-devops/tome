@@ -171,10 +171,13 @@ def apply_progress_to_status(
     monotonic: bool = True,
     cfi: Optional[str] = None,
     status_row: Optional[UserBookStatus] = None,
+    nudge: bool = True,
 ) -> UserBookStatus:
     """Apply a progress report to the user's status row (creating it if needed).
 
-    Does not commit — the caller owns the transaction.
+    Does not commit — the caller owns the transaction. ``nudge=False`` leaves
+    the Hardcover wake-up on a finish to the caller (a preview that is rolled
+    back must not send one).
     """
     if status_row is None:
         status_row = (
@@ -194,7 +197,7 @@ def apply_progress_to_status(
             finished_at=datetime.utcnow() if finished else None,
         )
         db.add(status_row)
-        if finished:
+        if finished and nudge:
             _nudge_hardcover()
         return status_row
 
@@ -215,7 +218,8 @@ def apply_progress_to_status(
         status_row.status = "read"
         status_row.progress_pct = 1.0
         status_row.finished_at = datetime.utcnow()
-        _nudge_hardcover()
+        if nudge:
+            _nudge_hardcover()
     elif status_row.status in ("unread", "want_to_read") and pct > 0:
         # First real progress self-promotes a queued (want_to_read) book too.
         status_row.status = "reading"

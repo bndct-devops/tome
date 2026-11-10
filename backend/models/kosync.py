@@ -129,6 +129,38 @@ class KOSyncDailyStats(Base):
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
 
 
+class KOSyncBookStats(Base):
+    """The latest per-book stats snapshot a reader uploaded, one row per
+    (Tome user, device, document).
+
+    CrossInk keeps lifetime counters per book and uploads them whenever they
+    change. Its reading sessions carry no page counts, so these counters are
+    the only record of how many pages were read on such a reader. Each upload
+    replaces the row, also with lower values: a reset or a restored card is
+    the reader's current truth, not a counter to maximise.
+
+    ``pages`` (forward page turns) and ``seconds`` (active reading time) are
+    the reader's own pair: Tome divides one by the other for pace and never
+    mixes either with its session time. ``snapshot`` keeps the whole item as
+    sent. Like clippings, a row hangs off the document, not a book: it counts
+    for the book ``KOSyncDocumentMap`` links its document to at read time, so a
+    link made or changed later applies without anything being sent again.
+    """
+    __tablename__ = "kosync_book_stats"
+    __table_args__ = (UniqueConstraint("user_id", "device_id", "document"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    device_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    document: Mapped[str] = mapped_column(String(32), nullable=False, index=True)  # lower-case hex
+    pages: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    snapshot: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
 class KOSyncSessionReceipt(Base):
     """What a reader last reported for one of its reading sessions.
 
@@ -190,3 +222,57 @@ class KOSyncDocumentMeta(Base):
     # again on the next sync. Linking the document by hand lifts it.
     ignored: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0", nullable=False)
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+
+
+class KOSyncClipping(Base):
+    """A clipping (saved passage) a CrossInk reader synced, one row per id.
+
+    CrossInk syncs clippings both ways over its extended KOSync API: it
+    uploads the ones made on the device and restores the others from the
+    server, so each row keeps the reader's fields as sent (page and word
+    positions are only meaningful to the reader; ``text`` and ``para`` are the
+    portable part). The reader names a clipping by its own ``clip_id``,
+    unique per (Tome user, document).
+
+    A deleted clipping stays as a tombstone (``deleted``; text and note are
+    cleared) so a reader that syncs later learns about the deletion, and a
+    deleted id is never brought back by a late upload. ``revision`` is a
+    server-side counter, unique across the table, that only grows: readers
+    page through changes with it as their cursor, because device clocks
+    drift. ``updated_at`` is server epoch seconds, for the legacy ``since``
+    queries.
+
+    Rows hang off the document, not a book: Tome shows a clipping on the book
+    that ``KOSyncDocumentMap`` links its document to, at read time, so a link
+    made or changed later applies without anything being sent again. These
+    are never sent to KOReader devices or drawn by the web reader; they have
+    no KOReader position.
+    """
+    __tablename__ = "kosync_clippings"
+    __table_args__ = (UniqueConstraint("user_id", "document", "clip_id"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    document: Mapped[str] = mapped_column(String(32), nullable=False, index=True)  # lower-case hex
+    clip_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    revision: Mapped[int] = mapped_column(Integer, nullable=False, unique=True)
+    deleted: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    spine: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    start_page: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    end_page: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    pages: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    start_word: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    end_word: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    words: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    para: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    chapter: Mapped[Optional[str]] = mapped_column(String(64), nullable=True)
+    text: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    note: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    color: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    created_at: Mapped[int] = mapped_column(Integer, nullable=False, default=0)  # epoch seconds, device clock
+    layout_signature: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    start_offset: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    end_offset: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    updated_at: Mapped[int] = mapped_column(Integer, nullable=False)  # epoch seconds, server clock

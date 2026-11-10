@@ -114,7 +114,8 @@ def compute_book_reading_stats(
     # Pace: pages per minute, over the sittings that counted pages. Time from
     # a source that reports none (a KOSync reader's uploaded sessions, the web
     # reader) would otherwise read as very slow reading.
-    paced_minutes = (int(agg.paced_seconds) if agg and agg.paced_seconds else 0) / 60.0
+    paced_seconds = int(agg.paced_seconds) if agg and agg.paced_seconds else 0
+    paced_minutes = paced_seconds / 60.0
     if paced_minutes > 0 and pages_turned > 0:
         pace_pages_per_min: Optional[float] = round(pages_turned / paced_minutes, 2)
     else:
@@ -283,9 +284,25 @@ def compute_book_reading_stats(
 
         # Page-stats time always has pages; additive sessions only where they
         # counted some (same rule as above).
-        paced_minutes = (ps_seconds + int(add_agg[5] or 0)) / 60.0
+        paced_seconds = ps_seconds + int(add_agg[5] or 0)
+        paced_minutes = paced_seconds / 60.0
         if paced_minutes > 0 and pages_turned > 0:
             pace_pages_per_min = round(pages_turned / paced_minutes, 2)
+
+    # ── Pages a KOSync reader counted itself (CrossInk per-book snapshots) ───
+    # Its uploaded sessions carry time but no pages, so nothing above holds
+    # these pages: they are added, never merged. Lifetime totals only, so they
+    # touch the all-time figures and no day, session or window. Pace pairs the
+    # reader's pages with the reader's own seconds from the same snapshot.
+    from backend.services.kosync_stats import reader_pages
+    reader = reader_pages(db, user_id, [book_id]).get(book_id)
+    if reader is not None:
+        pages_turned += reader.pages
+        if reader.paced_pages > 0:
+            paced_minutes = (paced_seconds + reader.paced_seconds) / 60.0
+            # Tome's own pages only with Tome's own paced time.
+            tome_paced_pages = pages_turned - reader.pages if paced_seconds > 0 else 0
+            pace_pages_per_min = round((tome_paced_pages + reader.paced_pages) / paced_minutes, 2)
 
     # ── Journey: cumulative progress per reading day (the progress line) ──────
     # Augments each session_timeline day with the furthest-progress reached, so

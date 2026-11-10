@@ -16,13 +16,24 @@ All notable changes to Tome are documented here. Format loosely follows
   turn on Reading Stats under What to Sync; the sync account has to be the
   one from Settings > KOReader, since that is what ties it to your Tome
   user. Reading the device has already delivered to another server is not
-  sent again; whatever is still waiting on the device is. Sessions carry no
-  page counts, and a session for a book Tome cannot identify counts toward
+  sent again (see the import below for that); whatever is still waiting on
+  the device is. A session for a book Tome cannot identify counts toward
   your totals but stays off the calendar, listed as "(book not linked yet)",
-  until the document is linked (see the next entry for how that now happens
-  by itself). A session you trim or delete in Tome stays that way when the
+  until the document is linked (the next entry is how that now happens by
+  itself). A session you trim or delete in Tome stays that way when the
   reader sends it again. Other KOSync apps are unaffected. Tested with the
-  firmware's own upload code in its desktop simulator, not yet on a reader.
+  firmware's own code in its desktop simulator and by a tester on an Xteink
+  X3. Known firmware limit: on CrossInk 2.0.0-rc, "Sync Reading Stats" for
+  more than one book at a time reports a failure with any server; the data
+  still arrives, and syncing from inside a book works.
+- **Pages and pace for books read on a CrossInk reader (experimental).** The
+  reader's sessions carry reading time but no page counts. It does send a
+  page total per book, which Tome now keeps: a book's Pages and Pace on its
+  page, and in the per-book table on the Stats page for All time, include
+  the pages the reader counted itself (forward page turns), with pace worked
+  out over the reader's own reading time. The reader does not say on which
+  day pages were turned, so daily charts, the calendar, session rows, page
+  goals and other date ranges still show no pages for that reading.
 - **Sideloaded books are recognised from what the reader says about them
   (experimental).** A file you copied to your reader yourself is only a hash
   to Tome, so its progress and reading had no book to belong to. When the
@@ -31,20 +42,48 @@ All notable changes to Tome are documented here. Format loosely follows
   sorts it out on the next sync. If exactly one book in your library is the
   same book, the file is linked to it. If none is, Tome adds the book
   without a file, so the reading shows on Home, in the stats, the calendar
-  and the session list under its real title. Such a book has its own page,
-  where you can set a cover or fix its details. It is yours alone, and it
-  stays out of the library, the series pages, search, OPDS, the KOReader
-  plugin, the apps and the duplicates page, since there is nothing to open
-  or download. When you later add the real file, use Link KOReader sync on
-  its page: the reading, read status, finish date, rating and review move
-  over and the file-less entry is removed. Delete a file-less book and Tome
-  stops tracking that file; a link by hand brings it back.
+  and the session list under its real title. Such a book appears in your
+  own Library and in library search with a "No file" badge (the Library
+  filters gain "Missing: File" to show just these), and has its own page,
+  where you can set a cover or fix its details. It is yours alone. It never
+  goes into a library, and it stays out of the series pages, OPDS, the
+  KOReader plugin, the apps, downloads and the duplicates page, since there
+  is nothing to open or download. When you later add the real file, use
+  Link KOReader sync on its page: the reading, read status, finish date,
+  rating and review move over and the file-less entry is removed. Delete a
+  file-less book and Tome stops tracking that file; a link by hand brings
+  it back.
   "The same book" is exact, never similar: the same title and the same
   authors (in any order), and no disagreement about the volume, so volume 2
   of a series whose volumes share one title is not put on volume 1. A
   shared ISBN counts only when the title or the author agrees too, and a
   title without an author is never matched. When several library books fit,
   Tome leaves the choice to you.
+- **Clippings from CrossInk readers (experimental).** With Clippings switched
+  on under What to Sync, passages saved on the reader are uploaded to Tome,
+  restored on your other CrossInk readers, and a clipping deleted on one
+  reader is removed everywhere. Tome shows them on the Highlights page, in
+  the book's Highlights and notes and in the Home spotlight, marked as
+  CrossInk clippings, once the file is linked to a book. They are read-only
+  in Tome (change or delete them on the reader), are never sent to KOReader
+  devices or drawn in the web reader, and are part of the account export.
+  The iOS app does not show them yet.
+- **Import of a CrossPoint Sync account export (experimental).** CrossInk
+  readers hand each reading session to one sync server and then delete it,
+  so reading synced to CrossPoint Sync before the switch to Tome was only on
+  that server. Settings > Import reading history now takes that server's
+  account export (its Settings > Account migration > Export account data).
+  It brings over reading sessions, read status with finish dates, progress,
+  clippings, the reader's page counts per book and the daily reading
+  counters, linking each book to the matching library book or to a new book
+  without a file, the same way the live reader sync does. A preview shows
+  exactly what would happen before anything is written, with every book, the
+  reading time added, and whatever is skipped and why; the whole report can
+  be copied as text. The import is all or nothing, importing the same file
+  again adds nothing twice, and nothing already in Tome is changed or
+  lowered. When a book's position or finish in the export came from a
+  service connected to CrossPoint Sync (for example Kindle) rather than from
+  the reader, the report says so. Files up to 20 MiB.
 
 ### Changed
 - Pages per minute on a book's page is now worked out only from sittings
