@@ -308,12 +308,15 @@ def compute_book_reading_stats(
     # Augments each session_timeline day with the furthest-progress reached, so
     # the frontend can plot a progress arc over the minutes-per-day bars.
     # Page-stat days carry no position (dwell is *coverage* — you can be 35% in
-    # having dwelled on 11% of pages), but web/manual sessions record
-    # progress_end, so their days contribute points even on a device-synced book.
+    # having dwelled on 11% of pages); the position comes from the sessions'
+    # progress_end and from the position logs merged in below.
+    # Every session counts here, superseded ones included: imported page-stats
+    # replace a plugin sitting's *time*, not the position it ended at. Filtering
+    # them out left a page-stats book with a line from the few sittings the
+    # page-stats missed, or no line at all.
     day_progress: dict[str, float] = {}
-    prog_base = base.filter(counted_clause()) if ps_seconds > 0 else base
     prog_rows = (
-        prog_base.with_entities(
+        base.with_entities(
             day_ctx.dt_day(ReadingSession.started_at).label("date"),
             func.max(ReadingSession.progress_end).label("p"),
         )
@@ -345,6 +348,32 @@ def compute_book_reading_stats(
             continue
         p = max(0.0, min(float(r.p), 1.0))
         day_progress[r.date] = max(day_progress.get(r.date, 0.0), p)
+
+    # The same for TomeSync positions (the KOReader plugin, the web reader):
+    # position_history keeps the newest meaningful moves per book (40 rows at
+    # most, so they are walked in Python). A restore (device "restore") exists
+    # to undo a bad write such as a device jumping the book to 100%: the rows
+    # before it that lie above the restored position are the bad write and do
+    # not count, or the line would stay pinned at 100% after the user fixed it.
+    from backend.models.tome_sync import PositionHistory
+    pos_day = day_ctx.dt_day(PositionHistory.created_at)
+    pos_rows = (
+        db.query(pos_day.label("date"), PositionHistory.percentage.label("p"),
+                 PositionHistory.device.label("device"))
+        .filter(PositionHistory.user_id == user_id, PositionHistory.book_id == book_id)
+        .order_by(PositionHistory.id)
+        .all()
+    )
+    kept: list[tuple[str, float]] = []
+    for r in pos_rows:
+        if r.p is None:
+            continue
+        p = max(0.0, min(float(r.p), 1.0))
+        if r.device == "restore":
+            kept = [(d, q) for d, q in kept if q <= p]
+        kept.append((r.date, p))
+    for pos_date, p in kept:
+        day_progress[pos_date] = max(day_progress.get(pos_date, 0.0), p)
 
     # Forward-fill so the arc never dips on a day with reading-time-but-no-progress.
     # Every progress day up to a row's date counts, also one with no reading

@@ -119,6 +119,15 @@ All notable changes to Tome are documented here. Format loosely follows
   metadata.
 
 ### Fixed
+- **The progress line on books with KOReader page-stats.** A sitting the
+  plugin recorded reaches Tome twice, as a live session with its position and
+  as page-stats without one. Where both covered the same minutes the line
+  dropped the session along with its time, so a book read on a Kindle got a
+  line from the few sittings the page-stats had missed (ending at 63% on a
+  finished book) or no line at all. A superseded sitting's position now counts,
+  so the line fills in for books already read, and the device's synced
+  positions (Position history) feed it too. A restored position stops an
+  earlier bad jump from pinning the line.
 - **The arm64 image builds again.** The two frontend build stages run on the
   build host instead of under emulation; the 3.0.0 image build had crashed
   there while compiling the classic bundle.
