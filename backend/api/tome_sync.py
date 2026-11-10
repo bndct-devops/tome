@@ -121,8 +121,17 @@ logger = logging.getLogger(__name__)
 # /tome-sync/device-books on launch, resume, WiFi up, Sync now and a few
 # seconds after the book map changes; the server replaces the device's list,
 # so deletes drop out on the next push. Powers "On <device>" in web and app.
-TOMESYNC_PLUGIN_BUILD = 52
-TOMESYNC_PLUGIN_SEMVER = "1.19.2"
+# BUILD 54 (53 is taken by the unmerged feat/ai-provider branch): reading
+# status from Tome (issue #296). The plugin asks POST
+# /tome-sync/statuses for the status of the books on the device (same
+# book id + partial-MD5 gate as the metadata sync) and writes it into
+# KOReader's own book status (sidecar summary.status), so a book finished on
+# one device shows as finished on the others. On by default
+# (tomesync_status_sync); runs after launch, on wake, when WiFi connects and
+# from "Sync now". A per-file baseline of the last Tome status means only a
+# CHANGE in Tome is applied, so a mark set by hand on the device stays.
+TOMESYNC_PLUGIN_BUILD = 54
+TOMESYNC_PLUGIN_SEMVER = "1.20.0"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -1359,6 +1368,72 @@ def device_metadata_sync(
     return {"books": out, "unchanged": unchanged, "rejected": rejected}
 
 
+class StatusSyncItem(PydanticBaseModel):
+    book_id: int
+    ko_md5: str
+
+
+class StatusSyncRequest(PydanticBaseModel):
+    items: list[StatusSyncItem] = []
+
+    # KOReader's Lua rapidjson encodes an empty table as a JSON object.
+    @field_validator("items", mode="before")
+    @classmethod
+    def _coerce_empty_object(cls, v):
+        return [] if isinstance(v, dict) and not v else v
+
+
+@router.post("/tome-sync/statuses")
+def device_status_sync(
+    body: StatusSyncRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """The user's reading status for books the plugin holds on the device
+    (Tome -> KOReader, issue #296).
+
+    Same gate as the metadata sync above: a (book id, partial-MD5) pair is
+    only answered when Tome has that exact hash on record for that exact book
+    and the user can see the book, so the plugin never marks the wrong file
+    finished. Everything else is listed under ``rejected``.
+
+    ``status`` is one of ``unread`` / ``reading`` / ``read``. A book with no
+    status row, or one queued as ``want_to_read``, is ``unread``: the device
+    has no equivalent of a queue.
+    """
+    from backend.models.ko_stats import KoHash
+
+    items = body.items[:METADATA_SYNC_MAX_ITEMS]
+    ids = {i.book_id for i in items}
+    if not ids:
+        return {"statuses": [], "rejected": []}
+
+    visible = {
+        r[0]
+        for r in db.query(Book.id)
+        .filter(Book.id.in_(ids), Book.status == "active", book_visibility_filter(db, user))
+        .all()
+    }
+    known = {
+        (bid, md5)
+        for bid, md5 in db.query(KoHash.book_id, KoHash.ko_partial_md5)
+        .filter(KoHash.book_id.in_(ids))
+        .all()
+    }
+    smap = _status_map(db, user.id, list(visible))
+
+    out: list[dict] = []
+    rejected: list[dict] = []
+    for item in items:
+        pair = {"book_id": item.book_id, "ko_md5": item.ko_md5}
+        if item.book_id not in visible or (item.book_id, item.ko_md5) not in known:
+            rejected.append(pair)
+            continue
+        status = smap.get(item.book_id)
+        out.append({**pair, "status": status if status in ("reading", "read") else "unread"})
+    return {"statuses": out, "rejected": rejected}
+
+
 class SweepBody(PydanticBaseModel):
     status: Optional[str] = None       # reading | read (sidecar summary.status)
     rating: Optional[float] = None     # 0.5–5.0 half-star steps
@@ -2102,6 +2177,11 @@ local sweep_running = false
 local meta_sync_running = false
 local meta_sync_launched = false
 local meta_last_auto = 0     -- os.time() of the last automatic run (debounce)
+-- Status sync (build 54): same latches as the metadata sync, its own setting.
+local status_sync_running = false
+local status_sync_launched = false
+local status_sync_unsupported = false   -- server answered 404/405: stop asking
+local status_last_auto = 0
 -- Device inventory (build 50): one launch push per process, one pending
 -- debounced push shared by every TomeSync instance (file manager + reader).
 local inventory_launched = false
@@ -2520,6 +2600,9 @@ function TomeSync:init()
     -- Metadata sync ledger: device path -> what we last wrote (see the
     -- "Metadata sync" section). Pruned with book_map.
     self.meta_ledger = self.state:readSetting("tomesync_meta_ledger") or {{}}
+    -- Status sync baseline: device path -> file hash + the Tome status last
+    -- seen for it (see the "Status sync" section). Pruned with book_map.
+    self.status_base = self.state:readSetting("tomesync_status_base") or {{}}
     self:_pruneState()
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
@@ -2569,6 +2652,11 @@ function TomeSync:init()
         meta_sync_launched = true
         UIManager:scheduleIn(20, function() pcall(function() self:_syncMetadata(false) end) end)
     end
+
+    if not status_sync_launched and self.enabled then
+        status_sync_launched = true
+        UIManager:scheduleIn(25, function() pcall(function() self:_syncStatuses(false) end) end)
+    end
 end
 
 -- The data tables that live in the dedicated state file (tomesync_update and
@@ -2578,7 +2666,7 @@ local STATE_KEYS = {{
     "tomesync_book_map", "tomesync_pending_sessions", "tomesync_adopt_pending",
     "tomesync_repair_map", "tomesync_annot_baseline", "tomesync_rating_baseline",
     "tomesync_pending_ratings", "tomesync_meta_ledger",
-    "tomesync_pending_positions", "tomesync_scan_mark",
+    "tomesync_pending_positions", "tomesync_scan_mark", "tomesync_status_base",
 }}
 
 function TomeSync:_saveState(key, value)
@@ -2674,9 +2762,16 @@ function TomeSync:_pruneState()
             changed = true
         end
     end
+    for path in pairs(self.status_base) do
+        if lfs.attributes(path, "mode") ~= "file" then
+            self.status_base[path] = nil
+            changed = true
+        end
+    end
     if changed then
         self.state:saveSetting("tomesync_book_map", self.book_map)
         self.state:saveSetting("tomesync_meta_ledger", self.meta_ledger)
+        self.state:saveSetting("tomesync_status_base", self.status_base)
         self.state:saveSetting("tomesync_annot_baseline", self.annot_baseline)
         self.state:saveSetting("tomesync_rating_baseline", self.rating_baseline)
         self.state:saveSetting("tomesync_repair_map", self.repair_map)
@@ -2937,6 +3032,10 @@ function TomeSync:onResume()
     -- Device inventory catches deletes made while the device slept (or in the
     -- file manager); runs for the file manager instance too, no book needed.
     if self.enabled then self:_scheduleDeviceBooks() end
+    -- Statuses changed from another device while this one slept (issue #296).
+    if self.enabled then
+        UIManager:scheduleIn(8, function() pcall(function() self:_syncStatuses(false) end) end)
+    end
     if not self.enabled or not self.book_id then return end
 
     -- Start a fresh session (lid open = new session)
@@ -2978,6 +3077,7 @@ function TomeSync:onNetworkConnected()
     if G_reader_settings:isTrue("tomesync_meta_sync") then
         UIManager:scheduleIn(6, function() pcall(function() self:_syncMetadata(false) end) end)
     end
+    UIManager:scheduleIn(8, function() pcall(function() self:_syncStatuses(false) end) end)
 end
 
 -- ── KOReader statistics.sqlite3 import (reading-history backfill) ────────────
@@ -3979,8 +4079,8 @@ end
 --   only device changed  -> push device → Tome
 --   only Tome changed     -> write Tome → device sidecar
 --   both changed (tie)    -> Tome wins (single source of truth)
--- `summary.status` (reading/complete/abandoned) is left untouched — reading
--- status already syncs via TomeSyncPosition.
+-- `summary.status` (reading/complete/abandoned) is left untouched here — the
+-- status sync (build 54, "Status sync" section) owns it.
 --
 -- Half-stars (build 31): Tome ratings can be 4.5 etc.; KOReader's sidecar is
 -- whole-star, so a pulled half-star is rounded to the NEAREST star for the
@@ -6119,6 +6219,255 @@ function TomeSync:_syncMetadataImpl(interactive)
     hashStep()
 end
 
+-- ── Status sync (Tome -> device, issue #296) ─────────────────────────────────
+-- Tome's per-user reading status, written into KOReader's own book status
+-- (sidecar `summary.status`) for the books on this device, so the file
+-- browser and the Book status screen agree with Tome. One direction only:
+-- device -> Tome status still travels through the position sync (99% =
+-- read), the hold menu of the device browser and "Sync closed books".
+--
+-- `status_base[path]` = {{ id, md5, size, mtime, remote }}: the file's hash
+-- (cached, so a steady-state run hashes nothing) and the Tome status seen at
+-- the last run. The rule, in statusTarget():
+--   * Tome unchanged since the last run -> nothing is written. A status set
+--     by hand on the device therefore stays until Tome changes.
+--   * first run for a file              -> only fills in: read marks it
+--     finished, reading marks a never-opened book as reading, unread writes
+--     nothing.
+--   * Tome changed                      -> the device follows: read ->
+--     finished, reading -> reading (also from finished: a re-read), unread
+--     -> a finished book goes back to reading (an opened book has no
+--     "unread" on the device; a never-opened one is already unread).
+--   * "On hold" (abandoned) has no Tome equivalent and is never touched;
+--     a Tome change made meanwhile is applied once the book is off hold.
+-- The server only answers for a (book id, partial-MD5) pair it has on
+-- record, exactly like the metadata sync.
+local STATUS_CHUNK = 100     -- the server's per-request cap
+
+local function statusSyncOn()
+    return G_reader_settings:nilOrTrue("tomesync_status_sync")
+end
+
+-- remote: Tome status now; base: Tome status at the last run (nil = first
+-- run); device: nil (never opened) | "reading" | "complete" | "abandoned".
+-- Returns the summary.status to write, or nil to leave the device alone.
+local function statusTarget(remote, base, device)
+    if device == "abandoned" then return nil end
+    if base ~= nil and remote == base then return nil end
+    if remote == "read" then
+        return device ~= "complete" and "complete" or nil
+    end
+    if remote == "reading" then
+        if base == nil then
+            return device == nil and "reading" or nil
+        end
+        return device ~= "reading" and "reading" or nil
+    end
+    -- unread
+    if base ~= nil and device == "complete" then return "reading" end
+    return nil
+end
+
+-- The status KOReader shows for a closed book. A sidecar without a status
+-- reads as "reading", which is how KOReader itself treats an opened book.
+function TomeSync:_deviceStatus(path)
+    local DocSettings = require("docsettings")
+    if not DocSettings:hasSidecarFile(path) then return nil end
+    local summary = DocSettings:open(path):readSetting("summary")
+    local st = type(summary) == "table" and summary.status or nil
+    if st == "complete" or st == "abandoned" then return st end
+    return "reading"
+end
+
+-- Same write KOReader's own "mark as finished" does (filemanagerutil
+-- .saveSummary): creates the sidecar for a never-opened book.
+function TomeSync:_writeDeviceStatus(path, status)
+    local DocSettings = require("docsettings")
+    local ds = DocSettings:open(path)
+    local summary = ds:readSetting("summary")
+    if type(summary) ~= "table" then summary = {{}} end
+    summary.status = status
+    summary.modified = os.date("%Y-%m-%d")
+    ds:saveSetting("summary", summary)
+    ds:flush()
+    -- The file browser paints from this cache; absent on older KOReader,
+    -- which re-reads the sidecar instead.
+    local okb, BookList = pcall(require, "ui/widget/booklist")
+    if okb and type(BookList) == "table" and BookList.setBookInfoCacheProperty then
+        BookList.setBookInfoCacheProperty(path, "status", status)
+    end
+end
+
+-- force: "Sync now" and the settings toggle skip the two-minute debounce.
+-- Never interactive: no dialogs, one short notice when something changed.
+function TomeSync:_syncStatuses(force)
+    if not statusSyncOn() or status_sync_unsupported then return end
+    if status_sync_running then return end
+    if not force then
+        if os.time() - status_last_auto < 120 then return end
+    end
+    if not NetworkMgr:isConnected() then return end
+    status_last_auto = os.time()
+    self:_syncStatusesImpl()
+end
+
+function TomeSync:_syncStatusesImpl()
+    -- The open book is left for the next run: the reader holds its sidecar
+    -- in memory and would write the old status back on close.
+    local open_file = self.ui and self.ui.document and self.ui.document.file
+    local candidates = {{}}
+    for path, id in pairs(self.book_map) do
+        if type(id) == "number" and path ~= open_file then
+            local attr = lfs.attributes(path)
+            if attr and attr.mode == "file" then
+                table.insert(candidates, {{ path = path, id = id,
+                                           size = attr.size, mtime = attr.modification }})
+            end
+        end
+    end
+    if #candidates == 0 then return end
+    table.sort(candidates, function(a, b) return a.path < b.path end)
+
+    status_sync_running = true
+    local TICK = 0.05
+    local changed, dirty = 0, false
+
+    local function finish()
+        status_sync_running = false
+        if dirty then self:_saveState("tomesync_status_base", self.status_base) end
+        if changed > 0 then
+            local fc = self.ui and self.ui.file_chooser
+            if fc and fc.refreshPath then pcall(fc.refreshPath, fc) end
+            UIManager:show(Notification:new{{
+                text = string.format("TomeSync: reading status updated for %d book(s)", changed),
+                timeout = 3,
+            }})
+        end
+    end
+
+    -- Apply one answer: bookkeeping at once, sidecar writes one per tick.
+    local function applyBatch(by_key, resp, on_done)
+        local function each(list, fn)
+            if type(list) ~= "table" then return end
+            for _, e in ipairs(list) do
+                if type(e) == "table" and e.book_id ~= nil and type(e.ko_md5) == "string" then
+                    local cs = by_key[tostring(e.book_id) .. "|" .. e.ko_md5]
+                    if cs then for _, c in ipairs(cs) do fn(c, e) end end
+                end
+            end
+        end
+        -- Not vouched for (any more): forget what Tome said, write nothing.
+        each(resp.rejected, function(c)
+            local b = self.status_base[c.path]
+            if b and b.remote ~= nil then b.remote = nil; dirty = true end
+        end)
+        local work = {{}}
+        each(resp.statuses, function(c, e)
+            local remote = e.status
+            if remote ~= "unread" and remote ~= "reading" and remote ~= "read" then return end
+            local b = self.status_base[c.path]
+            if b and b.remote ~= remote then
+                table.insert(work, {{ c = c, remote = remote }})
+            end
+        end)
+        local i = 0
+        local function step()
+            i = i + 1
+            local w = work[i]
+            if not w then on_done() return end
+            local b = self.status_base[w.c.path]
+            local held = false
+            local ok, err = pcall(function()
+                local device = self:_deviceStatus(w.c.path)
+                -- "On hold": nothing is written and the baseline stays, so
+                -- the change is still pending when the book comes off hold.
+                if device == "abandoned" then held = true return end
+                local target = statusTarget(w.remote, b.remote, device)
+                if target then
+                    self:_writeDeviceStatus(w.c.path, target)
+                    changed = changed + 1
+                end
+            end)
+            if held then
+                -- leave the baseline alone
+            elseif ok then
+                b.remote = w.remote
+                dirty = true
+            else
+                -- Baseline not moved, so the next run tries this book again.
+                logger.warn("TomeSync: status apply failed for", w.c.path, err)
+            end
+            UIManager:scheduleIn(TICK, step)
+        end
+        step()
+    end
+
+    -- Hash one candidate per tick (cached after the first run), then ask the
+    -- server about each full batch and apply it before going on.
+    local idx = 0
+    local items, by_key, batch_n = {{}}, {{}}, 0
+    local hashStep
+    local function sendBatch()
+        local sent_items, sent_keys = items, by_key
+        items, by_key, batch_n = {{}}, {{}}, 0
+        local ok, resp, code = pcall(apiRequest, "POST", "/tome-sync/statuses", {{ items = sent_items }})
+        if not ok or type(resp) ~= "table" or type(code) ~= "number" or code >= 300 then
+            if code == 404 or code == 405 then
+                -- Tome older than this plugin build: quiet until the next launch.
+                status_sync_unsupported = true
+            end
+            finish()
+            return
+        end
+        applyBatch(sent_keys, resp, function() UIManager:scheduleIn(TICK, hashStep) end)
+    end
+    hashStep = function()
+        idx = idx + 1
+        local c = candidates[idx]
+        if not c then
+            if batch_n > 0 then sendBatch() else finish() end
+            return
+        end
+        local b = self.status_base[c.path]
+        local md5
+        if b and b.md5 and b.size == c.size and b.mtime == c.mtime then
+            md5 = b.md5
+        else
+            local led = self.meta_ledger[c.path]
+            if led and led.md5 and led.size == c.size and led.mtime == c.mtime then
+                md5 = led.md5
+            else
+                local hok, h = pcall(util.partialMD5, c.path)
+                md5 = (hok and type(h) == "string") and h or nil
+            end
+        end
+        if md5 then
+            -- A different file or a different book under this path starts
+            -- over: the old baseline says nothing about it.
+            if not (b and b.id == c.id and b.md5 == md5) then
+                b = {{ id = c.id, md5 = md5 }}
+                self.status_base[c.path] = b
+                dirty = true
+            end
+            if b.size ~= c.size or b.mtime ~= c.mtime then
+                b.size, b.mtime = c.size, c.mtime
+                dirty = true
+            end
+            table.insert(items, {{ book_id = c.id, ko_md5 = md5 }})
+            local key = tostring(c.id) .. "|" .. md5
+            by_key[key] = by_key[key] or {{}}
+            table.insert(by_key[key], c)
+            batch_n = batch_n + 1
+        end
+        if batch_n >= STATUS_CHUNK then
+            sendBatch()
+        else
+            UIManager:scheduleIn(TICK, hashStep)
+        end
+    end
+    hashStep()
+end
+
 -- ── Self-update ──────────────────────────────────────────────────────────────
 
 -- on_result(avail) where avail is a {{build, semver}} table if newer, false if
@@ -6637,6 +6986,25 @@ function TomeSync:_menuItems()
             if on then self:_syncMetadata(true) end
         end,
     }})
+    table.insert(settings_items, {{
+        text         = "Apply Tome reading status to this device",
+        help_text    = "Mark the books on this device as finished or reading "
+                       .. "when their status changes in Tome, for example "
+                       .. "after you finished a book on another device. Only a "
+                       .. "change in Tome is applied, so a status you set here "
+                       .. "by hand stays until then. Books \\"On hold\\" are left "
+                       .. "alone. Runs after launch, on wake, when WiFi connects "
+                       .. "and with \\"Sync now\\"; the book that is open is "
+                       .. "updated after you close it.",
+        checked_func = function() return G_reader_settings:nilOrTrue("tomesync_status_sync") end,
+        callback     = function()
+            local on = not G_reader_settings:nilOrTrue("tomesync_status_sync")
+            G_reader_settings:saveSetting("tomesync_status_sync", on)
+            if on then
+                whenConnected(function() pcall(function() self:_syncStatuses(true) end) end)
+            end
+        end,
+    }})
     -- Idle cap: how long a single page may count before the rest of the gap is
     -- treated as the device sitting awake unread (fell asleep, cover open).
     local function idleCapItems()
@@ -6793,6 +7161,7 @@ function TomeSync:_menuItems()
                     self:_flushPendingSessions()
                     self:_flushPendingRatings()
                     self:_pushDeviceBooks(true)
+                    pcall(function() self:_syncStatuses(true) end)
                     local pending = #self.pending_sessions
                     local msg
                     if self.book_id then

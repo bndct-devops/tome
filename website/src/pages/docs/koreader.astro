@@ -111,9 +111,37 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     review. The plugin keeps it in step with the rating and review on Tome's book detail page, <strong>both ways</strong>: rate a book on the web and it appears in KOReader the next time
     you open it (for a book that came from Tome); rate it in KOReader and it flows up to Tome when
     you close or suspend. Ratings are per user and private to you, and your reading status
-    (reading / finished) is left untouched — that syncs separately. The plugin tracks the last
+    (reading / finished) is left untouched here (see <a href="#status-on-device">Reading status on the device</a>). The plugin tracks the last
     value it synced, so normally only the side that changed is sent; if a rating changed on both
     the web and the device since the last sync, <strong>Tome wins</strong>.
+  </p>
+
+  <h3 id="status-on-device">Reading status on the device</h3>
+  <p>
+    From build 54 the plugin writes your Tome reading status into KOReader's own book status for
+    the books on the device. Finish a book on one device, or mark it read in the web UI or the
+    app, and your other devices show it as <strong>Finished</strong> in the file browser and on the
+    Book status screen. On by default: <strong>Settings &rarr; Apply Tome reading status to this
+    device</strong>. It runs shortly after launch, when the device wakes, when WiFi connects and
+    with <strong>Sync now</strong>, and it does not depend on the metadata sync setting.
+  </p>
+  <p>
+    The plugin remembers the status Tome had the last time it looked and only acts when
+    <strong>Tome's status changed</strong> since then, so a status you set by hand in KOReader
+    stays until that happens:
+  </p>
+  <ul>
+    <li><strong>Changed to Read</strong>: the book is marked Finished.</li>
+    <li><strong>Changed to Reading</strong>: the book is marked Reading, also when the device had it as finished (a re-read started somewhere else).</li>
+    <li><strong>Changed to Unread</strong> (or Want to Read): a finished book goes back to Reading. KOReader has no "unread" for a book that was opened before; a book never opened on the device is not touched.</li>
+    <li><strong>First run for a file</strong>: only fills in. Read marks the book finished, Reading marks a never-opened book as reading, and a finished mark you set on the device is never removed.</li>
+  </ul>
+  <p>
+    Left alone: books you put <strong>On hold</strong> in KOReader (a change made in Tome meanwhile
+    is applied once the book is off hold), the book that is open in the reader (updated after you
+    close it), and files Tome cannot verify by file hash. This only brings Tome's status to the
+    device; the other way works as before (reading to 99% marks a book read in Tome), so marking a
+    book finished by hand in KOReader below 99% does not change Tome.
   </p>
 
   <h3>Metadata sync (Tome &rarr; KOReader)</h3>
@@ -241,7 +269,7 @@ const deviceSnippet  = '# Mount the device, then copy:\nunzip tomesync.koplugin.
     <li><strong>Open a book</strong> — pulls the latest position from the server. If the server is ahead, jumps there. Also reconciles the book's rating.</li>
     <li><strong>Every 50 page turns</strong> — heartbeat push of current position.</li>
     <li><strong>Close the lid (suspend)</strong> — pushes position, highlights, and a rating set this session, and records a reading session.</li>
-    <li><strong>Open the lid (resume)</strong> — starts a new session, pushes position, flushes any queued offline sessions.</li>
+    <li><strong>Open the lid (resume)</strong> — starts a new session, pushes position, flushes any queued offline sessions. Also applies Tome's reading status to the books on the device (as do launch, WiFi connecting and Sync now).</li>
     <li><strong>Close a book</strong> — pushes final position, highlights, and a rating set this session, and records a session.</li>
   </ul>
   <p>Sessions shorter than 10 seconds are filtered out.</p>

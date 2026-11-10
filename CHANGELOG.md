@@ -6,6 +6,18 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **KOReader shows the reading status from Tome.** A book you finish on one
+  device, or mark read in the web UI or the app, now shows as finished in
+  KOReader's file browser and Book status screen on your other devices. The
+  plugin applies it shortly after launch, when the device wakes, when WiFi
+  connects and with "Sync now". Only a change in Tome is applied, so a status
+  set by hand on the device stays until then; books "On hold" and the book
+  that is open are left alone. On by default, with a switch in the plugin's
+  settings ("Apply Tome reading status to this device"). Plugin build 54
+  (1.20.0); the rules are in the KOReader plugin docs under "Reading status on
+  the device". (#296)
+
 ### Fixed
 - **The arm64 image builds again.** The two frontend build stages run on the
   build host instead of under emulation; the 3.0.0 image build had crashed
