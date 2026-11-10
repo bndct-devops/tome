@@ -24,6 +24,7 @@ The plugin is pre-configured with your server URL and API key. No manual configu
 
 - **Reading sync** -- position, progress, and reading sessions sync between KOReader and Tome's web reader
 - **Rating sync** -- KOReader's native star rating and review sync both ways with Tome
+- **Reading status on the device** -- a book you finish on one device, or mark read in Tome, shows as finished in KOReader on your other devices
 - **Metadata sync** -- Tome's title, author, series, tags, description and cover are written into KOReader's custom metadata for the books on your device (opt-in; the book files are never modified)
 - **Reading-history import** -- backfill Tome's Stats with KOReader's own per-page reading history from before TomeSync (reading time and pages only -- never your read/unread status)
 - **Series browser** -- browse your library's series and download entire series to your device in one tap
@@ -56,7 +57,8 @@ If no match is found, the plugin silently skips sync for that book.
 | **Close the lid (suspend)** | Pushes position, records a reading session, and pushes a rating you set this session. |
 | **Open the lid (resume)** | Starts a new session, pushes position, and flushes any pending offline sessions. |
 | **Close a book** | Pushes final position, records a reading session, and pushes a rating you set this session. |
-| **"Sync now" in menu** | Manual push of current position and flushes pending offline sessions. |
+| **"Sync now" in menu** | Manual push of current position and flushes pending offline sessions. Also applies Tome's reading status to the books on the device (build 54+). |
+| **Launch, wake, WiFi connects** | Applies Tome's reading status to the books on the device (build 54+, at most once every two minutes). See [Reading status on the device](#reading-status-on-the-device). |
 
 ### Web Reader → KOReader Sync
 
@@ -100,6 +102,9 @@ The server automatically updates the book's reading status based on progress:
 
 - **unread** to **reading** when progress > 0%
 - **reading** to **read** when progress >= 99%
+
+From build 54 the status also travels the other way, see
+[Reading status on the device](#reading-status-on-the-device).
 
 ### Series Download
 
@@ -271,6 +276,7 @@ The plugin menu is context-aware. It self-registers in the **wrench menu** (afte
 | **Auto-sync reading history on launch** | Opt-in toggle, off by default. When on, TomeSync pushes new KOReader reading history to Tome shortly after startup (the first run backfills your whole history; chunked and resumable). Reading time and pages only — never your read/unread status. See [Reading-History Import](#reading-history-import). |
 | **Sync on suspend** | Opt-in toggle. When the device goes to sleep, catches up anything still pending (sessions, ratings, reading history if enabled) so your stats are current without waking the device. Only syncs when WiFi is already connected. |
 | **Apply Tome metadata to this device** | Opt-in toggle, off by default. Keeps the metadata KOReader shows for Tome books in step with the Tome library via KOReader's custom metadata (the book files are never modified). Tome is the source of truth: metadata edited on the device is overridden. Runs after launch and when WiFi connects. See [Metadata sync](#metadata-sync-tome---koreader). |
+| **Apply Tome reading status to this device** | On by default (build 54+). Marks the books on this device as finished or reading in KOReader when their status changes in Tome. Only a change in Tome is applied, so a status you set on the device by hand stays until then. See [Reading status on the device](#reading-status-on-the-device). |
 | **Aggressive sync (turn WiFi on at suspend)** | Opt-in, requires Sync on suspend. Turns WiFi on at suspend to sync, then lets the device power it back down. Uses more battery. |
 | **Idle time cap** | Longest gap between page turns that still counts as reading (default 10 minutes). Time beyond the cap — you fell asleep, the cover did not sleep the device — is not booked to the session. |
 | **Device name** | The label Tome shows for this device in the reading log and stats. Defaults to the device model; set a name if you use several devices of the same kind. |
@@ -364,6 +370,53 @@ older server the action reports that metadata sync is not supported.
 
 ---
 
+## Reading status on the device
+
+From build 54 (1.20.0) the plugin writes your Tome reading status into
+KOReader's own book status for the books on the device. Finish a book on one
+device, or mark it read in the web UI or the app, and your other devices show
+it as **Finished** in the file browser and on the Book status screen (issue
+#296).
+
+It is on by default: **Settings -> Apply Tome reading status to this device**.
+It runs about 25 seconds after KOReader starts, when the device wakes, when
+WiFi connects and with **Sync now**; automatic runs happen at most once every
+two minutes. It does not depend on the metadata sync setting.
+
+**What gets written.** The plugin remembers, per file, the status Tome had the
+last time it looked, and only acts when Tome's status has changed since then:
+
+| In Tome | On the device |
+|---|---|
+| Status did not change since the last run | Nothing. A status you set by hand in KOReader stays as it is. |
+| Changed to **Read** | Marked **Finished**. |
+| Changed to **Reading** | Marked **Reading**, also when the device had it as finished (you started a re-read somewhere else). |
+| Changed to **Unread** (or Want to Read) | A finished book goes back to **Reading**. KOReader has no "unread" for a book that was opened before; a book never opened on the device already shows as new and is not touched. |
+
+The first time the plugin sees a file it only fills things in: **Read** marks
+the book finished, **Reading** marks a book that was never opened on this
+device as reading, and nothing else is changed. A finished mark you set on the
+device is never removed on that first run.
+
+**Left alone:**
+
+- Books you put **On hold** in KOReader. Tome has no such status. A change made
+  in Tome meanwhile is applied once the book is off hold.
+- The book that is open in the reader. It is updated on the next run after you
+  close it.
+- Files Tome cannot verify by file hash (the same check the
+  [metadata sync](#metadata-sync-tome---koreader) uses): a file that never
+  passed through Tome, or a different edition.
+
+**One direction.** This only brings Tome's status to the device. The other way
+works as before: reading to 99% marks a book read in Tome, the series browser's
+hold menu sets a status directly, and **Sync closed books** adopts the status
+of books Tome has none for. Marking a book finished by hand in KOReader below
+99% does not change Tome.
+
+The server needs to be on the same release or newer. Against an older server
+the plugin asks once per launch and otherwise stays quiet.
+
 ## Books on the device
 
 From build 50 (1.19.0) the plugin tells Tome which of its books are on the
@@ -399,7 +452,7 @@ that in step with the rating and review on Tome's book detail page, **both ways*
 - Rate a book **in KOReader** and it flows up to Tome when you close or suspend.
 
 Ratings are **per user** and private to you. Reading status (reading / finished)
-is left untouched — that already syncs separately via reading progress.
+is left untouched here; see [Reading status on the device](#reading-status-on-the-device).
 
 **How conflicts resolve.** The plugin remembers the last value it synced for each
 book, so normally only the side that actually changed is sent. If a book's rating

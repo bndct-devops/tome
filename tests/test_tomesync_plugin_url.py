@@ -251,5 +251,7 @@ def test_build_bumped_for_rebake():
     # single-book or author/search-list download.
     # 1.19.2 / build 52: pairing, server URLs and reset are written to disk
     # at once, so a crash no longer loses a fresh pairing.
-    assert TOMESYNC_PLUGIN_BUILD >= 52
-    assert TOMESYNC_PLUGIN_SEMVER == "1.19.2"
+    # 1.20.0 / build 54 (issue #296): reading status from Tome is written
+    # into KOReader's own book status.
+    assert TOMESYNC_PLUGIN_BUILD >= 54
+    assert TOMESYNC_PLUGIN_SEMVER == "1.20.0"
