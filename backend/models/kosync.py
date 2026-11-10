@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from backend.core.database import Base
@@ -59,6 +59,9 @@ class KOSyncDocumentMap(Base):
 class ReadingHistory(Base):
     """Append-only log of every KOSync progress push, for stats."""
     __tablename__ = "reading_history"
+    # (user, book) seeks for the progress line and (user, NULL) for linking
+    # earlier pushes; existing databases get it from main.migrate_reading_history_index.
+    __table_args__ = (Index("ix_reading_history_user_book", "user_id", "book_id"),)
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     user_id: Mapped[int] = mapped_column(

@@ -304,6 +304,39 @@ def test_a_second_import_changes_nothing(db, client, admin_user, library_book):
     assert snap == after_first
 
 
+def test_progress_pushes_logged_before_the_import_get_their_books(db, client, admin_user, library_book):
+    """Live KOSync pushes logged while their documents had no book (the
+    progress line reads them by book) are linked by the import, all at once:
+    the canonical hash, an alias (sent upper-case), a file-less book. A
+    document the import leaves unlinked keeps its pushes unlinked."""
+    from backend.models.kosync import ReadingHistory
+
+    user, _ = admin_user
+    acc = KOSyncUser(username=user.username, userkey="k" * 32, user_id=user.id)
+    db.add(acc)
+    db.flush()
+    pushes = [(DOC_LIB, 0.4), (DOC_LIB, 0.6), (DOC_NEW, 0.2), (DOC_ALIAS.upper(), 0.3), (DOC_BLANK, 0.5)]
+    for document, pct in pushes:
+        r = client.put("/api/v1/syncs/progress", headers={"x-auth-user": acc.username, "x-auth-key": acc.userkey},
+                       json={"document": document, "percentage": pct, "progress": "/body/x[1]",
+                             "device": "CrossInk", "device_id": DEVICE})
+        assert r.status_code == 200, r.text
+    assert db.query(ReadingHistory).filter(ReadingHistory.book_id.isnot(None)).count() == 0
+
+    assert _post(client, PREVIEW).status_code == 200
+    assert db.query(ReadingHistory).filter(ReadingHistory.book_id.isnot(None)).count() == 0
+
+    assert _post(client, APPLY).status_code == 200
+    db.expire_all()
+    got = sorted((h.document.lower(), h.percentage, h.book_id or 0) for h in db.query(ReadingHistory))
+    salt = db.query(Book).filter(Book.title == "Salt and Lantern").one()
+    harbor = db.query(Book).filter(Book.title == "Harbor of Small Hours").one()
+    assert got == sorted([
+        (DOC_LIB, 0.4, library_book.id), (DOC_LIB, 0.6, library_book.id),
+        (DOC_NEW, 0.2, salt.id), (DOC_ALIAS, 0.3, harbor.id), (DOC_BLANK, 0.5, 0),
+    ])
+
+
 # ── books ─────────────────────────────────────────────────────────────────────
 
 def test_books_link_to_library_become_file_less_and_aliases_join(db, client, admin_user, library_book):

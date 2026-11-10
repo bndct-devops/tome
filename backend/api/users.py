@@ -425,6 +425,9 @@ def link_kosync_document(
     # Reading sessions uploaded for this document follow the link (also when
     # it corrects an earlier wrong one).
     attach_sessions(db, current_user.id, body.document, book_id, relink=True)
+    # So do the logged progress pushes (the book page's progress line).
+    from backend.services.kosync_stats import attach_history
+    attach_history(db, current_user.id, body.document, book_id, relink=True)
 
     # The document may have had a file-less book until now (made from the
     # reader's metadata). With nothing left on it, this book takes over its

@@ -390,6 +390,7 @@ async def lifespan(app: FastAPI):
                 "ALTER TABLE user_book_status ADD COLUMN hardcover_created BOOLEAN NOT NULL DEFAULT 0"))
             conn.commit()
         migrate_reader_page_attribution(conn)
+        migrate_reading_history_index(conn)
         # Hardcover Want-to-Read pull resolves shelf entries by matched book id
         # every cycle — create_all only builds indexes for brand-new tables, and
         # this must run after the hardcover_book_id column-add above.
@@ -860,6 +861,24 @@ def _cleanup_empty_dir(start: Path, stop_at: Path) -> None:
         except OSError:
             break
         current = current.parent
+
+
+def migrate_reading_history_index(conn) -> None:
+    """Composite index on reading_history (user_id, book_id); create_all only
+    builds indexes for brand-new tables. Tome never runs ANALYZE, so with the
+    single-column indexes alone the planner walks every history row of the
+    user to find the unlinked ones (``attach_history``) and to draw a book's
+    progress line; with this one it seeks (user, book) or (user, NULL).
+    Idempotent. Commits."""
+    from sqlalchemy import text
+
+    if not conn.execute(text("PRAGMA table_info(reading_history)")).fetchall():
+        return  # table not there (yet)
+    conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_reading_history_user_book "
+        "ON reading_history (user_id, book_id)"
+    ))
+    conn.commit()
 
 
 def migrate_reader_page_attribution(conn) -> None:

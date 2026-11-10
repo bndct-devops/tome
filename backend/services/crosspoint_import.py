@@ -594,7 +594,7 @@ def _run(db: Session, user: User, archive: Archive, now_ts: int) -> dict[str, An
         bid for (bid,) in db.query(Book.id).filter(Book.status == BOOK_NO_FILE, Book.added_by == uid)
     }
     from backend.api.kosync import _find_or_hash_link
-    from backend.services.kosync_stats import attach_sessions
+    from backend.services.kosync_stats import attach_all_history, attach_sessions
 
     resolver: dict[str, Optional[int]] = {}
     ordered = sorted(families.values(), key=lambda f: ((f.title or "").casefold(), f.canonical))
@@ -692,6 +692,9 @@ def _run(db: Session, user: User, archive: Archive, now_ts: int) -> dict[str, An
         book = db.get(Book, fam.book_id)
         fam.book_title, fam.book_author, fam.book_status = book.title, book.author, book.status
         books.add(fam.outcome)
+    # Progress pushes the live sync logged before their document had a book
+    # (the progress line), all at once rather than per document.
+    attach_all_history(db, uid)
 
     # ── 2. device totals (before sessions: a session is named after its device) ──
     devices = Tally(in_file=len(S["stats_device_global"]))

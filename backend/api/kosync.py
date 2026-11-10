@@ -76,6 +76,9 @@ def _find_or_hash_link(
 
     doc_map = KOSyncDocumentMap(tome_user_id=tome_user_id, document=document, book_id=hit)
     db.add(doc_map)
+    # Progress pushes logged while the file was unknown belong to this book.
+    from backend.services.kosync_stats import attach_history
+    attach_history(db, tome_user_id, document, hit)
     if commit:
         db.commit()
     else:
@@ -266,8 +269,10 @@ def update_progress(
             )
             # Sessions a stats-capable reader uploaded before this document
             # was linked have no book yet; they belong to this one.
-            from backend.services.kosync_stats import attach_sessions
+            # Pushes logged before then likewise (the progress line reads them).
+            from backend.services.kosync_stats import attach_history, attach_sessions
             attach_sessions(db, user.user_id, document, doc_map.book_id)
+            attach_history(db, user.user_id, document, doc_map.book_id)
             if history_entry:
                 history_entry.book_id = doc_map.book_id
             db.commit()

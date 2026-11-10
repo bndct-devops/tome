@@ -324,11 +324,38 @@ def compute_book_reading_stats(
         if r.p is not None:
             day_progress[r.date] = min(float(r.p), 1.0)
 
+    # A KOSync reader that uploads sessions (CrossInk) sends them without
+    # progress_end, but every position push is logged in reading_history. Its
+    # per-day furthest point merges in by max, so a reader with both sources
+    # sees the further one. The line still lives on reading days only, so a
+    # KOSync app that uploads no sessions gets none from this.
+    # The protocol's percentage is a 0..1 fraction (KOReader; CrossInk's
+    # KOReaderSyncClient.h says "0.0 to 1.0" and refuses anything above 1 from
+    # a server), so a value outside it is only clamped.
+    from backend.models.kosync import ReadingHistory
+    hist_day = day_ctx.dt_day(ReadingHistory.synced_at)
+    hist_rows = (
+        db.query(hist_day.label("date"), func.max(ReadingHistory.percentage).label("p"))
+        .filter(ReadingHistory.user_id == user_id, ReadingHistory.book_id == book_id)
+        .group_by(hist_day)
+        .all()
+    )
+    for r in hist_rows:
+        if r.p is None:
+            continue
+        p = max(0.0, min(float(r.p), 1.0))
+        day_progress[r.date] = max(day_progress.get(r.date, 0.0), p)
+
     # Forward-fill so the arc never dips on a day with reading-time-but-no-progress.
+    # Every progress day up to a row's date counts, also one with no reading
+    # time (a push made when the reader synced the next morning).
+    progress_days = sorted(day_progress.items())
     running = 0.0
+    k = 0
     for row in session_timeline:
-        if row["date"] in day_progress:
-            running = max(running, day_progress[row["date"]])
+        while k < len(progress_days) and progress_days[k][0] <= row["date"]:
+            running = max(running, progress_days[k][1])
+            k += 1
         row["progress_pct"] = round(running * 100, 1) if running > 0 else None
 
     # ── Where the reading time came from (web reader vs device) ───────────────

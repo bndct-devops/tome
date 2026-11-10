@@ -56,6 +56,7 @@ from backend.models.kosync import (
     KOSyncDeviceStats,
     KOSyncDocumentMap,
     KOSyncSessionReceipt,
+    ReadingHistory,
 )
 from backend.models.tome_sync import ReadingSession
 
@@ -423,6 +424,61 @@ def attach_sessions(
     if not relink:
         query = query.filter(ReadingSession.book_id.is_(None))
     return query.update({ReadingSession.book_id: book_id}, synchronize_session=False)
+
+
+def attach_history(
+    db: Session, user_id: int, document: str, book_id: int, relink: bool = False,
+) -> int:
+    """Point a user's logged progress pushes (``reading_history``) for
+    ``document`` at ``book_id``, like ``attach_sessions`` does for sessions.
+
+    Pushes made before the document had a book were logged without one; the
+    book page's progress line reads them by book. ``relink`` moves all of the
+    document's rows, for a link corrected by hand. Does not commit.
+    """
+    query = db.query(ReadingHistory).filter(
+        ReadingHistory.user_id == user_id,
+        func.lower(ReadingHistory.document) == document.lower(),
+    )
+    if relink:
+        query = query.filter(
+            (ReadingHistory.book_id.is_(None)) | (ReadingHistory.book_id != book_id)
+        )
+    else:
+        query = query.filter(ReadingHistory.book_id.is_(None))
+    return query.update({ReadingHistory.book_id: book_id}, synchronize_session=False)
+
+
+def attach_all_history(db: Session, user_id: int) -> int:
+    """Give every unlinked progress push of a user the book its document is
+    now linked to, in one statement. For a caller that links many documents
+    at once (the CrossPoint Sync import): one ``attach_history`` per
+    document would look through the user's unlinked rows once per document.
+    Rows whose document has no link stay unlinked. Flushes first so links
+    added in this transaction count. Does not commit."""
+    from sqlalchemy import select, update
+
+    db.flush()
+    linked = (
+        select(KOSyncDocumentMap.book_id)
+        .where(
+            KOSyncDocumentMap.tome_user_id == user_id,
+            func.lower(KOSyncDocumentMap.document) == func.lower(ReadingHistory.document),
+        )
+        .limit(1)
+        .scalar_subquery()
+    )
+    result = db.execute(
+        update(ReadingHistory)
+        .where(
+            ReadingHistory.user_id == user_id,
+            ReadingHistory.book_id.is_(None),
+            linked.isnot(None),
+        )
+        .values(book_id=linked)
+        .execution_options(synchronize_session=False)
+    )
+    return result.rowcount or 0
 
 
 def unlinked_session_titles(db: Session, user_id: int, session_ids: list[int]) -> dict[int, Optional[str]]:

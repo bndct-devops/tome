@@ -95,6 +95,14 @@ All notable changes to Tome are documented here. Format loosely follows
   lowered. When a book's position or finish in the export came from a
   service connected to CrossPoint Sync (for example Kindle) rather than from
   the reader, the report says so. Files up to 20 MiB.
+- **A progress line for books read on a CrossInk reader.** The line on a
+  book's page that shows how far you had read on each reading day now also
+  comes from the position the reader reports at every sync, so it is no
+  longer empty for books read on a KOSync reader that also uploads its
+  reading sessions (CrossInk). The furthest position of each day counts, a sync made
+  the morning after still moves the line on, and going back to an earlier
+  chapter never pulls it down. Positions synced before the file was linked
+  to a book count once it is.
 
 ### Changed
 - Pages per minute on a book's page is now worked out only from sittings
