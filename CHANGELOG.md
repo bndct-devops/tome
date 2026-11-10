@@ -29,9 +29,10 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Pages and pace for books read on a CrossInk reader (experimental).** The
   reader's sessions carry reading time but no page counts. It does send a
   page total per book, which Tome now keeps: a book's Pages and Pace on its
-  page, and in the per-book table on the Stats page for All time, include
-  the pages the reader counted itself (forward page turns), with pace worked
-  out over the reader's own reading time.
+  page, in the per-book table on the Stats page for All time, and the Pages
+  total in a series' reading stats include the pages the reader counted
+  itself (forward page turns), with pace worked out over the reader's own
+  reading time.
 - **Pages per session for CrossInk reading (experimental).** The reader's
   page counter per book only grows, and it sends the new value whenever it
   changed, so the difference between two syncs is exactly the number of

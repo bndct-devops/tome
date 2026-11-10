@@ -822,6 +822,15 @@ def compute_series_reading_stats(
     books_in_progress = sum(1 for bid in book_ids if status_by_book.get(bid) == "reading")
 
     # ── Aggregate reading sessions ───────────────────────────────────────────
+    # A counter-attributed session that imported page-stats supersede gives
+    # its pages back to the counter (reader_pages below counts them again),
+    # so it adds none here. Other sessions keep their pages as before.
+    from sqlalchemy import and_
+    from backend.services.reconciled_reading import superseded_clause
+    session_pages = case(
+        (and_(ReadingSession.pages_attributed.is_(True), superseded_clause()), 0),
+        else_=ReadingSession.pages_turned,
+    )
     agg = (
         db.query(ReadingSession)
         .filter(
@@ -831,7 +840,7 @@ def compute_series_reading_stats(
         .with_entities(
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("total_seconds"),
             func.count(ReadingSession.id).label("sessions"),
-            func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages_turned"),
+            func.coalesce(func.sum(session_pages), 0).label("pages_turned"),
             func.min(ReadingSession.started_at).label("first_read"),
             func.max(
                 func.coalesce(ReadingSession.ended_at, ReadingSession.started_at)
@@ -843,6 +852,13 @@ def compute_series_reading_stats(
     total_seconds: int = int(agg.total_seconds) if agg and agg.total_seconds else 0
     sessions: int = int(agg.sessions) if agg and agg.sessions else 0
     pages_turned: int = int(agg.pages_turned) if agg and agg.pages_turned else 0
+
+    # ── Pages a KOSync reader counted itself (CrossInk per-book snapshots) ───
+    # The counter's rest past what sessions already carry (attributed growth),
+    # so nothing is counted twice. Lifetime totals with no dates; the series
+    # shows no pace, so only the page total takes them.
+    from backend.services.kosync_stats import reader_pages
+    pages_turned += sum(r.pages for r in reader_pages(db, user.id, book_ids).values())
 
     first_read: Optional[str] = (
         agg.first_read.isoformat() + "Z" if agg and agg.first_read else None
