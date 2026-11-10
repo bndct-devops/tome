@@ -31,9 +31,20 @@ All notable changes to Tome are documented here. Format loosely follows
   page total per book, which Tome now keeps: a book's Pages and Pace on its
   page, and in the per-book table on the Stats page for All time, include
   the pages the reader counted itself (forward page turns), with pace worked
-  out over the reader's own reading time. The reader does not say on which
-  day pages were turned, so daily charts, the calendar, session rows, page
-  goals and other date ranges still show no pages for that reading.
+  out over the reader's own reading time.
+- **Pages per session for CrossInk reading (experimental).** The reader's
+  page counter per book only grows, and it sends the new value whenever it
+  changed, so the difference between two syncs is exactly the number of
+  pages turned in between. Tome now shares that difference out over the
+  sessions read between the two syncs, in proportion to their reading time,
+  and marks them as attributed (a small mark next to the count, with an
+  explanation on hover). Daily charts, the calendar, session rows, page
+  goals, pace per session and "most pages in a day" now include CrossInk
+  reading, and a book's all-time pages still equal the reader's counter.
+  Syncing after each sitting gives every session its exact pages; syncing
+  less often spreads a larger total over more sessions. Pages from before
+  Tome saw the counter, and the history brought in by the import, stay as
+  time only. Session rows now show pages for every source that has them.
 - **Sideloaded books are recognised from what the reader says about them
   (experimental).** A file you copied to your reader yourself is only a hash
   to Tome, so its progress and reading had no book to belong to. When the

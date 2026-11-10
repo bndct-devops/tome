@@ -2,7 +2,7 @@
 // Its own file, apart from the chart widgets, so the book page does not pull
 // the chart library into the main bundle.
 import { useEffect, useState } from 'react'
-import { Trans } from '@lingui/react/macro'
+import { Plural, Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { Trash2, Loader2, ChevronDown, ArrowUpDown, Scissors, TriangleAlert } from 'lucide-react'
 import { cn, formatDuration } from '@/lib/utils'
@@ -10,6 +10,7 @@ import { api } from '@/lib/api'
 import { InfoHint } from '@/components/InfoHint'
 import { Input, Pill } from '@/components/page'
 import type { SessionEntry } from '@/components/stats/shared'
+import { AttributedPagesMark } from '@/components/stats/AttributedPagesMark'
 
 // Legend for the session log's labels and actions, rendered as an InfoHint
 // beside whatever heads the list (the "Sessions (N)" header on BookDetailPage,
@@ -139,6 +140,13 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
   const when = (s: SessionEntry) =>
     s.started_at ? new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'
   const dur = (s: SessionEntry) => (s.duration_seconds != null ? formatDuration(s.duration_seconds) : '-')
+  const pages = (s: SessionEntry) =>
+    s.pages_turned != null && s.pages_turned > 0 ? (
+      <span className="inline-flex items-center gap-1 whitespace-nowrap">
+        <Plural value={s.pages_turned} one="# page" other="# pages" />
+        {s.pages_attributed && <AttributedPagesMark />}
+      </span>
+    ) : null
   const deviceTitle = (s: SessionEntry) =>
     s.kind === 'imported'
       ? t`Imported from KOReader reading history`
@@ -186,14 +194,19 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
                 {when(s)}
               </div>
               <div className="text-[13px] text-muted-foreground sm:hidden">
-                {dur(s)}{' · '}{sourceLabel(s.device)}
+                {dur(s)}
+                {pages(s) && <>{' · '}{pages(s)}</>}
+                {' · '}{sourceLabel(s.device)}
                 {deviceNote(s) && <> · {deviceNote(s)}</>}
               </div>
-              <div className="hidden items-center gap-1.5 text-[14px] text-muted-foreground sm:inline-flex">
-                {dur(s)}
-                {s.suspect && (
-                  <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={t`Unusually long session`} />
-                )}
+              <div className="hidden text-[14px] text-muted-foreground sm:block">
+                <div className="inline-flex items-center gap-1.5">
+                  {dur(s)}
+                  {s.suspect && (
+                    <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={t`Unusually long session`} />
+                  )}
+                </div>
+                {pages(s) && <div className="text-[13px] text-muted-foreground/70">{pages(s)}</div>}
               </div>
               <div className="hidden min-w-0 text-[14px] text-muted-foreground sm:block" title={deviceTitle(s)}>
                 <span className="break-words">{sourceLabel(s.device)}</span>

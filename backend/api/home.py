@@ -249,6 +249,7 @@ def get_home_activity(
             ReadingSession.started_at,
             ReadingSession.duration_seconds,
             ReadingSession.pages_turned,
+            ReadingSession.pages_attributed,
         )
         .order_by(ReadingSession.started_at.desc())
         .limit(10)
@@ -263,6 +264,7 @@ def get_home_activity(
             "started_at": r.started_at.isoformat() + "Z" if r.started_at else None,
             "duration_seconds": r.duration_seconds,
             "pages_turned": r.pages_turned,
+            "pages_attributed": bool(r.pages_attributed),
         }
         for r in rows
     ]

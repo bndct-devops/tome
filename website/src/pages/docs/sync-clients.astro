@@ -119,11 +119,14 @@ import { withBase } from '../../lib/path'
   <ul>
     <li>The reader syncs with one server. While it points at Tome, it sends nothing to
       CrossPoint Sync, and reading it already sent there is not sent to Tome.</li>
-    <li>Sessions have time but no page counts. The reader sends a page total per book
-      instead, so a book's <strong>Pages</strong> and <strong>Pace</strong> on its page, and
-      in the per-book table on the Stats page for <em>All time</em>, include what the reader
-      counted. It does not say on which day pages were turned: daily charts, the calendar,
-      session rows and page goals show no pages for this reading.</li>
+    <li>Sessions arrive with time but no page counts. The reader sends a page total per
+      book instead, and Tome turns that into pages per session: the counter's growth between
+      two syncs is shared out over the sessions read in between, by reading time, marked with
+      a small sign as attributed. Sync after each sitting and every session gets its exact
+      pages; sync less often and a larger total is spread over more sessions. A book's
+      all-time <strong>Pages</strong> and <strong>Pace</strong> always match the reader's
+      counter. Reading from before Tome saw the counter, and history from the import, stays
+      as time only.</li>
     <li>On CrossInk 2.0.0-rc, <strong>Sync Reading Stats</strong> for more than one book at a
       time reports a failure with any server. The data still arrives; syncing from inside a
       book works.</li>

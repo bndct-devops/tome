@@ -53,6 +53,9 @@ def median_secs_per_page(db: Session, user_id: int) -> Optional[float]:
             ReadingSession.user_id == user_id,
             ReadingSession.duration_seconds.isnot(None),
             ReadingSession.pages_turned > 0,
+            # Pages attributed from a reader's counter follow the time by
+            # construction; only pages a source counted say what a pace is.
+            ReadingSession.pages_attributed.is_(False),
         )
         .order_by(ReadingSession.started_at.desc())
         .limit(_MEDIAN_SAMPLE)

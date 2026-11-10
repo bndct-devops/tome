@@ -5,8 +5,10 @@ lifetime snapshot per book (``PUT .../stats/books``) that holds the reader's
 own page counter (forward turns) and its own reading seconds. Tome keeps the
 latest snapshot per device and document and adds its pages to a book's
 all-time pages; pace divides the reader's pages by the reader's seconds only.
-Nothing with a date (a day, a session, a 30-day window) changes: the reader
-never says when its pages were turned.
+A single snapshot changes nothing with a date (a day, a session, a 30-day
+window): the reader never says when its pages were turned. The growth
+between two snapshots is attributed to sessions; see
+tests/test_kosync_attributed_pages.py.
 
 The reply to the upload is a hard contract with the firmware
 (StatsUploadClient::put); ``_delivered`` below is the same check as in

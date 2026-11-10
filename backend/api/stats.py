@@ -1470,6 +1470,7 @@ def list_sessions(
             ReadingSession.ended_at,
             ReadingSession.duration_seconds,
             ReadingSession.pages_turned,
+            ReadingSession.pages_attributed,
             ReadingSession.device,
             ReadingSession.progress_start,
             ReadingSession.progress_end,
@@ -1536,6 +1537,11 @@ def list_sessions(
     out = []
     for _, kind, r in page:
         if kind == "session":
+            # Pages attributed from a reader's counter are its time re-priced at
+            # the window's average pace, so they say nothing about idle time:
+            # the runaway checks see such a session as one without pages, as
+            # they did before it had any.
+            own_pages = None if r.pages_attributed else r.pages_turned
             out.append({
                 "id": r.id,
                 "kind": "session",
@@ -1547,12 +1553,13 @@ def list_sessions(
                 "ended_at": (r.ended_at.isoformat() + "Z") if r.ended_at else None,
                 "duration_seconds": r.duration_seconds,
                 "pages_turned": r.pages_turned,
+                "pages_attributed": bool(r.pages_attributed),
                 "device": r.device,
                 "progress_start": r.progress_start,
                 "progress_end": r.progress_end,
-                "suspect": is_suspect(r.duration_seconds, r.pages_turned),
+                "suspect": is_suspect(r.duration_seconds, own_pages),
                 "suggested_seconds": suggested_seconds(
-                    r.duration_seconds, r.pages_turned, median_pace
+                    r.duration_seconds, own_pages, median_pace
                 ),
             })
         else:
@@ -1567,6 +1574,7 @@ def list_sessions(
                 "ended_at": _iso(last_start),
                 "duration_seconds": int(r.secs or 0),
                 "pages_turned": int(r.pages or 0),
+                "pages_attributed": False,
                 "device": r.device or "KOReader",
                 "progress_start": None,
                 "progress_end": None,

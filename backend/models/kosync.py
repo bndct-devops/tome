@@ -158,7 +158,24 @@ class KOSyncBookStats(Base):
     pages: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
     snapshot: Mapped[str] = mapped_column(Text, nullable=False, default="{}")
+    # When the reader sent the snapshot this row holds (the server's clock for
+    # a live upload, the export's time for an imported one): the start of the
+    # window the next snapshot's page growth is attributed over.
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    # Page attribution (services/kosync_stats.py, "page attribution"). The
+    # counter's growth between two live snapshots goes to the reader's sessions
+    # Tome received in between. ``counter_epoch`` goes up on every reset (a lower counter);
+    # a session's receipt records the epoch it was attributed in, so pages
+    # given before a reset are never subtracted from the counter after it.
+    # ``pages_attributed`` is a ledger of pages handed out in this epoch (not
+    # lowered when a session is deleted; the all-time figures use the sessions
+    # that still exist). ``pages_pending`` is growth of a snapshot that found
+    # no session (the session upload failed); it is given out at the next
+    # snapshot. ``pending_since`` is when the window it belongs to began.
+    counter_epoch: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    pages_attributed: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    pages_pending: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
+    pending_since: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
 
 
 class KOSyncSessionReceipt(Base):
@@ -191,6 +208,19 @@ class KOSyncSessionReceipt(Base):
         Integer, ForeignKey("reading_sessions.id", ondelete="SET NULL"), nullable=True, index=True
     )
     updated_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
+    # When Tome first stored this session (server clock). A snapshot's page
+    # growth goes to sessions received since the previous snapshot: the
+    # reader uploads its sessions before its snapshots, so arrival order is
+    # reliable where the reader's own clock may not be. None only on rows
+    # from before the column existed (the startup migration fills it).
+    received_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # The ``KOSyncBookStats.counter_epoch`` in which this session was given
+    # pages from the reader's counter; None while it has none.
+    pages_epoch: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # The session's ``duration_seconds`` when it last took pages. A sitting
+    # that goes on past a sync grows; only the growth since then weighs in
+    # the next window.
+    attributed_seconds: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     reading_session: Mapped[Optional["ReadingSession"]] = relationship("ReadingSession")  # type: ignore[name-defined]
 

@@ -138,6 +138,9 @@ export interface SessionEntry {
   ended_at: string | null
   duration_seconds: number | null
   pages_turned: number | null
+  // True when pages_turned was attributed from a CrossInk reader's page
+  // counter (its growth between two syncs, split by reading time).
+  pages_attributed?: boolean
   device: string | null
   progress_start: number | null
   progress_end: number | null

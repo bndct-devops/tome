@@ -429,7 +429,9 @@ msgid "{0, plural, one {# open} other {# open}}"
 msgstr "{0, plural, one {# open} other {# open}}"
 
 #. placeholder {0}: b.pages
+#. placeholder {0}: s.pages_turned
 #: src/components/ScanSyncCodeModal.tsx
+#: src/components/stats/SessionLog.tsx
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{0, plural, one {# page} other {# pages}}"
 msgstr "{0, plural, one {# page} other {# pages}}"
@@ -2274,6 +2276,10 @@ msgstr "Assign type to new books"
 #: src/pages/BookDetailPage.tsx
 msgid "Attach progress synced from a KOReader-compatible app to this book"
 msgstr "Attach progress synced from a KOReader-compatible app to this book"
+
+#: src/components/stats/AttributedPagesMark.tsx
+msgid "Attributed from the reader's page counter: what it grew by between two syncs, shared out over those sessions by reading time"
+msgstr "Attributed from the reader's page counter: what it grew by between two syncs, shared out over those sessions by reading time"
 
 #: src/pages/AdminPage.tsx
 msgid "Audit log"
@@ -5099,6 +5105,10 @@ msgstr "Inactive"
 #: src/pages/HardcoverPage.tsx
 msgid "Include"
 msgstr "Include"
+
+#: src/components/stats/AttributedPagesMark.tsx
+msgid "Includes pages attributed from the reader's page counter: what it grew by between two syncs, shared out over those sessions by reading time"
+msgstr "Includes pages attributed from the reader's page counter: what it grew by between two syncs, shared out over those sessions by reading time"
 
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx

@@ -428,6 +428,7 @@ def export_my_data(
                 "progress_start": s.progress_start,
                 "progress_end": s.progress_end,
                 "pages_turned": s.pages_turned,
+                "pages_attributed": bool(s.pages_attributed),
                 "device": s.device,
                 "session_uuid": s.session_uuid,
             }
@@ -507,6 +508,10 @@ def export_my_data(
                     "seconds": b.seconds,
                     "snapshot": b.snapshot,
                     "updated_at": b.updated_at.isoformat() if b.updated_at else None,
+                    "counter_epoch": b.counter_epoch,
+                    "pages_attributed": b.pages_attributed,
+                    "pages_pending": b.pages_pending,
+                    "pending_since": b.pending_since.isoformat() if b.pending_since else None,
                 }
                 for b in db.query(KOSyncBookStats)
                 .filter(KOSyncBookStats.user_id == current_user.id)

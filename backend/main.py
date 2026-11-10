@@ -389,6 +389,7 @@ async def lifespan(app: FastAPI):
             conn.execute(text(
                 "ALTER TABLE user_book_status ADD COLUMN hardcover_created BOOLEAN NOT NULL DEFAULT 0"))
             conn.commit()
+        migrate_reader_page_attribution(conn)
         # Hardcover Want-to-Read pull resolves shelf entries by matched book id
         # every cycle — create_all only builds indexes for brand-new tables, and
         # this must run after the hardcover_book_id column-add above.
@@ -859,6 +860,48 @@ def _cleanup_empty_dir(start: Path, stop_at: Path) -> None:
         except OSError:
             break
         current = current.parent
+
+
+def migrate_reader_page_attribution(conn) -> None:
+    """Columns for pages attributed from a KOSync reader's page counter
+    (services/kosync_stats.py, "page attribution"); create_all does not add
+    columns to tables that already exist. Idempotent. Commits.
+
+    ``reading_sessions.pages_attributed`` defaults to 0 = counted by its own
+    source, which every session before it was; an older Tome ignores the
+    column (it selects named columns) and its inserts get the default. The
+    reader-stats tables may already exist in a tester's database from before
+    these columns; a receipt from then counts as received when it was last
+    updated, the closest Tome knows.
+    """
+    from sqlalchemy import text
+
+    def cols(table: str) -> set[str]:
+        return {r[1] for r in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()}
+
+    rs_cols = cols("reading_sessions")
+    if rs_cols and "pages_attributed" not in rs_cols:
+        conn.execute(text("ALTER TABLE reading_sessions ADD COLUMN pages_attributed BOOLEAN NOT NULL DEFAULT 0"))
+        conn.commit()
+    kbs_cols = cols("kosync_book_stats")
+    for col, ddl in (
+        ("counter_epoch", "INTEGER NOT NULL DEFAULT 0"),
+        ("pages_attributed", "INTEGER NOT NULL DEFAULT 0"),
+        ("pages_pending", "INTEGER NOT NULL DEFAULT 0"),
+        ("pending_since", "DATETIME"),
+    ):
+        if kbs_cols and col not in kbs_cols:
+            conn.execute(text(f"ALTER TABLE kosync_book_stats ADD COLUMN {col} {ddl}"))
+            conn.commit()
+    ksr_cols = cols("kosync_session_receipts")
+    for col, ddl in (("pages_epoch", "INTEGER"), ("attributed_seconds", "INTEGER"), ("received_at", "DATETIME")):
+        if ksr_cols and col not in ksr_cols:
+            conn.execute(text(f"ALTER TABLE kosync_session_receipts ADD COLUMN {col} {ddl}"))
+            conn.commit()
+    if ksr_cols:
+        conn.execute(text(
+            "UPDATE kosync_session_receipts SET received_at = updated_at WHERE received_at IS NULL"))
+        conn.commit()
 
 
 def frontend_dist_dir(frontend_root: Path, ui: str) -> Path:

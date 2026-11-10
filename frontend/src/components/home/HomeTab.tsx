@@ -19,6 +19,7 @@ import { HScrollRow } from '@/components/HScrollRow'
 import { QuickLook } from '@/components/QuickLook'
 import { TelemetryConsentCard } from '@/components/TelemetryConsentCard'
 import { ProgressRing } from '@/components/stats/ProgressRing'
+import { AttributedPagesMark } from '@/components/stats/AttributedPagesMark'
 import { PageBody, PageHeader, Pill, SectionTitle, Stat, StatStrip } from '@/components/page'
 
 // ── Data ────────────────────────────────────────────────────────────────────
@@ -60,6 +61,8 @@ interface ActivityEntry {
   started_at: string
   duration_seconds: number
   pages_turned: number | null
+  // Pages attributed from a CrossInk reader's page counter, not counted per session.
+  pages_attributed?: boolean
 }
 interface CalendarMonth {
   totals: { seconds: number }
@@ -319,7 +322,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
   }
 
   // Back-to-back sessions of the same book collapse into one row.
-  const activityRows: { entry: ActivityEntry; sessions: number; seconds: number; pages: number }[] = []
+  const activityRows: { entry: ActivityEntry; sessions: number; seconds: number; pages: number; attributed: boolean }[] = []
   for (const entry of activity) {
     const last = activityRows[activityRows.length - 1]
     if (last && last.entry.book_id === entry.book_id
@@ -327,8 +330,12 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
       last.sessions += 1
       last.seconds += entry.duration_seconds
       last.pages += entry.pages_turned ?? 0
+      last.attributed ||= !!entry.pages_attributed && (entry.pages_turned ?? 0) > 0
     } else {
-      activityRows.push({ entry, sessions: 1, seconds: entry.duration_seconds, pages: entry.pages_turned ?? 0 })
+      activityRows.push({
+        entry, sessions: 1, seconds: entry.duration_seconds, pages: entry.pages_turned ?? 0,
+        attributed: !!entry.pages_attributed && (entry.pages_turned ?? 0) > 0,
+      })
     }
     if (activityRows.length > 5) break
   }
@@ -639,7 +646,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
         <section>
           <SectionTitle action={<SeeAll onClick={() => navigate('/stats')} />}><Trans>Recent activity</Trans></SectionTitle>
           <div className="mt-3">
-            {rows.map(({ entry, sessions, seconds, pages }, i) => (
+            {rows.map(({ entry, sessions, seconds, pages, attributed }, i) => (
               <Link
                 key={entry.started_at}
                 to={`/books/${entry.book_id}`}
@@ -653,7 +660,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                   <div className="text-[14px] text-muted-foreground mt-0.5">
                     {sessions > 1 && <><Plural value={sessions} one="# session" other="# sessions" />{' · '}</>}
                     {duration(seconds)}
-                    {pages > 0 && <>{' · '}<Plural value={pages} one="# page" other="# pages" /></>}
+                    {pages > 0 && <>{' · '}<Plural value={pages} one="# page" other="# pages" />{attributed && <>{' '}<AttributedPagesMark includes /></>}</>}
                   </div>
                 </div>
                 <div className="text-[14px] text-muted-foreground shrink-0">{relativeTime(entry.started_at, i18n.locale)}</div>

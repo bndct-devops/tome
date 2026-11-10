@@ -49,6 +49,8 @@ class _BookDay:
     spans: list[tuple[float, float]] = field(default_factory=list)
     # (start_epoch, end_epoch) of each raw read: page rows and sessions.
     reads: list[tuple[int, int]] = field(default_factory=list)
+    # Some of ``pages`` were attributed from a reader's page counter.
+    pages_attributed: bool = False
 
 
 def _collect(db: Session, user_id: int, day: DayCtx, first: date, last: date) -> dict[str, dict[int, _BookDay]]:
@@ -82,10 +84,11 @@ def _collect(db: Session, user_id: int, day: DayCtx, first: date, last: date) ->
         .filter(ReadingSession.book_id.isnot(None))
         .with_entities(ReadingSession.book_id, ReadingSession.started_at, ReadingSession.ended_at,
                        ReadingSession.duration_seconds, ReadingSession.pages_turned,
-                       ReadingSession.progress_start, ReadingSession.progress_end)
+                       ReadingSession.progress_start, ReadingSession.progress_end,
+                       ReadingSession.pages_attributed)
         .all()
     )
-    for bid, started, ended, dur, pages, p0, p1 in sessions:
+    for bid, started, ended, dur, pages, p0, p1, attributed in sessions:
         start = _epoch(started)
         d = day.py_day(start).isoformat()
         if not (lo_iso <= d <= hi_iso):
@@ -93,6 +96,8 @@ def _collect(db: Session, user_id: int, day: DayCtx, first: date, last: date) ->
         e = out[d][bid]
         e.secs += int(dur or 0)
         e.pages += int(pages or 0)
+        if attributed and pages:
+            e.pages_attributed = True
         end = _epoch(ended) if ended else start + int(dur or 0)
         e.reads.append((start, end))
         if p1 is not None:
@@ -298,6 +303,7 @@ def day_view(db: Session, user_id: int, day: DayCtx, d: date) -> dict:
             **meta[bid],
             "seconds": b.secs,
             "pages": b.pages,
+            "pages_attributed": b.pages_attributed,
             "progress_from": round(min(positions), 4) if positions else None,
             "progress_to": round(max(positions), 4) if positions else None,
             "chapters": _chapters(chapter_map.get(bid, []), b.fractions, b.spans),

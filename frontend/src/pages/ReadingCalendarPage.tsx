@@ -24,6 +24,7 @@ import { PageBody, PageHeader, Pill } from '@/components/page'
 import { api } from '@/lib/api'
 import { cn, formatDuration } from '@/lib/utils'
 import type { StreakSummary } from '@/components/stats/shared'
+import { AttributedPagesMark } from '@/components/stats/AttributedPagesMark'
 import { coverSrc } from '@/lib/covers'
 
 interface BookRef {
@@ -57,6 +58,8 @@ interface MonthResponse {
 interface DayBook extends BookRef {
   seconds: number
   pages: number
+  // Some of the pages were attributed from a CrossInk reader's page counter.
+  pages_attributed?: boolean
   progress_from: number | null
   progress_to: number | null
   chapters: string[]
@@ -597,7 +600,7 @@ function DayBookRow({ b }: { b: DayBook }) {
         {b.series && <p className="truncate text-xs text-muted-foreground">{b.series}{b.series_index != null && ` #${+b.series_index}`}</p>}
         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-foreground tabular-nums">
           <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{formatDuration(b.seconds)}</span>
-          <span className="inline-flex items-center gap-1"><FileText className="h-3 w-3 text-muted-foreground" />{plural(b.pages, { one: '# page', other: '# pages' })}</span>
+          <span className="inline-flex items-center gap-1"><FileText className="h-3 w-3 text-muted-foreground" />{plural(b.pages, { one: '# page', other: '# pages' })}{b.pages_attributed && <AttributedPagesMark includes />}</span>
           {b.pages_per_hour != null && <span className="inline-flex items-center gap-1"><Gauge className="h-3 w-3 text-muted-foreground" />{(() => { const pph = Math.round(b.pages_per_hour); return t`${pph} p/h` })()}</span>}
           {range && <span className="inline-flex min-w-0 items-center gap-1"><List className="h-3 w-3 shrink-0 text-muted-foreground" /><span className="truncate">{range}</span></span>}
         </div>

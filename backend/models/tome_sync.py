@@ -55,6 +55,13 @@ class ReadingSession(Base):
     progress_start: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     progress_end: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     pages_turned: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # True when ``pages_turned`` was not counted by the session's source but
+    # attributed from a KOSync reader's lifetime page counter (CrossInk): the
+    # counter's growth between two uploads, split over the reader's sessions in
+    # between by their reading time. See services/kosync_stats.py.
+    pages_attributed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
     device: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     # Client-generated UUID to prevent duplicates on retry
     session_uuid: Mapped[Optional[str]] = mapped_column(String(36), unique=True, nullable=True)

@@ -807,7 +807,7 @@ def _run(db: Session, user: User, archive: Archive, now_ts: int) -> dict[str, An
     for device_id, entries in by_device.items():
         outcomes = kosync_stats.stage_sessions(
             db, uid, device_id, [e[4] for e in entries], resolve_book,
-            fallback_name=device_names.get(device_id), known_receipts=known,
+            fallback_name=device_names.get(device_id), known_receipts=known, imported=True,
         )
         for (i, row, fam, example, item), (outcome, added) in zip(entries, outcomes):
             sessions.add(outcome)
@@ -988,7 +988,7 @@ def _run(db: Session, user: User, archive: Archive, now_ts: int) -> dict[str, An
         db, uid, sorted({f.book_id for f in families.values() if f.book_id is not None}))
     for fam in families.values():
         if fam.book_id is not None and fam.book_id in pages_by_book:
-            fam.reader_pages = pages_by_book[fam.book_id].pages
+            fam.reader_pages = pages_by_book[fam.book_id].counter
 
     # ── 6. clippings ──
     clippings = Tally(in_file=len(S["clippings"]))
