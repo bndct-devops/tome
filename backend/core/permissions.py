@@ -112,3 +112,56 @@ def user_can_see_book(db: Session, user: User, book: "Book") -> bool:  # type: i
         book_visibility_filter(db, user),
     ).first()
     return exists is not None
+
+
+# ── Per-book gates for routes ────────────────────────────────────────────────
+#
+# Every route that takes a book id goes through one of these, so "may this
+# user see it" and "may this user change it" are each decided in one place.
+# tests/test_book_route_permissions.py walks every such route as a member
+# against a book hidden from them.
+
+def user_can_edit_book(user: User, book: "Book") -> bool:  # type: ignore[name-defined]
+    """Admins change any book; everyone else only the books they uploaded."""
+    return is_admin(user) or (book.added_by is not None and book.added_by == user.id)
+
+
+def visible_book_or_404(db: Session, user: User, book_id: int, *, active_only: bool = False):
+    """The book, or 404 when it does not exist or the user may not see it.
+    A hidden book answers exactly like a missing one."""
+    from backend.models.book import Book
+    book = db.get(Book, book_id)
+    if (
+        book is None
+        or (active_only and book.status != "active")
+        or not user_can_see_book(db, user, book)
+    ):
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book
+
+
+def editable_book_or_403(
+    db: Session, user: User, book_id: int, *, detail: str = "You can only edit books you uploaded",
+):
+    """The book when the user may change it: 404 when hidden or missing, 403
+    when visible but someone else's upload."""
+    book = visible_book_or_404(db, user, book_id)
+    if not user_can_edit_book(user, book):
+        raise HTTPException(status_code=403, detail=detail)
+    return book
+
+
+def editable_books(db: Session, user: User, book_ids: list[int]) -> tuple[list, list[int]]:
+    """For bulk routes: (books the user may change, ids left out). Ids that
+    are missing, hidden or someone else's upload are left out, not an error,
+    so one foreign book does not fail a whole selection."""
+    from backend.models.book import Book
+    wanted = list(dict.fromkeys(book_ids))
+    if not wanted:
+        return [], []
+    query = db.query(Book).filter(Book.id.in_(wanted), book_visibility_filter(db, user))
+    if not is_admin(user):
+        query = query.filter(Book.added_by == user.id)
+    books = query.all()
+    allowed = {b.id for b in books}
+    return books, [i for i in wanted if i not in allowed]

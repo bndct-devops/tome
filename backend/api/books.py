@@ -20,7 +20,10 @@ from sqlalchemy.orm import Session
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.security import get_current_user
-from backend.core.permissions import require_role, user_can_see_book
+from backend.core.permissions import (
+    require_role, user_can_see_book, book_visibility_filter,
+    visible_book_or_404, editable_book_or_403, editable_books,
+)
 from backend.models.book import Book, BookFile, BookTag
 from backend.models.user_book_status import UserBookStatus
 from backend.services.audit import audit
@@ -699,9 +702,13 @@ def get_series_detail(
 def export_books(
     format: str = Query("json", pattern="^(json|csv)$"),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    books = db.query(Book).filter(Book.status == "active").all()
+    books = (
+        db.query(Book)
+        .filter(Book.status == "active", book_visibility_filter(db, current_user))
+        .all()
+    )
     rows = []
     for b in books:
         rows.append({
@@ -1741,7 +1748,8 @@ async def bulk_fetch_candidates(
     if len(body.book_ids) > 100:
         raise HTTPException(status_code=400, detail="Too many books (max 100)")
 
-    books = db.query(Book).filter(Book.id.in_(body.book_ids)).all()
+    # Only books the caller may change: the candidates are fetched to be applied.
+    books, _skipped = editable_books(db, current_user, body.book_ids)
     # Skip chapters — they don't have meaningful metadata on external sources
     books = [b for b in books if b.content_type != "chapter"]
     book_map = {b.id: b for b in books}
@@ -1807,7 +1815,7 @@ async def bulk_fetch_metadata(
     if len(body.book_ids) > 100:
         raise HTTPException(status_code=400, detail="Too many books (max 100)")
 
-    books = db.query(Book).filter(Book.id.in_(body.book_ids)).all()
+    books, skipped_ids = editable_books(db, current_user, body.book_ids)
     # Skip chapters — they don't have meaningful metadata on external sources
     books = [b for b in books if b.content_type != "chapter"]
     updated = 0
@@ -1904,7 +1912,8 @@ def bulk_update_metadata(
         if not bt:
             raise HTTPException(status_code=400, detail="Invalid book_type_id")
 
-    books = db.query(Book).filter(Book.id.in_(body.book_ids)).all()
+    # Same rule as the single-book edit: members change only their own uploads.
+    books, skipped_ids = editable_books(db, current_user, body.book_ids)
     for book in books:
         if body.author is not None:
             book.author = body.author or None
@@ -1934,8 +1943,8 @@ def bulk_update_metadata(
 
     changes = {k: v for k, v in body.model_dump(exclude_unset=True).items() if k != "book_ids"}
     audit(db, "books.bulk_metadata_edited", user_id=current_user.id, username=current_user.username,
-          details={"book_ids": body.book_ids, "count": len(books), "changes": changes})
-    return {"updated": len(books)}
+          details={"book_ids": [b.id for b in books], "count": len(books), "changes": changes})
+    return {"updated": len(books), "skipped": len(skipped_ids)}
 
 
 # ── Update metadata ───────────────────────────────────────────────────────────
@@ -1949,14 +1958,8 @@ def update_book(
 ):
     require_role(current_user, "member")
 
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-
     # Members can only edit their own uploads; admins can edit any book
-    from backend.core.permissions import is_admin as _is_admin
-    if not _is_admin(current_user) and book.added_by != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only edit books you uploaded")
+    book = editable_book_or_403(db, current_user, book_id)
 
     data = body.model_dump(exclude_unset=True)
     tags = data.pop("tags", None)
@@ -2033,9 +2036,7 @@ async def get_cover_candidates(
     current_user: User = Depends(get_current_user),
 ):
     """Fetch cover image candidates from Hardcover, Google Books and OpenLibrary in parallel."""
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = visible_book_or_404(db, current_user, book_id)
 
     import asyncio
     from backend.services.metadata_fetch import _hardcover, _google_books, _open_library, _build_query
@@ -2091,9 +2092,7 @@ async def set_book_cover(
     """Replace a book's cover — accepts either a remote URL or a file upload."""
     require_role(current_user, "member")
 
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = editable_book_or_403(db, current_user, book_id)
 
     if not url and not file:
         raise HTTPException(status_code=400, detail="Provide either url or file")
@@ -2465,7 +2464,7 @@ def bulk_delete_books(
     errors: list[dict] = []
     for book_id in dict.fromkeys(req.book_ids):  # dedupe, keep order
         book = db.query(Book).filter(Book.id == book_id).first()
-        if not book:
+        if not book or not user_can_see_book(db, current_user, book):
             errors.append({"book_id": book_id, "error": "Book not found"})
             continue
         if not _is_admin(current_user) and book.added_by != current_user.id:
@@ -2490,14 +2489,10 @@ def delete_book(
 ):
     require_role(current_user, "member")
 
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-
     # Members can only delete their own uploads; admins can delete any book
-    from backend.core.permissions import is_admin as _is_admin
-    if not _is_admin(current_user) and book.added_by != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only delete books you uploaded")
+    book = editable_book_or_403(
+        db, current_user, book_id, detail="You can only delete books you uploaded",
+    )
 
     _delete_book_record(book, db, current_user)
 
@@ -2902,7 +2897,7 @@ async def fetch_metadata(
     book_id: int,
     q: Optional[str] = Query(None, description="Override search query"),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Search external sources; return ranked candidates + per-source status.
 
@@ -2910,9 +2905,7 @@ async def fetch_metadata(
     ``sources`` tells the UI when an empty list means "rate limited", not
     "this book doesn't exist anywhere".
     """
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = visible_book_or_404(db, current_user, book_id)
 
     result = await fetch_candidates(
         title=book.title,
@@ -2944,9 +2937,7 @@ async def apply_metadata(
     """Apply only the explicitly passed fields from a chosen candidate."""
     require_role(current_user, "member")
 
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = editable_book_or_403(db, current_user, book_id)
 
     # Apply scalar fields if provided
     simple_fields = ("title", "author", "description", "publisher", "year", "language", "isbn", "series", "series_index")

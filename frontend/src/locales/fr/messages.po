@@ -334,6 +334,11 @@ msgstr ""
 msgid "{0, plural, one {# book tracked} other {# books tracked}}"
 msgstr "{0, plural, one {# livre suivi} other {# livres suivis}}"
 
+#. placeholder {0}: res.skipped
+#: src/pages/DashboardPage.tsx
+msgid "{0, plural, one {# book was left as it is because you did not upload it} other {# books were left as they are because you did not upload them}}"
+msgstr ""
+
 #. placeholder {0}: data.books
 #: src/components/stats/BacklogEstimate.tsx
 msgid "{0, plural, one {# book, none estimated yet.} other {# books, none estimated yet.}}"
@@ -667,7 +672,7 @@ msgstr "{0, plural, one {# livre envoyé à l’appareil} other {# livres envoy�
 msgid "{0, plural, one {Suggested match:} other {Suggested matches:}}"
 msgstr "{0, plural, one {Correspondance suggérée :} other {Correspondances suggérées :}}"
 
-#. placeholder {0}: selected.size
+#. placeholder {0}: res.updated
 #: src/pages/DashboardPage.tsx
 msgid "{0, plural, one {Updated metadata for # book} other {Updated metadata for # books}}"
 msgstr "{0, plural, one {Métadonnées mises à jour pour # livre} other {Métadonnées mises à jour pour # livres}}"
@@ -1376,6 +1381,10 @@ msgstr ""
 #: src/pages/DashboardPage.tsx
 msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
 msgstr "{totalCount, plural, one {# résultat pour « {search} »} other {# résultats pour « {search} »}}"
+
+#: src/pages/DashboardPage.tsx
+msgid "{updatedText}. {skippedText}."
+msgstr ""
 
 #: src/components/stats/widgets/library.tsx
 msgid "{v}m"
@@ -6447,6 +6456,10 @@ msgstr "Aucun partage pour le moment. Utilisez l’icône de partage d’une ét
 #: src/components/LibraryHealth.tsx
 msgid "Nothing to remove."
 msgstr "Rien à supprimer."
+
+#: src/pages/DashboardPage.tsx
+msgid "Nothing was changed. You can only edit books you uploaded."
+msgstr ""
 
 #: src/components/NotificationBell.tsx
 #: src/pages/SettingsPage.tsx

@@ -6,7 +6,7 @@ import {
   Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2, Eye,
   ExternalLink,
 } from 'lucide-react'
-import { useAuth, isMember } from '@/contexts/AuthContext'
+import { useAuth, isAdmin, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
@@ -257,8 +257,11 @@ export function BookDetailPage() {
   } | null>(null)
 
   const isDirty = editing && book != null && JSON.stringify(draft) !== JSON.stringify(book)
-  const canEdit = isMember(user)
-  const canDelete = isMember(user)
+  // Same rule as the server: an admin changes any book, a member only the
+  // books they uploaded. Libraries and sharing stay open to every member.
+  const member = isMember(user)
+  const canEdit = isAdmin(user) || (member && book != null && user != null && book.added_by === user.id)
+  const canDelete = canEdit
 
   useEffect(() => {
     if (!isDirty) return
@@ -721,7 +724,7 @@ export function BookDetailPage() {
         {deleting ? t`Deleting…` : t`Delete`}
       </Pill>
     </div>
-  ) : (canEdit || canDelete) ? (
+  ) : member ? (
     <div className="-mr-2 flex flex-wrap items-center justify-end gap-0.5">
       {canEdit && (
         <Pill variant="quiet" onClick={startEdit} aria-label={t`Edit`}>
@@ -733,7 +736,7 @@ export function BookDetailPage() {
           <Sparkles className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Fetch metadata</Trans></span>
         </Pill>
       )}
-      {canEdit && libraries.some(l => l.can_edit) && (
+      {member && libraries.some(l => l.can_edit) && (
         <div className="relative" ref={libMenuRef}>
           <Pill variant="quiet" onClick={() => setLibMenuOpen(o => !o)} aria-expanded={libMenuOpen} aria-label={t`Libraries`}
             className={cn(libMenuOpen && 'bg-secondary text-foreground')}>
@@ -778,7 +781,7 @@ export function BookDetailPage() {
           )}
         </div>
       )}
-      {canEdit && (
+      {member && (
         <Pill variant="quiet" onClick={() => setShowShare(true)} title={t`Share this book as a public page with its metadata only`} aria-label={t`Share`}>
           <Share2 className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Share</Trans></span>
         </Pill>
