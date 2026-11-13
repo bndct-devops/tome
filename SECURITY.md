@@ -8,9 +8,8 @@ keeps users safe while we work on a fix.
 
 | Version | Supported |
 |---------|-----------|
-| Latest `main` | Yes |
-| `0.2.x`       | Yes (security only) |
-| `< 0.2`       | No |
+| The latest release | Yes |
+| Anything older     | No: update to the latest release |
 
 We don't backport fixes to pre-`0.2` releases. Upgrade to `0.2.0` or
 later if you're on something older.

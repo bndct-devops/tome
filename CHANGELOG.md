@@ -23,7 +23,16 @@ All notable changes to Tome are documented here. Format loosely follows
   crafted path could make it return a file from outside that folder. Updating
   is recommended.
 
+### Changed
+- **Tome's own log lines now reach the container log.** Informational
+  messages (auto-import, Hardcover sync, restore) were dropped before, and
+  warnings came without a time or level. Every line now has both. Set
+  `TOME_LOG_LEVEL` to `DEBUG`, `WARNING` or `ERROR` to change how much is
+  logged (default `INFO`).
+
 ### Fixed
+- **The API docs show the real version.** `/api/docs` reported 1.7.0 whatever
+  release was running.
 - **The arm64 image builds again.** The two frontend build stages run on the
   build host instead of under emulation; the 3.0.0 image build had crashed
   there while compiling the classic bundle.

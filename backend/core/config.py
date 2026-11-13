@@ -22,7 +22,11 @@ FILE_SECRETS = (
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="TOME_", env_file=".env", extra="ignore")
+    # TOME_ENV_FILE names another file to read instead of ./.env; the tests
+    # point it at a file that does not exist so a developer's .env is ignored.
+    model_config = SettingsConfigDict(
+        env_prefix="TOME_", env_file=os.environ.get("TOME_ENV_FILE", ".env"), extra="ignore",
+    )
 
     secret_key: str | None = None
     data_dir: Path = Path("./data")
@@ -31,6 +35,9 @@ class Settings(BaseSettings):
     # incoming_dir: the Bindery — files here await triage before entering the library
     incoming_dir: Path = Path("./bindery")
     port: int = 8080
+    # Level for Tome's own log lines (env TOME_LOG_LEVEL): DEBUG, INFO,
+    # WARNING or ERROR. Libraries stay at WARNING whatever this says.
+    log_level: str = "INFO"
     hardcover_token: str | None = None
     # Canonical public origin (env TOME_PUBLIC_URL), e.g. "https://tome.example.org".
     # When set, it is baked verbatim into the KOReader plugin's SERVER_URL — the
@@ -171,6 +178,12 @@ class Settings(BaseSettings):
     smtp_user_file: Path | None = None
     smtp_password_file: Path | None = None
     oidc_client_secret_file: Path | None = None
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _known_log_level(cls, v):
+        name = str(v or "").strip().upper()
+        return name if name in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL") else "INFO"
 
     @field_validator(*(f"{name}_file" for name in FILE_SECRETS), mode="before")
     @classmethod

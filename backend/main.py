@@ -6,8 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
+from backend import __version__
+
 from backend.core.database import engine, Base, init_fts, backfill_fts
 from backend.core.config import settings
+from backend.core.logging_setup import configure_logging
+
+configure_logging(settings.log_level)
 from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
 
 logger = logging.getLogger(__name__)
@@ -875,7 +880,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     app = FastAPI(
         title="Tome",
         description="Self-hosted ebook library",
-        version="1.7.0",
+        version=__version__,
         lifespan=lifespan,
         docs_url="/api/docs",
         redoc_url="/api/redoc",
