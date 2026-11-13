@@ -957,6 +957,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
         from starlette.responses import FileResponse as _FileResponse
 
         index_html = frontend_dist / "index.html"
+        _dist_root = frontend_dist.resolve()
 
         # Built files under /assets carry a content hash in their name, so a
         # browser may keep them for good. index.html, the service worker and
@@ -992,9 +993,12 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
                 return super().matches(scope)
 
         async def spa_fallback(full_path: str):
-            # Serve the actual file if it exists, otherwise index.html
-            file = frontend_dist / full_path
-            if full_path and file.is_file():
+            # Serve the actual file if it exists, otherwise index.html. The
+            # path comes from the URL, so it is resolved and must stay inside
+            # the frontend folder: "../" segments (plain or percent-encoded)
+            # would otherwise reach any file the server can read.
+            file = (frontend_dist / full_path).resolve()
+            if full_path and file.is_relative_to(_dist_root) and file.is_file():
                 if file.suffix in (".html", ".webmanifest") or file.name in ("sw.js", "registerSW.js") or file.name.startswith("workbox-"):
                     return _FileResponse(str(file), headers=_no_cache)
                 # Fonts, icons, the reader's foliate files: unhashed names
