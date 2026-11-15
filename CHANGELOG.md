@@ -18,6 +18,11 @@ All notable changes to Tome are documented here. Format loosely follows
   (1.20.0); the rules are in the KOReader plugin docs under "Reading status on
   the device". (#296)
 
+### Security
+- **The web server only serves files from its own interface folder.** A
+  crafted path could make it return a file from outside that folder. Updating
+  is recommended.
+
 ### Fixed
 - **The arm64 image builds again.** The two frontend build stages run on the
   build host instead of under emulation; the 3.0.0 image build had crashed

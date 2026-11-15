@@ -65,3 +65,88 @@ def test_unknown_app_path_serves_index(spa_client, path):
     assert r.status_code == 200
     assert r.headers["content-type"].startswith("text/html")
     assert r.text == INDEX
+
+
+# --- the fallback only serves files inside the frontend folder ---------------
+
+SECRET = "TOP-SECRET-OUTSIDE-DIST"
+
+
+@pytest.fixture()
+def raw_get(tmp_path, spa_client):
+    """GET with the path sent byte for byte (no client-side normalising)."""
+    (tmp_path / "secret.txt").write_text(SECRET)
+    (tmp_path / "dist" / "robots.txt").write_text("inside")
+    (tmp_path / "dist-other").mkdir()
+    (tmp_path / "dist-other" / "secret.txt").write_text(SECRET)
+
+    import anyio
+
+    app = spa_client.app
+
+    def get(raw_path: str):
+        sent = []
+
+        delivered = False
+
+        async def receive():
+            # The request once, then silence: a file response keeps listening
+            # for a disconnect while it sends, as it would on a live socket.
+            nonlocal delivered
+            if delivered:
+                await anyio.sleep_forever()
+            delivered = True
+            return {"type": "http.request", "body": b"", "more_body": False}
+
+        async def send(message):
+            sent.append(message)
+
+        from urllib.parse import unquote
+
+        scope = {
+            "type": "http", "asgi": {"version": "3.0"}, "http_version": "1.1",
+            "method": "GET", "scheme": "http", "server": ("testserver", 80),
+            "client": ("testclient", 1), "root_path": "", "query_string": b"",
+            "headers": [(b"host", b"testserver")],
+            # What uvicorn hands the app: the percent-decoded path.
+            "path": unquote(raw_path), "raw_path": raw_path.encode(),
+        }
+        anyio.run(app, scope, receive, send)
+        status = next(m["status"] for m in sent if m["type"] == "http.response.start")
+        body = b"".join(m.get("body", b"") for m in sent if m["type"] == "http.response.body")
+        return status, body.decode(errors="replace")
+
+    return get
+
+
+@pytest.mark.parametrize("path", [
+    "/../secret.txt",
+    "/assets/../../secret.txt",
+    "/%2e%2e/secret.txt",
+    "/..%2fsecret.txt",
+    "/%2e%2e%2fsecret.txt",
+    "/x/..%2f..%2fsecret.txt",
+    "/../dist-other/secret.txt",
+])
+def test_fallback_never_leaves_the_frontend_folder(raw_get, path):
+    status, body = raw_get(path)
+    assert SECRET not in body
+    assert status in (200, 404)
+    if status == 200:
+        assert body == INDEX
+
+
+def test_fallback_refuses_an_absolute_path(raw_get, tmp_path):
+    status, body = raw_get("//" + str(tmp_path / "secret.txt").lstrip("/"))
+    assert SECRET not in body
+
+
+def test_fallback_refuses_a_symlink_out_of_the_folder(raw_get, tmp_path):
+    (tmp_path / "dist" / "link.txt").symlink_to(tmp_path / "secret.txt")
+    status, body = raw_get("/link.txt")
+    assert SECRET not in body
+
+
+def test_fallback_still_serves_a_real_file(raw_get):
+    status, body = raw_get("/robots.txt")
+    assert (status, body) == (200, "inside")
