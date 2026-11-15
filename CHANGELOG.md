@@ -103,6 +103,18 @@ All notable changes to Tome are documented here. Format loosely follows
   highlights, stats or estimate.** The book page now loads each volume from
   scratch, so a slow or failed request for the old volume can no longer
   overwrite the new one.
+- **Deleting a user who uploaded books works again.** It used to fail with a
+  server error while the audit log already recorded the deletion. Their books
+  and libraries now pass to the admin who deleted them, their shelves are
+  removed, and uploads that were private to them are kept private in a new
+  "Uploads from" library named after them.
+- **"Clear cover cache" no longer deletes your covers.** It removed every
+  stored cover, including fetched and uploaded ones, and nothing brought them
+  back. It now clears only the resized thumbnails, which are made again when
+  next shown.
+- **Auto-import waits for files to finish copying.** A book dropped into the
+  Bindery is left alone until it has not changed for 30 seconds, so a
+  half-copied file is no longer imported.
 
 ## [3.0.0] - 2026-11-08 - "Rebind"
 

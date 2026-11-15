@@ -703,10 +703,58 @@ def delete_user(
     if not user:
         raise HTTPException(404, "User not found")
     _guard_last_admin(db, user, demote=True, deactivate=True)
-    audit(db, "users.deleted", user_id=admin.id, username=admin.username,
-          resource_type="user", resource_id=user.id, resource_title=user.username)
+    from backend.models.book import Book
+    from backend.models.library import Library, SavedFilter
+
+    username = user.username
+    # Three references to users have no delete rule; everything else cascades
+    # or is set to NULL by the database.
+    #
+    # Uploads stay and pass to the admin doing the delete. An upload in no
+    # library is private to its uploader today; with an admin as uploader it
+    # would become shared (book_visibility_filter), so those books first go
+    # into a new private library owned by that admin. An admin's unfiled
+    # uploads are already shared and stay that way.
+    deleted_is_admin = user.is_admin or user.role == "admin"
+    unfiled = [] if deleted_is_admin else (
+        db.query(Book)
+        .filter(Book.added_by == user.id, ~Book.libraries.any())
+        .all()
+    )
+    holding_lib_id: int | None = None
+    if unfiled:
+        holding = Library(name=f"Uploads from {username}", icon="Archive",
+                          is_public=False, owner_id=admin.id)
+        db.add(holding)
+        db.flush()
+        holding.books.extend(unfiled)
+        db.flush()
+        holding_lib_id = holding.id
+    books_reassigned = (
+        db.query(Book).filter(Book.added_by == user.id)
+        .update({Book.added_by: admin.id}, synchronize_session=False)
+    )
+    # Libraries keep their visibility and assigned users; the admin owns them.
+    libraries_reassigned = (
+        db.query(Library).filter(Library.owner_id == user.id)
+        .update({Library.owner_id: admin.id}, synchronize_session=False)
+    )
+    # Shelves are personal; their share links go with them (FK cascade).
+    shelves_deleted = (
+        db.query(SavedFilter).filter(SavedFilter.owner_id == user.id)
+        .delete(synchronize_session=False)
+    )
     db.delete(user)
     db.commit()
+    # Audit only once the delete is committed.
+    audit(db, "users.deleted", user_id=admin.id, username=admin.username,
+          resource_type="user", resource_id=user_id, resource_title=username,
+          details={
+              "books_reassigned": books_reassigned,
+              "libraries_reassigned": libraries_reassigned,
+              "shelves_deleted": shelves_deleted,
+              "unfiled_books_filed_into_library_id": holding_lib_id,
+          })
 
 
 @router.put("/users/{user_id}/permissions", response_model=UserOut)
@@ -960,6 +1008,8 @@ def get_admin_stats(
     covers_size_mb = round(
         sum(os.path.getsize(os.path.join(covers_dir, f)) for f in os.listdir(covers_dir) if os.path.isfile(os.path.join(covers_dir, f))) / 1024 / 1024, 2
     ) if os.path.exists(covers_dir) else 0
+    thumbs = _cover_thumb_files(settings.cover_thumbs_dir)
+    cover_thumbs_size_mb = round(sum(f.stat().st_size for f in thumbs) / 1024 / 1024, 2)
     import sys
     return {
         "book_count": book_count,
@@ -967,6 +1017,8 @@ def get_admin_stats(
         "db_size_mb": db_size_mb,
         "covers_count": covers_count,
         "covers_size_mb": covers_size_mb,
+        "cover_thumbs_count": len(thumbs),
+        "cover_thumbs_size_mb": cover_thumbs_size_mb,
         "library_dir": str(settings.library_dir),
         "data_dir": str(settings.data_dir),
         "incoming_dir": str(settings.incoming_dir),
@@ -975,20 +1027,29 @@ def get_admin_stats(
     }
 
 
+def _cover_thumb_files(thumbs_dir) -> list:
+    """Files in the cover thumbnail cache (data/cover_thumbs)."""
+    if not thumbs_dir.is_dir():
+        return []
+    return [f for f in thumbs_dir.iterdir() if f.is_file()]
+
+
 @router.delete("/admin/covers-cache")
 def clear_covers_cache(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
+    """Delete the cover thumbnails; they are made again on the next request.
+
+    Only data/cover_thumbs is touched. data/covers holds the only copy of
+    every cover (extracted, fetched or uploaded) and nothing re-extracts
+    them, so it is never cleared here."""
     require_role(current_user, "admin")
-    import shutil, os
     from backend.core.config import settings
-    covers_dir = os.path.join(settings.data_dir, "covers")
     deleted = 0
-    if os.path.exists(covers_dir):
-        for f in os.listdir(covers_dir):
-            fp = os.path.join(covers_dir, f)
-            if os.path.isfile(fp):
-                os.remove(fp)
-                deleted += 1
+    for f in _cover_thumb_files(settings.cover_thumbs_dir):
+        f.unlink(missing_ok=True)
+        deleted += 1
+    audit(db, "admin.cover_thumbs_cleared", user_id=current_user.id,
+          username=current_user.username, details={"deleted": deleted})
     return {"deleted": deleted}

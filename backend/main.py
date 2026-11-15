@@ -551,6 +551,36 @@ async def _release_check_loop() -> None:
             logger.exception("Unhandled error in release-check loop")
 
 
+# Auto-import skips files modified this recently: a file copied into the
+# Bindery (often over a network share) shows up at full name before its last
+# byte lands, and hashing + moving it then would import a broken book.
+AUTO_IMPORT_SETTLE_SECONDS = 30
+_AUTO_IMPORT_SUPPORTED = {".epub", ".pdf", ".cbz", ".cbr", ".mobi"}
+
+
+def _bindery_files_to_import(incoming: Path, now: float | None = None) -> list[Path]:
+    """Supported, non-hidden files in the Bindery that have stopped changing."""
+    import time
+    now = time.time() if now is None else now
+    found: list[Path] = []
+    for p in sorted(incoming.rglob("*")):
+        try:
+            if not p.is_file():
+                continue
+            rel = p.relative_to(incoming)
+            if any(part.startswith(".") for part in rel.parts):
+                continue
+            if p.suffix.lower() not in _AUTO_IMPORT_SUPPORTED:
+                continue
+            if now - p.stat().st_mtime < AUTO_IMPORT_SETTLE_SECONDS:
+                logger.debug("Auto-import: %s changed recently, trying next scan", p.name)
+                continue
+        except OSError:
+            continue  # vanished or unreadable mid-scan; a later scan sees it
+        found.append(p)
+    return found
+
+
 async def _run_auto_import() -> None:
     """Scan the incoming directory and auto-import any new supported files.
 
@@ -568,23 +598,11 @@ async def _run_auto_import() -> None:
     from backend.services.audit import audit
     from backend.services.book_types import assign_book_to_type_library
 
-    SUPPORTED = {".epub", ".pdf", ".cbz", ".cbr", ".mobi"}
-
     incoming = settings.incoming_dir
     if not incoming.exists():
         return
 
-    # Collect supported, non-hidden files
-    files_to_import: list[Path] = []
-    for p in incoming.rglob("*"):
-        if not p.is_file():
-            continue
-        rel = p.relative_to(incoming)
-        if any(part.startswith(".") for part in rel.parts):
-            continue
-        if p.suffix.lower() in SUPPORTED:
-            files_to_import.append(p)
-
+    files_to_import = _bindery_files_to_import(incoming)
     if not files_to_import:
         return
 

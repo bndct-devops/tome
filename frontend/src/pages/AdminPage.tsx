@@ -56,6 +56,8 @@ interface AdminStats {
   db_size_mb: number
   covers_count: number
   covers_size_mb: number
+  cover_thumbs_count?: number
+  cover_thumbs_size_mb?: number
   library_dir: string
   data_dir: string
   incoming_dir: string
@@ -565,7 +567,7 @@ function ServerTab() {
     try {
       const r = await api.delete<{ deleted: number }>('/admin/covers-cache')
       setClearResult(r.deleted)
-      setStats(prev => prev ? { ...prev, covers_count: 0, covers_size_mb: 0 } : prev)
+      setStats(prev => prev ? { ...prev, cover_thumbs_count: 0, cover_thumbs_size_mb: 0 } : prev)
       setConfirmClear(false)
     } catch (e) {
       setError(e instanceof Error ? e.message : t`Failed to clear covers`)
@@ -621,14 +623,14 @@ function ServerTab() {
           <div className="flex items-start justify-between gap-4 flex-wrap">
             <div className="min-w-0">
               <p className="text-[15px] font-medium text-foreground"><Trans>Clear cover cache</Trans></p>
-              {(() => { const count = stats?.covers_count ?? 0; const mb = stats?.covers_size_mb ?? 0; return (
+              {(() => { const count = stats?.cover_thumbs_count ?? 0; const mb = stats?.cover_thumbs_size_mb ?? 0; return (
               <p className="text-[13px] text-muted-foreground mt-0.5">
-                <Trans>Delete all {count} cached cover files ({mb} MB).
-                Covers will be re-extracted on next access.</Trans>
+                <Trans>Delete all {count} cover thumbnails ({mb} MB).
+                They are made again from the stored covers when next shown. The covers themselves are kept.</Trans>
               </p>
               ) })()}
               {clearResult != null && (
-                <p className="text-[13px] text-success mt-1"><Trans>{clearResult} covers deleted.</Trans></p>
+                <p className="text-[13px] text-success mt-1"><Trans>{clearResult} thumbnails deleted.</Trans></p>
               )}
               {error && (
                 <p className="text-[13px] text-destructive mt-1">{error}</p>

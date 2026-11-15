@@ -729,8 +729,12 @@ msgid "{bt}: {st} to {en} ({dur})"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
-msgid "{clearResult} covers deleted."
-msgstr "{clearResult} couvertures supprimées."
+#~ msgid "{clearResult} covers deleted."
+#~ msgstr "{clearResult} couvertures supprimées."
+
+#: src/pages/AdminPage.tsx
+msgid "{clearResult} thumbnails deleted."
+msgstr ""
 
 #: src/pages/HighlightsPage.tsx
 msgid "{color} highlight"
@@ -3423,8 +3427,12 @@ msgid "Delete {name}"
 msgstr "Supprimer {name}"
 
 #: src/pages/AdminPage.tsx
-msgid "Delete all {count} cached cover files ({mb} MB). Covers will be re-extracted on next access."
-msgstr "Supprimer les {count} fichiers de couverture en cache ({mb} Mo). Les couvertures seront extraites à nouveau au prochain accès."
+#~ msgid "Delete all {count} cached cover files ({mb} MB). Covers will be re-extracted on next access."
+#~ msgstr "Supprimer les {count} fichiers de couverture en cache ({mb} Mo). Les couvertures seront extraites à nouveau au prochain accès."
+
+#: src/pages/AdminPage.tsx
+msgid "Delete all {count} cover thumbnails ({mb} MB). They are made again from the stored covers when next shown. The covers themselves are kept."
+msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
 msgid "Delete arc"
