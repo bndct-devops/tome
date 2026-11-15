@@ -1,5 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from 'react'
 import { Trans } from '@lingui/react/macro'
+import { useNavigate } from 'react-router-dom'
 import { t, msg, plural } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
@@ -965,6 +966,7 @@ function ChapterAssignModal({ bookIds, open, bookTypes, onClose, onDone }: Chapt
 
 export function MetadataManager() {
   const { toast } = useToast()
+  const navigate = useNavigate()
   const [mode, setMode] = useState<'table' | 'review'>('table')
   const [standardizeProposals, setStandardizeProposals] = useState<StandardizeProposal[] | null>(null)
   const [standardizeLoading, setStandardizeLoading] = useState(false)
@@ -1200,9 +1202,9 @@ export function MetadataManager() {
         onWishMatches={(wishIds) => {
           const n = wishIds.length
           toast.info(plural(n, {
-            one: 'This upload satisfies # wish. Review it in Admin > Wishlist.',
-            other: 'This upload satisfies # wishes. Review them in Admin > Wishlist.',
-          }))
+            one: 'This upload satisfies # wish.',
+            other: 'This upload satisfies # wishes.',
+          }), { action: { label: t`Open Wishlist`, onClick: () => navigate('/admin/wishlist') } })
         }}
       />
 

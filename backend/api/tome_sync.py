@@ -17,7 +17,7 @@ from pathlib import Path
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel as PydanticBaseModel, field_validator
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from backend.core.config import settings
@@ -1790,6 +1790,38 @@ def _baked_server_url(request: Request, explicit: str | None) -> str:
     return public_base_url(request, explicit)
 
 
+# Label of a key minted by a plugin download ("Plugin download 2026-11-13").
+# Before the date was added, download keys were labelled "KOReader Plugin".
+PLUGIN_DOWNLOAD_LABEL = "Plugin download"
+_LEGACY_DOWNLOAD_LABEL = "KOReader Plugin"
+# A download key no device has used after this long counts as abandoned.
+UNUSED_DOWNLOAD_KEY_TTL = timedelta(days=7)
+
+
+def _prune_unused_download_keys(db: Session, user_id: int, now: datetime) -> int:
+    """Delete this user's plugin-download keys that were never used and are
+    older than ``UNUSED_DOWNLOAD_KEY_TTL``. A key that has been used is never
+    touched, and neither are keys made another way (paired devices, "New key").
+    Returns how many were deleted; the caller commits."""
+    cutoff = now - UNUSED_DOWNLOAD_KEY_TTL
+    stale = (
+        db.query(ApiKey)
+        .filter(
+            ApiKey.user_id == user_id,
+            ApiKey.last_used_at.is_(None),
+            ApiKey.created_at < cutoff,
+            or_(
+                ApiKey.label == _LEGACY_DOWNLOAD_LABEL,
+                ApiKey.label.like(f"{PLUGIN_DOWNLOAD_LABEL} %"),
+            ),
+        )
+        .all()
+    )
+    for k in stale:
+        db.delete(k)
+    return len(stale)
+
+
 @router.get("/plugin/koreader")
 def download_plugin(
     request: Request,
@@ -1800,14 +1832,17 @@ def download_plugin(
     """Generate and download a pre-configured tomesync.koplugin ZIP."""
     # Always mint a fresh key for this download. Plaintext is never stored
     # (only its sha256 hash), so we can't recover a previously-issued plaintext.
-    # Existing installs keep working — they have their own plaintext that still
-    # hashes to a row in api_keys. Users can revoke unused rows in Settings.
+    # Existing installs keep working - they have their own plaintext that still
+    # hashes to a row in api_keys. Earlier download keys that no device ever
+    # used are pruned here, so repeated downloads do not pile up keys.
+    now = datetime.utcnow()
+    _prune_unused_download_keys(db, current_user.id, now)
     api_key_value = ApiKey.generate()
     db.add(ApiKey(
         user_id=current_user.id,
         key_hash=ApiKey.hash_key(api_key_value),
         key_prefix=api_key_value[:11],
-        label="KOReader Plugin",
+        label=f"{PLUGIN_DOWNLOAD_LABEL} {now.date().isoformat()}",
     ))
     db.commit()
 

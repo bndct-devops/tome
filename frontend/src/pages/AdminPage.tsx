@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useState, useRef, useCallback } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { Link, Navigate, useNavigate, useParams, useSearchParams } from 'react-router-dom'
 import {
   Plus, Pencil, Trash2, Shield, Check, X,
   ChevronDown, ChevronUp, Loader2,
@@ -1423,7 +1423,7 @@ function formatSyncPct(v: number): string {
 
 const SYNC_STATUS_LABELS: Record<string, MessageDescriptor> = {
   unread: msg`unread`, reading: msg`reading`, read: msg`read`,
-  shelved: msg`shelved`, want_to_read: msg`want to read`,
+  shelved: msg`on hold`, want_to_read: msg`want to read`,
 }
 
 function StatusBadge({ status }: { status: SyncRecord['status'] }) {
@@ -2484,12 +2484,16 @@ function WishlistTab() {
 
 // ── AdminPage ─────────────────────────────────────────────────────────────
 
-type Tab = 'users' | 'scanner' | 'server' | 'types' | 'audit' | 'metadata' | 'library' | 'wordcount' | 'sync' | 'duplicates' | 'covers' | 'email' | 'wishlist'
+const TABS = ['users', 'scanner', 'types', 'metadata', 'library', 'duplicates', 'covers', 'wordcount', 'server', 'email', 'sync', 'audit', 'wishlist'] as const
+type Tab = typeof TABS[number]
+const isTab = (s: string | undefined | null): s is Tab => !!s && (TABS as readonly string[]).includes(s)
 
 export function AdminPage() {
   const { t } = useLingui()
   const { user } = useAuth()
-  const [tab, setTab] = useState<Tab>('users')
+  const navigate = useNavigate()
+  const { section } = useParams<{ section?: string }>()
+  const [searchParams] = useSearchParams()
 
   if (!isAdmin(user)) {
     return (
@@ -2505,20 +2509,33 @@ export function AdminPage() {
     )
   }
 
-  const tabs: { id: Tab; label: string }[] = [
-    { id: 'users', label: t`Users` },
-    { id: 'scanner', label: t`Scanner` },
-    { id: 'server', label: t`Server` },
-    { id: 'types', label: t`Types` },
-    { id: 'audit', label: t`Audit log` },
-    { id: 'metadata', label: t`Metadata` },
-    { id: 'library', label: t`Library` },
-    { id: 'wordcount', label: t`Word counts` },
-    { id: 'sync', label: t`Sync status` },
-    { id: 'duplicates', label: t`Duplicates` },
-    { id: 'covers', label: t`Covers` },
-    { id: 'email', label: t`Email` },
-    { id: 'wishlist', label: t`Wishlist` },
+  // The open section lives in the address (/admin/wishlist), so a refresh
+  // keeps it and back/forward step between sections. /admin, an old
+  // ?tab= link or an unknown section land on a real section address.
+  if (!isTab(section)) {
+    const asked = searchParams.get('tab') ?? window.location.hash.slice(1)
+    return <Navigate to={`/admin/${isTab(asked) ? asked : 'users'}`} replace />
+  }
+  const tab: Tab = section
+
+  const people = t`People`
+  const library = t`Library`
+  const system = t`System`
+  const requests = t`Requests`
+  const tabs: { id: Tab; label: string; group: string }[] = [
+    { id: 'users', label: t`Users`, group: people },
+    { id: 'scanner', label: t`Scanner`, group: library },
+    { id: 'types', label: t`Types`, group: library },
+    { id: 'metadata', label: t`Metadata`, group: library },
+    { id: 'library', label: t`Library health`, group: library },
+    { id: 'duplicates', label: t`Duplicates`, group: library },
+    { id: 'covers', label: t`Covers`, group: library },
+    { id: 'wordcount', label: t`Word counts`, group: library },
+    { id: 'server', label: t`Server`, group: system },
+    { id: 'email', label: t`Email`, group: system },
+    { id: 'sync', label: t`Sync status`, group: system },
+    { id: 'audit', label: t`Audit log`, group: system },
+    { id: 'wishlist', label: t`Wishlist`, group: requests },
   ]
 
   return (
@@ -2532,8 +2549,12 @@ export function AdminPage() {
           <SectionNav
             items={tabs}
             active={tab}
-            onSelect={id => {
-              setTab(id as Tab)
+            hrefFor={id => `/admin/${id}`}
+            onSelect={(id, e) => {
+              // Plain clicks stay in the app; modified clicks open a new tab.
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+              e.preventDefault()
+              if (id !== tab) navigate(`/admin/${id}`)
               // A new panel starts at its top, also when the old one was scrolled.
               const main = document.querySelector('main')
               if (main && main.scrollTop > 0) main.scrollTo({ top: 0 })

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth, isMember } from '@/contexts/AuthContext'
+import { useAuth, isMember, isAdmin } from '@/contexts/AuthContext'
 import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { useSidebarLists } from '@/lib/sidebarLists'
@@ -8,7 +8,7 @@ import { Sidebar } from '@/components/Sidebar'
 import { AppHeader, HeaderSearch } from '@/components/AppHeader'
 import { ShellFrame } from '@/components/ShellFrame'
 import { UploadModal } from '@/components/UploadModal'
-import { Trans } from '@lingui/react/macro'
+import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
 import { coverSrc } from '@/lib/covers'
 
@@ -37,6 +37,7 @@ export function AppShell({
   sidebar?: ReactNode
 }) {
   const navigate = useNavigate()
+  const { t } = useLingui()
   const { user } = useAuth()
   const { toast } = useToast()
   const { libraries, savedFilters, loadLibraries, loadSavedFilters } = useSidebarLists(user?.id)
@@ -169,10 +170,11 @@ export function AppShell({
         onDone={() => onUploaded?.()}
         onWishMatches={(wishIds) => {
           const n = wishIds.length
+          // Only admins can open the wishlist review, so only they get the link.
           toast.info(plural(n, {
-            one: 'This upload satisfies # wish. Review it in Admin > Wishlist',
-            other: 'This upload satisfies # wishes. Review them in Admin > Wishlist',
-          }))
+            one: 'This upload satisfies # wish.',
+            other: 'This upload satisfies # wishes.',
+          }), isAdmin(user) ? { action: { label: t`Open Wishlist`, onClick: () => navigate('/admin/wishlist') } } : undefined)
         }}
       />
 

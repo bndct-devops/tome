@@ -462,7 +462,7 @@ function BookDetailView() {
     unread: t`Marked unread, reading progress cleared`,
     reading: t`Marked as reading`,
     read: t`Marked as read`,
-    shelved: t`Shelved, kept your progress`,
+    shelved: t`Put on hold, kept your progress`,
     want_to_read: t`Added to Want to Read`,
   }
 
@@ -678,14 +678,14 @@ function BookDetailView() {
     { id: 'reading', label: t`Reading` },
     { id: 'read', label: t`Read` },
     { id: 'want_to_read', label: t`Want to read`, title: t`Queue this book up next` },
-    { id: 'shelved', label: t`Shelved`, title: t`Set aside, keeps your progress` },
+    { id: 'shelved', label: t`On hold`, title: t`Set aside, keeps your progress` },
   ]
 
   // ── Header line: where you are, previous/next volume, the page's actions ────
 
   const crumbs = (
     <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground" aria-label={t`Breadcrumb`}>
-      <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>Library</Trans></Link>
+      <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>All books</Trans></Link>
       {book.series && seriesHref ? (
         <>
           <span aria-hidden>/</span>

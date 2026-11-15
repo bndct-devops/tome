@@ -2537,7 +2537,7 @@ export function StatsPage() {
             KOReader plugin, logged by hand on a book page, or imported from a
             KOReader statistics file.</Trans>
           </p>
-          <Link to="/settings" className="text-[14px] font-medium text-primary hover:underline">
+          <Link to="/settings/koreader" className="text-[14px] font-medium text-primary hover:underline">
             <Trans>Download the plugin from Settings</Trans>
           </Link>
         </div>

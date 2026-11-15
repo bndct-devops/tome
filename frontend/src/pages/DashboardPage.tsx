@@ -106,7 +106,7 @@ const SORT_LABELS: Record<SortField, MessageDescriptor> = {
 // Reading-status + series-status display names, shared by filter buttons and chips.
 const READING_STATUS_LABELS: Record<string, MessageDescriptor> = {
   unread: msg`Unread`, want_to_read: msg`Want to read`, reading: msg`Reading`,
-  read: msg({ message: 'Read', context: 'status' }), shelved: msg`Shelved`,
+  read: msg({ message: 'Read', context: 'status' }), shelved: msg`On hold`,
 }
 const MISSING_LABELS: Record<string, MessageDescriptor> = {
   cover: msg`Cover`, description: msg`Description`, author: msg`Author`,
@@ -1192,10 +1192,11 @@ export function DashboardPage() {
         onDone={() => { loadBooks(); loadFacets() }}
         onWishMatches={(wishIds) => {
           const n = wishIds.length
+          // Only admins can open the wishlist review, so only they get the link.
           toast.info(plural(n, {
-            one: 'This upload satisfies # wish. Review it in Admin > Wishlist',
-            other: 'This upload satisfies # wishes. Review them in Admin > Wishlist',
-          }))
+            one: 'This upload satisfies # wish.',
+            other: 'This upload satisfies # wishes.',
+          }), isAdmin(user) ? { action: { label: t`Open Wishlist`, onClick: () => navigate('/admin/wishlist') } } : undefined)
         }}
       />
 
@@ -1663,7 +1664,7 @@ export function DashboardPage() {
                     ? plural(n, { one: '# title', other: '# titles' })
                     : plural(n, { one: '# book', other: '# books' })
                 })()}
-            title={activeLibraryName ?? <Trans>Library</Trans>}
+            title={activeLibraryName ?? <Trans>All books</Trans>}
             actions={
               /* Capped at the viewport so the row wraps on phones instead of
                  running off the side. */
