@@ -79,6 +79,26 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Admin impersonation now lasts one hour instead of seven days.** When it
   runs out, the browser returns to the admin's own session instead of the
   login page.
+- **Admin sections have their own address and are grouped.** Refreshing keeps
+  the open section, the back button steps between sections, and the navigation
+  is sorted under People, Library, System and Requests. The upload message
+  about matching wishes now has a button that opens the Wishlist.
+- **Each Settings section is its own page.** Settings no longer loads
+  everything at once: a section loads its data when you open it, and old links
+  still land on the right section. "Export" is now "Export catalogue" and the
+  personal backup is "Download my data".
+- **Everything that can sign in to your account is under Settings > Access.**
+  Quick Connect, connected devices, plugin keys, OPDS PINs, the sync password
+  and API tokens sit together, each with a line on what it is for. The
+  KOReader plugin's "API keys" are now called "Plugin keys".
+- **Downloading the KOReader plugin no longer piles up keys.** Each download
+  removes your earlier download keys that no device ever used and that are
+  over a week old, and the new key is labelled with the date. Keys a device
+  has used are never removed.
+- **Clearer names in the sidebar and on the book page.** The full book list is
+  now "All books", and the reading status "Shelved" now shows as "On hold".
+  When the sidebar is collapsed, hovering or tabbing to an icon shows its
+  name.
 
 ### Fixed
 - **The API docs show the real version.** `/api/docs` reported 1.7.0 whatever

@@ -362,7 +362,7 @@ export function HardcoverPage() {
               <Trans>No Hardcover account linked yet. Link your personal API token in Settings and syncing starts right after.</Trans>
             </p>
             <Link
-              to="/settings"
+              to="/settings/hardcover"
               className="inline-flex items-center h-9 px-4 rounded-full bg-primary text-primary-foreground text-[14px] font-semibold hover:bg-primary/90 transition-colors"
             >
               <Trans>Open settings</Trans>

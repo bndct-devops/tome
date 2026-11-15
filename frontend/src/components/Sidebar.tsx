@@ -1,4 +1,5 @@
-import { Fragment, useCallback, useId, useState, useRef, useEffect, useMemo } from 'react'
+import { Fragment, useCallback, useId, useState, useRef, useEffect, useMemo, type ReactNode } from 'react'
+import { createPortal } from 'react-dom'
 import { useSearchParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import {
   BookOpen, Plus, Pencil, Share2, Trash2,
@@ -251,7 +252,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
 
   const navItems = ([
     { id: 'home', group: 'main', label: t`Home`, icon: Home, onSelect: onOpenHomeView, active: isHomeTab },
-    { id: 'books', group: 'main', label: t`Library`, icon: BookOpen, onSelect: selectAllBooks, active: isAllBooks },
+    { id: 'books', group: 'main', label: t`All books`, icon: BookOpen, onSelect: selectAllBooks, active: isAllBooks },
     { id: 'series', group: 'main', label: t`Series`, icon: Layers, onSelect: onOpenSeriesView, active: isSeriesTab },
     { id: 'stats', group: 'reading', label: t`Stats`, icon: BarChart3, to: '/stats' },
     { id: 'calendar', group: 'reading', label: t`Calendar`, icon: CalendarDays, to: '/calendar' },
@@ -441,10 +442,9 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               <div className="w-6 h-px bg-border my-0.5" />
             )}
             {libraries.map(lib => (
+              <RailTip key={lib.id} label={lib.name}>
               <button
-                key={lib.id}
                 onClick={() => selectLibrary(lib.id)}
-                title={lib.name}
                 aria-label={lib.name}
                 className={cn(
                   'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
@@ -457,15 +457,15 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   {getIcon(lib.icon ?? 'Library', 'w-4 h-4')}
                 </span>
               </button>
+              </RailTip>
             ))}
             {savedFilters.length > 0 && (
               <div className="w-6 h-px bg-border my-0.5" />
             )}
             {savedFilters.map(sf => (
+              <RailTip key={sf.id} label={sf.name}>
               <button
-                key={sf.id}
                 onClick={() => selectSavedFilter(sf)}
-                title={sf.name}
                 aria-label={sf.name}
                 className={cn(
                   'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
@@ -478,6 +478,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                   {getIcon(sf.icon ?? 'Bookmark', 'w-4 h-4')}
                 </span>
               </button>
+              </RailTip>
             ))}
           </div>
         )}
@@ -641,7 +642,7 @@ function NavEntry({ item, variant, onActivate }: { item: NavItem; variant: NavVa
   const { icon: Icon, label, badge } = item
   const active = 'to' in item ? pathname === item.to : item.active
   const className = cn(style.entryClassName, active ? style.activeClassName : 'text-muted-foreground hover:text-foreground hover:bg-muted')
-  const labelProps = style.showLabel ? {} : { title: label, 'aria-label': label }
+  const labelProps = style.showLabel ? {} : { 'aria-label': label }
   const content = (
     <>
       <Icon className={cn(style.iconClassName, 'group-hover:animate-[wiggle_0.4s_ease-in-out]')} />
@@ -649,9 +650,49 @@ function NavEntry({ item, variant, onActivate }: { item: NavItem; variant: NavVa
       {badge && badge.count > 0 && <NavBadge variant={variant} {...badge} />}
     </>
   )
-  return 'to' in item
+  const entry = 'to' in item
     ? <Link to={item.to} onClick={onActivate} className={className} {...labelProps}>{content}</Link>
     : <button onClick={() => { item.onSelect(); onActivate?.() }} className={className} {...labelProps}>{content}</button>
+  return style.showLabel ? entry : <RailTip label={label}>{entry}</RailTip>
+}
+
+/**
+ * The name of an icon-only rail entry, beside it on hover and on keyboard
+ * focus. Rendered into <body> at a fixed position: the rail scrolls, so
+ * anything positioned inside it would be clipped.
+ */
+function RailTip({ label, children }: { label: string; children: ReactNode }) {
+  const [at, setAt] = useState<{ x: number; y: number } | null>(null)
+  function show(el: Element | null) {
+    if (!el) return
+    const r = el.getBoundingClientRect()
+    setAt({ x: r.right + 8, y: r.top + r.height / 2 })
+  }
+  const hide = () => setAt(null)
+  return (
+    <span
+      className="contents"
+      onMouseEnter={e => show(e.currentTarget.firstElementChild)}
+      onMouseLeave={hide}
+      // Keyboard focus only: a click focuses the entry too, and the tip
+      // would then stay up after the pointer has left.
+      onFocus={e => { if (e.target.matches(':focus-visible')) show(e.target) }}
+      onBlur={hide}
+      onPointerDown={hide}
+    >
+      {children}
+      {at && createPortal(
+        <span
+          aria-hidden
+          className="pointer-events-none fixed z-[60] -translate-y-1/2 whitespace-nowrap rounded-lg bg-card px-2.5 py-1 text-[13px] text-foreground shadow-lg ring-1 ring-panel-ring"
+          style={{ left: at.x, top: at.y }}
+        >
+          {label}
+        </span>,
+        document.body,
+      )}
+    </span>
+  )
 }
 
 function NavBadge({ variant, count, pulse }: { variant: NavVariant; count: number; pulse: boolean }) {
@@ -746,17 +787,18 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
 
   return (
     <div ref={ref} className="relative shrink-0 flex flex-col items-center gap-1 py-3">
+      <RailTip label={t`Expand sidebar`}>
       <button
         onClick={onExpand}
-        title={t`Expand sidebar`}
         aria-label={t`Expand sidebar`}
         className="flex items-center justify-center w-9 h-8 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
       >
         <PanelLeftOpen className="w-4 h-4" />
       </button>
+      </RailTip>
+      <RailTip label={user?.username ?? t`User menu`}>
       <button
         onClick={() => setOpen(o => !o)}
-        title={user?.username ?? t`User menu`}
         aria-label={user?.username ?? t`User menu`}
         className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-secondary transition-colors"
       >
@@ -764,6 +806,7 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
           {(user?.username ?? '?').slice(0, 1).toUpperCase()}
         </div>
       </button>
+      </RailTip>
       {open && (
         <div className="absolute bottom-full left-1 mb-1 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 z-50 w-48">
           <Link to="/settings" onClick={() => setOpen(false)} className={menuItem}>

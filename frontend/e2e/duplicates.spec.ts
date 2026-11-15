@@ -7,8 +7,7 @@ test.describe('duplicates apply-all', () => {
   test.beforeEach(async ({ page }) => {
     seed('duplicates')
     await login(page)
-    await page.goto('/admin')
-    await page.click('button:has-text("Duplicates")')
+    await page.goto('/admin/duplicates')
     await expect(page.getByRole('heading', { name: 'Duplicates' })).toBeVisible()
   })
 

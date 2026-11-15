@@ -130,10 +130,10 @@ function AppRoutes() {
         />
         <Route
           path="/users"
-          element={<Navigate to="/admin" replace />}
+          element={<Navigate to="/admin/users" replace />}
         />
         <Route
-          path="/admin"
+          path="/admin/:section?"
           element={
             <ProtectedRoute>
               <AdminPage />
@@ -141,7 +141,7 @@ function AppRoutes() {
           }
         />
         <Route
-          path="/settings"
+          path="/settings/:section?"
           element={
             <ProtectedRoute>
               <SettingsPage />

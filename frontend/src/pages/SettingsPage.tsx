@@ -1,5 +1,6 @@
 import { TelemetrySettings } from '@/components/TelemetryConsentCard'
 import { useState, useEffect, useMemo } from 'react'
+import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
   Copy, Trash2, Plus, Key, Smartphone, Monitor, CheckCircle, Info, X, ChevronDown, ChevronUp, ChevronRight,
@@ -14,8 +15,7 @@ import { NotificationChannels } from '@/components/NotificationChannels'
 import { ReadingImport } from '@/components/ReadingImport'
 import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
-import { SettingsNav } from '@/components/SettingsNav'
-import { SectionLayout, SectionSidebar, PanelSection } from '@/components/SectionNav'
+import { SectionLayout, SectionNav, SectionSidebar, PanelSection } from '@/components/SectionNav'
 import { AppShell } from '@/components/AppShell'
 import { Pill, Input, Select, Checkbox, FormLabel, Textarea } from '@/components/page'
 import { ModalShell } from '@/components/ModalShell'
@@ -59,27 +59,124 @@ interface OpdsPin {
   last_used_at: string | null
 }
 
-export function SettingsPage() {
-  const { user, refreshUser, logout } = useAuth()
+type Ask = (a: ConfirmAsk) => void
 
-  // ── Version ──────────────────────────────────────────────────────────────
-  const [tomeVersion, setTomeVersion] = useState('…')
+/** Server feature flags the account and devices sections need. */
+function useFeatures() {
+  const [nativeApp, setNativeApp] = useState(false)
+  const [webIdleDays, setWebIdleDays] = useState(0)
   useEffect(() => {
-    api.get<{ version: string }>('/health').then(r => setTomeVersion(r.version)).catch(() => {})
-  }, [])
-
-  // Quiet update indicator (admins): daily-cached server-side check against
-  // GitHub releases; renders a link in About only when something is newer.
-  const [updateInfo, setUpdateInfo] = useState<{ latest: string; url: string } | null>(null)
-  useEffect(() => {
-    if (!user?.is_admin) return
-    api
-      .get<{ update_available: boolean; latest: string | null; url: string }>('/meta/update-check')
-      .then(r => {
-        if (r.update_available && r.latest) setUpdateInfo({ latest: r.latest, url: r.url })
-      })
+    let alive = true
+    api.get<{ native_app: boolean; web_session_idle_days?: number }>('/meta/features')
+      .then(f => { if (alive) { setNativeApp(f.native_app); setWebIdleDays(f.web_session_idle_days ?? 0) } })
       .catch(() => {})
-  }, [user?.is_admin])
+    return () => { alive = false }
+  }, [])
+  return { nativeApp, webIdleDays }
+}
+
+// Each section has its own address (/settings/appearance) and loads its own
+// data when it is shown. The order here is the order of the navigation.
+const SECTION_IDS = [
+  'account', 'access', 'appearance', 'language', 'koreader', 'send-to-device', 'hardcover',
+  'notifications', 'share-links', 'import', 'export', 'backup', 'about',
+] as const
+type SectionId = typeof SECTION_IDS[number]
+const isSection = (s: string | undefined | null): s is SectionId => !!s && (SECTION_IDS as readonly string[]).includes(s)
+
+/** Old in-page anchors (/settings#x) that now live in another section. */
+const MOVED_ANCHORS: Record<string, SectionId> = {
+  devices: 'access',
+  'api-tokens': 'access',
+}
+
+export function SettingsPage() {
+  const { t } = useLingui()
+  const navigate = useNavigate()
+  const location = useLocation()
+  const { section } = useParams<{ section?: string }>()
+  // One small confirm dialog for every destructive action on these pages.
+  const [confirmAsk, setConfirmAsk] = useState<ConfirmAsk | null>(null)
+
+  // /settings, an old /settings#anchor link or an unknown section land on a
+  // real section address. The query string is kept (the SSO link callback
+  // reports through it).
+  if (!isSection(section)) {
+    const anchor = location.hash.slice(1)
+    const target = isSection(anchor) ? anchor : (MOVED_ANCHORS[anchor] ?? SECTION_IDS[0])
+    return <Navigate to={{ pathname: `/settings/${target}`, search: location.search }} replace />
+  }
+
+  const labels: Record<SectionId, string> = {
+    account: t`Account and security`,
+    access: t`Access`,
+    appearance: t`Appearance`,
+    language: t`Language`,
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
+    koreader: 'KOReader',
+    'send-to-device': t`Send to device`,
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
+    hardcover: 'Hardcover',
+    notifications: t`Notifications`,
+    'share-links': t`Share links`,
+    import: t`Import reading history`,
+    export: t`Export catalogue`,
+    backup: t`Download my data`,
+    about: t`About`,
+  }
+  const navItems = SECTION_IDS.map(id => ({ id, label: labels[id] }))
+
+  return (
+    <AppShell sidebar={<SectionSidebar title={<Trans>Settings</Trans>} />}>
+      <SectionLayout
+        sidebar
+        title={labels[section]}
+        eyebrow={<Trans>Settings</Trans>}
+        nav={
+          <SectionNav
+            items={navItems}
+            active={section}
+            hrefFor={id => `/settings/${id}`}
+            onSelect={(id, e) => {
+              // Plain clicks stay in the app; modified clicks open a new tab.
+              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
+              e.preventDefault()
+              if (id !== section) navigate(`/settings/${id}`)
+              // A new section starts at its top, also when the old one was scrolled.
+              const main = document.querySelector('main')
+              if (main && main.scrollTop > 0) main.scrollTo({ top: 0 })
+            }}
+            label={t`Settings sections`}
+            placement="sidebar"
+          />
+        }
+      >
+        <div className="flex flex-col gap-12">
+          {section === 'account' && <AccountSection />}
+          {section === 'access' && <AccessSection ask={setConfirmAsk} />}
+          {section === 'appearance' && <AppearanceSection />}
+          {section === 'language' && <LanguageSection />}
+          {section === 'koreader' && <KOReaderSection />}
+          {section === 'send-to-device' && <SendToDeviceSection ask={setConfirmAsk} />}
+          {section === 'hardcover' && <HardcoverSection />}
+          {section === 'notifications' && <PanelSection><NotificationChannels /></PanelSection>}
+          {section === 'share-links' && <PanelSection><ShareLinksOverview /></PanelSection>}
+          {section === 'import' && <PanelSection><ReadingImport /></PanelSection>}
+          {section === 'export' && <ExportSection />}
+          {section === 'backup' && <BackupSection />}
+          {section === 'about' && <AboutSection />}
+        </div>
+      </SectionLayout>
+      <ConfirmDialog ask={confirmAsk} onClose={() => setConfirmAsk(null)} />
+    </AppShell>
+  )
+}
+
+// ── Account and security ─────────────────────────────────────────────────
+
+function AccountSection() {
+  const { user, refreshUser } = useAuth()
+  const { t } = useLingui()
 
   // ── SSO linking ────────────────────────────────────────────────────────────
   const [ssoEnabled, setSsoEnabled] = useState(false)
@@ -171,9 +268,8 @@ export function SettingsPage() {
       setTimeout(() => setPwSuccess(false), 4000)
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
       if (pwRevokeCredentials) {
+        // The Access section loads its own lists when it is opened.
         setPwRevokeCredentials(false)
-        api.get<ApiKey[]>('/plugin/api-keys').then(setApiKeys).catch(() => {})
-        api.get<OpdsPin[]>('/opds-pins').then(setOpdsPins).catch(() => {})
       }
     } catch (err: unknown) {
       setPwError(err instanceof Error ? err.message : t`Failed to change password`)
@@ -182,528 +278,8 @@ export function SettingsPage() {
     }
   }
 
-  // ── Quick Connect ─────────────────────────────────────────────────────────
-  const [qcCode, setQcCode] = useState('')
-  const [qcAuthorizing, setQcAuthorizing] = useState(false)
-  const [qcError, setQcError] = useState<string | null>(null)
-  const [qcSuccess, setQcSuccess] = useState(false)
-  const [showConnectPhone, setShowConnectPhone] = useState(false)
-  const [showScanCode, setShowScanCode] = useState(false)
-
-  // Native-app UI (Connect a phone) is behind TOME_NATIVE_APP; Connected devices
-  // also shows whenever there is a sign-in to list, which every browser is.
-  const [nativeApp, setNativeApp] = useState(false)
-  const [webIdleDays, setWebIdleDays] = useState(0)
-  useEffect(() => {
-    let alive = true
-    api.get<{ native_app: boolean; web_session_idle_days?: number }>('/meta/features')
-      .then(f => { if (alive) { setNativeApp(f.native_app); setWebIdleDays(f.web_session_idle_days ?? 0) } })
-      .catch(() => {})
-    return () => { alive = false }
-  }, [])
-
-  // ── Connected devices ─────────────────────────────────────────────────────
-  const [clientDevices, setClientDevices] = useState<ClientDevice[] | null>(null) // null = loading
-  const [clientDevicesAllUsers, setClientDevicesAllUsers] = useState(false)
-  const [clientDevicesTick, setClientDevicesTick] = useState(0)
-  const [clientDevicesAll, setClientDevicesAll] = useState(false)
-
-  useEffect(() => {
-    let alive = true
-    listDevices(clientDevicesAllUsers)
-      .then(list => { if (alive) setClientDevices(list) })
-      .catch(() => { if (alive) setClientDevices([]) })
-    return () => { alive = false }
-  }, [clientDevicesAllUsers, clientDevicesTick, showConnectPhone])
-
-  // One small confirm dialog for every destructive action on this page.
-  const [confirmAsk, setConfirmAsk] = useState<ConfirmAsk | null>(null)
-
-  function handleRevokeClientDevice(d: ClientDevice) {
-    const name = d.name
-    if (d.current) {
-      setConfirmAsk({
-        title: t`Sign out of this browser?`,
-        body: t`You will have to sign in again here.`,
-        action: t`Sign out`,
-        run: async () => {
-          await revokeDevice(d.id).catch(() => {})
-          logout()
-        },
-      })
-      return
-    }
-    setConfirmAsk({
-      title: t`Revoke "${name}"?`,
-      body: t`It is signed out immediately and has to sign in again.`,
-      action: t`Revoke`,
-      run: async () => {
-        try {
-          await revokeDevice(d.id)
-        } finally {
-          setClientDevicesTick(n => n + 1)
-        }
-      },
-    })
-  }
-
-  async function handleQcAuthorize(e: React.FormEvent) {
-    e.preventDefault()
-    setQcError(null)
-    setQcSuccess(false)
-    const code = qcCode.trim().toUpperCase()
-    if (code.length !== 6) { setQcError(t`Code must be 6 characters`); return }
-    setQcAuthorizing(true)
-    try {
-      await api.post('/auth/quick-connect/authorize', { code })
-      setQcSuccess(true)
-      setQcCode('')
-      setTimeout(() => setQcSuccess(false), 5000)
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : t`Failed to authorize`
-      if (msg.includes('not found') || msg.includes('Not Found')) setQcError(t`Code not found. Check the code and try again.`)
-      else if (msg.includes('expired')) setQcError(t`Code has expired. Ask the other device to generate a new one.`)
-      else if (msg.includes('already authorized')) setQcError(t`Code was already authorized.`)
-      else setQcError(msg)
-    } finally {
-      setQcAuthorizing(false)
-    }
-  }
-
-  // ── Language ──────────────────────────────────────────────────────────────
-  const { t, i18n } = useLingui()
-  const [activeLocale, setActiveLocale] = useState<string>(getActiveLocale)
-
-  async function handleLocaleSelect(code: string) {
-    await setLocale(code)
-    setActiveLocale(code)
-  }
-
-  // ── Theme ─────────────────────────────────────────────────────────────────
-  const [activeTheme, setActiveTheme] = useState<ThemeId>(getStoredTheme)
-  const [customThemes, setCustomThemes] = useState<CustomTheme[]>(loadCustomThemes)
-
-  function handleThemeSelect(id: ThemeId) {
-    applyTheme(id)
-    setActiveTheme(id)
-  }
-
-  function handleDeleteCustomTheme(id: string) {
-    deleteCustomTheme(id)
-    setCustomThemes(loadCustomThemes())
-    if (activeTheme === id) {
-      applyTheme('light')
-      setActiveTheme('light')
-    }
-  }
-
-  // ── Add custom theme form ─────────────────────────────────────────────────
-  const [customFormOpen, setCustomFormOpen] = useState(false)
-  const [customName, setCustomName] = useState('')
-  const [customColors, setCustomColors] = useState('')
-  const [customDark, setCustomDark] = useState(false)
-  const [customError, setCustomError] = useState<string | null>(null)
-
-  const parsedPreview = useMemo(() => parseThemeColors(customColors), [customColors])
-
-  function handleAddCustomTheme() {
-    setCustomError(null)
-    if (!customName.trim()) { setCustomError(t`Theme name is required`); return }
-    const vars = parseThemeColors(customColors)
-    if (!vars) { setCustomError(t`Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)`); return }
-    const id = `custom-${Date.now()}`
-    const theme: CustomTheme = { id, label: customName.trim(), dark: customDark, colors: customColors }
-    saveCustomTheme(theme)
-    setCustomThemes(loadCustomThemes())
-    applyTheme(id as ThemeId)
-    setActiveTheme(id as ThemeId)
-    setCustomName('')
-    setCustomColors('')
-    setCustomDark(false)
-    setCustomFormOpen(false)
-  }
-
-  // ── KOSync ────────────────────────────────────────────────────────────────
-  interface KOSyncStatus {
-    linked: boolean
-    synced_documents?: number
-    /** ISO string from the API; older servers sent epoch seconds. */
-    last_sync?: string | number | null
-    last_device?: string | null
-  }
-  const [kosyncStatus, setKosyncStatus] = useState<KOSyncStatus | null>(null)
-  const [kosyncPassword, setKosyncPassword] = useState('')
-  const [kosyncSaving, setKosyncSaving] = useState(false)
-  const [kosyncError, setKosyncError] = useState<string | null>(null)
-  const [kosyncSuccess, setKosyncSuccess] = useState(false)
-
-  useEffect(() => {
-    api.get<KOSyncStatus>('/auth/me/kosync').then(setKosyncStatus).catch(() => {})
-  }, [])
-
-  async function handleKosyncRegister(e: React.FormEvent) {
-    e.preventDefault()
-    setKosyncError(null)
-    setKosyncSuccess(false)
-    setKosyncSaving(true)
-    try {
-      await api.post('/auth/me/kosync', { password: kosyncPassword })
-      setKosyncSuccess(true)
-      setKosyncPassword('')
-      const updated = await api.get<KOSyncStatus>('/auth/me/kosync')
-      setKosyncStatus(updated)
-    } catch (err) {
-      setKosyncError(err instanceof Error ? err.message : t`Failed to register`)
-    } finally {
-      setKosyncSaving(false)
-    }
-  }
-
-  // ── API Keys ──────────────────────────────────────────────────────────────
-  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
-  const [newKeyResult, setNewKeyResult] = useState<string | null>(null)
-  const [keyCreating, setKeyCreating] = useState(false)
-  const [keyRevoking, setKeyRevoking] = useState<number | null>(null)
-  const [apiKeysAll, setApiKeysAll] = useState(false)
-  const [pluginDownloading, setPluginDownloading] = useState(false)
-
-  useEffect(() => {
-    api.get<ApiKey[]>('/plugin/api-keys').then(setApiKeys).catch(() => {})
-  }, [])
-
-  async function handleCreateKey() {
-    setKeyCreating(true)
-    setNewKeyResult(null)
-    try {
-      const res = await api.post<{ id: number; label: string; key: string; created_at: string }>(
-        '/plugin/api-keys', { label: 'KOReader Plugin' }
-      )
-      setNewKeyResult(res.key)
-      setApiKeys(prev => [...prev, { id: res.id, label: res.label, key_preview: res.key.slice(0, 8) + '…', created_at: res.created_at, last_used_at: null }])
-    } catch (err) {
-      // ignore
-    } finally {
-      setKeyCreating(false)
-    }
-  }
-
-  async function handleRevokeKey(id: number) {
-    setKeyRevoking(id)
-    try {
-      await api.delete(`/plugin/api-keys/${id}`)
-      setApiKeys(prev => prev.filter(k => k.id !== id))
-      if (newKeyResult) setNewKeyResult(null)
-    } finally {
-      setKeyRevoking(null)
-    }
-  }
-
-  async function handleDownloadPlugin() {
-    setPluginDownloading(true)
-    try {
-      const token = localStorage.getItem('tome_token')
-      const backendOrigin = window.location.port === '5173'
-        ? window.location.origin.replace(':5173', ':8080')
-        : window.location.origin
-      const res = await fetch(`/api/plugin/koreader?server_url=${encodeURIComponent(backendOrigin)}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!res.ok) throw new Error('Download failed')
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      a.download = 'tomesync.koplugin.zip'
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-      const keys = await api.get<ApiKey[]>('/plugin/api-keys')
-      setApiKeys(keys)
-    } finally {
-      setPluginDownloading(false)
-    }
-  }
-
-  // ── OPDS PINs ─────────────────────────────────────────────────────────────
-  const [opdsPins, setOpdsPins] = useState<OpdsPin[]>([])
-  const [newPinResult, setNewPinResult] = useState<string | null>(null)
-  const [pinLabel, setPinLabel] = useState('KOReader')
-  const [pinCreating, setPinCreating] = useState(false)
-  const [pinRevoking, setPinRevoking] = useState<number | null>(null)
-
-  useEffect(() => {
-    api.get<OpdsPin[]>('/opds-pins').then(setOpdsPins).catch(() => {})
-  }, [])
-
-  async function handleCreatePin() {
-    setPinCreating(true)
-    setNewPinResult(null)
-    try {
-      const res = await api.post<{ id: number; label: string; pin: string; pin_preview: string }>(
-        '/opds-pins', { label: pinLabel || 'KOReader' }
-      )
-      setNewPinResult(res.pin)
-      setOpdsPins(prev => [...prev, {
-        id: res.id,
-        label: res.label,
-        pin_preview: res.pin_preview,
-        created_at: new Date().toISOString(),
-        last_used_at: null,
-      }])
-    } catch {
-      // ignore
-    } finally {
-      setPinCreating(false)
-    }
-  }
-
-  async function handleRevokePin(id: number) {
-    setPinRevoking(id)
-    try {
-      await api.delete(`/opds-pins/${id}`)
-      setOpdsPins(prev => prev.filter(p => p.id !== id))
-      if (newPinResult) setNewPinResult(null)
-    } finally {
-      setPinRevoking(null)
-    }
-  }
-
-  // ── Send to Device ────────────────────────────────────────────────────────
-  interface UserDeviceItem { id: number; name: string; email: string; created_at: string }
-  const [smtpConfigured, setSmtpConfigured] = useState<boolean | null>(null)
-  const [devices, setDevices] = useState<UserDeviceItem[]>([])
-  const [newDeviceName, setNewDeviceName] = useState('')
-  const [newDeviceEmail, setNewDeviceEmail] = useState('')
-  const [deviceAdding, setDeviceAdding] = useState(false)
-  const [deviceDeleting, setDeviceDeleting] = useState<number | null>(null)
-  const [deviceError, setDeviceError] = useState<string | null>(null)
-  const [setupGuideOpen, setSetupGuideOpen] = useState(false)
-  // Hardcover sync section hides itself when the server has the feature off
-  const [hardcoverAvailable, setHardcoverAvailable] = useState(true)
-
-  useEffect(() => {
-    api.get<{ configured: boolean }>('/smtp-status').then(r => {
-      setSmtpConfigured(r.configured)
-      if (r.configured) {
-        api.get<UserDeviceItem[]>('/devices').then(setDevices).catch(() => {})
-      }
-    }).catch(() => setSmtpConfigured(false))
-  }, [])
-
-  async function handleAddDevice(e: React.FormEvent) {
-    e.preventDefault()
-    setDeviceError(null)
-    const name = newDeviceName.trim()
-    const email = newDeviceEmail.trim()
-    if (!name || !email) return
-    setDeviceAdding(true)
-    try {
-      const d = await api.post<UserDeviceItem>('/devices', { name, email })
-      setDevices(prev => [...prev, d])
-      setNewDeviceName('')
-      setNewDeviceEmail('')
-    } catch (err) {
-      setDeviceError(err instanceof Error ? err.message : t`Failed to add device`)
-    } finally {
-      setDeviceAdding(false)
-    }
-  }
-
-  function askDeleteDevice(d: UserDeviceItem) {
-    const name = d.name
-    setConfirmAsk({
-      title: t`Remove "${name}"?`,
-      body: t`Books can no longer be sent to this address until you add it again.`,
-      action: t`Remove`,
-      run: () => handleDeleteDevice(d.id),
-    })
-  }
-
-  async function handleDeleteDevice(id: number) {
-    setDeviceDeleting(id)
-    try {
-      await api.delete(`/devices/${id}`)
-      setDevices(prev => prev.filter(d => d.id !== id))
-    } finally {
-      setDeviceDeleting(null)
-    }
-  }
-
-  // ── API Tokens ────────────────────────────────────────────────────────────
-  const [apiTokens, setApiTokens] = useState<ApiTokenListItem[]>([])
-  const [apiTokensAllUsers, setApiTokensAllUsers] = useState(false)
-  const [apiTokensLoading, setApiTokensLoading] = useState(false)
-  const [tokenNewName, setTokenNewName] = useState('')
-  const [tokenNewScope, setTokenNewScope] = useState<'full' | 'readonly'>('full')
-  const [tokenFormOpen, setTokenFormOpen] = useState(false)
-  const [tokenCreating, setTokenCreating] = useState(false)
-  const [tokenCreateError, setTokenCreateError] = useState<string | null>(null)
-  const [tokenRevealPlaintext, setTokenRevealPlaintext] = useState<string | null>(null)
-  const [tokenCopied, setTokenCopied] = useState(false)
-  const [tokenRevoking, setTokenRevoking] = useState<number | null>(null)
-  useEffect(() => {
-    setApiTokensLoading(true)
-    listTokens(apiTokensAllUsers)
-      .then(setApiTokens)
-      .catch(() => {})
-      .finally(() => setApiTokensLoading(false))
-  }, [apiTokensAllUsers])
-
-  async function handleCreateToken(e: React.FormEvent) {
-    e.preventDefault()
-    const name = tokenNewName.trim()
-    if (!name) return
-    setTokenCreateError(null)
-    setTokenCreating(true)
-    try {
-      const res = await createToken(name, tokenNewScope)
-      setTokenRevealPlaintext(res.token)
-      setTokenNewName('')
-      setTokenNewScope('full')
-      setTokenFormOpen(false)
-      const updated = await listTokens(apiTokensAllUsers)
-      setApiTokens(updated)
-    } catch (err) {
-      setTokenCreateError(err instanceof Error ? err.message : t`Failed to create token`)
-    } finally {
-      setTokenCreating(false)
-    }
-  }
-
-  function askRevokeApiToken(id: number) {
-    setConfirmAsk({
-      title: t`Revoke this token?`,
-      body: t`Any scripts or tools using it will stop working immediately.`,
-      action: t`Revoke`,
-      run: () => handleRevokeApiToken(id),
-    })
-  }
-
-  async function handleRevokeApiToken(id: number) {
-    setTokenRevoking(id)
-    try {
-      await revokeToken(id)
-      const updated = await listTokens(apiTokensAllUsers)
-      setApiTokens(updated)
-    } catch {
-      // ignore
-    } finally {
-      setTokenRevoking(null)
-    }
-  }
-
-  function handleCopyToken() {
-    if (!tokenRevealPlaintext) return
-    navigator.clipboard.writeText(tokenRevealPlaintext).then(() => {
-      setTokenCopied(true)
-      setTimeout(() => setTokenCopied(false), 2000)
-    })
-  }
-
-  // ── Export ────────────────────────────────────────────────────────────────
-  const [exporting, setExporting] = useState<'json' | 'csv' | null>(null)
-
-  async function handleExport(format: 'json' | 'csv') {
-    setExporting(format)
-    try {
-      const token = localStorage.getItem('tome_token')
-      const res = await fetch(`/api/books/export?format=${format}`, {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!res.ok) throw new Error('Export failed')
-      const blob = await res.blob()
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      const date = new Date().toISOString().slice(0, 10)
-      a.download = `tome-export-${date}.${format}`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } finally {
-      setExporting(null)
-    }
-  }
-
-  // ── Personal backup ───────────────────────────────────────────────────────
-  const [backingUp, setBackingUp] = useState(false)
-
-  async function handleBackup() {
-    setBackingUp(true)
-    try {
-      const token = localStorage.getItem('tome_token')
-      const res = await fetch('/api/auth/me/backup', {
-        headers: token ? { Authorization: `Bearer ${token}` } : {},
-      })
-      if (!res.ok) throw new Error('Backup failed')
-      const serverData = await res.json()
-
-      // Merge client-side preferences (theme, view modes, filters) so the
-      // backup is a complete picture of "what makes Tome feel like mine".
-      const clientPreferences: Record<string, string | null> = {}
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i)
-        if (!key || key === 'tome_token') continue
-        if (!key.startsWith('tome_') && !key.startsWith('theme') && !key.startsWith('reader')) continue
-        clientPreferences[key] = localStorage.getItem(key)
-      }
-      const payload = { ...serverData, client_preferences: clientPreferences }
-
-      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const a = document.createElement('a')
-      a.href = url
-      const date = new Date().toISOString().slice(0, 10)
-      a.download = `tome-backup-${user?.username ?? 'me'}-${date}.json`
-      document.body.appendChild(a)
-      a.click()
-      document.body.removeChild(a)
-      URL.revokeObjectURL(url)
-    } finally {
-      setBackingUp(false)
-    }
-  }
-
-  // Jump list: the same sections, in page order, with the same conditions
-  // the page uses to render them.
-  const navSections = [
-    { id: 'account', label: t`Account and security` },
-    ...((nativeApp || (clientDevices?.length ?? 0) > 0) ? [{ id: 'devices', label: t`Connected devices` }] : []),
-    { id: 'appearance', label: t`Appearance` },
-    { id: 'language', label: t`Language` },
-    // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
-    { id: 'koreader', label: 'KOReader' },
-    { id: 'send-to-device', label: t`Send to device` },
-    // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
-    ...(hardcoverAvailable ? [{ id: 'hardcover', label: 'Hardcover' }] : []),
-    { id: 'api-tokens', label: t`API tokens` },
-    { id: 'notifications', label: t`Notifications` },
-    { id: 'share-links', label: t`Share links` },
-    { id: 'import', label: t`Import reading history` },
-    { id: 'export', label: t`Export` },
-    { id: 'backup', label: t`Backup` },
-    { id: 'about', label: t`About` },
-  ]
-
-  const [activeSection, setActiveSection] = useState<string | null>(null)
-  const origin = window.location.origin
-  const opdsUrl = `${origin}/opds`
-  const kosyncUrl = `${origin}/api/v1`
-
   return (
-    <AppShell sidebar={<SectionSidebar title={<Trans>Settings</Trans>} />}>
-      <SectionLayout
-        sidebar
-        title={<Trans>Settings</Trans>}
-        eyebrow={navSections.find(s => s.id === activeSection)?.label ?? navSections[0]?.label}
-        nav={<SettingsNav sections={navSections} onActiveChange={setActiveSection} placement="sidebar" />}
-      >
-        <div className="flex flex-col gap-12">
-
-        {/* ── Account & Security ────────────────────────────────────────── */}
-        <PanelSection id="account" title={t`Account and security`}>
+        <PanelSection>
           <div className="divide-y divide-border/70">
 
             {/* Profile */}
@@ -831,8 +407,48 @@ export function SettingsPage() {
                 )}
               </div>
             )}
+          </div>
+        </PanelSection>
+  )
+}
 
-            {/* Quick Connect */}
+/** Quick Connect: authorize a new device by the code it shows, or show a QR code for the app. */
+function QuickConnectBlock({ onConnected }: { onConnected: () => void }) {
+  const { t } = useLingui()
+  const { nativeApp } = useFeatures()
+
+  // ── Quick Connect ─────────────────────────────────────────────────────────
+  const [qcCode, setQcCode] = useState('')
+  const [qcAuthorizing, setQcAuthorizing] = useState(false)
+  const [qcError, setQcError] = useState<string | null>(null)
+  const [qcSuccess, setQcSuccess] = useState(false)
+  const [showConnectPhone, setShowConnectPhone] = useState(false)
+
+  async function handleQcAuthorize(e: React.FormEvent) {
+    e.preventDefault()
+    setQcError(null)
+    setQcSuccess(false)
+    const code = qcCode.trim().toUpperCase()
+    if (code.length !== 6) { setQcError(t`Code must be 6 characters`); return }
+    setQcAuthorizing(true)
+    try {
+      await api.post('/auth/quick-connect/authorize', { code })
+      setQcSuccess(true)
+      setQcCode('')
+      onConnected()
+      setTimeout(() => setQcSuccess(false), 5000)
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : t`Failed to authorize`
+      if (msg.includes('not found') || msg.includes('Not Found')) setQcError(t`Code not found. Check the code and try again.`)
+      else if (msg.includes('expired')) setQcError(t`Code has expired. Ask the other device to generate a new one.`)
+      else if (msg.includes('already authorized')) setQcError(t`Code was already authorized.`)
+      else setQcError(msg)
+    } finally {
+      setQcAuthorizing(false)
+    }
+  }
+
+  return (
             <div className="py-6 first:pt-0 last:pb-0">
               <div className="mb-4">
                 <div>
@@ -854,7 +470,7 @@ export function SettingsPage() {
                     <QrCode className="w-3.5 h-3.5" />
                     <Trans>Connect a phone</Trans>
                   </Pill>
-                  {showConnectPhone && <ConnectPhoneModal onClose={() => setShowConnectPhone(false)} />}
+                  {showConnectPhone && <ConnectPhoneModal onClose={() => { setShowConnectPhone(false); onConnected() }} />}
                 </>
               )}
               <form onSubmit={handleQcAuthorize} className="flex items-end gap-2 max-w-sm">
@@ -888,13 +504,60 @@ export function SettingsPage() {
                 </div>
               )}
             </div>
+  )
+}
 
-          </div>
-        </PanelSection>
+// ── Connected devices ────────────────────────────────────────────────────
 
-        {/* ── Connected devices ───────────────────────────────────────── */}
-        {(nativeApp || (clientDevices?.length ?? 0) > 0) && (
-        <PanelSection id="devices" title={t`Connected devices`}>
+function DevicesBlock({ ask, reloadKey }: { ask: Ask; reloadKey: number }) {
+  const { user, logout } = useAuth()
+  const { t, i18n } = useLingui()
+  const { webIdleDays } = useFeatures()
+
+  // ── Connected devices ─────────────────────────────────────────────────────
+  const [clientDevices, setClientDevices] = useState<ClientDevice[] | null>(null) // null = loading
+  const [clientDevicesAllUsers, setClientDevicesAllUsers] = useState(false)
+  const [clientDevicesTick, setClientDevicesTick] = useState(0)
+  const [clientDevicesAll, setClientDevicesAll] = useState(false)
+
+  useEffect(() => {
+    let alive = true
+    listDevices(clientDevicesAllUsers)
+      .then(list => { if (alive) setClientDevices(list) })
+      .catch(() => { if (alive) setClientDevices([]) })
+    return () => { alive = false }
+  }, [clientDevicesAllUsers, clientDevicesTick, reloadKey])
+
+  function handleRevokeClientDevice(d: ClientDevice) {
+    const name = d.name
+    if (d.current) {
+      ask({
+        title: t`Sign out of this browser?`,
+        body: t`You will have to sign in again here.`,
+        action: t`Sign out`,
+        run: async () => {
+          await revokeDevice(d.id).catch(() => {})
+          logout()
+        },
+      })
+      return
+    }
+    ask({
+      title: t`Revoke "${name}"?`,
+      body: t`It is signed out immediately and has to sign in again.`,
+      action: t`Revoke`,
+      run: async () => {
+        try {
+          await revokeDevice(d.id)
+        } finally {
+          setClientDevicesTick(n => n + 1)
+        }
+      },
+    })
+  }
+
+  return (
+        <AccessBlock title={t`Connected devices`}>
             <div>
               <div className="space-y-3">
                 <div className="flex items-start justify-between gap-3">
@@ -933,7 +596,7 @@ export function SettingsPage() {
                   </div>
                 ) : clientDevices.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground py-2">
-                    <Trans>No devices connected yet. Use "Connect a phone" above to sign the Tome app in.</Trans>
+                    <Trans>No devices connected yet. Use "Connect a phone" under Quick Connect to sign the Tome app in.</Trans>
                   </p>
                 ) : (
                   <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
@@ -1025,11 +688,101 @@ export function SettingsPage() {
                 )}
               </div>
             </div>
-          </PanelSection>
-        )}
+        </AccessBlock>
+  )
+}
 
-        {/* ── Appearance ───────────────────────────────────────────────── */}
-        <PanelSection id="appearance" title={t`Appearance`}>
+// ── Access ───────────────────────────────────────────────────────────────
+
+/** Every way in to this account other than the password, in one place. */
+function AccessSection({ ask }: { ask: Ask }) {
+  const [devicesTick, setDevicesTick] = useState(0)
+  return (
+    <PanelSection description={<Trans>Everything that can sign in to your account besides your password: devices, the KOReader plugin, OPDS readers, KOReader's progress sync and scripts.</Trans>}>
+      <div className="divide-y divide-border/70">
+        <QuickConnectBlock onConnected={() => setDevicesTick(n => n + 1)} />
+        <DevicesBlock ask={ask} reloadKey={devicesTick} />
+        <PluginKeysBlock />
+        <OpdsPinsBlock />
+        <KosyncPasswordBlock />
+        <ApiTokensBlock ask={ask} />
+      </div>
+    </PanelSection>
+  )
+}
+
+/** One kind of credential inside Access: a title, one line on what it is for, its controls. */
+function AccessBlock({ title, description, action, children }: {
+  title: React.ReactNode
+  description?: React.ReactNode
+  action?: React.ReactNode
+  children?: React.ReactNode
+}) {
+  return (
+    <div className="py-6 first:pt-0 last:pb-0 space-y-4">
+      <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
+        <div className="min-w-0 flex-1 basis-64">
+          <p className="text-[15px] font-semibold text-foreground">{title}</p>
+          {description && <p className="text-[13px] text-muted-foreground mt-0.5 max-w-[70ch]">{description}</p>}
+        </div>
+        {action && <div className="shrink-0">{action}</div>}
+      </div>
+      {children}
+    </div>
+  )
+}
+
+// ── Appearance ───────────────────────────────────────────────────────────
+
+function AppearanceSection() {
+  const { t } = useLingui()
+
+  // ── Theme ─────────────────────────────────────────────────────────────────
+  const [activeTheme, setActiveTheme] = useState<ThemeId>(getStoredTheme)
+  const [customThemes, setCustomThemes] = useState<CustomTheme[]>(loadCustomThemes)
+
+  function handleThemeSelect(id: ThemeId) {
+    applyTheme(id)
+    setActiveTheme(id)
+  }
+
+  function handleDeleteCustomTheme(id: string) {
+    deleteCustomTheme(id)
+    setCustomThemes(loadCustomThemes())
+    if (activeTheme === id) {
+      applyTheme('light')
+      setActiveTheme('light')
+    }
+  }
+
+  // ── Add custom theme form ─────────────────────────────────────────────────
+  const [customFormOpen, setCustomFormOpen] = useState(false)
+  const [customName, setCustomName] = useState('')
+  const [customColors, setCustomColors] = useState('')
+  const [customDark, setCustomDark] = useState(false)
+  const [customError, setCustomError] = useState<string | null>(null)
+
+  const parsedPreview = useMemo(() => parseThemeColors(customColors), [customColors])
+
+  function handleAddCustomTheme() {
+    setCustomError(null)
+    if (!customName.trim()) { setCustomError(t`Theme name is required`); return }
+    const vars = parseThemeColors(customColors)
+    if (!vars) { setCustomError(t`Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)`); return }
+    const id = `custom-${Date.now()}`
+    const theme: CustomTheme = { id, label: customName.trim(), dark: customDark, colors: customColors }
+    saveCustomTheme(theme)
+    setCustomThemes(loadCustomThemes())
+    applyTheme(id as ThemeId)
+    setActiveTheme(id as ThemeId)
+    setCustomName('')
+    setCustomColors('')
+    setCustomDark(false)
+    setCustomFormOpen(false)
+  }
+
+  return (
+        <PanelSection>
 
           {/* Built-in themes - neutral core + warm pair */}
           {([[t`Core`, 'core'], [t`Warm`, 'warm']] as const).map(([groupLabel, group]) => (
@@ -1200,12 +953,25 @@ export function SettingsPage() {
           </div>
 
         </PanelSection>
+  )
+}
 
-        {/* ── Language ─────────────────────────────────────────────────── */}
-        {/* Pills work up to roughly a dozen locales; if the list outgrows a
-            row or two, swap back to a (styled) select. Labels are the
-            language's own name and stay untranslated on purpose. */}
-        <PanelSection id="language" title={t`Language`}>
+// ── Language ─────────────────────────────────────────────────────────────
+
+function LanguageSection() {
+
+  const [activeLocale, setActiveLocale] = useState<string>(getActiveLocale)
+
+  async function handleLocaleSelect(code: string) {
+    await setLocale(code)
+    setActiveLocale(code)
+  }
+
+  return (
+        // Pills work up to roughly a dozen locales; if the list outgrows a
+        // row or two, swap back to a (styled) select. Labels are the
+        // language's own name and stay untranslated on purpose.
+        <PanelSection>
           <div className="flex flex-wrap gap-2">
             {LOCALES.map(l => {
               const active = activeLocale === l.code
@@ -1231,10 +997,48 @@ export function SettingsPage() {
             <Trans>Translations are community-maintained. Anything not yet translated is shown in English.</Trans>
           </p>
         </PanelSection>
+  )
+}
 
-        {/* ── KOReader ─────────────────────────────────────────────────── */}
-                  {/* eslint-disable-next-line lingui/no-unlocalized-strings -- product name */}
-        <PanelSection id="koreader" title="KOReader">
+// ── KOReader ─────────────────────────────────────────────────────────────
+
+function KOReaderSection() {
+  const { user } = useAuth()
+  const { t } = useLingui()
+  const [showScanCode, setShowScanCode] = useState(false)
+
+  const [pluginDownloading, setPluginDownloading] = useState(false)
+
+  async function handleDownloadPlugin() {
+    setPluginDownloading(true)
+    try {
+      const token = localStorage.getItem('tome_token')
+      const backendOrigin = window.location.port === '5173'
+        ? window.location.origin.replace(':5173', ':8080')
+        : window.location.origin
+      const res = await fetch(`/api/plugin/koreader?server_url=${encodeURIComponent(backendOrigin)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error('Download failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'tomesync.koplugin.zip'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } finally {
+      setPluginDownloading(false)
+    }
+  }
+  const origin = window.location.origin
+  const opdsUrl = `${origin}/opds`
+  const kosyncUrl = `${origin}/api/v1`
+
+  return (
+        <PanelSection>
           <div className="divide-y divide-border/70">
 
             {/* OPDS Catalog */}
@@ -1259,137 +1063,13 @@ export function SettingsPage() {
                 <Trans>In KOReader: Search &rarr; OPDS catalog &rarr; add catalog with the URL above.</Trans>
               </p>
 
-              {/* OPDS PINs, nested under OPDS */}
-              <div className="space-y-2 pt-1">
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <p className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Key className="w-3.5 h-3.5" /> <Trans>App-specific PINs</Trans>
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <Input
-                      type="text"
-                      value={pinLabel}
-                      onChange={e => setPinLabel(e.target.value)}
-                      placeholder={t`Label (e.g. KOReader)`}
-                      aria-label={t`PIN label`}
-                      className="w-44"
-                    />
-                    <Pill
-                      onClick={handleCreatePin}
-                      disabled={pinCreating}
-                      variant="quiet"
-                    >
-                      {pinCreating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
-                      <Trans>Generate PIN</Trans>
-                    </Pill>
-                  </div>
-                </div>
-                <p className="text-[13px] text-muted-foreground">
-                  <Trans>Short app-specific passwords for OPDS, easier to type on an e-reader than your full password.</Trans>
-                </p>
-
-                {newPinResult && (
-                  <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
-                    <p className="text-[13px] text-success font-medium"><Trans>PIN created. Copy it now, it won't be shown again.</Trans></p>
-                    <div className="flex items-center gap-2">
-                      <code className="text-[13px] font-mono text-foreground break-all flex-1">{newPinResult}</code>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(newPinResult)}
-                        className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground shrink-0"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </button>
-                    </div>
-                    <p className="text-[13px] text-muted-foreground"><Trans>Use this as the OPDS password in KOReader (username stays the same).</Trans></p>
-                  </div>
-                )}
-
-                {opdsPins.length > 0 ? (
-                  <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
-                    {opdsPins.map(p => (
-                      <div key={p.id} className="flex items-center gap-3 px-3 py-2">
-                        <span className="font-mono text-muted-foreground w-14 shrink-0">{p.pin_preview}</span>
-                        <span className="text-foreground flex-1 truncate">{p.label}</span>
-                        <span className="text-muted-foreground hidden sm:block shrink-0">
-                          {(() => { const d = new Date(p.last_used_at ?? 0).toLocaleDateString(i18n.locale); return p.last_used_at ? t`used ${d}` : t`never used` })()}
-                        </span>
-                        <button
-                          onClick={() => handleRevokePin(p.id)}
-                          disabled={pinRevoking === p.id}
-                          className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          title={t`Revoke`}
-                        >
-                          {pinRevoking === p.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-[13px] text-muted-foreground"><Trans>No PINs yet. Generate one to use with OPDS clients.</Trans></p>
-                )}
-              </div>
-            </div>
-
-            {/* Progress Sync (KOSync) */}
-            <div className="py-6 first:pt-0 last:pb-0 space-y-4">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>Progress sync</Trans></p>
-                  <p className="text-[13px] text-muted-foreground">
-                    <Trans>Sync reading position between KOReader and Tome.</Trans>
-                  </p>
-                </div>
-                {kosyncStatus?.linked && (
-                  <span className="flex items-center gap-1 text-[13px] text-success shrink-0 mt-0.5">
-                    <Check className="w-3 h-3" /> <Trans>Linked</Trans>
-                    {kosyncStatus.synced_documents != null && (
-                      <span className="text-muted-foreground ml-1">{(() => { const n = kosyncStatus.synced_documents; return t`· ${n} docs` })()}</span>
-                    )}
-                  </span>
-                )}
-              </div>
-
-              {kosyncStatus?.last_sync && (
-                <p className="text-[13px] text-muted-foreground">
-                  {(() => { const d = formatSyncTime(kosyncStatus.last_sync, i18n.locale); return t`Last sync: ${d}` })()}
-                  {kosyncStatus.last_device && ` · ${kosyncStatus.last_device}`}
-                </p>
-              )}
-
-              <form onSubmit={handleKosyncRegister} className="flex items-end gap-2 max-w-sm">
-                <div className="flex-1">
-                  <FormLabel htmlFor="kosync-password">
-                    {kosyncStatus?.linked ? t`Update sync password` : t`Set sync password`}
-                  </FormLabel>
-                  <Input
-                    id="kosync-password"
-                    type="password"
-                    value={kosyncPassword}
-                    onChange={e => setKosyncPassword(e.target.value)}
-                    placeholder="••••••••"
-                  />
-                </div>
-                <Pill
-                  type="submit"
-                  disabled={kosyncSaving || !kosyncPassword}
-                  variant="secondary" className="shrink-0"
-                >
-                  {kosyncSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {kosyncSaving ? t`Saving…` : kosyncStatus?.linked ? t`Update` : t`Register`}
-                </Pill>
-              </form>
-              {kosyncError && <p className="text-[13px] text-destructive">{kosyncError}</p>}
-              {kosyncSuccess && <p className="text-[13px] text-success"><Trans>KOSync registered successfully</Trans></p>}
-
-              <ConnectBlock rows={[
-                { label: t`URL`, value: kosyncUrl, copy: true },
-                { label: t`Username`, value: user?.username ?? '-', copy: true },
-                { label: t`Password`, value: t`the sync password set above` },
-              ]} />
               <p className="text-[13px] text-muted-foreground">
-                <Trans>In KOReader: Tools &rarr; Progress sync &rarr; Custom sync server.</Trans>
+                <Link to="/settings/access" className="text-primary hover:underline"><Trans>OPDS PINs</Trans></Link>{' '}
+                <Trans>are shorter passwords for e-readers.</Trans>
               </p>
             </div>
+
+            <KosyncBlock kosyncUrl={kosyncUrl} />
 
             {/* TomeSync Plugin */}
             <div className="py-6 first:pt-0 last:pb-0 space-y-4">
@@ -1437,12 +1117,293 @@ export function SettingsPage() {
 
               <SetupGuide />
 
-              {/* API Keys */}
-              <div className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <p className="text-[13px] font-medium text-muted-foreground flex items-center gap-1.5">
-                    <Key className="w-3.5 h-3.5" /> <Trans>API keys</Trans>
-                  </p>
+              <p className="text-[13px] text-muted-foreground">
+                <Trans>Each download creates a plugin key; manage them under</Trans>{' '}
+                <Link to="/settings/access" className="text-primary hover:underline"><Trans>Access</Trans></Link>
+              </p>
+
+              <DeviceInventoryList />
+            </div>
+
+          </div>
+        </PanelSection>
+  )
+}
+
+/** App-specific PINs for OPDS clients. */
+function OpdsPinsBlock() {
+  const { t, i18n } = useLingui()
+
+  const [opdsPins, setOpdsPins] = useState<OpdsPin[]>([])
+  const [newPinResult, setNewPinResult] = useState<string | null>(null)
+  const [pinLabel, setPinLabel] = useState('KOReader')
+  const [pinCreating, setPinCreating] = useState(false)
+  const [pinRevoking, setPinRevoking] = useState<number | null>(null)
+
+  useEffect(() => {
+    api.get<OpdsPin[]>('/opds-pins').then(setOpdsPins).catch(() => {})
+  }, [])
+
+  async function handleCreatePin() {
+    setPinCreating(true)
+    setNewPinResult(null)
+    try {
+      const res = await api.post<{ id: number; label: string; pin: string; pin_preview: string }>(
+        '/opds-pins', { label: pinLabel || 'KOReader' }
+      )
+      setNewPinResult(res.pin)
+      setOpdsPins(prev => [...prev, {
+        id: res.id,
+        label: res.label,
+        pin_preview: res.pin_preview,
+        created_at: new Date().toISOString(),
+        last_used_at: null,
+      }])
+    } catch {
+      // ignore
+    } finally {
+      setPinCreating(false)
+    }
+  }
+
+  async function handleRevokePin(id: number) {
+    setPinRevoking(id)
+    try {
+      await api.delete(`/opds-pins/${id}`)
+      setOpdsPins(prev => prev.filter(p => p.id !== id))
+      if (newPinResult) setNewPinResult(null)
+    } finally {
+      setPinRevoking(null)
+    }
+  }
+
+  return (
+              <AccessBlock
+                title={t`OPDS PINs`}
+                description={<Trans>Short app-specific passwords for OPDS, easier to type on an e-reader than your full password.</Trans>}
+                action={
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="text"
+                      value={pinLabel}
+                      onChange={e => setPinLabel(e.target.value)}
+                      placeholder={t`Label (e.g. KOReader)`}
+                      aria-label={t`PIN label`}
+                      className="w-44"
+                    />
+                    <Pill
+                      onClick={handleCreatePin}
+                      disabled={pinCreating}
+                      variant="quiet"
+                    >
+                      {pinCreating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
+                      <Trans>Generate PIN</Trans>
+                    </Pill>
+                  </div>
+                }
+              >
+
+                {newPinResult && (
+                  <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
+                    <p className="text-[13px] text-success font-medium"><Trans>PIN created. Copy it now, it won't be shown again.</Trans></p>
+                    <div className="flex items-center gap-2">
+                      <code className="text-[13px] font-mono text-foreground break-all flex-1">{newPinResult}</code>
+                      <button
+                        onClick={() => navigator.clipboard.writeText(newPinResult)}
+                        className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground shrink-0"
+                      >
+                        <Copy className="w-3 h-3" />
+                      </button>
+                    </div>
+                    <p className="text-[13px] text-muted-foreground"><Trans>Use this as the OPDS password in KOReader (username stays the same).</Trans></p>
+                  </div>
+                )}
+
+                {opdsPins.length > 0 ? (
+                  <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
+                    {opdsPins.map(p => (
+                      <div key={p.id} className="flex items-center gap-3 px-3 py-2">
+                        <span className="font-mono text-muted-foreground w-14 shrink-0">{p.pin_preview}</span>
+                        <span className="text-foreground flex-1 truncate">{p.label}</span>
+                        <span className="text-muted-foreground hidden sm:block shrink-0">
+                          {(() => { const d = new Date(p.last_used_at ?? 0).toLocaleDateString(i18n.locale); return p.last_used_at ? t`used ${d}` : t`never used` })()}
+                        </span>
+                        <button
+                          onClick={() => handleRevokePin(p.id)}
+                          disabled={pinRevoking === p.id}
+                          className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          title={t`Revoke`}
+                        >
+                          {pinRevoking === p.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-[13px] text-muted-foreground"><Trans>No PINs yet. Generate one to use with OPDS clients.</Trans></p>
+                )}
+              </AccessBlock>
+  )
+}
+
+/** Progress sync (KOSync): how to connect KOReader's own sync. The password lives under Access. */
+function KosyncBlock({ kosyncUrl }: { kosyncUrl: string }) {
+  const { user } = useAuth()
+  const { t } = useLingui()
+  return (
+            <div className="py-6 first:pt-0 last:pb-0 space-y-4">
+              <div>
+                <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>Progress sync</Trans></p>
+                <p className="text-[13px] text-muted-foreground">
+                  <Trans>Sync reading position between KOReader and Tome.</Trans>
+                </p>
+              </div>
+              <ConnectBlock rows={[
+                { label: t`URL`, value: kosyncUrl, copy: true },
+                { label: t`Username`, value: user?.username ?? '-', copy: true },
+                { label: t`Password`, value: t`your sync password, set under Access` },
+              ]} />
+              <p className="text-[13px] text-muted-foreground">
+                <Trans>In KOReader: Tools &rarr; Progress sync &rarr; Custom sync server.</Trans>{' '}
+                <Link to="/settings/access" className="text-primary hover:underline"><Trans>Set the sync password</Trans></Link>
+              </p>
+            </div>
+  )
+}
+
+/** The KOSync password and whether KOReader's sync is linked. */
+function KosyncPasswordBlock() {
+  const { t, i18n } = useLingui()
+  interface KOSyncStatus {
+    linked: boolean
+    synced_documents?: number
+    /** ISO string from the API; older servers sent epoch seconds. */
+    last_sync?: string | number | null
+    last_device?: string | null
+  }
+  const [kosyncStatus, setKosyncStatus] = useState<KOSyncStatus | null>(null)
+  const [kosyncPassword, setKosyncPassword] = useState('')
+  const [kosyncSaving, setKosyncSaving] = useState(false)
+  const [kosyncError, setKosyncError] = useState<string | null>(null)
+  const [kosyncSuccess, setKosyncSuccess] = useState(false)
+
+  useEffect(() => {
+    api.get<KOSyncStatus>('/auth/me/kosync').then(setKosyncStatus).catch(() => {})
+  }, [])
+
+  async function handleKosyncRegister(e: React.FormEvent) {
+    e.preventDefault()
+    setKosyncError(null)
+    setKosyncSuccess(false)
+    setKosyncSaving(true)
+    try {
+      await api.post('/auth/me/kosync', { password: kosyncPassword })
+      setKosyncSuccess(true)
+      setKosyncPassword('')
+      const updated = await api.get<KOSyncStatus>('/auth/me/kosync')
+      setKosyncStatus(updated)
+    } catch (err) {
+      setKosyncError(err instanceof Error ? err.message : t`Failed to register`)
+    } finally {
+      setKosyncSaving(false)
+    }
+  }
+
+  return (
+              <AccessBlock
+                title={t`Sync password`}
+                description={<Trans>The password KOReader's progress sync (KOSync) signs in with. It is separate from your Tome password.</Trans>}
+                action={kosyncStatus?.linked && (
+                  <span className="flex items-center gap-1 text-[13px] text-success">
+                    <Check className="w-3 h-3" /> <Trans>Linked</Trans>
+                    {kosyncStatus.synced_documents != null && (
+                      <span className="text-muted-foreground ml-1">{(() => { const n = kosyncStatus.synced_documents; return t`· ${n} docs` })()}</span>
+                    )}
+                  </span>
+                )}
+              >
+              {kosyncStatus?.last_sync && (
+                <p className="text-[13px] text-muted-foreground">
+                  {(() => { const d = formatSyncTime(kosyncStatus.last_sync, i18n.locale); return t`Last sync: ${d}` })()}
+                  {kosyncStatus.last_device && ` · ${kosyncStatus.last_device}`}
+                </p>
+              )}
+
+              <form onSubmit={handleKosyncRegister} className="flex items-end gap-2 max-w-sm">
+                <div className="flex-1">
+                  <FormLabel htmlFor="kosync-password">
+                    {kosyncStatus?.linked ? t`Update sync password` : t`Set sync password`}
+                  </FormLabel>
+                  <Input
+                    id="kosync-password"
+                    type="password"
+                    value={kosyncPassword}
+                    onChange={e => setKosyncPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                </div>
+                <Pill
+                  type="submit"
+                  disabled={kosyncSaving || !kosyncPassword}
+                  variant="secondary" className="shrink-0"
+                >
+                  {kosyncSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                  {kosyncSaving ? t`Saving…` : kosyncStatus?.linked ? t`Update` : t`Register`}
+                </Pill>
+              </form>
+              {kosyncError && <p className="text-[13px] text-destructive">{kosyncError}</p>}
+              {kosyncSuccess && <p className="text-[13px] text-success"><Trans>KOSync registered successfully</Trans></p>}
+              </AccessBlock>
+  )
+}
+
+/** Keys the TomeSync plugin signs in with. A plugin download mints one. */
+function PluginKeysBlock() {
+  const { t, i18n } = useLingui()
+
+  const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [newKeyResult, setNewKeyResult] = useState<string | null>(null)
+  const [keyCreating, setKeyCreating] = useState(false)
+  const [keyRevoking, setKeyRevoking] = useState<number | null>(null)
+  const [apiKeysAll, setApiKeysAll] = useState(false)
+
+  useEffect(() => {
+    api.get<ApiKey[]>('/plugin/api-keys').then(setApiKeys).catch(() => {})
+  }, [])
+
+  async function handleCreateKey() {
+    setKeyCreating(true)
+    setNewKeyResult(null)
+    try {
+      const res = await api.post<{ id: number; label: string; key: string; created_at: string }>(
+        // A plain label, not the one plugin downloads use, so the download cleanup leaves it alone.
+        '/plugin/api-keys', { label: `Created in Settings ${new Date().toISOString().slice(0, 10)}` }
+      )
+      setNewKeyResult(res.key)
+      setApiKeys(prev => [...prev, { id: res.id, label: res.label, key_preview: res.key.slice(0, 8) + '…', created_at: res.created_at, last_used_at: null }])
+    } catch (err) {
+      // ignore
+    } finally {
+      setKeyCreating(false)
+    }
+  }
+
+  async function handleRevokeKey(id: number) {
+    setKeyRevoking(id)
+    try {
+      await api.delete(`/plugin/api-keys/${id}`)
+      setApiKeys(prev => prev.filter(k => k.id !== id))
+      if (newKeyResult) setNewKeyResult(null)
+    } finally {
+      setKeyRevoking(null)
+    }
+  }
+
+  return (
+              <AccessBlock
+                title={t`Plugin keys`}
+                description={<Trans>Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used for a week are removed at the next download.</Trans>}
+                action={
                   <Pill
                     onClick={handleCreateKey}
                     disabled={keyCreating}
@@ -1451,7 +1412,8 @@ export function SettingsPage() {
                     {keyCreating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Plus className="w-3 h-3" />}
                     <Trans>New key</Trans>
                   </Pill>
-                </div>
+                }
+              >
 
                 {newKeyResult && (
                   <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
@@ -1471,7 +1433,8 @@ export function SettingsPage() {
                   <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
                     {(apiKeysAll ? apiKeys : apiKeys.slice(0, LIST_PREVIEW)).map(k => (
                       <div key={k.id} className="flex items-center gap-3 px-3 py-2">
-                        <span className="font-mono text-muted-foreground flex-1">{k.key_preview}</span>
+                        <span className="font-mono text-muted-foreground w-28 shrink-0">{k.key_preview}</span>
+                        <span className="text-foreground flex-1 truncate">{k.label}</span>
                         <span className="text-muted-foreground hidden sm:block">
                           {(() => { const d = new Date(k.last_used_at ?? 0).toLocaleDateString(i18n.locale); return k.last_used_at ? t`used ${d}` : t`never used` })()}
                         </span>
@@ -1491,18 +1454,77 @@ export function SettingsPage() {
                   )}
                   </div>
                 ) : (
-                  <p className="text-[13px] text-muted-foreground"><Trans>No API keys. Download the plugin to auto-create one.</Trans></p>
+                  <p className="text-[13px] text-muted-foreground"><Trans>No plugin keys. Download the plugin to create one.</Trans></p>
                 )}
-              </div>
+              </AccessBlock>
+  )
+}
 
-              <DeviceInventoryList />
-            </div>
+// ── Send to device ───────────────────────────────────────────────────────
 
-          </div>
-        </PanelSection>
+function SendToDeviceSection({ ask }: { ask: Ask }) {
+  const { t } = useLingui()
 
-        {/* ── Send to Device ──────────────────────────────────────────── */}
-        <PanelSection id="send-to-device" title={t`Send to device`}>
+  interface UserDeviceItem { id: number; name: string; email: string; created_at: string }
+  const [smtpConfigured, setSmtpConfigured] = useState<boolean | null>(null)
+  const [devices, setDevices] = useState<UserDeviceItem[]>([])
+  const [newDeviceName, setNewDeviceName] = useState('')
+  const [newDeviceEmail, setNewDeviceEmail] = useState('')
+  const [deviceAdding, setDeviceAdding] = useState(false)
+  const [deviceDeleting, setDeviceDeleting] = useState<number | null>(null)
+  const [deviceError, setDeviceError] = useState<string | null>(null)
+  const [setupGuideOpen, setSetupGuideOpen] = useState(false)
+
+  useEffect(() => {
+    api.get<{ configured: boolean }>('/smtp-status').then(r => {
+      setSmtpConfigured(r.configured)
+      if (r.configured) {
+        api.get<UserDeviceItem[]>('/devices').then(setDevices).catch(() => {})
+      }
+    }).catch(() => setSmtpConfigured(false))
+  }, [])
+
+  async function handleAddDevice(e: React.FormEvent) {
+    e.preventDefault()
+    setDeviceError(null)
+    const name = newDeviceName.trim()
+    const email = newDeviceEmail.trim()
+    if (!name || !email) return
+    setDeviceAdding(true)
+    try {
+      const d = await api.post<UserDeviceItem>('/devices', { name, email })
+      setDevices(prev => [...prev, d])
+      setNewDeviceName('')
+      setNewDeviceEmail('')
+    } catch (err) {
+      setDeviceError(err instanceof Error ? err.message : t`Failed to add device`)
+    } finally {
+      setDeviceAdding(false)
+    }
+  }
+
+  function askDeleteDevice(d: UserDeviceItem) {
+    const name = d.name
+    ask({
+      title: t`Remove "${name}"?`,
+      body: t`Books can no longer be sent to this address until you add it again.`,
+      action: t`Remove`,
+      run: () => handleDeleteDevice(d.id),
+    })
+  }
+
+  async function handleDeleteDevice(id: number) {
+    setDeviceDeleting(id)
+    try {
+      await api.delete(`/devices/${id}`)
+      setDevices(prev => prev.filter(d => d.id !== id))
+    } finally {
+      setDeviceDeleting(null)
+    }
+  }
+
+  return (
+        <PanelSection>
           <div>
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-3">
@@ -1620,18 +1642,101 @@ export function SettingsPage() {
             </div>
           </div>
         </PanelSection>
+  )
+}
 
-        {/* ── Hardcover ────────────────────────────────────────────────── */}
-        {hardcoverAvailable && (
-          // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
-          <PanelSection id="hardcover" title="Hardcover">
-            <HardcoverSync onAvailable={setHardcoverAvailable} />
-          </PanelSection>
-        )}
+// ── Hardcover ────────────────────────────────────────────────────────────
 
-        {/* ── API Tokens ───────────────────────────────────────────────── */}
-        <PanelSection
-          id="api-tokens"
+/** Links the Hardcover account. Match review lives on the Hardcover page. */
+function HardcoverSection() {
+  const [available, setAvailable] = useState(true)
+  return (
+    <PanelSection>
+      {available
+        ? <HardcoverSync onAvailable={setAvailable} />
+        : <p className="text-[14px] text-muted-foreground"><Trans>Hardcover sync is turned off on this server.</Trans></p>}
+    </PanelSection>
+  )
+}
+
+// ── API tokens ───────────────────────────────────────────────────────────
+
+function ApiTokensBlock({ ask }: { ask: Ask }) {
+  const { user } = useAuth()
+  const { t } = useLingui()
+
+  const [apiTokens, setApiTokens] = useState<ApiTokenListItem[]>([])
+  const [apiTokensAllUsers, setApiTokensAllUsers] = useState(false)
+  const [apiTokensLoading, setApiTokensLoading] = useState(false)
+  const [tokenNewName, setTokenNewName] = useState('')
+  const [tokenNewScope, setTokenNewScope] = useState<'full' | 'readonly'>('full')
+  const [tokenFormOpen, setTokenFormOpen] = useState(false)
+  const [tokenCreating, setTokenCreating] = useState(false)
+  const [tokenCreateError, setTokenCreateError] = useState<string | null>(null)
+  const [tokenRevealPlaintext, setTokenRevealPlaintext] = useState<string | null>(null)
+  const [tokenCopied, setTokenCopied] = useState(false)
+  const [tokenRevoking, setTokenRevoking] = useState<number | null>(null)
+  useEffect(() => {
+    setApiTokensLoading(true)
+    listTokens(apiTokensAllUsers)
+      .then(setApiTokens)
+      .catch(() => {})
+      .finally(() => setApiTokensLoading(false))
+  }, [apiTokensAllUsers])
+
+  async function handleCreateToken(e: React.FormEvent) {
+    e.preventDefault()
+    const name = tokenNewName.trim()
+    if (!name) return
+    setTokenCreateError(null)
+    setTokenCreating(true)
+    try {
+      const res = await createToken(name, tokenNewScope)
+      setTokenRevealPlaintext(res.token)
+      setTokenNewName('')
+      setTokenNewScope('full')
+      setTokenFormOpen(false)
+      const updated = await listTokens(apiTokensAllUsers)
+      setApiTokens(updated)
+    } catch (err) {
+      setTokenCreateError(err instanceof Error ? err.message : t`Failed to create token`)
+    } finally {
+      setTokenCreating(false)
+    }
+  }
+
+  function askRevokeApiToken(id: number) {
+    ask({
+      title: t`Revoke this token?`,
+      body: t`Any scripts or tools using it will stop working immediately.`,
+      action: t`Revoke`,
+      run: () => handleRevokeApiToken(id),
+    })
+  }
+
+  async function handleRevokeApiToken(id: number) {
+    setTokenRevoking(id)
+    try {
+      await revokeToken(id)
+      const updated = await listTokens(apiTokensAllUsers)
+      setApiTokens(updated)
+    } catch {
+      // ignore
+    } finally {
+      setTokenRevoking(null)
+    }
+  }
+
+  function handleCopyToken() {
+    if (!tokenRevealPlaintext) return
+    navigator.clipboard.writeText(tokenRevealPlaintext).then(() => {
+      setTokenCopied(true)
+      setTimeout(() => setTokenCopied(false), 2000)
+    })
+  }
+
+  return (
+        <AccessBlock
           title={t`API tokens`}
           description={<>
             <Trans>Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.</Trans>{' '}
@@ -1820,27 +1925,41 @@ export function SettingsPage() {
               )}
             </div>
           </div>
-        </PanelSection>
+        </AccessBlock>
+  )
+}
 
-        {/* ── Export ───────────────────────────────────────────────────── */}
-        {/* ── Outbound notifications ────────────────────────────────────── */}
-        <PanelSection id="notifications" title={t`Notifications`}>
-          <NotificationChannels />
-        </PanelSection>
+// ── Export catalogue ─────────────────────────────────────────────────────
 
-        {/* ── Share links overview ──────────────────────────────────────── */}
-        <PanelSection id="share-links" title={t`Share links`}>
-          <ShareLinksOverview />
-        </PanelSection>
+function ExportSection() {
 
-        {/* ── Reading-history import ────────────────────────────────────── */}
-        <PanelSection id="import" title={t`Import reading history`}>
-          <ReadingImport />
-        </PanelSection>
+  const [exporting, setExporting] = useState<'json' | 'csv' | null>(null)
 
+  async function handleExport(format: 'json' | 'csv') {
+    setExporting(format)
+    try {
+      const token = localStorage.getItem('tome_token')
+      const res = await fetch(`/api/books/export?format=${format}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error('Export failed')
+      const blob = await res.blob()
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const date = new Date().toISOString().slice(0, 10)
+      a.download = `tome-export-${date}.${format}`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } finally {
+      setExporting(null)
+    }
+  }
+
+  return (
         <PanelSection
-          id="export"
-          title={t`Export`}
           description={<Trans>Download your entire library catalog: all titles, authors, series, tags and formats.</Trans>}
         >
           <div>
@@ -1851,15 +1970,59 @@ export function SettingsPage() {
             </div>
           </div>
         </PanelSection>
+  )
+}
 
-        {/* ── Personal backup ─────────────────────────────────────────── */}
+// ── Download my data ─────────────────────────────────────────────────────
+
+function BackupSection() {
+  const { user } = useAuth()
+  const { t } = useLingui()
+
+  const [backingUp, setBackingUp] = useState(false)
+
+  async function handleBackup() {
+    setBackingUp(true)
+    try {
+      const token = localStorage.getItem('tome_token')
+      const res = await fetch('/api/auth/me/backup', {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error('Backup failed')
+      const serverData = await res.json()
+
+      // Merge client-side preferences (theme, view modes, filters) so the
+      // backup is a complete picture of "what makes Tome feel like mine".
+      const clientPreferences: Record<string, string | null> = {}
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i)
+        if (!key || key === 'tome_token') continue
+        if (!key.startsWith('tome_') && !key.startsWith('theme') && !key.startsWith('reader')) continue
+        clientPreferences[key] = localStorage.getItem(key)
+      }
+      const payload = { ...serverData, client_preferences: clientPreferences }
+
+      const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const a = document.createElement('a')
+      a.href = url
+      const date = new Date().toISOString().slice(0, 10)
+      a.download = `tome-backup-${user?.username ?? 'me'}-${date}.json`
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } finally {
+      setBackingUp(false)
+    }
+  }
+
+  return (
         <PanelSection
-          id="backup"
-          title={t`Backup`}
           description={<Trans>Download a JSON snapshot of <strong>your personal data</strong>: reading status,
               every reading session, sync positions, shelves, and your local preferences.
               Book files themselves are not included, since Tome only references them on disk.
-              API tokens and KOReader keys are also excluded so the file isn't a credential.</Trans>}
+              API tokens and plugin keys are also excluded so the file isn't a credential.</Trans>}
         >
           <div>
 
@@ -1873,9 +2036,35 @@ export function SettingsPage() {
             </Pill>
           </div>
         </PanelSection>
+  )
+}
 
-        {/* ── About ────────────────────────────────────────────────────── */}
-        <PanelSection id="about" title={t`About`}>
+// ── About ────────────────────────────────────────────────────────────────
+
+function AboutSection() {
+  const { user } = useAuth()
+  const { t } = useLingui()
+
+  const [tomeVersion, setTomeVersion] = useState('…')
+  useEffect(() => {
+    api.get<{ version: string }>('/health').then(r => setTomeVersion(r.version)).catch(() => {})
+  }, [])
+
+  // Quiet update indicator (admins): daily-cached server-side check against
+  // GitHub releases; renders a link in About only when something is newer.
+  const [updateInfo, setUpdateInfo] = useState<{ latest: string; url: string } | null>(null)
+  useEffect(() => {
+    if (!user?.is_admin) return
+    api
+      .get<{ update_available: boolean; latest: string | null; url: string }>('/meta/update-check')
+      .then(r => {
+        if (r.update_available && r.latest) setUpdateInfo({ latest: r.latest, url: r.url })
+      })
+      .catch(() => {})
+  }, [user?.is_admin])
+
+  return (
+        <PanelSection>
           <div>
             <div className="flex flex-wrap items-center gap-3">
               <div className="flex items-center gap-2.5">
@@ -1926,11 +2115,6 @@ export function SettingsPage() {
             <TelemetrySettings />
           </div>
         </PanelSection>
-
-        </div>
-      </SectionLayout>
-      <ConfirmDialog ask={confirmAsk} onClose={() => setConfirmAsk(null)} />
-    </AppShell>
   )
 }
 
@@ -2095,7 +2279,7 @@ function PluginVersion() {
 const SETUP_STEPS: { title: MessageDescriptor; body: MessageDescriptor; mono?: string }[] = [
   {
     title: msg`Download the plugin`,
-    body: msg`Click "Download plugin ZIP" above. An API key is automatically created and baked into the plugin, so there is nothing to configure by hand.`,
+    body: msg`Click "Download plugin ZIP" above. A plugin key is automatically created and baked into the plugin, so there is nothing to configure by hand.`,
   },
   {
     title: msg`Copy to KOReader`,

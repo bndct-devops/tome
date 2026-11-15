@@ -9,7 +9,7 @@ import { seed, login, BINDERY_DIR, MEMBER, GUEST } from './helpers'
 // Grouped (main, Reading, Manage) but still one ordered list.
 const ADMIN_NAV = [
   { role: 'button', name: 'Home', url: '/' },
-  { role: 'button', name: 'Library', url: '/?tab=books' },
+  { role: 'button', name: 'All books', url: '/?tab=books' },
   { role: 'button', name: 'Series', url: '/?tab=series' },
   { role: 'link', name: 'Stats', url: '/stats' },
   { role: 'link', name: 'Calendar', url: '/calendar' },

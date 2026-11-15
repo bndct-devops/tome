@@ -26,7 +26,7 @@ const SECTIONS: ShortcutSection[] = [
     ],
   },
   {
-    title: msg`Library`,
+    title: msg`All books`,
     rows: [
       { keys: ['/'], description: msg`Focus search` },
       { keys: ['j', 'ArrowDown'], description: msg`Next book` },
