@@ -154,7 +154,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     # Only tokens without a device row (admin impersonation) expire; every
     # login is a revocable device login without expiry (see ClientDevice).
-    jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
+    # An impersonation token cannot be revoked, so it lives one hour.
+    jwt_expire_minutes: int = 60
     # A browser sign-in unused this many days is signed out (and dropped from
     # Connected devices). 0 = never. The Tome app is not affected.
     web_session_idle_days: int = 90          # env TOME_WEB_SESSION_IDLE_DAYS

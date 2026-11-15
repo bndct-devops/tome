@@ -40,6 +40,63 @@ def create_access_token(subject: str | int, device_token_id: str | None = None) 
     return jwt.encode(payload, _signing_key(), algorithm=settings.jwt_algorithm)
 
 
+# Book-scoped reader tokens: what the web reader puts in `?token=` for <img>
+# pages, so the account's login token never lands in a URL (proxy logs,
+# browser history). Accepted only by the reader file routes, for one book.
+READER_TOKEN_TYPE = "reader"
+READER_TOKEN_HOURS = 12
+
+
+def create_reader_token(
+    user_id: int,
+    book_id: int,
+    device_id: int | None = None,
+    api_token_id: int | None = None,
+) -> str:
+    """Signed token for the reader file routes of one book, valid for
+    READER_TOKEN_HOURS. It names the sign-in it was minted from (`did` for a
+    device login, `tid` for an API token) so revoking that sign-in ends it too."""
+    payload: dict = {
+        "sub": str(user_id),
+        "typ": READER_TOKEN_TYPE,
+        "book": int(book_id),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=READER_TOKEN_HOURS),
+    }
+    if device_id is not None:
+        payload["did"] = int(device_id)
+    if api_token_id is not None:
+        payload["tid"] = int(api_token_id)
+    return jwt.encode(payload, _signing_key(), algorithm=settings.jwt_algorithm)
+
+
+def _user_from_reader_claims(db: Session, claims: dict, book_id: int):
+    """The user behind a reader token for `book_id`, else None."""
+    from backend.models.user import User
+
+    if claims.get("book") != book_id:
+        return None
+    try:
+        user_id = int(claims["sub"])
+    except (KeyError, TypeError, ValueError):
+        return None
+    user = db.query(User).filter(User.id == user_id).first()
+    if user is None or not user.is_active:
+        return None
+    did = claims.get("did")
+    if did is not None:
+        from backend.models.client_device import ClientDevice
+        device = db.get(ClientDevice, did)
+        if device is None or device.revoked_at is not None or device.user_id != user.id:
+            return None
+    tid = claims.get("tid")
+    if tid is not None:
+        from backend.models.api_token import ApiToken
+        api_token = db.get(ApiToken, tid)
+        if api_token is None or api_token.revoked_at is not None or api_token.user_id != user.id:
+            return None
+    return user
+
+
 def decode_claims(token: str) -> Optional[dict]:
     try:
         return jwt.decode(token, _signing_key(), algorithms=[settings.jwt_algorithm])
@@ -90,9 +147,6 @@ async def get_current_user(
     token: str = Depends(oauth2_scheme),
     db: Session = Depends(get_db),
 ):
-    from backend.models.user import User
-    from backend.models.api_token import ApiToken
-
     credentials_exc = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -100,25 +154,10 @@ async def get_current_user(
     )
 
     if token.startswith("tome_"):
-        import hashlib
-        from datetime import datetime as _dt
-        token_hash = hashlib.sha256(token.encode()).hexdigest()
-        api_token = (
-            db.query(ApiToken)
-            .filter(ApiToken.token_hash == token_hash, ApiToken.revoked_at.is_(None))
-            .first()
-        )
-        if api_token is None:
+        resolved_token = _resolve_api_token(db, token)
+        if resolved_token is None:
             raise credentials_exc
-        user = db.query(User).filter(User.id == api_token.user_id).first()
-        if user is None or not user.is_active:
-            raise credentials_exc
-        # Update last_used_at (fire-and-forget)
-        try:
-            api_token.last_used_at = _dt.utcnow()
-            db.commit()
-        except Exception:
-            db.rollback()
+        user, api_token = resolved_token
         if getattr(api_token, "scope", "full") == "readonly" and request.method not in ("GET", "HEAD", "OPTIONS"):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -138,6 +177,33 @@ async def get_current_user(
     return user
 
 
+def _resolve_api_token(db: Session, token: str):
+    """(user, ApiToken) for a live `tome_...` API token of an active user, else
+    None. Stamps last_used_at."""
+    import hashlib
+    from backend.models.api_token import ApiToken
+    from backend.models.user import User
+
+    token_hash = hashlib.sha256(token.encode()).hexdigest()
+    api_token = (
+        db.query(ApiToken)
+        .filter(ApiToken.token_hash == token_hash, ApiToken.revoked_at.is_(None))
+        .first()
+    )
+    if api_token is None:
+        return None
+    user = db.query(User).filter(User.id == api_token.user_id).first()
+    if user is None or not user.is_active:
+        return None
+    # Update last_used_at (fire-and-forget)
+    try:
+        api_token.last_used_at = datetime.utcnow()
+        db.commit()
+    except Exception:
+        db.rollback()
+    return user, api_token
+
+
 def resolve_jwt(db: Session, token: str):
     """(user, device) for a valid JWT of an active user, else None. `device`
     is the ClientDevice a device-bound token belongs to (None for a plain,
@@ -151,6 +217,10 @@ def resolve_jwt(db: Session, token: str):
     except (TypeError, ValueError):
         user_id = None
     if user_id is None:
+        return None
+    # A typed token (a book-scoped reader token) is not a login: it only
+    # opens the reader file routes, which check it themselves.
+    if claims.get("typ"):
         return None
 
     user = db.query(User).filter(User.id == user_id).first()
@@ -202,6 +272,50 @@ def user_from_query_token(db: Session, token: str):
     return resolved[0]
 
 
+def user_for_reader_file(db: Session, request: Request, book_id: int, token: str | None):
+    """The user for a reader file route (comic pages, read.cbz/pdf/epub).
+
+    Accepts, in this order: `?token=` holding a reader token for this book or a
+    login token (the older style, still used by native apps); else an
+    `Authorization: Bearer` header with a login token, an API token or a
+    reader token for this book. 401 otherwise."""
+    invalid = HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    if not token:
+        header = request.headers.get("authorization", "")
+        if header[:7].lower() == "bearer ":
+            token = header[7:].strip()
+            if token.startswith("tome_"):
+                resolved_token = _resolve_api_token(db, token)
+                if resolved_token is None:
+                    raise invalid
+                refuse_if_password_change_pending(resolved_token[0])
+                return resolved_token[0]
+    if not token:
+        raise invalid
+    claims = decode_claims(token)
+    if claims and claims.get("typ") == READER_TOKEN_TYPE:
+        user = _user_from_reader_claims(db, claims, book_id)
+        if user is None:
+            raise invalid
+        refuse_if_password_change_pending(user)
+        return user
+    return user_from_query_token(db, token)
+
+
+API_TOKEN_CANNOT_MINT = (
+    "API tokens cannot create sign-in credentials. Sign in to Tome and do this from Settings."
+)
+
+
+async def get_current_user_no_api_token(request: Request, user=Depends(get_current_user)):
+    """get_current_user for routes that mint credentials (API tokens, plugin
+    keys, OPDS PINs, device sign-ins): refused for a `tome_...` API token, so
+    a leaked token cannot turn itself into longer-lived or wider access."""
+    if getattr(request.state, "api_token_id", None) is not None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=API_TOKEN_CANNOT_MINT)
+    return user
+
+
 async def get_current_admin(user=Depends(get_current_user)):
     if not user.is_admin:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Admin access required")
@@ -211,10 +325,12 @@ async def get_current_admin(user=Depends(get_current_user)):
 _http_basic = HTTPBasic(auto_error=False)
 
 def get_current_user_basic(
+    request: Request,
     credentials: Optional[HTTPBasicCredentials] = Depends(_http_basic),
     db: Session = Depends(get_db),
 ):
     """HTTP Basic Auth dependency for OPDS endpoints."""
+    from backend.core import login_throttle
     from backend.models.user import User
 
     _unauth = HTTPException(
@@ -224,8 +340,12 @@ def get_current_user_basic(
     if not credentials:
         raise _unauth
 
+    throttle_key = login_throttle.throttle.key(credentials.username, login_throttle.client_ip(request))
+    login_throttle.check(throttle_key)  # 429 before any password check
+
     user = db.query(User).filter(User.username == credentials.username).first()
     if not user or not user.is_active:
+        login_throttle.throttle.failure(throttle_key)
         raise _unauth
 
     password_ok = bcrypt.checkpw(credentials.password.encode(), user.hashed_password.encode())
@@ -240,9 +360,11 @@ def get_current_user_basic(
                 matched_pin = pin
                 break
         if matched_pin is None:
+            login_throttle.throttle.failure(throttle_key)
             raise _unauth
         matched_pin.last_used_at = _dt.utcnow()
         db.commit()
 
+    login_throttle.throttle.success(throttle_key)
     refuse_if_password_change_pending(user)
     return user

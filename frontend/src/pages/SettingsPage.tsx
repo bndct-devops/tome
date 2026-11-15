@@ -152,6 +152,7 @@ export function SettingsPage() {
   const [pwSaving, setPwSaving] = useState(false)
   const [pwError, setPwError] = useState<string | null>(null)
   const [pwSuccess, setPwSuccess] = useState(false)
+  const [pwRevokeCredentials, setPwRevokeCredentials] = useState(false)
 
   async function handlePasswordSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -161,10 +162,19 @@ export function SettingsPage() {
     if (newPassword.length < 8) { setPwError(t`Password must be at least 8 characters`); return }
     setPwSaving(true)
     try {
-      await api.put('/auth/me/password', { current_password: currentPassword, new_password: newPassword })
+      await api.put('/auth/me/password', {
+        current_password: currentPassword,
+        new_password: newPassword,
+        revoke_credentials: pwRevokeCredentials,
+      })
       setPwSuccess(true)
       setTimeout(() => setPwSuccess(false), 4000)
       setCurrentPassword(''); setNewPassword(''); setConfirmPassword('')
+      if (pwRevokeCredentials) {
+        setPwRevokeCredentials(false)
+        api.get<ApiKey[]>('/plugin/api-keys').then(setApiKeys).catch(() => {})
+        api.get<OpdsPin[]>('/opds-pins').then(setOpdsPins).catch(() => {})
+      }
     } catch (err: unknown) {
       setPwError(err instanceof Error ? err.message : t`Failed to change password`)
     } finally {
@@ -759,6 +769,12 @@ export function SettingsPage() {
                   onChange={setConfirmPassword}
                   show={showPasswords}
                   error={!!(pwError && confirmPassword && newPassword !== confirmPassword)}
+                />
+                <Checkbox
+                  checked={pwRevokeCredentials}
+                  onChange={e => setPwRevokeCredentials(e.target.checked)}
+                  label={t`Also revoke my API tokens, plugin keys and OPDS PINs`}
+                  description={t`Devices and scripts that use them stop working until you set them up again.`}
                 />
                 {pwError && <p className="text-[13px] text-destructive pt-0.5">{pwError}</p>}
                 {pwSuccess && <p className="text-[13px] text-success pt-0.5"><Trans>Password updated successfully</Trans></p>}

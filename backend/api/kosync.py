@@ -17,7 +17,7 @@ import logging
 from datetime import datetime
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -80,18 +80,24 @@ def _find_or_hash_link(db: Session, tome_user_id: int, document: str) -> Optiona
 # ── Auth helper ───────────────────────────────────────────────────────────────
 
 def _get_kosync_user(
+    request: Request,
     db: Session = Depends(get_db),
     x_auth_user: str | None = Header(None),
     x_auth_key: str | None = Header(None),
 ) -> KOSyncUser:
     import hmac
+    from backend.core import login_throttle
     if not x_auth_user or not x_auth_key:
         raise HTTPException(status_code=401, detail="Missing auth headers")
+    throttle_key = login_throttle.throttle.key(x_auth_user, login_throttle.client_ip(request))
+    login_throttle.check(throttle_key)  # 429 before any key check
     user = db.query(KOSyncUser).filter(KOSyncUser.username == x_auth_user).first()
     # Constant-time compare to prevent timing-side-channel discovery of the userkey.
     # (The userkey is an MD5 supplied by KOReader's protocol; we still want timing-safe compare.)
     if not user or not hmac.compare_digest(user.userkey, x_auth_key):
+        login_throttle.throttle.failure(throttle_key)
         raise HTTPException(status_code=401, detail="Unauthorized")
+    login_throttle.throttle.success(throttle_key)
     # Check Tome permission if linked
     if user.user_id:
         from backend.core.permissions import has_role

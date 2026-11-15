@@ -2012,6 +2012,10 @@ msgstr ""
 msgid "Also reading"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Also revoke my API tokens, plugin keys and OPDS PINs"
+msgstr ""
+
 #: src/components/Sidebar.tsx
 #: src/components/ThemeToggle.tsx
 msgid "Amber"
@@ -3564,6 +3568,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Devices"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Devices and scripts that use them stop working until you set them up again."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -9747,6 +9755,10 @@ msgstr ""
 #: src/pages/SettingsPage.tsx
 #~ msgid "TomeSync Plugin"
 #~ msgstr ""
+
+#: src/pages/LoginPage.tsx
+msgid "Too many failed attempts. Wait a moment and try again."
+msgstr ""
 
 #: src/components/WordCount.tsx
 msgid "Took {dur}"

@@ -13,7 +13,7 @@ from pydantic import BaseModel, field_serializer
 from sqlalchemy.orm import Session, joinedload
 
 from backend.core.database import get_db
-from backend.core.security import get_current_user
+from backend.core.security import get_current_user, get_current_user_no_api_token
 from backend.models.api_token import ApiToken
 from backend.models.user import User
 from backend.services.audit import audit
@@ -84,7 +84,7 @@ def _get_api_token_id(request: Request) -> Optional[int]:
 def create_token(
     body: TokenCreateRequest,
     request: Request,
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_no_api_token),
     db: Session = Depends(get_db),
 ):
     """Create a new API token. Returns plaintext token exactly once."""

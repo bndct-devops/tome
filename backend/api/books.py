@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile, File, Form, status
 from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
 from backend.services.ko_hash import ko_partial_md5, record_ko_hash, record_served_artifact
 from fastapi.responses import FileResponse, StreamingResponse
@@ -2203,6 +2203,30 @@ def _get_comic_pages_zip(file_path: Path) -> list[str]:
     return images
 
 
+@router.post("/{book_id}/reader-token")
+def mint_reader_token(
+    book_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """A short-lived token the web reader puts in `?token=` for this book's
+    reader file routes (comic page <img> tags cannot send a header). It opens
+    nothing else, so the login token never has to travel in a URL."""
+    from backend.core.security import READER_TOKEN_HOURS, create_reader_token
+
+    book = db.get(Book, book_id)
+    if not book or not user_can_see_book(db, current_user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+    token = create_reader_token(
+        current_user.id,
+        book.id,
+        device_id=getattr(request.state, "device_id", None),
+        api_token_id=getattr(request.state, "api_token_id", None),
+    )
+    return {"token": token, "expires_in": READER_TOKEN_HOURS * 3600}
+
+
 @router.get("/{book_id}/pages")
 def get_comic_pages(
     book_id: int,
@@ -2244,14 +2268,17 @@ def get_comic_pages(
 def get_comic_page(
     book_id: int,
     page_index: int,
-    token: str = Query(...),
+    request: Request,
+    token: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """Serve a single page image from a comic book archive.
-    Uses ?token= query param auth (img tags can't send Authorization headers)."""
-    from backend.core.security import user_from_query_token
+    Uses ?token= query param auth (img tags can't send Authorization headers):
+    a reader token for this book (POST /books/{id}/reader-token) or a login
+    token. An Authorization header works too."""
+    from backend.core.security import user_for_reader_file
 
-    user = user_from_query_token(db, token)
+    user = user_for_reader_file(db, request, book_id, token)
     book = db.get(Book, book_id)
     if not book or not user_can_see_book(db, user, book):
         raise HTTPException(status_code=404, detail="Book not found")
@@ -2297,11 +2324,16 @@ def get_comic_page(
 
 
 @router.get("/{book_id}/read.cbz")
-def read_cbz(book_id: int, token: str = Query(...), db: Session = Depends(get_db)):
+def read_cbz(
+    book_id: int,
+    request: Request,
+    token: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
     """Serve CBZ/CBR file for the comic reader."""
-    from backend.core.security import user_from_query_token
+    from backend.core.security import user_for_reader_file
 
-    user = user_from_query_token(db, token)
+    user = user_for_reader_file(db, request, book_id, token)
 
     # Find CBZ or CBR file
     comic_file = db.query(BookFile).filter(
@@ -2341,11 +2373,16 @@ def read_cbz(book_id: int, token: str = Query(...), db: Session = Depends(get_db
 
 
 @router.get("/{book_id}/read.pdf")
-def read_pdf(book_id: int, token: str = Query(...), db: Session = Depends(get_db)):
+def read_pdf(
+    book_id: int,
+    request: Request,
+    token: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
     """Serve PDF file for the reader."""
-    from backend.core.security import user_from_query_token
+    from backend.core.security import user_for_reader_file
 
-    user = user_from_query_token(db, token)
+    user = user_for_reader_file(db, request, book_id, token)
 
     pdf_file = db.query(BookFile).filter(
         BookFile.book_id == book_id,
@@ -2368,14 +2405,15 @@ def read_pdf(book_id: int, token: str = Query(...), db: Session = Depends(get_db
 @router.get("/{book_id}/read.epub")
 def read_epub(
     book_id: int,
-    token: str = Query(..., description="JWT token for epub.js auth"),
+    request: Request,
+    token: Optional[str] = Query(None, description="Reader or login token, for clients that cannot send a header"),
     db: Session = Depends(get_db),
 ):
     """Serve the EPUB file for in-browser reading. Accepts JWT as a query param
     so epub.js can fetch it by URL (it cannot send Authorization headers)."""
-    from backend.core.security import user_from_query_token
+    from backend.core.security import user_for_reader_file
 
-    user = user_from_query_token(db, token)
+    user = user_for_reader_file(db, request, book_id, token)
 
     epub_file = (
         db.query(BookFile)
