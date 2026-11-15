@@ -10,6 +10,7 @@ import logging
 import zipfile
 from datetime import datetime, timedelta
 from typing import Optional
+from urllib.parse import urlsplit
 
 from pathlib import Path
 
@@ -130,8 +131,14 @@ logger = logging.getLogger(__name__)
 # (tomesync_status_sync); runs after launch, on wake, when WiFi connects and
 # from "Sync now". A per-file baseline of the last Tome status means only a
 # CHANGE in Tome is applied, so a mark set by hand on the device stays.
-TOMESYNC_PLUGIN_BUILD = 54
-TOMESYNC_PLUGIN_SEMVER = "1.20.0"
+# BUILD 55: review fixes. A book Tome does not have is looked up again only
+# after 5 minutes or a WiFi reconnect (was every page turn, each a blocking
+# request); the self-update sends the main server address (server_url) so an
+# update fetched over the fallback address does not bake that one in; the
+# self-update checks its file writes (write, close, read-back) before the
+# swap. Baked config values are escaped for Lua.
+TOMESYNC_PLUGIN_BUILD = 55
+TOMESYNC_PLUGIN_SEMVER = "1.20.1"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -1826,6 +1833,42 @@ def download_plugin(
 
 # ── Plugin self-update (impl only) ────────────────────────────────────────────
 
+def _plugin_sent_url(value: str | None) -> str | None:
+    """The server address an updating plugin reports as its own, or None.
+
+    Accepted only as a plain http(s) origin with an optional path: no
+    credentials, query, fragment, whitespace, quotes or backslashes. Anything
+    else is ignored, so a bad value can never end up as the device's server.
+    """
+    if not value or len(value) > 2048:
+        return None
+    if any(ord(c) <= 0x20 or ord(c) == 0x7F or c in '"\'\\<>' for c in value):
+        return None
+    try:
+        parts = urlsplit(value)
+        parts.port  # raises on a malformed port
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return None
+    if parts.username or parts.password or parts.query or parts.fragment:
+        return None
+    return value.rstrip("/")
+
+
+def _update_server_url(request: Request, sent: str | None) -> str:
+    """Origin baked into a self-updated impl.
+
+    ``TOME_PUBLIC_URL`` still wins when set. Otherwise the address the plugin
+    reports as its main server is kept, so an update fetched over a fallback
+    (LAN) address does not make that address the device's new default. Old
+    plugins send nothing and keep the request-origin behaviour.
+    """
+    if settings.public_url:
+        return settings.public_url.rstrip("/")
+    return _plugin_sent_url(sent) or public_base_url(request, None)
+
+
 @router.get("/plugin/main-impl.lua")
 def download_main_impl(
     request: Request,
@@ -1842,7 +1885,7 @@ def download_main_impl(
     auth = request.headers.get("authorization", "")
     api_key_value = auth.removeprefix("Bearer ").strip()
 
-    server_url = _baked_server_url(request, server_url)
+    server_url = _update_server_url(request, server_url)
 
     return StreamingResponse(
         io.BytesIO(_main_impl_lua(server_url, api_key_value, current_user.username).encode()),
@@ -1978,6 +2021,28 @@ return plugin
 '''
 
 
+def _lua_string(value: str) -> str:
+    """Render ``value`` as a quoted Lua string literal that always compiles.
+
+    Baked config (server URL, API key, username) goes into the impl source, so
+    a quote, backslash or newline in any of them would otherwise produce a
+    plugin that does not load. Backslash and double quote are escaped, every
+    other byte below 0x20 (and DEL) becomes a decimal ``\\ddd`` escape, which
+    Lua 5.1 and LuaJIT both read. Other characters pass through unchanged.
+    """
+    out = []
+    for ch in value:
+        if ch == "\\":
+            out.append("\\\\")
+        elif ch == '"':
+            out.append('\\"')
+        elif ord(ch) < 0x20 or ord(ch) == 0x7F:
+            out.append("\\%03d" % ord(ch))
+        else:
+            out.append(ch)
+    return '"' + "".join(out) + '"'
+
+
 def _main_impl_lua(server_url: str, api_key: str, username: str) -> str:
     return f'''--[[
 TomeSync KOReader Plugin — implementation (replaced in place by self-update).
@@ -2038,9 +2103,9 @@ end
 -- ── Config (defaults baked in at download time) ─────────────────────────────
 
 -- Defaults baked in at download time; overridable in Settings > Server.
-local DEFAULT_SERVER_URL = "{server_url}"
-local DEFAULT_API_KEY    = "{api_key}"
-local DEFAULT_USERNAME   = "{username}"
+local DEFAULT_SERVER_URL = {_lua_string(server_url)}
+local DEFAULT_API_KEY    = {_lua_string(api_key)}
+local DEFAULT_USERNAME   = {_lua_string(username)}
 
 local function liveSetting(key, default)
     local v = G_reader_settings:readSetting(key)
@@ -2507,9 +2572,14 @@ local function readWhole(path)
     local d = f:read("*a"); f:close(); return d
 end
 
+-- Writes data and reads it back. False when the write, the close (where a
+-- full disk usually shows) or the read-back fails, or the bytes differ.
 local function writeWhole(path, data)
     local f = io.open(path, "wb"); if not f then return false end
-    f:write(data); f:close(); return true
+    local wok = f:write(data)
+    local cok = f:close()
+    if not wok or not cok then return false end
+    return readWhole(path) == data
 end
 
 -- Raw (non-JSON) authenticated GET, used to fetch the new impl text.
@@ -2905,6 +2975,8 @@ function TomeSync:onPageUpdate(pageno)
     -- (issue #249).
     if not self.book_id then
         if not self._reader_ready then return end
+        local doc = self.ui and self.ui.document
+        if doc and self:_resolveMissFresh(doc.file) then return end
         self:_tryResolve()
         if self.book_id then
             self:_initSession()
@@ -3060,6 +3132,7 @@ end
 -- is chunk-local, so clearing it here unblocks every TomeSync instance at once.
 function TomeSync:onNetworkConnected()
     resetBackoff()
+    self._resolve_miss = nil  -- a book Tome did not know is asked about again
     -- No book_id guard: pending sessions/ratings and the history import are
     -- device-level, and WiFi often comes up in the file manager (morning
     -- catch-up) before any book is opened.
@@ -3860,6 +3933,18 @@ end
 
 -- ── Helpers ──────────────────────────────────────────────────────────────────
 
+-- A book Tome does not have is asked about again only after this long (or
+-- when WiFi reconnects); the lookup blocks the UI thread, so asking on every
+-- page turn made each turn wait on the server.
+local RESOLVE_RETRY = 300
+
+-- True while the server's last answer for this file was "not found".
+function TomeSync:_resolveMissFresh(file)
+    local miss = self._resolve_miss
+    return miss ~= nil and miss.file == file
+        and (os.time() - miss.at) < RESOLVE_RETRY
+end
+
 function TomeSync:_tryResolve()
     local doc = self.ui and self.ui.document
     if not doc then return end
@@ -3883,8 +3968,14 @@ function TomeSync:_tryResolve()
         self.book_map[doc.file] = self.book_id
         self:_saveState("tomesync_book_map", self.book_map)
         logger.info("TomeSync: resolved to book_id", self.book_id)
+        self._resolve_miss = nil
     else
         logger.dbg("TomeSync: could not resolve", filename)
+        -- Only a real answer counts as a miss; offline / back-off / no
+        -- answer is already throttled by the network layer.
+        if rok and type(rcode) == "number" then
+            self._resolve_miss = {{ file = doc.file, at = os.time() }}
+        end
     end
 end
 
@@ -6492,7 +6583,9 @@ function TomeSync:checkForUpdate(on_result)
 end
 
 function TomeSync:installUpdate(new_build)
-    local body, code = fetchText("/plugin/main-impl.lua")
+    -- Send the main server address so the server bakes that back in, not
+    -- whichever address (e.g. a LAN fallback) this request happened to use.
+    local body, code = fetchText("/plugin/main-impl.lua?server_url=" .. urlEncode(primaryURL()))
     if not body then
         UIManager:show(InfoMessage:new{{
             text = "Download failed (" .. tostring(code) .. ").\\nNothing changed.",
@@ -6515,6 +6608,7 @@ function TomeSync:installUpdate(new_build)
         return
     end
     if not writeWhole(IMPL_PATH .. ".new", body) then
+        os.remove(IMPL_PATH .. ".new")
         UIManager:show(InfoMessage:new{{ text = "Could not write update.", timeout = 5 }})
         return
     end
