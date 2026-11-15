@@ -27,12 +27,15 @@ const railNav = (page: Page) => page.locator('aside > div').nth(1)
 const drawerNav = (page: Page) => page.getByRole('navigation')
 
 // Every entry present, in this order, before the libraries and shelves.
+// Polled: right after login the page is on "/" before the sidebar has
+// rendered, and a single read then finds nothing on a slow runner.
 async function expectEntries(nav: Locator, entries: readonly NavEntry[]) {
   const names = new Set<string>(entries.map(e => e.name))
-  const found = (await nav.getByRole('button').or(nav.getByRole('link')).evaluateAll(els =>
-    els.map(el => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim()),
-  )).filter(n => names.has(n))
-  expect(found).toEqual(entries.map(e => e.name))
+  await expect.poll(async () =>
+    (await nav.getByRole('button').or(nav.getByRole('link')).evaluateAll(els =>
+      els.map(el => (el.getAttribute('aria-label') ?? el.textContent ?? '').trim()),
+    )).filter(n => names.has(n)),
+  ).toEqual(entries.map(e => e.name))
 }
 
 function entryIn(nav: Locator, entry: NavEntry) {
