@@ -74,6 +74,25 @@ holds unreleased work. If `main` holds nothing unreleased, cut the patch from
     merge. If the hotfix bumped the plugin build, the branch moves to the
     next free build number in that merge.
 
+## Dependencies
+
+The image installs `requirements.lock` and CI installs `requirements-dev.lock`
+(the same pins plus the test tools), so what ships is the set the tests ran
+on. `pyproject.toml` keeps open ranges; the lock files decide the versions.
+
+After adding or changing a dependency in `pyproject.toml`, or to take newer
+versions on purpose, refresh both files and commit them with the change:
+
+```bash
+uv pip compile pyproject.toml --universal --python-version 3.12 --no-header -o requirements.lock
+uv pip compile pyproject.toml --extra dev --universal --python-version 3.12 --no-header \
+  -c requirements.lock -o requirements-dev.lock
+```
+
+Add `--upgrade` (or `--upgrade-package NAME`) to the first command to move
+versions; without it the existing pins are kept. Do this at the start of a
+cycle, not on the day of a release.
+
 ## Release notes
 
 Minor release:
