@@ -24,7 +24,7 @@ from backend.core.database import get_db
 from backend.core.urls import public_base_url
 from backend.core.permissions import book_visibility_filter, user_can_see_book
 from backend.core.ratings import validate_rating
-from backend.core.security import get_current_user
+from backend.core.security import get_current_user, get_current_user_no_api_token
 from backend.models.user import User
 from backend.models.book import Book, BookFile, BookTag
 from backend.models.library import Library, SavedFilter
@@ -1702,7 +1702,7 @@ class CreateKeyRequest(PydanticBaseModel):
 def create_api_key(
     body: CreateKeyRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_no_api_token),
 ):
     key_value = ApiKey.generate()
     api_key = ApiKey(
@@ -1787,7 +1787,7 @@ def _baked_server_url(request: Request, explicit: str | None) -> str:
 def download_plugin(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_no_api_token),
     server_url: str | None = None,
 ):
     """Generate and download a pre-configured tomesync.koplugin ZIP."""

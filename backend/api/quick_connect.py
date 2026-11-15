@@ -14,7 +14,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.security import get_current_user
+from backend.core.security import get_current_user, get_current_user_no_api_token
 from backend.models.quick_connect import QuickConnectCode, generate_code
 from backend.schemas.auth import DeviceInfo
 from backend.services.audit import audit
@@ -91,7 +91,7 @@ def initiate(db: Session = Depends(get_db)):
 
 
 @router.post("/issue", response_model=InitiateResponse)
-def issue(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user)):
+def issue(request: Request, db: Session = Depends(get_db), current_user=Depends(get_current_user_no_api_token)):
     """Issue a code that is already authorized for the current user.
 
     This is the "Connect a phone" direction: the signed-in browser shows the
@@ -140,7 +140,7 @@ def authorize(
     body: AuthorizeRequest,
     request: Request,
     db: Session = Depends(get_db),
-    current_user=Depends(get_current_user),
+    current_user=Depends(get_current_user_no_api_token),
 ):
     """Link a pending code to the currently authenticated user."""
     entry = db.query(QuickConnectCode).filter(QuickConnectCode.code == body.code.upper().strip()).first()

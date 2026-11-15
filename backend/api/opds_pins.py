@@ -8,7 +8,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
-from backend.core.security import get_current_user
+from backend.core.security import get_current_user, get_current_user_no_api_token
 from backend.models.opds_pin import OpdsPin
 from backend.models.user import User
 from backend.services.audit import audit
@@ -54,7 +54,7 @@ def list_opds_pins(
 def create_opds_pin(
     body: OpdsPinCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(get_current_user_no_api_token),
 ):
     """Generate a new OPDS PIN. The plain PIN is returned once and never stored."""
     pin = OpdsPin.generate()

@@ -82,6 +82,8 @@ export function LoginPage() {
       setPassword('')
       setError(status === 401
         ? t`Wrong username or password.`
+        : status === 429
+        ? t`Too many failed attempts. Wait a moment and try again.`
         : err instanceof Error ? err.message : t`Login failed`)
     } finally {
       setLoading(false)

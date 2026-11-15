@@ -228,6 +228,9 @@ async def lifespan(app: FastAPI):
         conn.execute(text("DELETE FROM api_keys WHERE key_hash IS NULL OR key_hash = ''"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_api_keys_key_hash ON api_keys (key_hash)"))
         conn.commit()
+        # OPDS PIN previews used to keep 3 characters of the PIN in clear;
+        # keep 1. The PINs themselves are untouched and keep working.
+        _shorten_opds_pin_previews(conn)
         # Add scope column to api_tokens
         at_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(api_tokens)")).fetchall()}
         if "scope" not in at_cols:
@@ -477,6 +480,19 @@ async def lifespan(app: FastAPI):
                 await task
             except asyncio.CancelledError:
                 pass
+
+
+def _shorten_opds_pin_previews(conn) -> None:
+    """Cut stored OPDS PIN previews ("abc...") down to one character ("a...").
+    Idempotent; no-op when the table does not exist yet."""
+    from sqlalchemy import text
+    if not conn.execute(text("PRAGMA table_info(opds_pins)")).fetchall():
+        return
+    conn.execute(text(
+        "UPDATE opds_pins SET pin_preview = substr(pin_preview, 1, 1) || '...' "
+        "WHERE length(pin_preview) > 4"
+    ))
+    conn.commit()
 
 
 async def _auto_import_loop() -> None:

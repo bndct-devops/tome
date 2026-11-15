@@ -2012,6 +2012,10 @@ msgstr "Already in your library, will be skipped."
 msgid "Also reading"
 msgstr "Also reading"
 
+#: src/pages/SettingsPage.tsx
+msgid "Also revoke my API tokens, plugin keys and OPDS PINs"
+msgstr "Also revoke my API tokens, plugin keys and OPDS PINs"
+
 #: src/components/Sidebar.tsx
 #: src/components/ThemeToggle.tsx
 msgid "Amber"
@@ -3565,6 +3569,10 @@ msgstr "Device reading time mapped into the book's chapters. Hover the line for 
 #: src/pages/DashboardPage.tsx
 msgid "Devices"
 msgstr "Devices"
+
+#: src/pages/SettingsPage.tsx
+msgid "Devices and scripts that use them stop working until you set them up again."
+msgstr "Devices and scripts that use them stop working until you set them up again."
 
 #: src/pages/AdminPage.tsx
 msgid "Directories"
@@ -9747,6 +9755,10 @@ msgstr "TomeSync plugin"
 #: src/pages/SettingsPage.tsx
 #~ msgid "TomeSync Plugin"
 #~ msgstr "TomeSync Plugin"
+
+#: src/pages/LoginPage.tsx
+msgid "Too many failed attempts. Wait a moment and try again."
+msgstr "Too many failed attempts. Wait a moment and try again."
 
 #: src/components/WordCount.tsx
 msgid "Took {dur}"

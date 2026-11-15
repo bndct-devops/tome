@@ -50,6 +50,21 @@ All notable changes to Tome are documented here. Format loosely follows
   bigger uploads before they reach the disk. Every response now also carries
   basic security headers. Cover fetching connects only to the address it
   checked, and the Bindery and backup restore check paths more strictly.
+- **The web reader no longer puts your sign-in in page URLs.** Comic pages now
+  load with a 12-hour pass that opens only that book, and EPUB and PDF books
+  send the sign-in as a header, so it no longer shows up in proxy logs or
+  browser history. Apps that still pass a sign-in in the URL keep working.
+- **Repeated wrong passwords now slow down.** After five wrong passwords in a
+  row for one account from one address, the web login, OPDS and KOSync make
+  you wait, starting at a second and growing to a minute. A correct sign-in
+  resets it, and other users behind the same reverse proxy are not affected.
+- **New OPDS PINs are longer.** PINs now have 10 characters instead of 6, and
+  the list shows only their first character. Existing PINs keep working.
+- **API tokens can no longer create other credentials.** Creating API tokens,
+  plugin keys, OPDS PINs, Quick Connect codes and the KOSync link, and
+  downloading the KOReader plugin, now require a normal sign-in. Scripts that
+  use a token to manage books are unaffected, and so is the plugin's
+  self-update.
 
 ### Changed
 - **Tome's own log lines now reach the container log.** Informational
@@ -57,6 +72,13 @@ All notable changes to Tome are documented here. Format loosely follows
   warnings came without a time or level. Every line now has both. Set
   `TOME_LOG_LEVEL` to `DEBUG`, `WARNING` or `ERROR` to change how much is
   logged (default `INFO`).
+- **Changing your password can revoke your tokens, keys and PINs.** A new
+  checkbox in Settings also revokes your API tokens, KOReader plugin keys,
+  OPDS PINs and KOSync link, so the devices that use them need to be set up
+  again.
+- **Admin impersonation now lasts one hour instead of seven days.** When it
+  runs out, the browser returns to the admin's own session instead of the
+  login page.
 
 ### Fixed
 - **The API docs show the real version.** `/api/docs` reported 1.7.0 whatever

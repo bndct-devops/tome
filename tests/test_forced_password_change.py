@@ -86,6 +86,29 @@ def test_query_token_reader_route_is_refused(app_client, fresh):
     assert r.status_code == 403
 
 
+def test_reader_route_refuses_an_api_token_in_the_header(app_client, db, fresh):
+    import hashlib
+    from backend.models.api_token import ApiToken
+    plain = "tome_forcedchangereaderheader"
+    db.add(ApiToken(user_id=fresh.id, name="t", prefix=plain[:8],
+                    token_hash=hashlib.sha256(plain.encode()).hexdigest()))
+    db.flush()
+    r = app_client.get("/api/books/1/pages/0", headers=_auth(plain))
+    assert r.status_code == 403
+
+
+def test_reader_route_refuses_a_reader_token_minted_earlier(app_client, db, fresh):
+    """A pass minted before an admin reset the password stops working too."""
+    from backend.core.security import create_reader_token
+    from backend.models.book import Book
+    book = Book(title="Lantern Notes", author="Nobody", status="active", added_by=fresh.id)
+    db.add(book)
+    db.flush()
+    tok = create_reader_token(fresh.id, book.id)
+    r = app_client.get(f"/api/books/{book.id}/pages/0?token={tok}")
+    assert r.status_code == 403
+
+
 def test_opds_is_refused(app_client, fresh):
     basic = base64.b64encode(f"newreader:{TEMP}".encode()).decode()
     r = app_client.get("/opds/", headers={"Authorization": f"Basic {basic}"})

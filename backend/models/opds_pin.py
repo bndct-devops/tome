@@ -10,7 +10,9 @@ from backend.core.database import Base
 
 # Characters excluded from PIN alphabet: 0, o, l, 1 (ambiguous on e-reader screens)
 _PIN_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789"
-_PIN_LENGTH = 6
+# 10 characters from 31 is about 49 bits: out of reach for offline guessing
+# against the bcrypt hash, and still quick to type on an e-reader keyboard.
+_PIN_LENGTH = 10
 
 
 class OpdsPin(Base):
@@ -30,10 +32,11 @@ class OpdsPin(Base):
 
     @staticmethod
     def generate() -> str:
-        """Generate a random 6-character lowercase alphanumeric PIN (no ambiguous chars)."""
+        """Generate a random 10-character lowercase alphanumeric PIN (no ambiguous chars)."""
         return "".join(secrets.choice(_PIN_ALPHABET) for _ in range(_PIN_LENGTH))
 
     @staticmethod
     def make_preview(pin: str) -> str:
-        """Return first 3 chars + '...' as a non-secret preview."""
-        return pin[:3] + "..."
+        """Return the first character + '...' as a non-secret preview. One
+        character tells PINs apart in the list without narrowing a guess."""
+        return pin[:1] + "..."

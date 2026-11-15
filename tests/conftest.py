@@ -71,6 +71,15 @@ def anyio_backend():
 
 
 @pytest.fixture(autouse=True, scope="function")
+def _reset_login_throttle():
+    """Failed logins in one test must not make a later test back off."""
+    from backend.core.login_throttle import throttle
+    throttle.reset()
+    yield
+    throttle.reset()
+
+
+@pytest.fixture(autouse=True, scope="function")
 def _block_smtp():
     """Autouse fixture: replace smtplib.SMTP / SMTP_SSL with a hard block."""
     def _blocked(*args, **kwargs):

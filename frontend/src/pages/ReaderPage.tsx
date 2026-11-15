@@ -13,6 +13,7 @@ import {
 import * as pdfjsLib from 'pdfjs-dist'
 import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url'
 import { api } from '@/lib/api'
+import { authHeaders, useReaderToken } from '@/lib/readerToken'
 import type { Book, BookFile } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { Pill, Textarea } from '@/components/page'
@@ -163,21 +164,28 @@ function StreamingComicReader({
 
   const themeColors = THEMES[theme]
 
-  const token = localStorage.getItem('tome_token') ?? ''
-  const pageUrl = (index: number) => `/api/books/${bookId}/pages/${index}?token=${encodeURIComponent(token)}`
+  // Book-scoped reader token: <img> cannot send a header, and the login
+  // token must not travel in a URL. No URL until it has been minted.
+  const token = useReaderToken(bookId)
+  const pageUrl = (index: number) =>
+    token ? `/api/books/${bookId}/pages/${index}?token=${encodeURIComponent(token)}` : undefined
+
+  // A fresh token means new URLs: preload again under them.
+  useEffect(() => { preloadedRef.current = new Set() }, [token])
 
   // Preload adjacent pages
   useEffect(() => {
+    if (!token) return
     const toPreload = [currentPage - 1, currentPage + 1, currentPage + 2].filter(
       (p) => p >= 0 && p < totalPages && !preloadedRef.current.has(p)
     )
     toPreload.forEach((p) => {
       const img = new Image()
-      img.src = pageUrl(p)
+      img.src = pageUrl(p) ?? ''
       preloadedRef.current.add(p)
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentPage, totalPages, bookId])
+  }, [currentPage, totalPages, bookId, token])
 
   // Report read complete
   useEffect(() => {
@@ -354,7 +362,7 @@ interface WebtoonReaderProps {
 
 function WebtoonReader({ bookId, totalPages, theme, onProgress, onReadComplete }: WebtoonReaderProps) {
   const themeColors = THEMES[theme]
-  const webtoonToken = localStorage.getItem('tome_token') ?? ''
+  const webtoonToken = useReaderToken(bookId)
   const containerRef = useRef<HTMLDivElement>(null)
   const reportedRef = useRef(false)
 
@@ -388,7 +396,7 @@ function WebtoonReader({ bookId, totalPages, theme, onProgress, onReadComplete }
       style={{ background: themeColors.bg }}
     >
       <div className="flex flex-col items-center">
-        {Array.from({ length: totalPages }, (_, i) => (
+        {webtoonToken && Array.from({ length: totalPages }, (_, i) => (
           <img
             key={i}
             src={`/api/books/${bookId}/pages/${i}?token=${encodeURIComponent(webtoonToken)}`}
@@ -433,7 +441,6 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
   ref,
 ) {
   const themeColors = THEMES[theme]
-  const token = localStorage.getItem('tome_token') ?? ''
 
   const containerRef = useRef<HTMLDivElement>(null)
   const pageWrapRefs = useRef<(HTMLDivElement | null)[]>([])
@@ -472,8 +479,10 @@ const PdfReader = forwardRef<PdfReaderHandle, PdfReaderProps>(function PdfReader
   // ── Load the document ──────────────────────────────────────────────────────
   useEffect(() => {
     let cancelled = false
-    const url = `/api/books/${bookId}/read.pdf?token=${encodeURIComponent(token)}`
-    const task = pdfjsLib.getDocument({ url })
+    // pdf.js fetches the file itself and sends these headers on every
+    // (range) request, so no token goes into the URL.
+    const url = `/api/books/${bookId}/read.pdf`
+    const task = pdfjsLib.getDocument({ url, httpHeaders: authHeaders() })
     task.promise.then(async (doc) => {
       if (cancelled) { task.destroy(); return }
       docRef.current = doc
@@ -1073,10 +1082,9 @@ export default function ReaderPage() {
 
       if (cancelled) return
 
-      const token = localStorage.getItem('tome_token') ?? ''
       let epubFile: File
       try {
-        const resp = await fetch(`/api/books/${bookId}/read.epub?token=${encodeURIComponent(token)}`)
+        const resp = await fetch(`/api/books/${bookId}/read.epub`, { headers: authHeaders() })
         if (!resp.ok) throw new Error(`Server returned ${resp.status}`)
         const blob = await resp.blob()
         epubFile = new File([blob], 'book.epub', { type: 'application/epub+zip' })
