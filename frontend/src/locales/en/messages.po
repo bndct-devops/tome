@@ -1676,8 +1676,12 @@ msgstr "Accept all"
 #~ msgstr "Accept All"
 
 #: src/pages/BinderyPage.tsx
-msgid "Accept every recently imported book"
-msgstr "Accept every recently imported book"
+msgid "Accept every book waiting for review"
+msgstr "Accept every book waiting for review"
+
+#: src/pages/BinderyPage.tsx
+#~ msgid "Accept every recently imported book"
+#~ msgstr "Accept every recently imported book"
 
 #: src/pages/BinderyPage.tsx
 msgid "Accept failed"
@@ -7776,8 +7780,8 @@ msgstr "Recently finished"
 #~ msgstr "Recently Finished"
 
 #: src/pages/BinderyPage.tsx
-msgid "Recently imported"
-msgstr "Recently imported"
+#~ msgid "Recently imported"
+#~ msgstr "Recently imported"
 
 #: src/pages/BinderyPage.tsx
 #~ msgid "Recently Imported"
@@ -10268,6 +10272,10 @@ msgstr "Waiting for a code…"
 #: src/pages/LoginPage.tsx
 msgid "Waiting for authorization…"
 msgstr "Waiting for authorization…"
+
+#: src/pages/BinderyPage.tsx
+msgid "Waiting for review"
+msgstr "Waiting for review"
 
 #: src/pages/AdminPage.tsx
 msgid "Walk the library directory and add any new book files found."

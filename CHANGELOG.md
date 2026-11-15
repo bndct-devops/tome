@@ -176,6 +176,17 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Connected devices can be told apart on a phone.** Each device shows its
   system and when it was last seen under its name, with the delete button at
   the row's edge.
+- **Page titles stay in one place when moving between pages.** Admin,
+  Settings, Wishlist and Highlights now line up with Home, Library and Stats
+  instead of starting further to the right.
+- **The series page's reading stats no longer repeat the percentage.** The
+  header right above already shows it.
+- **Stats tiles show when they scroll and shrink when empty.** A list cut at
+  the tile edge now has an edge line, and tiles with only a "nothing yet"
+  message take one row instead of a full chart's height.
+- **The Bindery lists each file once.** Files in a series group appear only
+  there, and a volume chip opens that file on its own. "Recently imported" is
+  now called "Waiting for review".
 
 ## [3.0.0] - 2026-11-08 - "Rebind"
 
