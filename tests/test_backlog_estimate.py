@@ -186,3 +186,26 @@ def test_backlog_scopes_lists_libraries_and_shelves(client: TestClient, db, admi
     assert [s["id"] for s in scopes[:2]] == ["want", "unread"]
     assert any(s["label"] == "Pile" and s["group"] == "Libraries" for s in scopes)
     assert any(s["label"] == "Winter" and s["group"] == "Shelves" for s in scopes)
+
+
+def test_trickle_of_reading_gives_no_day_estimate(db, admin_user, make_book):
+    # 10 minutes in three months is not a pace: dividing a backlog by it gave
+    # figures like "~2153 months". Below the minimum there is no day estimate.
+    user, _ = admin_user
+    read = _book(db, make_book, "Thin Reed", word_count=10_000)
+    _session(db, user.id, read.id, 600, days_ago=5)
+    book = _book(db, make_book, "Long Pile", word_count=900_000)
+    pace = be.compute_pace(db, user.id)
+    assert pace.minutes_per_day is None
+    assert be.estimate_book(book, pace)["days"] is None
+
+
+def test_slow_month_falls_back_to_ninety_days(db, admin_user, make_book):
+    # A trickle in the last 30 days, a real pace over 90: use the 90-day pace.
+    user, _ = admin_user
+    read = _book(db, make_book, "Two Speeds", word_count=10_000)
+    _session(db, user.id, read.id, 600, days_ago=5)
+    _session(db, user.id, read.id, 9000, days_ago=60)
+    pace = be.compute_pace(db, user.id)
+    assert pace.window_days == 90
+    assert pace.minutes_per_day == round(160 / 90, 1)

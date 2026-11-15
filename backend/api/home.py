@@ -13,6 +13,7 @@ from backend.models.tome_sync import ReadingSession, TomeSyncPosition
 from backend.models.book import Book
 from backend.models.user_book_status import UserBookStatus
 from backend.services.streaks import reconciled_user_streaks
+from backend.services.reading_stats import finished_date_expr
 
 router = APIRouter(prefix="/home", tags=["home"])
 
@@ -194,7 +195,7 @@ def get_home_stats(
         .filter(
             UserBookStatus.user_id == current_user.id,
             UserBookStatus.status == "read",
-            UserBookStatus.updated_at >= cutoff,
+            finished_date_expr() >= cutoff,
         )
         .count()
     )

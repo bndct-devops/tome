@@ -51,14 +51,17 @@ export function formatEstimateHours(seconds: number): string {
   return t`~${h} h`
 }
 
-/** "~13 days" / "~4 weeks" / "~3.7 months" at the user's daily pace. */
+/** "~13 days" / "~4 weeks" / "~3.7 months" / "~2.5 years" at the user's daily
+ * pace. Past ten years a figure means nothing, so it says so instead. */
 export function formatEstimateDays(days: number): string {
   const d = Math.round(days)
   if (d < 1) return t`under a day`
   if (d < 14) return d === 1 ? t`~1 day` : t`~${d} days`
   if (d < 60) { const w = Math.round(d / 7); return t`~${w} weeks` }
-  const mo = (d / 30).toFixed(1).replace(/\.0$/, '')
-  return t`~${mo} months`
+  if (d < 365) { const mo = (d / 30).toFixed(1).replace(/\.0$/, ''); return t`~${mo} months` }
+  if (d > 3650) return t`more than 10 years`
+  const y = (d / 365).toFixed(1).replace(/\.0$/, '')
+  return y === '1' ? t`~1 year` : t`~${y} years`
 }
 
 /** One-line explanation of where a figure came from, for tooltips. */
@@ -68,6 +71,6 @@ export function describePace(pace: EstimatePace, method: EstimateMethod | null):
   else if (method === 'default') { const wpm = pace.default_wpm; parts.push(t`Word count at a default ${wpm} wpm (no finished books to measure your pace yet)`) }
   else if (method === 'type_avg') parts.push(t`Your average time per finished book of this type (no word count)`)
   if (pace.minutes_per_day) { const mpd = Math.round(pace.minutes_per_day); const win = pace.window_days; parts.push(t`days at ~${mpd} min a day (last ${win} days)`) }
-  else parts.push(t`no recent reading, so no day estimate`)
+  else parts.push(t`not enough recent reading for a day estimate`)
   return parts.join(' · ')
 }

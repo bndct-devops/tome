@@ -1,7 +1,7 @@
 """Personal reading statistics endpoint. TomeSync data only."""
 import json
 from collections import defaultdict
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
@@ -22,6 +22,7 @@ from backend.models.library import BookType
 from backend.services.streaks import reconciled_streak_summary
 from backend.services.reading_day import ROLLOVER_HOURS, DayCtx
 from backend.services import reconciled_reading as rr
+from backend.services.reading_stats import finished_date_expr
 from backend.services.audit import audit
 from backend.services.session_hygiene import is_suspect, median_secs_per_page, suggested_seconds
 
@@ -32,6 +33,21 @@ def _date_range(days: int) -> Optional[datetime]:
     if days <= 0:
         return None
     return datetime.utcnow() - timedelta(days=days)
+
+
+def _last_months(ref, n: int) -> list[date]:
+    """First days of the last ``n`` calendar months ending with ``ref``'s
+    month, oldest first. Real months: stepping back 30 days from the 31st
+    lands twice in one month and skips February."""
+    y, m = ref.year, ref.month
+    out: list[date] = []
+    for _ in range(n):
+        out.append(date(y, m, 1))
+        m -= 1
+        if m == 0:
+            y, m = y - 1, 12
+    out.reverse()
+    return out
 
 
 def _fill_daily(rows: list, start_date, end_date) -> list[dict]:
@@ -150,10 +166,11 @@ def get_stats(
         UserBookStatus.user_id == current_user.id,
         UserBookStatus.status == "read",
     )
+    finished_on = finished_date_expr()
     if cutoff:
-        finished_query = finished_query.filter(UserBookStatus.updated_at >= cutoff)
+        finished_query = finished_query.filter(finished_on >= cutoff)
     if range_end:
-        finished_query = finished_query.filter(UserBookStatus.updated_at < range_end)
+        finished_query = finished_query.filter(finished_on < range_end)
     books_finished_count = finished_query.count()
 
     # Streaks (all time, local-day with 4h rollover). Reconciled: page-stat days count too.
@@ -178,15 +195,15 @@ def get_stats(
         finished_query
         .join(Book, Book.id == UserBookStatus.book_id)
         .with_entities(
-            UserBookStatus.updated_at,
+            finished_on.label("finished_on"),
             Book.id,
             Book.title,
         )
-        .order_by(UserBookStatus.updated_at)
+        .order_by(finished_on)
         .all()
     )
     books_finished_list = [
-        {"date": row.updated_at.date().isoformat(), "book_id": row.id, "title": row.title}
+        {"date": row.finished_on.date().isoformat(), "book_id": row.id, "title": row.title}
         for row in finished_books
     ]
 
@@ -448,23 +465,22 @@ def get_stats(
     # Books finished per month
     month_finished_rows = (
         db.query(
-            func.strftime('%Y-%m', day_ctx.dt_shifted(UserBookStatus.updated_at)).label("month"),
+            func.strftime('%Y-%m', day_ctx.dt_shifted(finished_date_expr())).label("month"),
             func.count(UserBookStatus.id).label("cnt"),
         )
         .filter(
             UserBookStatus.user_id == current_user.id,
             UserBookStatus.status == "read",
-            UserBookStatus.updated_at >= month_cutoff,
+            finished_date_expr() >= month_cutoff,
         )
-        .group_by(func.strftime('%Y-%m', day_ctx.dt_shifted(UserBookStatus.updated_at)))
+        .group_by(func.strftime('%Y-%m', day_ctx.dt_shifted(finished_date_expr())))
         .all()
     )
     month_finished_map = {r.month: int(r.cnt) for r in month_finished_rows}
 
     # Build 12-month list
     monthly_comparison = []
-    for i in range(11, -1, -1):
-        d = now - timedelta(days=i * 30)
+    for d in _last_months(now, 12):
         month_key = d.strftime("%Y-%m")
         label = d.strftime("%b")
         sdata = month_session_map.get(month_key, {"seconds": 0, "sessions": 0})
@@ -498,8 +514,7 @@ def get_stats(
         all_categories.add(cat)
 
     genre_over_time = []
-    for i in range(11, -1, -1):
-        d = now - timedelta(days=i * 30)
+    for d in _last_months(now, 12):
         month_key = d.strftime("%Y-%m")
         entry: dict[str, int | str] = {"month": month_key}
         cat_data = genre_month_map.get(month_key, {})
@@ -687,8 +702,7 @@ def get_stats(
 
     library_growth: list[dict] = []
     running_total: dict[str, int] = {c: 0 for c in all_growth_cats}
-    for i in range(23, -1, -1):
-        d = now - timedelta(days=i * 30)
+    for d in _last_months(now, 24):
         month_key = d.strftime("%Y-%m")
         for cat, added in monthly_added.get(month_key, {}).items():
             running_total[cat] += added
@@ -883,7 +897,7 @@ def get_stats(
     read_word_rows = (
         db.query(
             Book.id, Book.title, Book.author, Book.cover_path, Book.word_count,
-            UserBookStatus.updated_at,
+            finished_date_expr().label("finished_on"),
         )
         .select_from(UserBookStatus)
         .join(Book, Book.id == UserBookStatus.book_id)
@@ -906,7 +920,7 @@ def get_stats(
     for r in read_word_rows:
         wc = int(r.word_count)
         total_words += wc
-        finished = r.updated_at
+        finished = r.finished_on
         if finished:
             words_by_year[finished.year] = words_by_year.get(finished.year, 0) + wc
         length_books.append({

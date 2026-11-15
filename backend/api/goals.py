@@ -36,6 +36,7 @@ from backend.models.reading_goal import ReadingGoal
 from backend.models.tome_sync import ReadingSession
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
+from backend.services.reading_stats import finished_date_expr
 
 router = APIRouter(tags=["goals"])
 
@@ -163,12 +164,12 @@ def _expected_now(period: Period, target: int, tz_offset: int) -> Optional[float
 def _compute_books_current(
     db: Session, user_id: int, period: Period, tz_offset: int, book_type_id: Optional[int]
 ) -> int:
-    """Count UserBookStatus rows with status='read' and updated_at in the current period window."""
+    """Count UserBookStatus rows with status='read' finished in the current period window."""
     start = _window_start(period, tz_offset)
     q = db.query(UserBookStatus).filter(
         UserBookStatus.user_id == user_id,
         UserBookStatus.status == "read",
-        UserBookStatus.updated_at >= start,
+        finished_date_expr() >= start,
     )
     if book_type_id is not None:
         q = q.join(Book, Book.id == UserBookStatus.book_id).filter(
@@ -231,18 +232,18 @@ def _compute_days_hit(
 
     if metric == "books":
         q = db.query(
-            func.date(UserBookStatus.updated_at, modifier).label("day"),
+            func.date(finished_date_expr(), modifier).label("day"),
             func.count(UserBookStatus.id).label("total"),
         ).filter(
             UserBookStatus.user_id == user_id,
             UserBookStatus.status == "read",
-            UserBookStatus.updated_at >= week_cutoff,
+            finished_date_expr() >= week_cutoff,
         )
         if book_type_id is not None:
             q = q.join(Book, Book.id == UserBookStatus.book_id).filter(
                 Book.book_type_id == book_type_id
             )
-        daily_rows = q.group_by(func.date(UserBookStatus.updated_at, modifier)).all()
+        daily_rows = q.group_by(func.date(finished_date_expr(), modifier)).all()
         daily_map = {row.day: int(row.total) for row in daily_rows}
     else:
         column = (

@@ -1439,6 +1439,10 @@ msgstr ""
 msgid "+{gain}% today"
 msgstr "+{gain} % aujourd’hui"
 
+#: src/components/stats/BacklogEstimate.tsx
+msgid "<0>{d}</0> at your pace"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "<0>{dur}</0> left in this series"
 msgstr "<0>{dur}</0> restants dans cette série"
@@ -1500,8 +1504,16 @@ msgid "~{w} weeks"
 msgstr "~{w} semaines"
 
 #: src/lib/backlog.ts
+msgid "~{y} years"
+msgstr ""
+
+#: src/lib/backlog.ts
 msgid "~1 day"
 msgstr "~1 jour"
+
+#: src/lib/backlog.ts
+msgid "~1 year"
+msgstr ""
 
 #: src/pages/HighlightsPage.tsx
 msgid "0 highlights"
@@ -5630,6 +5642,10 @@ msgstr "Plus"
 msgid "More send options"
 msgstr "Autres options d’envoi"
 
+#: src/lib/backlog.ts
+msgid "more than 10 years"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 #~ msgid "More ways to read"
 #~ msgstr ""
@@ -6189,8 +6205,8 @@ msgstr "Aucune donnée de temps de lecture pour le moment."
 
 #: src/components/stats/BacklogEstimate.tsx
 #: src/lib/backlog.ts
-msgid "no recent reading, so no day estimate"
-msgstr "aucune lecture récente, donc aucune estimation en jours"
+#~ msgid "no recent reading, so no day estimate"
+#~ msgstr "aucune lecture récente, donc aucune estimation en jours"
 
 #: src/components/MetadataFetchModal.tsx
 #~ msgid "No results — but some sources were unavailable (see below); retrying may help."
@@ -6348,6 +6364,11 @@ msgstr "non comptabilisé"
 #: src/pages/StatsPage.tsx
 msgid "Not enough reading history yet."
 msgstr "Historique de lecture encore insuffisant."
+
+#: src/components/stats/BacklogEstimate.tsx
+#: src/lib/backlog.ts
+msgid "not enough recent reading for a day estimate"
+msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
 msgid "Not enough sessions yet."
