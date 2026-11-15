@@ -103,6 +103,9 @@ All notable changes to Tome are documented here. Format loosely follows
 ### Fixed
 - **The API docs show the real version.** `/api/docs` reported 1.7.0 whatever
   release was running.
+- **Build tooling: minimatch 11 for the lint and build dependencies** that
+  pulled a 10.x with a known denial-of-service pattern. Development
+  dependencies only; nothing in the image changes.
 - **The arm64 image builds again.** The two frontend build stages run on the
   build host instead of under emulation; the 3.0.0 image build had crashed
   there while compiling the classic bundle.
