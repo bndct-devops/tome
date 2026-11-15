@@ -4,11 +4,11 @@ import { api } from '@/lib/api'
  * Shared, session-cached access to the user's followed series.
  *
  * Release detection is opt-in (TOME_RELEASE_DETECTION); when it's off the
- * follows endpoint 403s. Every consumer (Wishlist Following section, the
+ * follows endpoint 403s, so the client never calls it then (see
+ * setFollowsAvailable). Every consumer (Wishlist Following section, the
  * series-page Follow button, the Home Upcoming-releases card) must render
  * NOTHING until this resolves - rendering optimistically caused a visible
- * flicker on instances with the feature disabled. A disabled verdict is cached
- * for the session so later navigations neither flicker nor re-fire the 403.
+ * flicker on instances with the feature disabled.
  */
 
 export interface FollowOut {
@@ -24,39 +24,36 @@ export interface FollowOut {
   last_checked_at?: string | null
 }
 
-// The disabled verdict also survives a reload for the rest of the browser
-// session: nothing on the client says whether release detection is on, and
-// without this every full page load fired one 403.
-const DISABLED_KEY = 'tome_follows_disabled'
-function storedDisabled(): boolean {
-  try { return sessionStorage.getItem(DISABLED_KEY) === '1' } catch { return false }
-}
-function storeDisabled() {
-  try { sessionStorage.setItem(DISABLED_KEY, '1') } catch { /* private mode: in-memory only */ }
-}
+// Whether follows exist for the signed-in user: release detection on
+// (the `release_detection` flag from /auth/me) and a member or admin role.
+// AuthContext sets this before it publishes a user, so no consumer calls the
+// endpoint while the feature is off. undefined = not known yet.
+let available: boolean | undefined
 
-// undefined = not fetched yet · null = feature disabled · array = follows
-let cached: FollowOut[] | null | undefined = storedDisabled() ? null : undefined
+// undefined = not fetched yet · array = follows
+let cached: FollowOut[] | undefined
 let inflight: Promise<FollowOut[] | null> | null = null
 
-/** Follows list, or null when release detection is disabled. */
+/** Called by AuthContext whenever the signed-in user changes. */
+export function setFollowsAvailable(next: boolean | undefined) {
+  if (next !== available) cached = undefined
+  available = next
+}
+
+/** Follows list, or null when release detection is off for this user. */
 export function getFollows(force = false): Promise<FollowOut[] | null> {
-  if (cached === null) return Promise.resolve(null)         // disabled - final for the session
+  if (available !== true) return Promise.resolve(null)
   if (!force && cached !== undefined) return Promise.resolve(cached)
   if (!force && inflight) return inflight
   inflight = api.get<FollowOut[]>('/wishlist/follows')
     .then(rows => { cached = rows; return rows as FollowOut[] | null })
-    .catch((e: Error) => {
-      // Our own endpoint's 403 detail mentions "disabled"; anything else
-      // (network blip) is transient - don't latch the feature off for it.
-      if (/disabled/i.test(e.message ?? '')) { cached = null; storeDisabled() }
-      return cached ?? null
-    })
+    // A network blip is transient: answer null now, refetch next time.
+    .catch(() => cached ?? null)
     .finally(() => { inflight = null })
   return inflight
 }
 
 /** Call after follow/unfollow so the next getFollows refetches. */
 export function invalidateFollows() {
-  if (cached !== null) cached = undefined
+  cached = undefined
 }

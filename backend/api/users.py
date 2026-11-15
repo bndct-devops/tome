@@ -124,6 +124,13 @@ def set_book_status(
         raise HTTPException(400, "status must be unread, reading, read, shelved, or want_to_read")
     book = visible_book_or_404(db, current_user, book_id)
     row = db.query(UserBookStatus).filter_by(user_id=current_user.id, book_id=book_id).first()
+    if body.status == "reading" and body.progress_pct is not None and body.progress_pct >= 0.99:
+        # The same finish rule the device paths use (book_progress): a
+        # position at 99% or more is a finished book. Without it a client
+        # that only reports positions (the iPhone app, API scripts) left the
+        # book "reading" at 100% for good.
+        body.status = "read"
+        body.progress_pct = 1.0
     # Only overwrite progress_pct/cfi when explicitly sent (not just defaulting to None)
     raw = body.model_dump(exclude_unset=True)
     if row and body.autosave and row.status == "read" and body.status != "read":

@@ -308,7 +308,7 @@ function StreamingComicReader({
 
   return (
     <div
-      className="flex-1 min-w-0 flex items-center justify-center overflow-hidden cursor-pointer select-none relative"
+      className="flex-1 min-w-0 flex items-center justify-center overflow-hidden cursor-pointer select-none relative touch-none"
       style={{ background: themeColors.bg }}
       onClick={handleClick}
       onTouchStart={handleTouchStart}

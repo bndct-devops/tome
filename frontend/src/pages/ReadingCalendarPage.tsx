@@ -498,7 +498,7 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
     if (data.is_month_best) return t`Your biggest reading day this month: ${dur} with ${mainTitle}.`
     if (pastMidnight) return t`Up past midnight with ${mainTitle}.`
     if (data.sittings.length >= 3) { const n = data.sittings.length; return t`Kept coming back to it: ${n} sittings across the day.` }
-    if (data.seconds < 15 * 60) { const p = data.pages; return t`A short visit. ${p} pages still count.` }
+    if (data.seconds < 15 * 60 && data.pages > 0) { const p = data.pages; return t`A short visit. ${p} pages still count.` }
     if (started[0]) { const a = started[0].title; return t`Opened ${a} for the first time.` }
     if (main.chapters.length >= 2) { const n = main.chapters.length; return t`${n} chapters of ${mainTitle}.` }
     return t`${dur} with ${mainTitle}.`
@@ -514,12 +514,15 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
   for (const b of started) { const l = bookLabel(b); badges.push({ icon: BookOpen, label: t`Started ${l}` }) }
   if (pastMidnight) badges.push({ icon: Moon, label: t`Past midnight` })
 
+  // No page count for the day (web reader sessions have none): leave pages
+  // and speed out rather than show a 0 that reads like a measurement.
+  const hasPages = data.pages > 0
   const pph = data.seconds ? Math.round(data.pages / (data.seconds / 3600)) : 0
   const stats = [
     { value: formatDuration(data.seconds), label: t`Time` },
-    { value: data.pages.toLocaleString(), label: t`Pages` },
+    ...(hasPages ? [{ value: data.pages.toLocaleString(), label: t`Pages` }] : []),
     { value: String(data.sittings.length), label: t`Sittings` },
-    { value: t`${pph} p/h`, label: t`Speed` },
+    ...(hasPages ? [{ value: t`${pph} p/h`, label: t`Speed` }] : []),
   ]
   // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS colours
   const shades = ['var(--primary)', 'color-mix(in oklch, var(--primary) 45%, var(--muted-foreground))', 'var(--muted-foreground)']
@@ -597,8 +600,8 @@ function DayBookRow({ b }: { b: DayBook }) {
         {b.series && <p className="truncate text-xs text-muted-foreground">{b.series}{b.series_index != null && ` #${+b.series_index}`}</p>}
         <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-0.5 text-xs text-foreground tabular-nums">
           <span className="inline-flex items-center gap-1"><Clock className="h-3 w-3 text-muted-foreground" />{formatDuration(b.seconds)}</span>
-          <span className="inline-flex items-center gap-1"><FileText className="h-3 w-3 text-muted-foreground" />{plural(b.pages, { one: '# page', other: '# pages' })}</span>
-          {b.pages_per_hour != null && <span className="inline-flex items-center gap-1"><Gauge className="h-3 w-3 text-muted-foreground" />{(() => { const pph = Math.round(b.pages_per_hour); return t`${pph} p/h` })()}</span>}
+          {b.pages > 0 && <span className="inline-flex items-center gap-1"><FileText className="h-3 w-3 text-muted-foreground" />{plural(b.pages, { one: '# page', other: '# pages' })}</span>}
+          {b.pages > 0 && b.pages_per_hour != null && <span className="inline-flex items-center gap-1"><Gauge className="h-3 w-3 text-muted-foreground" />{(() => { const pph = Math.round(b.pages_per_hour); return t`${pph} p/h` })()}</span>}
           {range && <span className="inline-flex min-w-0 items-center gap-1"><List className="h-3 w-3 shrink-0 text-muted-foreground" /><span className="truncate">{range}</span></span>}
         </div>
         {/* A position that did not move says nothing worth a bar ("0% to 0%"). */}

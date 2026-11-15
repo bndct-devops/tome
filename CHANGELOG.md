@@ -147,6 +147,35 @@ All notable changes to Tome are documented here. Format loosely follows
   the TomeSync plugin.** These values are now escaped when the plugin is
   generated, and a self-update that cannot write its files (for example on a
   full disk) stops instead of installing a broken copy (TomeSync 1.20.1).
+- **The Bindery no longer reloads after every message.** Each notification
+  re-ran its three list requests, and a failed load kept reloading itself.
+- **A page that fails to load now offers a Reload button instead of a blank
+  screen.** After an update, an open tab reloads once on its own when a page's
+  script is no longer there.
+- **Home no longer asks for followed series when release detection is off.**
+  The server now tells the app whether the feature is on, so the request that
+  always failed is gone.
+- **Book covers in the Library grid are real links, and pages can be zoomed.**
+  Covers can be opened in a new tab, middle-clicked and reached with Tab.
+  Pinch zoom works again; the comic reader keeps its own zoom.
+- **Add shelf saves every active filter, and the Type filter is part of the
+  link.** A shelf made from "Author X + Reading" now keeps the status, rating,
+  missing-data, ownership and uploader filters. Chapters/All is in the address
+  and shows as a chip.
+- **Bulk Send no longer sends fewer books than are selected.** When Select all
+  reaches past the loaded books, Send waits and its tooltip says how many
+  books are not loaded yet.
+- **A book saved at 100% is marked as read on every path.** KOReader sync
+  already finished a book at 99%; a position saved through the web API (the
+  iPhone app, scripts) left it "reading" at 100% for good. For books already
+  in that state, Currently reading on the Stats page now offers Mark as read,
+  and books at 0% are listed last.
+- **The Calendar no longer shows 0 pages and 0 p/h for days without page
+  data.** Web reader sessions have no page count, so pages and speed are left
+  out on those days.
+- **Connected devices can be told apart on a phone.** Each device shows its
+  system and when it was last seen under its name, with the delete button at
+  the row's edge.
 
 ## [3.0.0] - 2026-11-08 - "Rebind"
 

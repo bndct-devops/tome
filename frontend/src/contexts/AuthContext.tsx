@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
+import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { api } from '@/lib/api'
+import { setFollowsAvailable } from '@/lib/follows'
 
 interface Permissions {
   can_upload: boolean
@@ -30,6 +31,8 @@ export interface AuthUser {
   role: 'admin' | 'member' | 'guest'
   auth_source?: 'local' | 'oidc'
   oidc_linked?: boolean
+  /** Instance flag TOME_RELEASE_DETECTION (series follows). */
+  release_detection?: boolean
 }
 
 export function isAdmin(user: AuthUser | null): boolean {
@@ -63,7 +66,13 @@ const ADMIN_TOKEN_KEY = 'tome_admin_token'
 const IMPERSONATED_USERNAME_KEY = 'tome_impersonated_username'
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<AuthUser | null>(null)
+  const [user, setUserState] = useState<AuthUser | null>(null)
+  // Tell the follows cache whether the feature exists for this user before
+  // any page renders with the user (child effects run before ours would).
+  const setUser = useCallback((next: AuthUser | null) => {
+    setFollowsAvailable(next ? next.release_detection === true && isMember(next) : undefined)
+    setUserState(next)
+  }, [])
   const [loading, setLoading] = useState(true)
   const [isImpersonating, setIsImpersonating] = useState(false)
   const [impersonatedUsername, setImpersonatedUsername] = useState<string | null>(null)

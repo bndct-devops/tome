@@ -1387,6 +1387,10 @@ msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for
 msgstr "{totalCount, plural, one {# résultat pour « {search} »} other {# résultats pour « {search} »}}"
 
 #: src/pages/DashboardPage.tsx
+msgid "{unloaded, plural, one {# selected book is not loaded yet. Scroll down to load it, or select fewer, to send.} other {# selected books are not loaded yet. Scroll down to load them, or select fewer, to send.}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
 msgid "{updatedText}. {skippedText}."
 msgstr ""
 
@@ -4283,6 +4287,10 @@ msgstr "Impossible de mettre à jour le statut de lecture"
 msgid "Failed to update sharing"
 msgstr "Impossible de mettre à jour le partage"
 
+#: src/components/stats/widgets/overview.tsx
+msgid "Failed to update status"
+msgstr ""
+
 #: src/components/CoverPickerModal.tsx
 msgid "Failed to upload cover"
 msgstr "Impossible de téléverser la couverture"
@@ -5164,6 +5172,10 @@ msgid "Last seen"
 msgstr "Dernière activité"
 
 #: src/pages/SettingsPage.tsx
+msgid "Last seen: {when}"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
 msgid "Last sync: {d}"
 msgstr "Dernière synchronisation : {d}"
 
@@ -5489,6 +5501,10 @@ msgstr "Manuel"
 msgid "Mark all read"
 msgstr "Tout marquer comme lu"
 
+#: src/components/stats/widgets/overview.tsx
+msgid "Mark as read"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Mark complete"
 msgstr "Marquer comme complet"
@@ -5500,6 +5516,10 @@ msgstr "Marquez la série comme complète lorsque vous la considérez entièreme
 #: src/pages/BookDetailPage.tsx
 msgid "Marked as read"
 msgstr "Marqué comme lu"
+
+#: src/components/stats/widgets/overview.tsx
+msgid "Marked as read: {title}"
+msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Marked as reading"
@@ -6344,7 +6364,6 @@ msgid "No word counts yet."
 msgstr "Aucun nombre de mots pour le moment."
 
 #: src/components/MetadataManager.tsx
-#: src/pages/DashboardPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "None"
 msgstr "Aucun"
@@ -7775,6 +7794,10 @@ msgstr "Rejeter le livre importé"
 
 #: src/pages/BinderyPage.tsx
 msgid "Rejecting…"
+msgstr ""
+
+#: src/components/RouteErrorBoundary.tsx
+msgid "Reload"
 msgstr ""
 
 #: src/components/UploadModal.tsx
@@ -9532,6 +9555,10 @@ msgstr "Ce mois-ci"
 msgid "This month, read days filled"
 msgstr "Ce mois-ci, avec les jours de lecture remplis"
 
+#: src/components/RouteErrorBoundary.tsx
+msgid "This page could not be shown"
+msgstr ""
+
 #: src/components/ConnectPhoneModal.tsx
 msgid "This page is open at {host}, which your phone cannot reach: on the phone, localhost is the phone itself. Type the address your phone can reach this computer at, or open Tome at that address instead."
 msgstr "Cette page est ouverte à l’adresse {host}, que votre téléphone ne peut pas joindre : sur le téléphone, localhost désigne le téléphone lui-même. Saisissez l’adresse à laquelle votre téléphone peut joindre cet ordinateur, ou ouvrez Tome à cette adresse."
@@ -9729,6 +9756,10 @@ msgstr "Nom du jeton"
 msgid "Tome · Your personal library"
 msgstr "Tome · Votre bibliothèque personnelle"
 
+#: src/components/RouteErrorBoundary.tsx
+msgid "Tome may have been updated since this tab was opened. Reloading usually fixes it."
+msgstr ""
+
 #: src/components/ConnectPhoneModal.tsx
 msgid "Tome Reader is in free beta for iPhone until 31 December 2026."
 msgstr "Tome Reader est en bêta gratuite sur iPhone jusqu’au 31 décembre 2026."
@@ -9879,6 +9910,14 @@ msgstr "Type"
 
 #: src/components/InstanceBackup.tsx
 msgid "Type RESTORE to confirm"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Type: All"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Type: Chapters"
 msgstr ""
 
 #: src/pages/AdminPage.tsx

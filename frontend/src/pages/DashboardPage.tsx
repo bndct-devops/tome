@@ -274,7 +274,6 @@ export function DashboardPage() {
   const [shareSeries, setShareSeries] = useState<string | null>(null)
   const [seriesDetailLoading, setSeriesDetailLoading] = useState(false)
   const [markingAllRead, setMarkingAllRead] = useState(false)
-  const [contentType, setContentType] = useState<string>('volume')
   // Series meta (status badges) - keyed by series name
   const [seriesMetaMap, setSeriesMetaMap] = useState<Record<string, SeriesStatus>>({})
   // Arcs for the currently open series detail
@@ -496,6 +495,13 @@ export function DashboardPage() {
   // on_device and on none of not_on_device.
   const filterOnDevice = searchParams.get('on_device') ?? ''
   const filterNotOnDevice = searchParams.get('not_on_device') ?? ''
+  // Type (content_type): Volumes when absent, so a plain link keeps the
+  // default; 'all' in the address means no type filter.
+  const contentTypeParam = searchParams.get('content_type')
+  const contentType = contentTypeParam === null ? 'volume' : contentTypeParam === 'all' ? '' : contentTypeParam
+  function setContentType(value: string) {
+    setFilter('content_type', value === 'volume' ? '' : value === '' ? 'all' : value)
+  }
   const onDevices = filterOnDevice.split(',').filter(Boolean)
   const notOnDevices = filterNotOnDevice.split(',').filter(Boolean)
   const devices = useDeviceInventories()
@@ -546,7 +552,7 @@ export function DashboardPage() {
     })
   }
 
-  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterLanguage || filterReadingStatus || filterMinRating || filterMissing || filterOwnership || filterAddedBy || filterOnDevice || filterNotOnDevice)
+  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterLanguage || filterReadingStatus || filterMinRating || filterMissing || filterOwnership || filterAddedBy || filterOnDevice || filterNotOnDevice || contentTypeParam !== null)
 
   // Grouping is bypassed while drilling into a specific series - the user
   // explicitly asked for that series' volumes, so a single stack is useless.
@@ -1058,6 +1064,9 @@ export function DashboardPage() {
       }
 
       if (e.key === 'Enter') {
+        // A link focused with Tab (a book card) opens itself; do not open
+        // the j/k-highlighted book on top of it.
+        if ((e.target as HTMLElement).closest('a')) return
         if (prev !== null && booksRef.current[prev]) {
           const b = booksRef.current[prev]
           if (groupActiveRef.current && b.series) {
@@ -1103,20 +1112,18 @@ export function DashboardPage() {
     ...(filterMissing ? [{ label: t`Missing: ${filterMissingLabel}`, key: 'missing' }] : []),
     ...(filterOwnership === 'mine' ? [{ label: t`My books`, key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: t`Shared library`, key: 'ownership' }] : []),
     ...(filterAddedBy ? [{ label: t`Uploader: ${filterUploaderName}`, key: 'added_by' }] : []),
+    ...(contentTypeParam === 'chapter' ? [{ label: t`Type: Chapters`, key: 'content_type' }] : contentTypeParam === 'all' ? [{ label: t`Type: All`, key: 'content_type' }] : []),
     ...(onDevices.length ? [{ label: (() => { const names = onDevices.join(', '); return t`On ${names}` })(), key: 'on_device' }] : []),
     ...(notOnDevices.length ? [{ label: (() => { const names = notOnDevices.join(', '); return t`Not on ${names}` })(), key: 'not_on_device' }] : []),
   ]
 
-  // Params to pass to SaveFilterButton (excludes library_id - that belongs in sidebar)
-  const saveableParams: Record<string, string> = {}
-  if (search) saveableParams.q = search
-  if (filterSeries) saveableParams.series = filterSeries
-  if (filterAuthor) saveableParams.author = filterAuthor
-  if (filterTag) saveableParams.tag = filterTag
-  if (filterFormat) saveableParams.format = filterFormat
-  if (filterLanguage) saveableParams.language = filterLanguage
-  if (filterOnDevice) saveableParams.on_device = filterOnDevice
-  if (filterNotOnDevice) saveableParams.not_on_device = filterNotOnDevice
+  // Params to pass to SaveFilterButton: the same filters that build the
+  // query, minus library_id (that belongs in the sidebar). Type is kept only
+  // when it is Chapters: the default (Volumes) needs no param, and "All" has
+  // no server-side value that shelves on devices and stats understand.
+  const saveableParams: Record<string, string> = Object.fromEntries(buildFilterParams())
+  delete saveableParams.library_id
+  if (saveableParams.content_type !== 'chapter') delete saveableParams.content_type
 
   // Grid columns flow from the spring-smoothed cover size; card typography
   // follows the slider value. The grid/list switch swaps in place: the old
@@ -1866,7 +1873,7 @@ export function DashboardPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={rowLabel}><Trans>Missing</Trans></span>
                 {([
-                  { value: '', label: t`None` },
+                  { value: '', label: t`All` },
                   { value: 'cover', label: t`Cover` },
                   { value: 'description', label: t`Description` },
                   { value: 'author', label: t`Author` },
@@ -1963,11 +1970,21 @@ export function DashboardPage() {
                 <Trans>Download ZIP</Trans>
               </Pill>
               {isMember(user) && (
-                <SendButton
-                  variant="bulk"
-                  disabled={bulkPending || selected.size === 0}
-                  books={books.filter(b => selected.has(b.id)).map(b => ({ id: b.id, title: b.title, files: b.files }))}
-                />
+                (() => {
+                  // Send needs each book's files, which only loaded rows have.
+                  // "Select all" can select past the loaded pages; sending then
+                  // would quietly drop the rest, so it waits for them instead.
+                  const sendable = books.filter(b => selected.has(b.id))
+                  const unloaded = selected.size - sendable.length
+                  return (
+                    <SendButton
+                      variant="bulk"
+                      disabled={bulkPending || selected.size === 0 || unloaded > 0}
+                      hint={unloaded > 0 ? plural(unloaded, { one: '# selected book is not loaded yet. Scroll down to load it, or select fewer, to send.', other: '# selected books are not loaded yet. Scroll down to load them, or select fewer, to send.' }) : undefined}
+                      books={sendable.map(b => ({ id: b.id, title: b.title, files: b.files }))}
+                    />
+                  )
+                })()
               )}
               <Pill
                 onClick={() => { setBulkMetaOpen(true); api.get<Facets>('/books/facets').then(setFacets).catch(() => {}) }}

@@ -957,15 +957,15 @@ export function SettingsPage() {
                             isRevoked && 'opacity-50'
                           )}
                         >
-                          <span className="flex items-center gap-1.5 font-medium text-foreground truncate min-w-0 pr-4">
+                          {/* Phones drop the other columns, so the name cell takes the row
+                              (delete icon at the edge) and carries system + last seen as a
+                              second line: otherwise every row reads "Browser". */}
+                          <div className="min-w-0 flex-1 sm:flex-none pr-4">
+                          <span className="flex items-center gap-1.5 font-medium text-foreground truncate min-w-0">
                             {d.kind === 'web'
                               ? <Monitor className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                               : <Smartphone className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
                             <span className="truncate">{d.name}</span>
-                            {d.kind === 'web' && d.platform && (
-                              // The System column is hidden on phones; "Safari" alone does not say which device.
-                              <span className="sm:hidden text-muted-foreground font-normal shrink-0">{d.platform}</span>
-                            )}
                             {d.current && (
                               <span className="shrink-0 px-1.5 py-0.5 rounded-full text-[12px] font-medium bg-primary/10 text-primary">
                                 <Trans>This browser</Trans>
@@ -983,6 +983,14 @@ export function SettingsPage() {
                               </span>
                             )}
                           </span>
+                          <span className="sm:hidden mt-0.5 block truncate pl-5 text-[12px] text-muted-foreground">
+                            {(() => {
+                              const when = d.last_seen_at ? relativeTime(d.last_seen_at) : t`Never`
+                              const seen = t`Last seen: ${when}`
+                              return d.platform ? `${d.platform} · ${seen}` : seen
+                            })()}
+                          </span>
+                          </div>
                           <span className="text-muted-foreground hidden sm:block truncate pr-4">{d.platform ?? '-'}</span>
                           <span className="text-muted-foreground hidden sm:block shrink-0">
                             {d.last_seen_at ? relativeTime(d.last_seen_at) : t`Never`}

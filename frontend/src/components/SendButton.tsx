@@ -18,6 +18,8 @@ interface SendButtonProps {
    *  'pill' = the book page's secondary large pill. */
   variant?: 'rail' | 'bulk' | 'pill'
   disabled?: boolean
+  /** Tooltip on the send buttons, e.g. why they are disabled. */
+  hint?: string
 }
 
 /**
@@ -26,7 +28,7 @@ interface SendButtonProps {
  * the caret offers "Send via email…" (the existing SMTP modal). When the inbox
  * is off, it is the plain "Send to Device" button (email modal only).
  */
-export function SendButton({ books, variant = 'rail', disabled }: SendButtonProps) {
+export function SendButton({ books, variant = 'rail', disabled, hint }: SendButtonProps) {
   const { toast } = useToast()
   const [status, setStatus] = useState<SendStatus | null>(null)
   const [modalOpen, setModalOpen] = useState(false)
@@ -145,6 +147,7 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
         <button
           onClick={() => setModalOpen(true)}
           disabled={disabled}
+          title={hint}
           className={variant === 'rail' ? `mt-2 w-full ${btn} hover:-translate-y-0.5 hover:shadow-sm` : btn}
         >
           <Send className="w-3.5 h-3.5 text-muted-foreground" />
@@ -162,6 +165,7 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
         <button
           onClick={sendToKoreader}
           disabled={disabled || sending}
+          title={hint}
           className={`${btn} rounded-r-none ${variant === 'rail' ? 'flex-1' : ''}`}
         >
           {sending
@@ -176,6 +180,7 @@ export function SendButton({ books, variant = 'rail', disabled }: SendButtonProp
           onClick={() => setMenuOpen(o => !o)}
           disabled={disabled}
           aria-label={t`More send options`}
+          title={hint}
           className={`${btn} rounded-l-none border-l-0 px-2`}
         >
           <ChevronDown className="w-3.5 h-3.5" />

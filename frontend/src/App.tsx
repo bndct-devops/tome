@@ -7,6 +7,7 @@ import { MotionProvider } from '@/lib/motion'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ImpersonationBanner } from '@/components/ImpersonationBanner'
 import { ForcePasswordChange } from '@/components/ForcePasswordChange'
+import { RouteErrorBoundary } from '@/components/RouteErrorBoundary'
 import { KeyboardShortcutsModal } from '@/components/KeyboardShortcutsModal'
 import { useLingui } from '@lingui/react/macro'
 import { LoginPage } from '@/pages/LoginPage'
@@ -102,6 +103,7 @@ function AppRoutes() {
 
   return (
     <>
+      <RouteErrorBoundary resetKey={location.pathname}>
       <Suspense fallback={null}>
       <Routes>
         <Route path="/setup" element={setupNeeded ? <SetupPage /> : <Navigate to="/login" replace />} />
@@ -209,6 +211,7 @@ function AppRoutes() {
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
       </Suspense>
+      </RouteErrorBoundary>
 
       {/* Global keyboard shortcuts button: authenticated pages, desktop only, never over the reader */}
       {isAuthenticatedPage && !location.pathname.startsWith('/reader/') && (
