@@ -86,6 +86,23 @@ All notable changes to Tome are documented here. Format loosely follows
 - **The arm64 image builds again.** The two frontend build stages run on the
   build host instead of under emulation; the 3.0.0 image build had crashed
   there while compiling the classic bundle.
+- **The web reader no longer un-marks a book you just finished.** A page save
+  from the last few seconds could land after the reader marked the book read,
+  clearing the finish date. Opening a finished comic or PDF also reset its
+  progress and the position synced to your device. Reader saves now leave a
+  finished book finished, as KOReader sync already did. "Reading again" on the
+  book page still starts the book over.
+- **Leaving the web reader right after turning a page no longer loses your
+  place.** The last position is now sent when you close the reader or the tab,
+  or switch away from the app, instead of being dropped.
+- **Opening a book in the web reader for a few seconds no longer counts as a
+  streak day.** Web reader visits shorter than a minute stay in your history
+  but no longer start or extend a streak, so Home, Stats and the Calendar
+  agree. Short sessions from KOReader devices still count.
+- **Going to the next or previous volume no longer shows the previous book's
+  highlights, stats or estimate.** The book page now loads each volume from
+  scratch, so a slow or failed request for the old volume can no longer
+  overwrite the new one.
 
 ## [3.0.0] - 2026-11-08 - "Rebind"
 

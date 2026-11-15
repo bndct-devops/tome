@@ -434,6 +434,8 @@ def monthly_map(db, user_id, day, covered, start_dt) -> dict[str, tuple[int, int
 
 def active_days(db, user_id, day, covered) -> set:
     from datetime import date as _date
+
+    from backend.services.streaks import streak_session_clause
     # A day is "active" if the user read at all that day — page-stat OR session,
     # covered book or not. We deliberately do NOT exclude covered-book sessions
     # here (unlike the time/count reconciliation, where the exclusion avoids
@@ -444,6 +446,7 @@ def active_days(db, user_id, day, covered) -> set:
     rs_days = {
         r[0] for r in
         _rs_filtered(db, user_id, [], None, None)
+        .filter(streak_session_clause())  # a few seconds in the web reader is not a day
         .with_entities(day.dt_day(ReadingSession.started_at)).distinct().all()
         if r[0]
     }

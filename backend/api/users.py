@@ -42,6 +42,11 @@ class StatusIn(BaseModel):
     status: str
     progress_pct: Optional[float] = None
     cfi: Optional[str] = None
+    # Set by the web reader on its automatic saves. Under it a finished book
+    # stays finished (the same sticky rule device position sync uses): status,
+    # finished_at and progress_pct are kept, only the position moves. Without
+    # it (book page, API clients) a non-"read" status un-finishes as before.
+    autosave: bool = False
 
 
 class RatingIn(BaseModel):
@@ -121,7 +126,14 @@ def set_book_status(
     row = db.query(UserBookStatus).filter_by(user_id=current_user.id, book_id=book_id).first()
     # Only overwrite progress_pct/cfi when explicitly sent (not just defaulting to None)
     raw = body.model_dump(exclude_unset=True)
-    if row:
+    if row and body.autosave and row.status == "read" and body.status != "read":
+        # Reader autosave on a finished book: sticky, like the device path
+        # (book_progress.apply_progress_to_status). A late or re-read page
+        # save never un-finishes the book; only the resume position follows.
+        if 'cfi' in raw and body.cfi is not None:
+            row.cfi = body.cfi
+        row.updated_at = datetime.utcnow()
+    elif row:
         was_read = row.status == "read"
         # finished_at marks the transition into "read" (updated_at is useless as
         # a finish date — it moves on every rating/CFI write) and clears when
