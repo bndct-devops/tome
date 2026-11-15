@@ -46,6 +46,17 @@ All notable changes to Tome are documented here. Format loosely follows
   less often spreads a larger total over more sessions. Pages from before
   Tome saw the counter, and the history brought in by the import, stay as
   time only. Session rows now show pages for every source that has them.
+- **One sideloaded book on a CrossInk reader and a KOReader device
+  (experimental).** A book Tome only knows from your reader, without a file,
+  can now be read on a device with the TomeSync plugin too, and each device
+  picks up where the other stopped. Copy the same file to both. The plugin
+  finds the book by the same file name, by the same content when the reader
+  matches books by content, or by the book's title in the file name. The
+  position is passed on by percentage where the reader only names the
+  chapter, so expect the right page, not the exact line. Reading time and
+  pages from both devices count on the one book. For books that are in your
+  library with a file, the reader's position reaches plugin devices only
+  with `TOME_KOSYNC_POSITION_BRIDGE=true`, as before.
 - **Sideloaded books are recognised from what the reader says about them
   (experimental).** A file you copied to your reader yourself is only a hash
   to Tome, so its progress and reading had no book to belong to. When the

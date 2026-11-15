@@ -48,7 +48,9 @@ import { withBase } from '../../lib/path'
     <li><strong>From your app to Tome:</strong> pushes update the book's progress and read
       status (books finish at 99%, and a finished book stays finished on a re-read). They
       deliberately do <em>not</em> move positions on devices running the TomeSync plugin —
-      third-party clients can't disturb your e-reader's sync.</li>
+      third-party clients can't disturb your e-reader's sync. Two exceptions: a book Tome
+      only knows from your reader (see below), and every book once
+      <code>TOME_KOSYNC_POSITION_BRIDGE=true</code> is set on the server.</li>
   </ul>
 
   <h2>Linking synced books</h2>
@@ -78,8 +80,12 @@ import { withBase } from '../../lib/path'
       its progress and reading show on Home, in the stats and on the calendar under its
       real title. It shows in your own Library and in library search with a
       <strong>No file</strong> badge, has a page of its own for a cover and details, never
-      goes into a library, and stays out of series pages, OPDS, the plugin and the apps,
-      because there is nothing to download. Only you see it.</li>
+      goes into a library, and stays out of series pages, OPDS, the plugin's browser and
+      the apps, because there is nothing to download. Only you see it. If you copy the same
+      file to a KOReader device with the TomeSync plugin, that device joins the same book
+      and the two pick up each other's position: the plugin finds the book by the same file
+      name, by the same content when your reader matches books by content, or by the
+      title in the file name.</li>
     <li><strong>Several books fit:</strong> Tome does not choose. Use the manual picker;
       it shows the title the reader sent.</li>
   </ul>

@@ -54,6 +54,11 @@ class KOSyncDocumentMap(Base):
     book_id: Mapped[int] = mapped_column(
         Integer, ForeignKey("books.id", ondelete="CASCADE"), nullable=False
     )
+    # True when the link came from the "next unknown push claims the oldest
+    # pending OPDS download" guess. The plugin's book lookup never follows
+    # such a link. NULL on rows from before the column existed and on every
+    # link made by a hash, by the reader's own metadata or by hand.
+    guessed: Mapped[Optional[bool]] = mapped_column(Boolean, nullable=True)
 
 
 class ReadingHistory(Base):

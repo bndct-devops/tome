@@ -252,6 +252,7 @@ def update_progress(
                     tome_user_id=user.user_id,
                     document=document,
                     book_id=pending.book_id,
+                    guessed=True,
                 )
                 db.add(doc_map)
                 db.delete(pending)

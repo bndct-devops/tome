@@ -157,6 +157,25 @@ def _get_position(db: Session, user_id: int, book_id: int) -> Optional[TomeSyncP
     )
 
 
+_CHAPTER_START = None
+
+
+def _chapter_start_only(progress: Optional[str]) -> bool:
+    """True for a locator that only names a chapter, not a place inside it
+    ("/body/DocFragment[7]", "/body/DocFragment[7].0", ".../body.0").
+
+    A reader that cannot map its page to a paragraph sends this next to an
+    exact percentage. Passed on as-is, the plugin would jump to the start of
+    the chapter; without a locator it jumps by the percentage, which is the
+    better of the two.
+    """
+    import re
+    global _CHAPTER_START
+    if _CHAPTER_START is None:
+        _CHAPTER_START = re.compile(r"^/body/DocFragment\[\d+\](?:/body)?(?:\.0+)?$")
+    return bool(progress) and bool(_CHAPTER_START.match(progress.strip()))
+
+
 def _newest_kosync_progress(db: Session, user_id: int, book_id: int):
     """Newest KOSync push for this (Tome user, book), or None.
 
@@ -234,6 +253,49 @@ def _stem_in_title(stem_l: str, title_l: str) -> bool:
 
 # ── Resolve endpoint ─────────────────────────────────────────────────────────
 
+def _is_syncable(book: Optional[Book], user: User) -> bool:
+    """A book a plugin device may sync reading for: a library book, or a book
+    record without a file that this user's reader created (BOOK_NO_FILE). The
+    second is what lets a plugin device and a KOSync reader share one book
+    that Tome holds no file for. Browsing and download routes stay on
+    library books only."""
+    from backend.models.book import BOOK_ACTIVE, BOOK_NO_FILE
+    if book is None:
+        return False
+    return book.status == BOOK_ACTIVE or (book.status == BOOK_NO_FILE and book.added_by == user.id)
+
+
+def _kosync_linked_book(db: Session, user: User, filename: str, ko_md5: str) -> Optional[int]:
+    """The book this user's KOSync client linked the same file to, or None.
+
+    Tried by content id first, then by the id a reader derives from the file
+    name (MD5 of the base name, extension included). Only a book the user may
+    sync (``_is_syncable``) and can see, and never through a link that was a
+    guess.
+    """
+    import hashlib
+    from backend.models.kosync import KOSyncDocumentMap
+
+    name = (filename or "").rsplit("/", 1)[-1]
+    ids = [d for d in (
+        (ko_md5 or "").strip().lower(),
+        hashlib.md5(name.encode("utf-8")).hexdigest() if name else "",
+    ) if d]
+    for document in ids:
+        row = (
+            db.query(KOSyncDocumentMap)
+            .filter(KOSyncDocumentMap.tome_user_id == user.id,
+                    KOSyncDocumentMap.document == document)
+            .first()
+        )
+        if row is None or row.guessed:
+            continue
+        book = db.get(Book, row.book_id)
+        if _is_syncable(book, user) and user_can_see_book(db, user, book):
+            return book.id
+    return None
+
+
 @router.get("/tome-sync/resolve")
 def resolve_book(
     filename: str,
@@ -266,6 +328,16 @@ def resolve_book(
             if book and book.status == "active":
                 return {"book_id": book.id, "method": "ko_hash"}
 
+    # 0b. A KOSync client (CrossInk, Readest, stock KOReader sync) may already
+    #     have this very file linked to a book for this user, including a book
+    #     Tome holds no file for. Its document id is either KOReader's
+    #     partial-MD5 of the content (what the plugin sends as ko_md5) or the
+    #     MD5 of the file's name, so both are exact, not guesses. A guessed
+    #     link is never followed.
+    linked = _kosync_linked_book(db, user, filename, ko_md5)
+    if linked is not None:
+        return {"book_id": linked, "method": "kosync_document"}
+
     stem = filename.rsplit(".", 1)[0] if "." in filename else filename
     stem_l = stem.lower()
 
@@ -294,7 +366,16 @@ def resolve_book(
     if vol_match:
         vol_num = float(vol_match.group(1))
 
-    all_active = db.query(Book).filter(Book.status == "active").all()
+    # Library books, plus this user's own books without a file (a reader's
+    # sideloaded book): the same file on a plugin device belongs to that one.
+    from sqlalchemy import and_, or_
+    from backend.models.book import BOOK_NO_FILE
+    all_active = (
+        db.query(Book)
+        .filter(or_(Book.status == "active",
+                    and_(Book.status == BOOK_NO_FILE, Book.added_by == user.id)))
+        .all()
+    )
 
     # 2. Forward match: the book's title appears as a whole phrase in the
     #    filename (short titles must match exactly — see _title_in_stem).
@@ -347,7 +428,7 @@ def get_position(
     user: User = Depends(_get_api_key_user),
 ):
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not _is_syncable(book, user):
         raise HTTPException(status_code=404, detail="Book not found")
 
     pos = _get_position(db, user.id, book_id)
@@ -359,7 +440,11 @@ def get_position(
     # is never written from KOSync data, so the #156 write-side rule holds.
     # The locator travels as-is (a stock-KOReader xpointer resolves exactly on
     # the device; anything else makes the plugin fall back to the percentage).
-    if settings.kosync_position_bridge:
+    # A book without a file only exists because the user's KOSync reader
+    # reported it, so for that book the reader's position always counts; the
+    # setting decides for library books.
+    from backend.models.book import BOOK_NO_FILE
+    if settings.kosync_position_bridge or book.status == BOOK_NO_FILE:
         ks = _newest_kosync_progress(db, user.id, book_id)
         if ks is not None:
             pos_ts = (
@@ -370,7 +455,7 @@ def get_position(
             if pos_ts is None or ks.timestamp > pos_ts:
                 return {
                     "book_id": book_id,
-                    "progress": ks.progress,
+                    "progress": None if _chapter_start_only(ks.progress) else ks.progress,
                     "percentage": ks.percentage,
                     "device": ks.device or "kosync",
                     "updated_at": datetime.utcfromtimestamp(ks.timestamp).isoformat() + "Z",
@@ -402,7 +487,7 @@ def put_position(
     user: User = Depends(_get_api_key_user),
 ):
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not _is_syncable(book, user):
         raise HTTPException(status_code=404, detail="Book not found")
 
     # Clamp percentage to 0-1 range
@@ -440,7 +525,7 @@ def get_rating(
     user: User = Depends(_get_api_key_user),
 ):
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not _is_syncable(book, user):
         raise HTTPException(status_code=404, detail="Book not found")
 
     row = (
@@ -471,7 +556,7 @@ def put_rating(
     user: User = Depends(_get_api_key_user),
 ):
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not _is_syncable(book, user):
         raise HTTPException(status_code=404, detail="Book not found")
     validate_rating(body.rating)
 
@@ -517,7 +602,7 @@ def post_session(
     user: User = Depends(_get_api_key_user),
 ):
     book = db.get(Book, body.book_id)
-    if not book or book.status != "active":
+    if not _is_syncable(book, user):
         raise HTTPException(status_code=404, detail="Book not found")
 
     # Dedup: if same session_uuid already stored, return it
@@ -844,7 +929,7 @@ def sync_annotations(
     The response (alive set + tombstones) is what the device applies locally.
     """
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not _is_syncable(book, user):
         raise HTTPException(status_code=404, detail="Book not found")
 
     alive, tombs = _annotation_state(db, user.id, book_id)
@@ -1205,7 +1290,7 @@ def put_reading_status(
     if body.status not in ("unread", "reading", "read"):
         raise HTTPException(status_code=422, detail="status must be unread|reading|read")
     book = db.get(Book, book_id)
-    if not book or book.status != "active" or not user_can_see_book(db, user, book):
+    if not _is_syncable(book, user) or not user_can_see_book(db, user, book):
         raise HTTPException(status_code=404, detail="Book not found")
     row = (
         db.query(UserBookStatus)

@@ -184,6 +184,11 @@ async def lifespan(app: FastAPI):
         if "download_limit" not in user_cols:
             conn.execute(text("ALTER TABLE users ADD COLUMN download_limit INTEGER"))
             conn.commit()
+        # A KOSync document link remembers when it was only a guess.
+        dm_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(kosync_document_map)")).fetchall()}
+        if dm_cols and "guessed" not in dm_cols:
+            conn.execute(text("ALTER TABLE kosync_document_map ADD COLUMN guessed BOOLEAN"))
+            conn.commit()
         # Migrate api_keys.key (plaintext) → key_hash (sha256) + key_prefix (display)
         # so a DB leak doesn't compromise any KOReader plugin install. One-way: existing
         # installed plugins keep working because they send the plaintext, we hash on lookup.
