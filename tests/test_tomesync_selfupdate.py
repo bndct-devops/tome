@@ -268,3 +268,219 @@ def test_impl_compiles_under_luajit(tmp_path):
         text=True,
     )
     assert proc.returncode == 0, proc.stderr
+
+
+# ── Baked config is escaped for Lua; self-update checks its writes (D16) ─────
+
+NASTY_URL = 'https://tome.example/a"b\\c'
+NASTY_KEY = 'tome_k"ey\\x\n--]]'
+NASTY_USER = 'o\'brien "the\\reader"\r\n\tend\x01'
+
+
+def test_lua_string_escapes_quotes_backslashes_and_controls():
+    from backend.api.tome_sync import _lua_string
+
+    assert _lua_string('a"b') == '"a\\"b"'
+    assert _lua_string("a\\b") == '"a\\\\b"'
+    assert _lua_string("a\nb") == '"a\\010b"'
+    assert _lua_string("x\x011") == '"x\\0011"'  # 3 digits: the next digit is not eaten
+    impl = _main_impl_lua(NASTY_URL, NASTY_KEY, NASTY_USER)
+    assert 'local DEFAULT_SERVER_URL = "https://tome.example/a\\"b\\\\c"' in impl
+
+
+def test_impl_with_nasty_config_compiles_and_keeps_values(tmp_path):
+    import subprocess
+
+    luajit = _luajit_or_skip()
+    impl = _main_impl_lua(NASTY_URL, NASTY_KEY, NASTY_USER)
+    path = tmp_path / "main_impl.lua"
+    path.write_bytes(impl.encode())
+    proc = subprocess.run(
+        [luajit, "-e", f"assert(loadfile({str(path)!r}))"],
+        capture_output=True, text=True,
+    )
+    assert proc.returncode == 0, proc.stderr
+
+    # The three baked lines evaluate back to the exact original values.
+    start = impl.index("local DEFAULT_SERVER_URL")
+    end = impl.index("local DEFAULT_USERNAME")
+    end = impl.index("\n", end)
+    script = impl[start:end] + """
+io.write(DEFAULT_SERVER_URL, "\\0", DEFAULT_API_KEY, "\\0", DEFAULT_USERNAME)
+"""
+    spec = tmp_path / "baked.lua"
+    spec.write_bytes(script.encode())
+    proc = subprocess.run([luajit, str(spec)], capture_output=True)
+    assert proc.returncode == 0, proc.stderr
+    assert proc.stdout.decode().split("\0") == [NASTY_URL, NASTY_KEY, NASTY_USER]
+
+
+def test_self_update_write_detects_failed_write(tmp_path):
+    """writeWhole must report a write that failed (full disk) instead of
+    claiming success, so installUpdate never swaps in a truncated impl."""
+    import subprocess
+
+    luajit = _luajit_or_skip()
+    impl = _main_impl_lua("https://tome.example", "tome_secret_key", "alice")
+    start = impl.index("local function readWhole(path)")
+    end = impl.index("-- Raw (non-JSON) authenticated GET")
+    block = impl[start:end]
+    target = str(tmp_path / "out.lua")
+    script = """
+local real_open = io.open
+local full_disk = false
+io.open = function(path, mode)
+    if full_disk and mode == "wb" then
+        local f = real_open(path, mode)
+        return {
+            write = function(self, data) f:write(data:sub(1, 3)); return nil, "No space left on device" end,
+            close = function(self) return f:close() end,
+        }
+    end
+    return real_open(path, mode)
+end
+""" + block + f"""
+local target = {target!r}
+assert(writeWhole(target, "hello world") == true, "normal write must succeed")
+assert(readWhole(target) == "hello world")
+full_disk = true
+assert(writeWhole(target, "hello world") == false, "failed write must report false")
+print("ALL OK")
+"""
+    spec = tmp_path / "write_spec.lua"
+    spec.write_text(script)
+    proc = subprocess.run([luajit, str(spec)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    assert "ALL OK" in proc.stdout
+
+
+# ── Self-update keeps the device's main address (D7) ─────────────────────────
+
+def _impl_key(c, db, name):
+    _, token = _make_user(db, name, "member")
+    rk = c.post("/api/plugin/api-keys", json={"label": "KO"},
+                headers={"Authorization": f"Bearer {token}"})
+    return rk.json()["key"]
+
+
+def _baked_url(body: str) -> str:
+    line = next(l for l in body.splitlines() if l.startswith("local DEFAULT_SERVER_URL"))
+    return line.split("=", 1)[1].strip()
+
+
+def test_update_bakes_the_address_the_plugin_sends(app_client, monkeypatch):
+    from backend.core.config import settings
+    monkeypatch.setattr(settings, "public_url", None)
+    c, db = app_client
+    key = _impl_key(c, db, "roamer")
+    # The request reaches the server on its LAN address (testserver here);
+    # the plugin reports its main address, which must survive the update.
+    r = c.get("/api/plugin/main-impl.lua",
+              params={"server_url": "https://books.example.org/"},
+              headers={"Authorization": f"Bearer {key}"})
+    assert r.status_code == 200
+    assert _baked_url(r.text) == '"https://books.example.org"'
+
+
+def test_update_without_sent_address_keeps_request_origin(app_client, monkeypatch):
+    from backend.core.config import settings
+    monkeypatch.setattr(settings, "public_url", None)
+    c, db = app_client
+    key = _impl_key(c, db, "oldplugin")
+    r = c.get("/api/plugin/main-impl.lua", headers={"Authorization": f"Bearer {key}"})
+    assert _baked_url(r.text) == '"http://testserver"'
+
+
+def test_update_ignores_a_bad_sent_address(app_client, monkeypatch):
+    from backend.core.config import settings
+    monkeypatch.setattr(settings, "public_url", None)
+    c, db = app_client
+    key = _impl_key(c, db, "badurl")
+    for bad in ('javascript:alert(1)', 'ftp://x.example', 'https://a.example/"x',
+                'https://user:pw@a.example', 'https://a.example/?q=1', 'https://',
+                'https://a.example:99999'):
+        r = c.get("/api/plugin/main-impl.lua", params={"server_url": bad},
+                  headers={"Authorization": f"Bearer {key}"})
+        assert r.status_code == 200, bad
+        assert _baked_url(r.text) == '"http://testserver"', bad
+
+
+def test_update_public_url_still_wins(app_client, monkeypatch):
+    from backend.core.config import settings
+    monkeypatch.setattr(settings, "public_url", "https://public.example.net/")
+    c, db = app_client
+    key = _impl_key(c, db, "configured")
+    r = c.get("/api/plugin/main-impl.lua",
+              params={"server_url": "http://192.168.1.10:8080"},
+              headers={"Authorization": f"Bearer {key}"})
+    assert _baked_url(r.text) == '"https://public.example.net"'
+
+
+def test_impl_update_request_sends_primary_address():
+    impl = _main_impl_lua("https://tome.example", "tome_secret_key", "alice")
+    assert ('fetchText("/plugin/main-impl.lua?server_url=" .. urlEncode(primaryURL()))'
+            in impl)
+
+
+# ── A book Tome does not have is not looked up on every page turn (D11) ──────
+
+def test_resolve_miss_is_remembered_per_file(tmp_path):
+    import subprocess
+
+    luajit = _luajit_or_skip()
+    impl = _main_impl_lua("https://tome.example", "tome_secret_key", "alice")
+    a = impl.index("local RESOLVE_RETRY")
+    b = impl.index("function TomeSync:_initSession()")
+    resolve_block = impl[a:b]
+    c = impl.index("function TomeSync:onPageUpdate(pageno)")
+    d = impl.index("-- Credit the time spent on the page just finished")
+    page_block = impl[c:d]
+    assert "self._resolve_miss = nil" in impl[impl.index("function TomeSync:onNetworkConnected()"):]
+
+    script = """
+local now = 1000
+os.time = function() return now end
+local calls, answer = 0, 404
+local logger = { info = function() end, dbg = function() end }
+package.loaded["util"] = { partialMD5 = function() return "abc" end }
+local function urlEncode(s) return s end
+local function apiRequest(method, path)
+    calls = calls + 1
+    if answer == 404 then return nil, 404 end
+    return nil, answer
+end
+local TomeSync = {}
+""" + resolve_block + page_block + """
+local p = setmetatable({ enabled = true, _reader_ready = true, book_map = {},
+    _saveState = function() end,
+    ui = { document = { file = "/books/stranger.epub" } } }, { __index = TomeSync })
+local function eq(got, want, label)
+    if got ~= want then
+        io.stderr:write(string.format("FAIL %s: got %s want %s\\n", label, tostring(got), tostring(want)))
+        os.exit(1)
+    end
+end
+for _ = 1, 10 do p:onPageUpdate(1) end
+eq(calls, 1, "one lookup for ten page turns after a 404")
+now = now + 299
+p:onPageUpdate(1)
+eq(calls, 1, "still remembered inside the retry window")
+now = now + 2
+p:onPageUpdate(1)
+eq(calls, 2, "asked again after the window")
+-- A different file is not covered by the miss.
+p.ui.document.file = "/books/other.epub"
+p:onPageUpdate(1)
+eq(calls, 3, "other file asks")
+-- No answer (offline) is not a miss: the network layer throttles that.
+answer = "offline"
+p.ui.document.file = "/books/third.epub"
+p:onPageUpdate(1); p:onPageUpdate(1)
+eq(calls, 5, "offline is not remembered as a miss")
+print("ALL OK")
+"""
+    spec = tmp_path / "resolve_spec.lua"
+    spec.write_text(script)
+    proc = subprocess.run([luajit, str(spec)], capture_output=True, text=True)
+    assert proc.returncode == 0, proc.stderr or proc.stdout
+    assert "ALL OK" in proc.stdout

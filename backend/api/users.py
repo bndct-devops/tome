@@ -402,6 +402,8 @@ def link_kosync_document(
             document=body.document,
             book_id=book_id,
         ))
+    from backend.api.kosync import clear_pending_links
+    clear_pending_links(db, current_user.id, book_id)
 
     # Shared sticky-completion rule — same semantics as a KOSync push landing
     # on an already-linked book (position-sync: tracks the report, downward

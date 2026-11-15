@@ -129,6 +129,24 @@ All notable changes to Tome are documented here. Format loosely follows
   stepped back 30 days at a time, so viewed on the 31st one month appeared
   twice, February was missing, and library growth miscounted. They now step
   real calendar months.
+- **KOSync no longer attaches another file's progress to a book you downloaded
+  over OPDS.** A download used to leave a link with no expiry that the next
+  unknown file could claim, so a sideloaded book's progress (and finish) could
+  land on it. The link now goes away once the book is matched and expires
+  after 15 minutes.
+- **A TomeSync self-update no longer changes the plugin's server address to a
+  home network address.** Updating while the fallback address was in use made
+  that address the plugin's default, so the device stopped syncing away from
+  home. The plugin now tells the server its main address and keeps it
+  (TomeSync 1.20.1).
+- **Reading a book that is not in Tome no longer slows down page turns in
+  KOReader.** The plugin asked the server about the book on every page turn;
+  it now asks again only after five minutes or when WiFi reconnects
+  (TomeSync 1.20.1).
+- **Usernames and server addresses with quotes or backslashes no longer break
+  the TomeSync plugin.** These values are now escaped when the plugin is
+  generated, and a self-update that cannot write its files (for example on a
+  full disk) stops instead of installing a broken copy (TomeSync 1.20.1).
 
 ## [3.0.0] - 2026-11-08 - "Rebind"
 

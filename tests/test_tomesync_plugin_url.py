@@ -253,5 +253,7 @@ def test_build_bumped_for_rebake():
     # at once, so a crash no longer loses a fresh pairing.
     # 1.20.0 / build 54 (issue #296): reading status from Tome is written
     # into KOReader's own book status.
-    assert TOMESYNC_PLUGIN_BUILD >= 54
-    assert TOMESYNC_PLUGIN_SEMVER == "1.20.0"
+    # 1.20.1 / build 55: review fixes (resolve miss memory, update keeps the
+    # main server address, checked self-update writes, escaped config).
+    assert TOMESYNC_PLUGIN_BUILD >= 55
+    assert TOMESYNC_PLUGIN_SEMVER == "1.20.1"

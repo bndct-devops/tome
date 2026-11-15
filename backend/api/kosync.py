@@ -14,7 +14,7 @@ and read status only.
 import calendar
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
@@ -26,6 +26,45 @@ from backend.models.user import User
 
 router = APIRouter(prefix="/v1", tags=["kosync"])
 logger = logging.getLogger(__name__)
+
+
+# How long an OPDS download may wait for the KOSync push that claims it. The
+# fallback guesses (it links the next unknown document to the last download),
+# so it only holds right after the download; older rows are dropped unused.
+PENDING_LINK_TTL = timedelta(minutes=15)
+
+
+def clear_pending_links(db: Session, tome_user_id: int, book_id: int) -> None:
+    """Drop this user's pending OPDS links for a book that now has a real map.
+
+    A leftover link would otherwise wait for the next unknown document (a
+    sideload, an old copy) and attach that file's progress to this book.
+    Caller commits.
+    """
+    db.query(OPDSPendingLink).filter(
+        OPDSPendingLink.user_id == tome_user_id,
+        OPDSPendingLink.book_id == book_id,
+    ).delete(synchronize_session=False)
+
+
+def _claim_pending_link(db: Session, tome_user_id: int) -> Optional[OPDSPendingLink]:
+    """Oldest fresh pending link for this user; expired ones are deleted."""
+    cutoff = datetime.utcnow() - PENDING_LINK_TTL
+    expired = db.query(OPDSPendingLink).filter(
+        OPDSPendingLink.user_id == tome_user_id,
+        OPDSPendingLink.created_at < cutoff,
+    ).delete(synchronize_session=False)
+    if expired:
+        db.commit()
+    return (
+        db.query(OPDSPendingLink)
+        .filter(
+            OPDSPendingLink.user_id == tome_user_id,
+            OPDSPendingLink.created_at >= cutoff,
+        )
+        .order_by(OPDSPendingLink.created_at.asc())
+        .first()
+    )
 
 
 def _epoch(dt: datetime) -> int:
@@ -72,6 +111,7 @@ def _find_or_hash_link(db: Session, tome_user_id: int, document: str) -> Optiona
 
     doc_map = KOSyncDocumentMap(tome_user_id=tome_user_id, document=document, book_id=hit)
     db.add(doc_map)
+    clear_pending_links(db, tome_user_id, hit)
     db.commit()
     logger.info("kosync: auto-linked document %s to book %s via ko-hash", document, hit)
     return doc_map
@@ -208,12 +248,7 @@ def update_progress(
         doc_map = _find_or_hash_link(db, user.user_id, document)
 
         if not doc_map:
-            pending = (
-                db.query(OPDSPendingLink)
-                .filter(OPDSPendingLink.user_id == user.user_id)
-                .order_by(OPDSPendingLink.created_at.asc())
-                .first()
-            )
+            pending = _claim_pending_link(db, user.user_id)
             if pending:
                 doc_map = KOSyncDocumentMap(
                     tome_user_id=user.user_id,
@@ -221,7 +256,7 @@ def update_progress(
                     book_id=pending.book_id,
                 )
                 db.add(doc_map)
-                db.delete(pending)
+                clear_pending_links(db, user.user_id, pending.book_id)
                 db.commit()
 
         if doc_map:
