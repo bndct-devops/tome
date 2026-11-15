@@ -115,6 +115,20 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Auto-import waits for files to finish copying.** A book dropped into the
   Bindery is left alone until it has not changed for 30 seconds, so a
   half-copied file is no longer imported.
+- **Books finished are counted on the day you finished them.** Stats, Home,
+  reading goals, the monthly chart and words-by-year used the last time a
+  book's status changed, so rating or reviewing an old book counted it as
+  finished that day and could complete a goal. They now use the finish date,
+  the same one the Calendar and Hardcover already used.
+- **The time-left estimate no longer shows figures like "~2153 months".**
+  After a reading break the average daily reading time is close to zero, and
+  dividing by it gave absurd numbers. Under one minute a day there is no day
+  estimate, longer estimates are shown in years, and anything past ten years
+  reads "more than 10 years".
+- **Monthly stats charts no longer repeat or skip a month.** The month axes
+  stepped back 30 days at a time, so viewed on the 31st one month appeared
+  twice, February was missing, and library growth miscounted. They now step
+  real calendar months.
 
 ## [3.0.0] - 2026-11-08 - "Rebind"
 

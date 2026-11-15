@@ -32,7 +32,7 @@ export function BacklogEstimate({ scope = DEFAULT_BACKLOG_SCOPE }: { scope?: str
   const usesTypeAvg = data.by_type.some(x => x.type_avg > 0)
   const paceNote = pace.minutes_per_day
     ? (() => { const mpd = Math.round(pace.minutes_per_day); const win = pace.window_days; return t`you read ~${mpd} min a day (last ${win} days)` })()
-    : t`no recent reading, so no day estimate`
+    : t`not enough recent reading for a day estimate`
 
   if (data.estimated === 0) {
     return (
@@ -49,9 +49,14 @@ export function BacklogEstimate({ scope = DEFAULT_BACKLOG_SCOPE }: { scope?: str
         <span className="text-3xl font-semibold text-foreground leading-none">{formatEstimateHours(data.seconds)}</span>
         {data.days != null && (
           <span className="text-sm text-muted-foreground">
-            {(() => { const d = formatEstimateDays(data.days).replace(/^~/, ''); return (
-              <Trans>about <span className="text-foreground font-medium">{d}</span> at your pace</Trans>
-            ) })()}
+            {(() => {
+              const f = formatEstimateDays(data.days)
+              const d = f.replace(/^~/, '')
+              // "under a day" / "more than 10 years" are not approximations.
+              return f.startsWith('~')
+                ? <Trans>about <span className="text-foreground font-medium">{d}</span> at your pace</Trans>
+                : <Trans><span className="text-foreground font-medium">{d}</span> at your pace</Trans>
+            })()}
           </span>
         )}
       </div>
