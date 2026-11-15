@@ -106,3 +106,11 @@ def test_disabled_flag_403s(client, db, admin_user, monkeypatch):
     assert client.get("/api/wishlist/follows").status_code == 403
     assert client.post("/api/wishlist/follow", json={"name": "X", "source_id": "1"}).status_code == 403
     assert client.post("/api/admin/release-check").status_code == 403
+
+
+def test_me_reports_release_detection_flag(client, admin_user, monkeypatch):
+    """The web client reads the flag from /auth/me instead of probing the
+    follows endpoint for a 403 on every page load."""
+    assert client.get("/api/auth/me").json()["release_detection"] is True
+    monkeypatch.setattr(settings, "release_detection", False)
+    assert client.get("/api/auth/me").json()["release_detection"] is False

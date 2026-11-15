@@ -205,7 +205,7 @@ export function BookCard({
 
   const tiltEnabled = !onSelect
 
-  function handleMouseMove(e: React.MouseEvent<HTMLDivElement>) {
+  function handleMouseMove(e: React.MouseEvent<HTMLElement>) {
     if (!tiltEnabled) return
     const rect = e.currentTarget.getBoundingClientRect()
     const x = (e.clientX - rect.left) / rect.width  // 0 to 1
@@ -233,16 +233,9 @@ export function BookCard({
     setIsHovering(true)
   }
 
-  return (
-    <div
-      ref={cardRef as React.RefObject<HTMLDivElement>}
-      className={cn('group flex flex-col cursor-pointer touch-feedback', onSelect && 'select-none')}
-      style={{ perspective: '600px' }}
-      onClick={onSelect ? onSelect : () => navigate(`/books/${book.id}`)}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      onMouseEnter={handleMouseEnter}
-    >
+  const gridCls = cn('group flex flex-col cursor-pointer touch-feedback', onSelect && 'select-none')
+  const gridContent = (
+    <>
       {/* Cover */}
       <div
         ref={coverDivRef}
@@ -356,6 +349,37 @@ export function BookCard({
         {rating ? <RatingStars rating={rating} size={view === 'large' ? 12 : 10} /> : null}
         <DevicePills bookId={book.id} size="xs" className="mt-0.5" />
       </div>
-    </div>
+    </>
+  )
+
+  // Selecting: the card toggles its checkbox. Otherwise it is a real link, so
+  // middle-click, open-in-new-tab and Tab focus work like the list view.
+  if (onSelect) {
+    return (
+      <div
+        ref={cardRef as React.RefObject<HTMLDivElement>}
+        className={gridCls}
+        style={{ perspective: '600px' }}
+        onClick={onSelect}
+        onMouseMove={handleMouseMove}
+        onMouseLeave={handleMouseLeave}
+        onMouseEnter={handleMouseEnter}
+      >
+        {gridContent}
+      </div>
+    )
+  }
+  return (
+    <Link
+      ref={cardRef as React.RefObject<HTMLAnchorElement>}
+      to={`/books/${book.id}`}
+      className={cn(gridCls, 'rounded-[8px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background')}
+      style={{ perspective: '600px' }}
+      onMouseMove={handleMouseMove}
+      onMouseLeave={handleMouseLeave}
+      onMouseEnter={handleMouseEnter}
+    >
+      {gridContent}
+    </Link>
   )
 }

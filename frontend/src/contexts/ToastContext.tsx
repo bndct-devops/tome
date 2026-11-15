@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useCallback, useRef } from 'react'
+import { createContext, useContext, useState, useCallback, useMemo, useRef } from 'react'
 import { Check, AlertCircle, Info, X } from 'lucide-react'
 import { cn } from '@/lib/utils'
 
@@ -67,14 +67,18 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     return () => clearTimeout(timer)
   }, [dismiss])
 
-  const toast: ToastMethods = {
-    success: (msg, opts) => addToast('success', msg, opts?.action),
-    error: (msg, opts) => addToast('error', msg, opts?.action),
-    info: (msg, opts) => addToast('info', msg, opts?.action),
-  }
+  // Stable identity: pages list `toast` in effect and callback dependencies,
+  // so a fresh object per render would re-run their loads after every toast.
+  const value = useMemo<ToastContextValue>(() => ({
+    toast: {
+      success: (msg, opts) => addToast('success', msg, opts?.action),
+      error: (msg, opts) => addToast('error', msg, opts?.action),
+      info: (msg, opts) => addToast('info', msg, opts?.action),
+    },
+  }), [addToast])
 
   return (
-    <ToastContext.Provider value={{ toast }}>
+    <ToastContext.Provider value={value}>
       {children}
       <div
         aria-live="polite"

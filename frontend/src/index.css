@@ -404,9 +404,9 @@ html {
 /* ── App-feel on touch devices ─────────────────────────────────────────────
    Native browser gestures are what make the PWA feel like a website: the
    whole viewport rubber-bands past its edges, double-tap zooms, and a long
-   press selects UI text. Kill each at the source. Pinch-zoom is handled by
-   the viewport meta (respected on Android and in the installed iOS app; a
-   Safari *tab* always allows it for accessibility). */
+   press selects UI text. Kill each at the source. Pinch-zoom stays available
+   for accessibility; the paged comic reader, which pinches its own page,
+   opts out with touch-action: none on its page area. */
 html,
 body {
   /* Onest ships tabular digits by default, which pads every "1" in running

@@ -1,6 +1,8 @@
 from datetime import datetime
 from typing import Optional
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, computed_field, field_validator
+
+from backend.core.config import settings
 import re
 
 
@@ -67,6 +69,13 @@ class UserOut(BaseModel):
     oidc_linked: bool = False   # an IdP identity is attached (can sign in via SSO)
     created_at: datetime
     permissions: Optional[PermissionsOut] = None
+
+    @computed_field  # type: ignore[prop-decorator]
+    @property
+    def release_detection(self) -> bool:
+        """Instance flag (TOME_RELEASE_DETECTION), so the web client can skip
+        the follows endpoint instead of reading its 403."""
+        return settings.release_detection
 
     class Config:
         from_attributes = True
