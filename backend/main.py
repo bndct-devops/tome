@@ -916,6 +916,15 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
         max_age=600,
     )
 
+    # Refuse request bodies over TOME_MAX_UPLOAD_MB before they reach the disk.
+    from backend.core.request_limits import BodySizeLimitMiddleware
+    app.add_middleware(BodySizeLimitMiddleware)
+
+    # nosniff / same-origin referrer / SAMEORIGIN framing on every response.
+    # Added last, so it is the outermost layer and also covers the 413 above.
+    from backend.core.headers import SecurityHeadersMiddleware
+    app.add_middleware(SecurityHeadersMiddleware)
+
     # API routes
     app.include_router(health.router, prefix="/api")
     app.include_router(auth.router, prefix="/api")
@@ -1004,11 +1013,23 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
             # would otherwise reach any file the server can read.
             file = (frontend_dist / full_path).resolve()
             if full_path and file.is_relative_to(_dist_root) and file.is_file():
-                if file.suffix in (".html", ".webmanifest") or file.name in ("sw.js", "registerSW.js") or file.name.startswith("workbox-"):
+                if file.suffix == ".html":
+                    return _FileResponse(str(file), headers=_page_headers(file))
+                if file.suffix == ".webmanifest" or file.name in ("sw.js", "registerSW.js") or file.name.startswith("workbox-"):
                     return _FileResponse(str(file), headers=_no_cache)
                 # Fonts, icons, the reader's foliate files: unhashed names
                 return _FileResponse(str(file), headers={"Cache-Control": "public, max-age=86400"})
-            return _FileResponse(str(index_html), headers=_no_cache)
+            return _FileResponse(str(index_html), headers=_page_headers(index_html))
+
+        from backend.core.headers import csp_enabled, csp_for_file
+
+        def _page_headers(file: Path) -> dict[str, str]:
+            # The policy keeps script inside a book from running (see
+            # backend/core/headers.py). The switch is read per request.
+            headers = dict(_no_cache)
+            if csp_enabled(settings.content_security_policy):
+                headers["Content-Security-Policy"] = csp_for_file(file)
+            return headers
 
         app.router.add_api_route(
             "/{full_path:path}", spa_fallback, methods=["GET"], route_class_override=_SpaRoute,

@@ -52,6 +52,39 @@ def decode_token(token: str) -> Optional[str]:
     return claims.get("sub") if claims else None
 
 
+# While an account still has its temporary password (set by an admin), the
+# API answers only what the forced-change screen needs: who am I, change the
+# password, sign out. Everything else, through every way of signing in (web
+# token, API token, ?token= reader routes, OPDS, KOSync, the plugin's key), is
+# refused until the password is changed.
+PASSWORD_CHANGE_ALLOWED = {
+    ("GET", "/api/auth/me"),
+    ("PUT", "/api/auth/me/password"),
+    ("POST", "/api/auth/logout"),
+}
+PASSWORD_CHANGE_DETAIL = "Change your temporary password before using this account"
+
+
+def refuse_if_password_change_pending(user) -> None:
+    """403 for an account that must still replace its temporary password."""
+    if user is not None and getattr(user, "must_change_password", False):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=PASSWORD_CHANGE_DETAIL)
+
+
+def _password_change_gate(request: Request, user) -> None:
+    if not getattr(user, "must_change_password", False):
+        return
+    # Compared against the URL path, not the matched route's own path: newer
+    # FastAPI reports that one without the router prefix ("/auth/me").
+    path = request.scope.get("path") or ""
+    root = request.scope.get("root_path") or ""
+    if root and path.startswith(root):
+        path = path[len(root):]
+    if (request.method, path.rstrip("/") or "/") in PASSWORD_CHANGE_ALLOWED:
+        return
+    refuse_if_password_change_pending(user)
+
+
 async def get_current_user(
     request: Request,
     token: str = Depends(oauth2_scheme),
@@ -92,6 +125,7 @@ async def get_current_user(
                 detail="This token is read-only",
             )
         request.state.api_token_id = api_token.id
+        _password_change_gate(request, user)
         return user
 
     resolved = resolve_jwt(db, token)
@@ -100,6 +134,7 @@ async def get_current_user(
     user, device = resolved
     if device is not None:
         request.state.device_id = device.id
+    _password_change_gate(request, user)
     return user
 
 
@@ -163,6 +198,7 @@ def user_from_query_token(db: Session, token: str):
     resolved = resolve_jwt(db, token)
     if resolved is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Invalid token")
+    refuse_if_password_change_pending(resolved[0])
     return resolved[0]
 
 
@@ -208,4 +244,5 @@ def get_current_user_basic(
         matched_pin.last_used_at = _dt.utcnow()
         db.commit()
 
+    refuse_if_password_change_pending(user)
     return user

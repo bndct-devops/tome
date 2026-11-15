@@ -73,9 +73,13 @@ const normalize = (s: string) => s.replace(/\s+/g, ' ').trim().toLowerCase()
 // foliate modules live in /public as plain ESM (loaded natively by the reader,
 // not bundled). A Vite-transformed dynamic import 500s on public files (?import
 // middleware), so this must be a NATIVE import the bundler can't see - same
-// mechanism view.js itself uses for its relative imports.
-// eslint-disable-next-line @typescript-eslint/no-implied-eval
-const nativeImport = new Function('url', 'return import(url)') as (url: string) => Promise<unknown>
+// mechanism view.js itself uses for its relative imports. The built app runs
+// under a Content-Security-Policy without 'unsafe-eval', so `new Function` is
+// only used by the dev server; a build leaves an ignored dynamic import as is.
+const nativeImport: (url: string) => Promise<unknown> = import.meta.env.DEV
+  // eslint-disable-next-line @typescript-eslint/no-implied-eval
+  ? new Function('url', 'return import(url)') as (url: string) => Promise<unknown>
+  : (url: string) => import(/* @vite-ignore */ url)
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 const foliate = (name: string): Promise<any> => nativeImport(`/foliate/${name}.js`)
 

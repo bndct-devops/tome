@@ -28,6 +28,28 @@ All notable changes to Tome are documented here. Format loosely follows
   someone else uploaded, the book page no longer offers Edit, Fetch metadata,
   the cover picker or Delete to a member, and a bulk edit says how many books
   it left alone.
+- **Script inside a book no longer runs in the web reader.** The web
+  interface now sends a Content-Security-Policy that blocks it, while the
+  book's own styles, fonts and images still load. Set
+  `TOME_CONTENT_SECURITY_POLICY=off` only if a proxy or setup of yours breaks
+  with it.
+- **Members' notification channels can no longer reach your local network.** A
+  channel that does not belong to an admin must now be a public internet
+  address, checked when it is saved and again on every send. No channel
+  follows redirects, and a member's Test button no longer shows the server's
+  error text. To let members use a local ntfy or Gotify, list its host in
+  `TOME_WEBHOOK_ALLOWED_HOSTS`. A channel that is no longer sent is marked in
+  Settings with the reason, its owner gets one notice in the bell, and the
+  form now says why a new channel was refused.
+- **An account with a temporary password can only change it.** Until the new
+  password is set, the account is refused everywhere else, including API
+  tokens, OPDS, KOSync and the KOReader plugin. Before, only the web interface
+  enforced the forced change.
+- **Uploads have a size limit, and two uploads with the same file name no
+  longer collide.** `TOME_MAX_UPLOAD_MB` (default 4096, 0 = no limit) refuses
+  bigger uploads before they reach the disk. Every response now also carries
+  basic security headers. Cover fetching connects only to the address it
+  checked, and the Bindery and backup restore check paths more strictly.
 
 ### Changed
 - **Tome's own log lines now reach the container log.** Informational

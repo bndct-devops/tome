@@ -42,7 +42,7 @@ def test_fanout_on_commit(client: TestClient, db: Session, admin_user, monkeypat
     test_factory = sessionmaker(bind=db.get_bind())
     monkeypatch.setattr(outbound, "_session_factory", lambda: test_factory())
     monkeypatch.setattr(outbound, "deliver",
-                        lambda kind, url, token, payload: sent.append((kind, url, payload["title"])))
+                        lambda kind, url, token, payload, **kw: sent.append((kind, url, payload["title"])))
 
     db.add(NotificationChannel(user_id=user.id, kind="ntfy",
                                url="https://ntfy.sh/topic", enabled=True))
@@ -80,11 +80,11 @@ def test_deliver_builds_correct_requests(monkeypatch):
         def __exit__(self, *a):
             return False
 
-    def fake_urlopen(req, timeout=None):
+    def fake_open(req, timeout=None, pinned_ip=None):
         captured.append(req)
         return FakeResp()
 
-    monkeypatch.setattr(outbound.urllib.request, "urlopen", fake_urlopen)
+    monkeypatch.setattr(outbound, "_open", fake_open)
 
     outbound.deliver("ntfy", "https://ntfy.sh/topic", "tok",
                      {"kind": "k", "title": "Title", "body": "Body", "link": "/books/1"})

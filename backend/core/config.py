@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     # notifications out to each user's configured ntfy/Gotify/webhook
     # channels. Off = the kill-switch; per-user channels also toggle.
     outbound_notify: bool = True
+    # Hosts a non-admin's notification channel may reach although they are not
+    # public internet addresses (env TOME_WEBHOOK_ALLOWED_HOSTS, comma-separated
+    # host names or IPs, e.g. "ntfy.lan,192.168.1.20"). Admins' channels may
+    # point anywhere; everyone else's must resolve to public addresses.
+    webhook_allowed_hosts: str = ""
 
     # Update check (env TOME_UPDATE_CHECK): once a day Tome asks update_check_url
     # for the latest release, sending only the version number, so admins see
@@ -79,6 +84,13 @@ class Settings(BaseSettings):
     # 2.x release (frontend/dist-classic in the Docker image). The AI features
     # have no surface in classic; it is a visual hatch, not a second product.
     ui: str = "new"
+    # Content-Security-Policy on the web UI's pages (env
+    # TOME_CONTENT_SECURITY_POLICY). On by default: it stops script inside a
+    # book from running in the reader. "off" drops the header.
+    content_security_policy: str = "on"
+    # Largest request body the API accepts, in MB (env TOME_MAX_UPLOAD_MB);
+    # bigger book uploads get 413. 0 = no limit. A backup restore is exempt.
+    max_upload_mb: int = 4096
 
     # Opt-in telemetry (env TOME_TELEMETRY): false pins the monthly report off
     # and hides the question entirely. True only means the admin may be asked;

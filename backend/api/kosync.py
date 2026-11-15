@@ -98,6 +98,8 @@ def _get_kosync_user(
         tome_user = db.get(User, user.user_id)
         if tome_user and not has_role(tome_user, "member"):
             raise HTTPException(status_code=403, detail="KOSync access requires member role or above")
+        from backend.core.security import refuse_if_password_change_pending
+        refuse_if_password_change_pending(tome_user)
     return user
 
 

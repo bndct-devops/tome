@@ -164,6 +164,9 @@ Did click? **Don't run it on your laptop long-term.** Move `~/Tome` to an always
 | `TOME_SCAN_WORKERS` | No | `1` | Parallel scan workers (>1 = multi-process; ~60–80 MB each) |
 | `TOME_LOG_LEVEL` | No | `INFO` | Level of Tome's own log lines: `DEBUG`, `INFO`, `WARNING` or `ERROR` |
 | `TOME_KOSYNC_POSITION_BRIDGE` | No | `false` | Experimental: let TomeSync plugin devices pick up progress pushed by third-party KOSync clients (read-only bridge) |
+| `TOME_MAX_UPLOAD_MB` | No | `4096` | Largest upload the server accepts, in MB; a bigger book upload is refused with 413 before it is written to disk. `0` = no limit. Backup restores are not limited |
+| `TOME_WEBHOOK_ALLOWED_HOSTS` | No | -- | Comma-separated host names or IPs (e.g. `ntfy.lan,192.168.1.20`) that members' notification channels may reach. Admins' channels may point anywhere; everyone else's must resolve to public internet addresses unless the host is listed here |
+| `TOME_CONTENT_SECURITY_POLICY` | No | `on` | Send a Content-Security-Policy with the web interface, which stops script inside a book from running in the reader. `off` drops the header (only if a proxy or setup of yours breaks with it) |
 
 Secrets can also be read from a file (Docker/Kubernetes secrets): `TOME_SECRET_KEY`, `TOME_HARDCOVER_TOKEN`, `TOME_GOOGLE_BOOKS_KEY`, `TOME_SMTP_USER`, `TOME_SMTP_PASSWORD` and `TOME_OIDC_CLIENT_SECRET` each accept a `_FILE` variant, e.g. `TOME_SECRET_KEY_FILE=/run/secrets/tome_secret_key`. Set one or the other, not both.
 
