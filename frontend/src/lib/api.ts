@@ -91,8 +91,9 @@ export const api = {
     requestWithHeaders<T>(path, { signal }),
   post: <T>(path: string, body?: unknown, opts?: { noRedirect?: boolean }) =>
     request<T>(path, { method: "POST", body: JSON.stringify(body) }, opts?.noRedirect),
-  put: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
+  // keepalive: the request survives the page being closed or navigated away.
+  put: <T>(path: string, body?: unknown, opts?: { keepalive?: boolean }) =>
+    request<T>(path, { method: "PUT", body: JSON.stringify(body), keepalive: opts?.keepalive }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),

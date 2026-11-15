@@ -31,6 +31,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorkerUrl
 type FontFamily = 'default' | 'serif' | 'sans'
 type FitMode = 'width' | 'height'
 type ComicMode = 'page' | 'webtoon'
+type StatusBody = { status: string; progress_pct?: number | null; cfi?: string | null }
 
 interface TocItem {
   label: string
@@ -833,10 +834,51 @@ export default function ReaderPage() {
   // Every write the reader makes is this one call. In preview it is skipped,
   // which leaves status, progress, the synced device position, the derived
   // web reading session and everything downstream exactly as they were.
-  const saveStatus = useCallback((body: { status: string; progress_pct?: number | null; cfi?: string | null }) => {
+  // `autosave` tells the server this is the reader saving on its own, so a
+  // finished book stays finished (only the position moves). An explicit
+  // "reading again" from the book page is sent without it.
+  const saveStatus = useCallback((body: StatusBody) => {
     if (!bookId || preview) return
-    api.put(`/books/${bookId}/status`, body).catch(() => {})
+    api.put(`/books/${bookId}/status`, { ...body, autosave: true }).catch(() => {})
   }, [bookId, preview])
+
+  // Page saves wait 1.5 s so a burst of page turns is one request. The pending
+  // save is kept (with its book id) so leaving the reader or hiding the tab
+  // sends it at once instead of dropping it. Refs only, so the unmount cleanup
+  // and the page listeners always see the current one.
+  const pendingSave = useRef<{ bookId: string; body: StatusBody } | null>(null)
+  const flushSave = useCallback((keepalive = false) => {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
+    const p = pendingSave.current
+    pendingSave.current = null
+    if (!p) return
+    api.put(`/books/${p.bookId}/status`, { ...p.body, autosave: true }, { keepalive }).catch(() => {})
+  }, [])
+  const scheduleSave = useCallback((body: StatusBody) => {
+    if (!bookId || preview) return
+    if (saveTimer.current) clearTimeout(saveTimer.current)
+    pendingSave.current = { bookId, body }
+    saveTimer.current = setTimeout(() => flushSave(), 1500)
+  }, [bookId, preview, flushSave])
+  // Drop a pending page save: a "read" is about to be sent, and a "reading"
+  // landing after it would be a stale position from before the finish.
+  const cancelSave = useCallback(() => {
+    if (saveTimer.current) { clearTimeout(saveTimer.current); saveTimer.current = null }
+    pendingSave.current = null
+  }, [])
+
+  // Closing the tab, switching apps on a phone or backgrounding the page:
+  // send the pending save now, with keepalive so it outlives the page.
+  useEffect(() => {
+    const onHide = () => { if (document.visibilityState === 'hidden') flushSave(true) }
+    const onPageHide = () => flushSave(true)
+    document.addEventListener('visibilitychange', onHide)
+    window.addEventListener('pagehide', onPageHide)
+    return () => {
+      document.removeEventListener('visibilitychange', onHide)
+      window.removeEventListener('pagehide', onPageHide)
+    }
+  }, [flushSave])
   // Holds the latest applyStyles so the foliate 'load' listener (registered
   // once at init) always re-applies the CURRENT theme/font on each new
   // chapter, instead of the stale values captured when the book opened.
@@ -861,27 +903,24 @@ export default function ReaderPage() {
 
   const saveProgress = useCallback((page: number, total: number) => {
     if (!bookId || total <= 0) return
-    if (saveTimer.current) clearTimeout(saveTimer.current)
     const isLastPage = page >= total - 1
     const fraction = isLastPage ? 1 : (page + 1) / total
-    saveTimer.current = setTimeout(() => {
-      saveStatus({
-        status: isLastPage ? 'read' : 'reading',
-        progress_pct: fraction,
-        cfi: `comic:${page}`,
-      })
-    }, 1500)
-  }, [bookId, saveStatus])
+    scheduleSave({
+      status: isLastPage ? 'read' : 'reading',
+      progress_pct: fraction,
+      cfi: `comic:${page}`,
+    })
+  }, [bookId, scheduleSave])
 
   const handleComicReadComplete = useCallback(() => {
     if (!bookId || comicTotalPages <= 0) return
-    if (saveTimer.current) clearTimeout(saveTimer.current)
+    cancelSave()
     saveStatus({
       status: 'read',
       progress_pct: 1,
       cfi: `comic:${comicTotalPages - 1}`,
     })
-  }, [bookId, comicTotalPages, saveStatus])
+  }, [bookId, comicTotalPages, saveStatus, cancelSave])
 
   // 1-based progress so the last page (index total-1) reads as 100%.
   const comicPctFor = (page: number, total: number) =>
@@ -904,17 +943,14 @@ export default function ReaderPage() {
 
   const savePdfProgress = useCallback((page: number, total: number) => {
     if (!bookId || total <= 0) return
-    if (saveTimer.current) clearTimeout(saveTimer.current)
     const isLast = page >= total - 1
     const fraction = isLast ? 1 : (page + 1) / total
-    saveTimer.current = setTimeout(() => {
-      saveStatus({
-        status: isLast ? 'read' : 'reading',
-        progress_pct: fraction,
-        cfi: `pdf:${page}`,
-      })
-    }, 1500)
-  }, [bookId, saveStatus])
+    scheduleSave({
+      status: isLast ? 'read' : 'reading',
+      progress_pct: fraction,
+      cfi: `pdf:${page}`,
+    })
+  }, [bookId, scheduleSave])
 
   const handlePdfProgress = useCallback((page: number, total: number) => {
     setPdfCurrentPage(page)
@@ -924,13 +960,13 @@ export default function ReaderPage() {
 
   const handlePdfReadComplete = useCallback(() => {
     if (!bookId || pdfTotalPages <= 0) return
-    if (saveTimer.current) clearTimeout(saveTimer.current)
+    cancelSave()
     saveStatus({
       status: 'read',
       progress_pct: 1,
       cfi: `pdf:${pdfTotalPages - 1}`,
     })
-  }, [bookId, pdfTotalPages, saveStatus])
+  }, [bookId, pdfTotalPages, saveStatus, cancelSave])
 
   // ── Toolbar auto-hide for comic mode ────────────────────────────────────────
 
@@ -1176,9 +1212,13 @@ export default function ReaderPage() {
         if (!readyToSave.current) return
 
         const fraction = detail.fraction ?? 0
-        if (detail.cfi) saveCfi(detail.cfi, fraction)
         if (pct >= 95) {
-          saveStatus({ status: 'read', progress_pct: 1, cfi: detail.cfi ?? null })
+          // Finished: drop any pending page save first, or its "reading"
+          // would land 1.5 s after this "read".
+          cancelSave()
+          saveStatus({ status: 'read', progress_pct: 1, ...(detail.cfi ? { cfi: detail.cfi } : {}) })
+        } else if (detail.cfi) {
+          saveCfi(detail.cfi, fraction)
         }
       })
 
@@ -1215,7 +1255,8 @@ export default function ReaderPage() {
 
     return () => {
       cancelled = true
-      if (saveTimer.current) clearTimeout(saveTimer.current)
+      // Leaving the reader (or switching book): send the last position now.
+      flushSave(true)
       if (viewRef.current) {
         viewRef.current.remove()
         viewRef.current = null
@@ -1241,15 +1282,8 @@ export default function ReaderPage() {
 
   const saveCfi = useCallback((cfi: string, fraction: number) => {
     if (!bookId) return
-    if (saveTimer.current) clearTimeout(saveTimer.current)
-    saveTimer.current = setTimeout(() => {
-      saveStatus({
-        status: 'reading',
-        progress_pct: fraction,
-        cfi,
-      })
-    }, 1500)
-  }, [bookId, saveStatus])
+    scheduleSave({ status: 'reading', progress_pct: fraction, cfi })
+  }, [bookId, scheduleSave])
 
   // ── EPUB navigation ────────────────────────────────────────────────────────
 

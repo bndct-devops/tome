@@ -7,12 +7,28 @@ still counts toward the previous day's bedtime read.
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from sqlalchemy import func
+from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from backend.models.tome_sync import ReadingSession
 # Re-exported for existing importers; the canonical home is reading_day.
 from backend.services.reading_day import ROLLOVER_HOURS, DayCtx, date_modifier, effective_today  # noqa: F401
+
+# A web-reader session shorter than this does not make a streak day. Opening a
+# book in the browser for a few seconds writes a near-zero session, which used
+# to count as a reading day while the Calendar (MIN_LISTED_SECONDS) showed
+# nothing for it. The session itself stays in history and in the totals; only
+# the streak ignores it. Device and manual sessions are never filtered here.
+WEB_STREAK_MIN_SECONDS = 60
+
+
+def streak_session_clause():
+    """SQL filter for the ReadingSession rows that can make a streak day."""
+    return or_(
+        ReadingSession.device.is_(None),
+        ReadingSession.device != "web",
+        ReadingSession.duration_seconds >= WEB_STREAK_MIN_SECONDS,
+    )
 
 
 def streaks_from_dates(day_set: set[date], today: date) -> tuple[int, int]:
@@ -126,7 +142,7 @@ def compute_user_streaks(
     day = DayCtx(tz_offset_minutes, tz_name)
     rows = (
         db.query(day.dt_day(ReadingSession.started_at).label("d"))
-        .filter(ReadingSession.user_id == user_id)
+        .filter(ReadingSession.user_id == user_id, streak_session_clause())
         .distinct()
         .all()
     )
@@ -180,7 +196,7 @@ def reconciled_streak_summary(
     else:
         rows = (
             db.query(day.dt_day(ReadingSession.started_at).label("d"))
-            .filter(ReadingSession.user_id == user_id)
+            .filter(ReadingSession.user_id == user_id, streak_session_clause())
             .distinct()
             .all()
         )

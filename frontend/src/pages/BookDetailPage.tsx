@@ -184,7 +184,16 @@ async function downloadFile(book: BookDetail, f: BookFile) {
   URL.revokeObjectURL(url)
 }
 
+// Keyed on the book id: moving to the previous/next volume mounts a fresh page,
+// so no state from the old book survives and a slow or failed request for the
+// old book can no longer land on the new one (its setState hits an unmounted
+// component and is dropped).
 export function BookDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  return <BookDetailView key={id} />
+}
+
+function BookDetailView() {
   const { t, i18n } = useLingui()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
