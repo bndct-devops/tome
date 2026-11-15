@@ -6376,6 +6376,10 @@ msgstr "Absent du tableau"
 msgid "not read"
 msgstr "non lu"
 
+#: src/components/NotificationChannels.tsx
+msgid "Not sent: this is not a public internet address. An admin can allow this host."
+msgstr ""
+
 #: src/components/home/FocusMode.tsx
 #~ msgid "Not started yet"
 #~ msgstr "Pas encore commencé"

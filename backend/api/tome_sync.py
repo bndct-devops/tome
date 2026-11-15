@@ -152,6 +152,8 @@ def _get_api_key_user(
     user = db.get(User, api_key.user_id)
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
+    from backend.core.security import refuse_if_password_change_pending
+    refuse_if_password_change_pending(user)
     # Update last_used_at
     api_key.last_used_at = datetime.utcnow()
     db.commit()

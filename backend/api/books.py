@@ -6,6 +6,7 @@ import re
 import json
 import logging
 import shutil
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
@@ -2499,6 +2500,54 @@ def delete_book(
 
 
 
+def _save_upload(file: UploadFile) -> Path:
+    """Stream an uploaded book to its own temp folder and return the path.
+
+    The folder name is unique per upload, so two uploads of the same file
+    name at once cannot overwrite each other; the file inside keeps the
+    client's name, which the rest of the import reads. The copy stops with
+    413 once it passes TOME_MAX_UPLOAD_MB (0 = no limit) and the partial
+    file is removed. Call _discard_upload once the file has been moved or
+    is not needed.
+    """
+    safe_name = Path(file.filename or "").name  # strip any path components
+    if not safe_name or safe_name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    tmp_dir = settings.incoming_dir / ".tmp" / uuid.uuid4().hex
+    tmp_dir.mkdir(parents=True)
+    tmp_path = tmp_dir / safe_name
+    limit = max(settings.max_upload_mb, 0) * 1024 * 1024
+    written = 0
+    try:
+        # Defense in depth: confirm resolved path stays inside tmp_dir
+        if not tmp_path.resolve().is_relative_to(tmp_dir.resolve()):
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        with open(tmp_path, "wb") as f:
+            while chunk := file.file.read(1024 * 1024):
+                written += len(chunk)
+                if limit and written > limit:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File is larger than the upload limit ({settings.max_upload_mb} MB)",
+                    )
+                f.write(chunk)
+    except BaseException:
+        _discard_upload(tmp_path)
+        raise
+    finally:
+        file.file.close()
+    return tmp_path
+
+
+def _discard_upload(tmp_path: Path) -> None:
+    """Remove an upload's temp file (if still there) and its temp folder."""
+    tmp_path.unlink(missing_ok=True)
+    try:
+        tmp_path.parent.rmdir()
+    except OSError:
+        pass
+
+
 @router.post("/upload", response_model=BookDetailOut, status_code=status.HTTP_201_CREATED)
 def upload_book(
     file: UploadFile = File(...),
@@ -2516,20 +2565,7 @@ def upload_book(
         raise HTTPException(status_code=400, detail=f"Unsupported format: {suffix}")
 
     # Write to a temp location first so we can extract metadata before deciding the path
-    tmp_dir = settings.incoming_dir / ".tmp"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = Path(file.filename).name  # strip any path components from client filename
-    if not safe_name or safe_name in (".", ".."):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    tmp_path = tmp_dir / safe_name
-    # Defense in depth: confirm resolved path stays inside tmp_dir
-    if tmp_dir.resolve() not in tmp_path.resolve().parents:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    try:
-        with open(tmp_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-    finally:
-        file.file.close()
+    tmp_path = _save_upload(file)
 
     # Duplicate check by hash
     content_hash = sha256_file(tmp_path)
@@ -2544,6 +2580,7 @@ def upload_book(
             dest = resolve_unique_path(settings.library_dir, rel)
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(tmp_path), str(dest))
+            _discard_upload(tmp_path)
             db.add(BookFile(
                 book_id=existing.id,
                 file_path=str(dest.resolve()),
@@ -2553,7 +2590,7 @@ def upload_book(
             ))
             record_ko_hash(db, existing.id, ko_partial_md5(dest), "raw")
         else:
-            tmp_path.unlink(missing_ok=True)
+            _discard_upload(tmp_path)
         db.commit()
         db.refresh(existing)
         return existing
@@ -2573,6 +2610,7 @@ def upload_book(
     dest = resolve_unique_path(settings.library_dir, rel)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(tmp_path), str(dest))
+    _discard_upload(tmp_path)
 
     book = Book(
         title=meta.get("title", Path(file.filename).stem),
@@ -2756,19 +2794,7 @@ def ingest_book(
         raise HTTPException(status_code=400, detail=f"Unsupported format: {suffix}")
 
     # Write to a temp location so we can compute hash before deciding path
-    tmp_dir = settings.incoming_dir / ".tmp"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = Path(file.filename).name
-    if not safe_name or safe_name in (".", ".."):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    tmp_path = tmp_dir / safe_name
-    if tmp_dir.resolve() not in tmp_path.resolve().parents:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    try:
-        with open(tmp_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-    finally:
-        file.file.close()
+    tmp_path = _save_upload(file)
 
     # Deduplicate by content hash
     content_hash = sha256_file(tmp_path)
@@ -2780,7 +2806,7 @@ def ingest_book(
         .first()
     )
     if existing_book:
-        tmp_path.unlink(missing_ok=True)
+        _discard_upload(tmp_path)
         raise HTTPException(
             status_code=409,
             detail={"detail": "duplicate", "existing_id": existing_book.id},
@@ -2799,6 +2825,7 @@ def ingest_book(
     dest = resolve_unique_path(settings.library_dir, rel)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(tmp_path), str(dest))
+    _discard_upload(tmp_path)
 
     book = Book(
         title=meta.title,

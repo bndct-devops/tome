@@ -17,6 +17,7 @@ interface Channel {
   url: string
   has_token: boolean
   enabled: boolean
+  blocked?: boolean
 }
 
 // eslint-disable-next-line lingui/no-unlocalized-strings -- product names
@@ -38,6 +39,7 @@ export function NotificationChannels() {
   const [url, setUrl] = useState('')
   const [token, setToken] = useState('')
   const [adding, setAdding] = useState(false)
+  const [addError, setAddError] = useState('')
   const [testState, setTestState] = useState<Record<number, 'testing' | 'ok' | string>>({})
 
   const load = () => {
@@ -48,6 +50,7 @@ export function NotificationChannels() {
   async function add() {
     if (!url.trim() || adding) return
     setAdding(true)
+    setAddError('')
     try {
       await api.post('/notification-channels', {
         kind, url: url.trim(), token: token.trim() || null,
@@ -55,6 +58,10 @@ export function NotificationChannels() {
       setUrl('')
       setToken('')
       load()
+    } catch (e) {
+      // The server says why it refused the channel (English, like all
+      // backend errors); without this the button did nothing visible.
+      setAddError(e instanceof Error ? e.message : String(e))
     } finally {
       setAdding(false)
     }
@@ -86,9 +93,17 @@ export function NotificationChannels() {
             return (
               <li key={c.id} className="flex items-center gap-2 py-2.5">
                 <span className="w-16 shrink-0 text-[14px] font-semibold text-foreground">{KIND_LABEL[c.kind]}</span>
-                <span className={cn('min-w-0 flex-1 truncate text-[13px]', c.enabled ? 'text-muted-foreground' : 'text-muted-foreground/50 line-through')}>
-                  {c.url}
-                </span>
+                <div className="min-w-0 flex-1">
+                  <span className={cn('block truncate text-[13px]', c.enabled ? 'text-muted-foreground' : 'text-muted-foreground/50 line-through')}>
+                    {c.url}
+                  </span>
+                  {c.blocked && (
+                    <span className="mt-0.5 flex items-center gap-1.5 text-[12px] text-destructive">
+                      <XCircle className="h-3.5 w-3.5 shrink-0" />
+                      <Trans>Not sent: this is not a public internet address. An admin can allow this host.</Trans>
+                    </span>
+                  )}
+                </div>
                 {testResult === 'ok' && <CheckCircle className="h-3.5 w-3.5 shrink-0 text-success" />}
                 {testResult && testResult !== 'ok' && testResult !== 'testing' && (
                   <span title={testResult}><XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" /></span>
@@ -162,6 +177,12 @@ export function NotificationChannels() {
           <Trans>Add channel</Trans>
         </Pill>
       </div>
+      {addError && (
+        <p role="alert" className="mt-2 flex items-center gap-1.5 text-[13px] text-destructive">
+          <XCircle className="h-3.5 w-3.5 shrink-0" />
+          {addError}
+        </p>
+      )}
     </div>
   )
 }

@@ -6396,6 +6396,10 @@ msgstr "Not on board"
 msgid "not read"
 msgstr "not read"
 
+#: src/components/NotificationChannels.tsx
+msgid "Not sent: this is not a public internet address. An admin can allow this host."
+msgstr "Not sent: this is not a public internet address. An admin can allow this host."
+
 #: src/components/home/FocusMode.tsx
 #~ msgid "Not started yet"
 #~ msgstr "Not started yet"

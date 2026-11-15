@@ -57,7 +57,9 @@ def _safe_resolve(rel_path: str) -> Path:
     """Resolve a relative path inside incoming_dir. Raises 400 on traversal."""
     incoming = settings.incoming_dir.resolve()
     resolved = (incoming / rel_path).resolve()
-    if not str(resolved).startswith(str(incoming)):
+    # is_relative_to, not a string prefix: "/bindery-other" starts with
+    # "/bindery" but is outside it.
+    if not resolved.is_relative_to(incoming):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid path",
