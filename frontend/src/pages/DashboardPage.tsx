@@ -729,8 +729,14 @@ export function DashboardPage() {
       if (bulkMetaSeries) body.series = bulkMetaSeries
       if (bulkMetaTagsAdd.length) body.tags_add = bulkMetaTagsAdd
       if (bulkMetaTypeId) body.book_type_id = bulkMetaTypeId
-      await api.put('/books/bulk-metadata', body)
-      toastSuccess(plural(selected.size, { one: 'Updated metadata for # book', other: 'Updated metadata for # books' }))
+      const res = await api.put<{ updated: number; skipped: number }>('/books/bulk-metadata', body)
+      if (res.updated === 0) {
+        toastError(t`Nothing was changed. You can only edit books you uploaded.`)
+        return
+      }
+      const updatedText = plural(res.updated, { one: 'Updated metadata for # book', other: 'Updated metadata for # books' })
+      const skippedText = plural(res.skipped, { one: '# book was left as it is because you did not upload it', other: '# books were left as they are because you did not upload them' })
+      toastSuccess(res.skipped > 0 ? t`${updatedText}. ${skippedText}.` : updatedText)
       setBulkMetaOpen(false)
       setBulkMetaAuthor(''); setBulkMetaSeries(''); setBulkMetaTagsAdd([]); setBulkMetaTypeId('')
       clearSelection()

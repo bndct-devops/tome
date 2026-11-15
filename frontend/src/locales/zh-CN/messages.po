@@ -334,6 +334,11 @@ msgstr ""
 msgid "{0, plural, one {# book tracked} other {# books tracked}}"
 msgstr ""
 
+#. placeholder {0}: res.skipped
+#: src/pages/DashboardPage.tsx
+msgid "{0, plural, one {# book was left as it is because you did not upload it} other {# books were left as they are because you did not upload them}}"
+msgstr ""
+
 #. placeholder {0}: data.books
 #: src/components/stats/BacklogEstimate.tsx
 msgid "{0, plural, one {# book, none estimated yet.} other {# books, none estimated yet.}}"
@@ -670,7 +675,7 @@ msgstr ""
 msgid "{0, plural, one {Suggested match:} other {Suggested matches:}}"
 msgstr ""
 
-#. placeholder {0}: selected.size
+#. placeholder {0}: res.updated
 #: src/pages/DashboardPage.tsx
 msgid "{0, plural, one {Updated metadata for # book} other {Updated metadata for # books}}"
 msgstr ""
@@ -1378,6 +1383,10 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{updatedText}. {skippedText}."
 msgstr ""
 
 #: src/components/stats/widgets/library.tsx
@@ -6466,6 +6475,10 @@ msgstr ""
 
 #: src/components/LibraryHealth.tsx
 msgid "Nothing to remove."
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Nothing was changed. You can only edit books you uploaded."
 msgstr ""
 
 #: src/components/NotificationBell.tsx

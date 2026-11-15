@@ -180,7 +180,15 @@ def add_books_to_library(
     lib = _get_library(lib_id, current_user, db)
     book_ids = body.book_ids
     existing_ids = {b.id for b in lib.books}
-    books = db.query(Book).filter(Book.id.in_(book_ids)).all()
+    # Only books the caller can already see: owning a library that holds a
+    # book is itself a visibility grant, so filing a hidden book into your
+    # own library would reveal it.
+    from backend.core.permissions import book_visibility_filter
+    books = (
+        db.query(Book)
+        .filter(Book.id.in_(book_ids), book_visibility_filter(db, current_user))
+        .all()
+    )
     for book in books:
         if book.id not in existing_ids:
             lib.books.append(book)

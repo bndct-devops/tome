@@ -184,6 +184,8 @@ def get_book_share(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
+    from backend.core.permissions import visible_book_or_404
+    visible_book_or_404(db, current_user, book_id)
     link = db.query(ShareLink).filter_by(owner_id=current_user.id, book_id=book_id).first()
     return _link_out(link) if link else {"token": None, "expires_at": None}
 

@@ -22,6 +22,12 @@ All notable changes to Tome are documented here. Format loosely follows
 - **The web server only serves files from its own interface folder.** A
   crafted path could make it return a file from outside that folder. Updating
   is recommended.
+- **Members only reach books they can see, and only change books they
+  uploaded.** The bulk edit, metadata, cover, Bindery, export and KOReader
+  plugin routes now follow the same two rules as the rest of Tome. On a book
+  someone else uploaded, the book page no longer offers Edit, Fetch metadata,
+  the cover picker or Delete to a member, and a bulk edit says how many books
+  it left alone.
 
 ### Changed
 - **Tome's own log lines now reach the container log.** Informational

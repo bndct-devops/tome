@@ -313,11 +313,10 @@ async def hardcover_rematch(
     """
     if body.mode not in ("retry", "exclude"):
         raise HTTPException(status_code=422, detail="mode must be 'retry' or 'exclude'")
+    from backend.core.permissions import visible_book_or_404
+    book = visible_book_or_404(db, current_user, book_id, active_only=True)
     if not current_user.hardcover_token:
         raise HTTPException(status_code=400, detail="Link a Hardcover account first")
-    book = db.get(Book, book_id)
-    if not book or book.status != "active":
-        raise HTTPException(status_code=404, detail="Book not found")
 
     # Exclude means "stop syncing this book", never "remove it from my
     # profile" (#227) — only a retry repairs a wrong match by deleting the
@@ -369,12 +368,11 @@ async def hardcover_manual_match(
     """Pin a user-chosen Hardcover record onto a Tome book. Clears the old
     match (removing the profile entry we created) first; method 'manual' is
     never auto-cleared, so the pick sticks until the user changes it."""
+    from backend.core.permissions import visible_book_or_404
+    book = visible_book_or_404(db, current_user, book_id, active_only=True)
     token = hardcover_sync.user_token(current_user)
     if not token or current_user.hardcover_token_status != "ok":
         raise HTTPException(status_code=400, detail="Link a Hardcover account first")
-    book = db.get(Book, book_id)
-    if not book or book.status != "active":
-        raise HTTPException(status_code=404, detail="Book not found")
 
     await _clear_book_match_state(db, book, current_user)
     try:

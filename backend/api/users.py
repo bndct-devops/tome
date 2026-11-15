@@ -11,7 +11,7 @@ from backend import __version__
 from backend.core.database import get_db
 from backend.core.ratings import validate_rating
 from backend.core.security import get_current_user
-from backend.core.permissions import require_role
+from backend.core.permissions import require_role, visible_book_or_404
 from backend.services.hardcover_sync import nudge as hardcover_nudge
 from backend.services.book_progress import (
     upsert_position, clear_position, restart_reading, reset_hardcover_read_state,
@@ -67,6 +67,7 @@ def get_book_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    visible_book_or_404(db, current_user, book_id)
     row = db.query(UserBookStatus).filter_by(user_id=current_user.id, book_id=book_id).first()
     if not row:
         return StatusOut(book_id=book_id, status="unread", progress_pct=None, cfi=None, updated_at=None)
@@ -86,9 +87,7 @@ def set_book_rating(
     so rating a book you've never opened just creates an 'unread' row.
     """
     validate_rating(body.rating)
-    from backend.models.book import Book
-    if not db.get(Book, book_id):
-        raise HTTPException(404, "Book not found")
+    visible_book_or_404(db, current_user, book_id)
 
     raw = body.model_dump(exclude_unset=True)
     row = db.query(UserBookStatus).filter_by(user_id=current_user.id, book_id=book_id).first()
@@ -118,10 +117,7 @@ def set_book_status(
 ):
     if body.status not in ("unread", "reading", "read", "shelved", "want_to_read"):
         raise HTTPException(400, "status must be unread, reading, read, shelved, or want_to_read")
-    from backend.models.book import Book
-    book = db.get(Book, book_id)
-    if not book:
-        raise HTTPException(404, "Book not found")
+    book = visible_book_or_404(db, current_user, book_id)
     row = db.query(UserBookStatus).filter_by(user_id=current_user.id, book_id=book_id).first()
     # Only overwrite progress_pct/cfi when explicitly sent (not just defaulting to None)
     raw = body.model_dump(exclude_unset=True)
@@ -305,6 +301,7 @@ def get_book_kosync_progress(
 ):
     from backend.models.kosync import KOSyncUser, KOSyncProgress, KOSyncDocumentMap
 
+    visible_book_or_404(db, current_user, book_id)
     kosync_user = db.query(KOSyncUser).filter(KOSyncUser.username == current_user.username).first()
     if not kosync_user:
         return KOSyncStatusOut(linked=False)
@@ -365,12 +362,9 @@ def link_kosync_document(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    from backend.models.book import Book
     from backend.models.kosync import KOSyncUser, KOSyncProgress, KOSyncDocumentMap
 
-    book = db.get(Book, book_id)
-    if not book:
-        raise HTTPException(404, "Book not found")
+    book = visible_book_or_404(db, current_user, book_id)
 
     kosync_user = db.query(KOSyncUser).filter(KOSyncUser.username == current_user.username).first()
     if not kosync_user:

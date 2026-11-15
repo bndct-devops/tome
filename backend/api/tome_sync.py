@@ -347,6 +347,16 @@ def resolve_book(
     raise HTTPException(status_code=404, detail="No matching book found")
 
 
+def _visible_book(db: Session, user: User, book_id: int) -> Book:
+    """The active book, or 404 when it is missing, removed or hidden from this
+    user. A device gets the same answer for a hidden book as for a deleted
+    one, which it already handles."""
+    book = db.get(Book, book_id)
+    if not book or book.status != "active" or not user_can_see_book(db, user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book
+
+
 # ── Position endpoints ────────────────────────────────────────────────────────
 
 @router.get("/tome-sync/position/{book_id}")
@@ -355,9 +365,7 @@ def get_position(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    book = db.get(Book, book_id)
-    if not book or book.status != "active":
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _visible_book(db, user, book_id)
 
     pos = _get_position(db, user.id, book_id)
 
@@ -410,9 +418,7 @@ def put_position(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    book = db.get(Book, book_id)
-    if not book or book.status != "active":
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _visible_book(db, user, book_id)
 
     # Clamp percentage to 0-1 range
     pct = max(0.0, min(1.0, body.percentage))
@@ -448,9 +454,7 @@ def get_rating(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    book = db.get(Book, book_id)
-    if not book or book.status != "active":
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _visible_book(db, user, book_id)
 
     row = (
         db.query(UserBookStatus)
@@ -479,9 +483,7 @@ def put_rating(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    book = db.get(Book, book_id)
-    if not book or book.status != "active":
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _visible_book(db, user, book_id)
     validate_rating(body.rating)
 
     row = (
@@ -525,9 +527,7 @@ def post_session(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    book = db.get(Book, body.book_id)
-    if not book or book.status != "active":
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _visible_book(db, user, body.book_id)
 
     # Dedup: if same session_uuid already stored, return it
     if body.session_uuid:
@@ -852,9 +852,7 @@ def sync_annotations(
     Deletes drop the row and write a tombstone, unless a newer live edit exists.
     The response (alive set + tombstones) is what the device applies locally.
     """
-    book = db.get(Book, book_id)
-    if not book or book.status != "active":
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _visible_book(db, user, book_id)
 
     alive, tombs = _annotation_state(db, user.id, book_id)
     created = updated = deleted = skipped = 0
@@ -949,6 +947,7 @@ def get_annotations_plugin(
 ):
     """Full annotation state (alive + tombstones) for this user+book — what the
     plugin pulls and merges on book open."""
+    _visible_book(db, user, book_id)
     return _annotation_response(db, user.id, book_id, offset=_clock_offset_seconds(device_time))
 
 
