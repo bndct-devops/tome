@@ -125,7 +125,8 @@ export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
   const { own, aggregate } = data
 
   const supporting: { label: string; value: string }[] = [
-    { label: t`finished`, value: `${own.books_finished}/${own.books_total} (${own.completion_pct}%)` },
+    // The series header already shows the read percentage; no second one here.
+    { label: t`finished`, value: `${own.books_finished}/${own.books_total}` },
     { label: t`sessions`, value: own.sessions.toLocaleString() },
     { label: t`pages`, value: own.pages_turned > 0 ? own.pages_turned.toLocaleString() : '-' },
     ...(own.avg_volume_seconds > 0

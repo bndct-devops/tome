@@ -127,7 +127,7 @@ export function SectionLayout({ title, eyebrow, nav, sidebar = false, wide = fal
   children: ReactNode
 }) {
   return (
-    <PageBody width={sidebar && !wide ? 'reading' : 'wide'} className={sidebar && !wide ? 'lg:max-w-[920px]' : undefined}>
+    <PageBody width={sidebar && !wide ? 'reading' : 'wide'} columnClassName={sidebar && !wide ? 'lg:max-w-[840px]' : undefined}>
       <PageHeader eyebrow={eyebrow} title={title} />
       <div className={cn('grid grid-cols-[minmax(0,1fr)] gap-4', !sidebar && 'lg:gap-10 lg:grid-cols-[220px_minmax(0,1fr)]')}>
         {nav}

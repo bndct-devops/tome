@@ -363,7 +363,7 @@ export function SharePage() {
       {/* A single book reads in the 820px column, centred like the footer
           under it; series and shelves use the wide column for the grid. */}
       <TopBar narrow={data.kind === 'book'} />
-      <PageBody width={data.kind === 'book' ? 'reading' : 'wide'} className="pt-4">
+      <PageBody width={data.kind === 'book' ? 'reading' : 'wide'} align="center" className="pt-4">
         {data.kind === 'book' && data.books[0] ? (
           <>
             <div className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{kindLabel}</div>

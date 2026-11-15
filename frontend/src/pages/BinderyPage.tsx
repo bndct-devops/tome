@@ -594,12 +594,14 @@ interface ConfirmDialogProps {
   onCancel: () => void
 }
 
-function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept }: {
+function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onReviewFile }: {
   group: SeriesGroup
   bookTypes: BookType[]
   libraries: LibraryOption[]
   busy: boolean
   onAccept: (form: { series: string; author: string; book_type_id: string; library_ids: number[] }) => void
+  /** Open one volume in the file review (edit, accept or reject it alone). */
+  onReviewFile: (path: string) => void
 }) {
   const { t } = useLingui()
   const [series, setSeries] = useState(group.series ?? '')
@@ -684,15 +686,19 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept }: {
 
       {/* Per-volume confirmation strip */}
       <div className="flex flex-wrap gap-1.5">
+        {/* A volume chip opens that file alone: the group's files are listed
+            only here, not again under Incoming files. */}
         {group.files.map(f => (
-          <span
+          <button
+            type="button"
             key={f.path}
+            onClick={() => onReviewFile(f.path)}
             title={`${f.filename} → ${f.dest_preview}`}
-            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground"
+            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-surface-hover transition-colors"
           >
             {(() => { const idx = f.series_index; return idx != null ? t`Vol ${idx}` : (f.title || f.filename) })()}
             <span className="text-muted-foreground uppercase text-[12px] font-semibold tracking-wide">{f.format}</span>
-          </span>
+          </button>
         ))}
       </div>
     </div>
@@ -898,26 +904,33 @@ export function BinderyPage() {
   // Grouping
   // ---------------------------------------------------------------------------
 
+  // Series review shows real series groups (several files, or one that matches
+  // a series already in the library). Their files are listed there only; every
+  // other file stays under Incoming files, so each file appears exactly once.
+  // If /bindery/groups failed, groups is empty and every file is listed below.
+  const reviewGroups = groups.filter(g => g.files.length > 1 || g.library_match)
+  const groupedPaths = new Set(reviewGroups.flatMap(g => g.files.map(f => f.path)))
+  const listItems = items.filter(i => !groupedPaths.has(i.path))
   const folders = Array.from(
-    new Set(items.map(i => i.folder).filter((f): f is string => f !== null))
+    new Set(listItems.map(i => i.folder).filter((f): f is string => f !== null))
   ).sort()
-  const ungrouped = items.filter(i => i.folder === null)
+  const ungrouped = listItems.filter(i => i.folder === null)
 
   // ---------------------------------------------------------------------------
   // Selection
   // ---------------------------------------------------------------------------
 
-  const { handleToggle } = useShiftSelect(items.map(i => i.path))
+  const { handleToggle } = useShiftSelect(listItems.map(i => i.path))
 
   function toggleSelect(path: string, shiftKey: boolean) {
     setSelected(prev => {
-      const index = items.findIndex(i => i.path === path)
+      const index = listItems.findIndex(i => i.path === path)
       return handleToggle(path, index, shiftKey, prev)
     })
   }
 
   function selectAll() {
-    setSelected(new Set(items.map(i => i.path)))
+    setSelected(new Set(listItems.map(i => i.path)))
   }
 
   function clearSelection() {
@@ -934,7 +947,7 @@ export function BinderyPage() {
   }
 
   function selectFolder(folder: string) {
-    const folderPaths = items.filter(i => i.folder === folder).map(i => i.path)
+    const folderPaths = listItems.filter(i => i.folder === folder).map(i => i.path)
     setSelected(prev => {
       const next = new Set(prev)
       const allSelected = folderPaths.every(p => next.has(p))
@@ -1508,9 +1521,11 @@ export function BinderyPage() {
   // ---------------------------------------------------------------------------
 
   if (view === 'list') {
-    const selectedArr = Array.from(selected)
+    // Only files listed below can be selected; a selection kept from before a
+    // refresh never acts on files now shown under Series review.
+    const listPaths = new Set(listItems.map(i => i.path))
+    const selectedArr = Array.from(selected).filter(p => listPaths.has(p))
     const hasSelection = selectedArr.length > 0
-    const reviewGroups = groups.filter(g => g.files.length > 1 || g.library_match)
     const eyebrow = firstLoad
       ? t`Loading…`
       : (() => {
@@ -1547,7 +1562,7 @@ export function BinderyPage() {
                 <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
                 <Trans>Refresh</Trans>
               </Pill>
-              {items.length > 0 && (
+              {listItems.length > 0 && (
                 <Pill variant="quiet" onClick={hasSelection ? clearSelection : selectAll}>
                   {(() => { const n = selectedArr.length; return hasSelection ? t`${n} selected · Clear` : t`Select all` })()}
                 </Pill>
@@ -1557,7 +1572,7 @@ export function BinderyPage() {
                   variant="primary"
                   onClick={reviewAll}
                   disabled={reviewingAll}
-                  title={t`Accept every recently imported book`}
+                  title={t`Accept every book waiting for review`}
                 >
                   {reviewingAll ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
                   <Trans>Accept all</Trans>
@@ -1603,20 +1618,21 @@ export function BinderyPage() {
                   libraries={libraries}
                   busy={acceptingGroup === g.key}
                   onAccept={form => acceptGroup(g, form)}
+                  onReviewFile={path => enterReview([path])}
                 />
               ))}
             </div>
           </section>
         )}
 
-        {/* Recently imported: unreviewed auto-imported books */}
+        {/* Waiting for review: auto-imported books not yet reviewed */}
         {unreviewed.length > 0 && (
           <section className={cn('transition-opacity', unreviewedLoading && 'opacity-60')}>
             <SectionTitle
               size={20}
               action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums">{unreviewed.length}</span>}
             >
-              <Trans>Recently imported</Trans>
+              <Trans>Waiting for review</Trans>
             </SectionTitle>
             <div className="mt-3 divide-y divide-border/70">
               {unreviewed.map(book => {
@@ -1689,12 +1705,12 @@ export function BinderyPage() {
           </section>
         )}
 
-        {/* Incoming files, grouped by folder */}
-        {items.length > 0 && (
+        {/* Incoming files not under Series review, grouped by folder */}
+        {listItems.length > 0 && (
           <section className={cn('transition-opacity', loading && 'opacity-60')}>
             <SectionTitle
               size={20}
-              action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums">{items.length}</span>}
+              action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums">{listItems.length}</span>}
             >
               <Trans>Incoming files</Trans>
             </SectionTitle>
@@ -1725,7 +1741,7 @@ export function BinderyPage() {
 
             <div className="mt-3 divide-y divide-border/70">
               {folders.map(folder => {
-                const folderItems = items.filter(i => i.folder === folder)
+                const folderItems = listItems.filter(i => i.folder === folder)
                 const isCollapsed = collapsedFolders.has(folder)
                 const allFolderSelected = folderItems.every(i => selected.has(i.path))
                 return (

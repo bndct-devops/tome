@@ -1208,6 +1208,7 @@ function TileShell({
   dragging,
   stacked,
   onMeasure,
+  measureOnlyWhenEmpty,
 }: {
   def: WidgetDef
   config: TileConfig
@@ -1223,6 +1224,10 @@ function TileShell({
   stacked?: boolean
   /** autoH widgets report the grid rows their content actually needs. */
   onMeasure?: (rows: number) => void
+  /** Any other tile reports rows only while its body is just an empty-state
+      message (a lone <p>), and 0 otherwise, so an empty tile collapses to
+      its message instead of keeping a chart-sized box. */
+  measureOnlyWhenEmpty?: boolean
 }) {
   const [cfgOpen, setCfgOpen] = useState(false)
   const [hovering, setHovering] = useState(false)
@@ -1234,6 +1239,16 @@ function TileShell({
   // the tile out (console warning ×4 on every Stats load - UX sweep finding),
   // and the first chart paint was skipped until a resize tick.
   const [bodySized, setBodySized] = useState(false)
+  // A scrolling list tile marks its lower edge while more rows sit below it,
+  // so a row cut by the tile edge reads as "scrolls", not as the end.
+  const scrolls = SCROLL_IDS.has(def.id)
+  const [moreBelow, setMoreBelow] = useState(false)
+  const checkMoreBelow = useCallback(() => {
+    const box = contentRef.current
+    if (!box || !scrolls) return
+    setMoreBelow(box.scrollHeight - box.clientHeight - box.scrollTop > 1)
+  }, [scrolls])
+  useEffect(() => { checkMoreBelow() })
   useLayoutEffect(() => {
     const box = contentRef.current
     if (!box) return
@@ -1253,6 +1268,10 @@ function TileShell({
   useEffect(() => {
     const box = contentRef.current
     if (!onMeasure || !box || !tiltRef.current) return
+    if (measureOnlyWhenEmpty) {
+      const lone = box.children.length === 1 && box.children[0].tagName === 'P'
+      if (!lone) { onMeasure(0); return }
+    }
     // scrollHeight can't see underflow (it's floored at the box height), so take
     // the children's real extent: stretched children just reproduce the box and
     // the measurement becomes a no-op, intrinsic content reveals its true height.
@@ -1392,7 +1411,8 @@ function TileShell({
       )}
       <div
         ref={contentRef}
-        className={cn('min-h-0 flex-1', SCROLL_IDS.has(def.id) ? 'overflow-y-auto' : 'overflow-hidden')}
+        className={cn('min-h-0 flex-1', scrolls ? 'overflow-y-auto border-b' : 'overflow-hidden', scrolls && (moreBelow ? 'border-border' : 'border-transparent'))}
+        onScroll={scrolls ? checkMoreBelow : undefined}
         // edit mode: tiles are objects being arranged, not content - swallow clicks
         // so links/buttons inside (covers, table sorting, …) can't navigate away.
         // Capture phase, so inner handlers never fire; scrolling still works.
@@ -1461,7 +1481,14 @@ function FreeGrid({
       // Always set it explicitly so a stale value baked into a saved layout - from
       // a tile that used to be auto-fit - is cleared rather than inherited.
       const base: Layout[number] = { ...it, resizeHandles: auto ? (['e'] as ResizeHandleAxis[]) : undefined }
-      if (!auto) return base
+      if (!auto) {
+        // An empty tile (just its message) takes the message's height in view
+        // mode; edit mode keeps the real size so arranging is unaffected, and
+        // nothing of it is saved (layout changes persist only in edit mode).
+        const emptyRows = autoRows[it.i]
+        if (editMode || !emptyRows) return base
+        return { ...base, minH: 1, h: Math.min(it.h, Math.max(emptyRows, 1)) }
+      }
       const rows = autoRows[it.i]
       if (!rows) return base
       // The floor comes from the widget as it is now, not the minH baked into
@@ -1470,7 +1497,7 @@ function FreeGrid({
       const minH = tile ? defById(tile.defId).size.minH : (it.minH ?? 1)
       return { ...base, minH, h: Math.max(rows, minH) }
     })
-  }, [layout, autoRows, autoFitIds, tiles])
+  }, [layout, autoRows, autoFitIds, tiles, editMode])
 
   // RGL doesn't scroll the window when a drag/resize gesture reaches the viewport
   // edge, which makes a bottom-of-page tile impossible to grow - the pointer just
@@ -1619,7 +1646,7 @@ function FreeGrid({
             const def = defById(t.defId)
             return (
               <div key={t.id}>
-                <TileShell def={def} config={withAutoFit(t)} editMode={editMode} seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)} onMeasure={def.autoH && withAutoFit(t).autoFit ? (rows: number) => reportRows(t.id, rows) : undefined}>
+                <TileShell def={def} config={withAutoFit(t)} editMode={editMode} seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)} onMeasure={(rows: number) => reportRows(t.id, rows)} measureOnlyWhenEmpty={!autoFitIds.has(t.id)}>
                   {def.render(ctx, t.config)}
                 </TileShell>
               </div>
