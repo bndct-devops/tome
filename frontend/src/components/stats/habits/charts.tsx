@@ -1,26 +1,52 @@
 // The Habits page's charts: plain SVG on whole pixels at a measured width, each
 // in a box whose height is fixed before any data arrives. Shaping is in model.ts.
-import { t } from '@lingui/core/macro'
+// Hover: every mark has a tip (kit/tip.ts) and each chart is one focus stop with
+// arrow keys. Entry: marks carry the motion kit's classes (kit/motion.ts); the
+// section around the chart decides when they play. Sittings of the last 14 days
+// lead to their book (click, Enter on the focused sitting, a second tap on touch).
+import { useRef, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
+import { useNavigate } from 'react-router-dom'
+import { t, plural } from '@lingui/core/macro'
 import { formatDuration } from '@/lib/utils'
+import { K, stagger } from '@/components/stats/kit/motion'
+import { useTips } from '@/components/stats/kit/tip'
 import { columns, type HourGrid } from '@/components/stats/overview/model'
 import {
   RHYTHM_ROW, RHYTHM_ROW_PHONE, TL_PITCH, TL_PITCH_PHONE, TL_TRACK, TL_TRACK_PHONE, TL_ROWS, MONTH_ROW,
-  monthsHeight, rhythmHeight, timelineHeight, type PaceDot, type TlRow,
+  monthsHeight, rhythmHeight, timelineHeight, type PaceDot, type TlBar, type TlRow,
 } from './model'
 
 const LV = ['var(--k-lv0)', 'var(--k-lv1)', 'var(--k-lv2)', 'var(--k-lv3)', 'var(--k-lv4)', 'var(--k-lv5)']
 const GRID = 'color-mix(in oklch, var(--border) 70%, transparent)'
 const TICK = 'color-mix(in oklch, var(--muted-foreground) 60%, transparent)'
-const SVG = 'block fill-muted-foreground text-[11px] tabular-nums'
+// Text never takes the pointer: the mark under it answers instead.
+const SVG = 'block fill-muted-foreground text-[11px] tabular-nums [&_text]:pointer-events-none'
 const hh = (h: number) => `${String(h % 24).padStart(2, '0')}:00`
 const clock = (d: Date) => `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+// eslint-disable-next-line lingui/no-unlocalized-strings -- ISO time suffix
+const dateOf = (iso: string) => new Date(iso + 'T00:00:00')
 /** "Tue 3": the weekday and the day of the month. */
 const dayLabel = (iso: string) => {
-  // eslint-disable-next-line lingui/no-unlocalized-strings -- ISO time suffix
-  const d = new Date(iso + 'T00:00:00')
+  const d = dateOf(iso)
   return `${d.toLocaleDateString(undefined, { weekday: 'short' })} ${d.getDate()}`
 }
-const fmtShort = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
+const fmtLong = (iso: string) => dateOf(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+// Onest at 11 px with tabular figures: at most about 0.6 em per character.
+const textW = (s: string, px = 11) => Math.ceil(s.length * px * 0.6)
+const daysLong = () => [t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`]
+const sessionsLine = (n: number) => plural(n, { one: '# session', other: '# sessions' })
+/** A tip's duration: a few seconds read as "Under a minute", not "0m". */
+const dur = (s: number) => (s > 0 && s < 60 ? t`Under a minute` : formatDuration(s))
+const share = (part: number, whole: number) => (whole > 0 ? Math.round((part / whole) * 100) : 0)
+
+/** A value label that appears once the bars under it have grown. */
+const late = (i: number, n: number): CSSProperties => {
+  const step = n > 1 ? Math.min(24, 200 / (n - 1)) : 0
+  return { '--k-d': `${320 + Math.round(i * step)}ms` } as CSSProperties
+}
+
+// Hover band of a hit path drawn as a stroke (the pace line's days).
+const STROKE_HIT = 'data-[hot]:stroke-[color-mix(in_oklch,var(--muted-foreground)_24%,transparent)]'
 
 const roundedTop = (x: number, yt: number, w: number, h: number, r: number) =>
   // eslint-disable-next-line lingui/no-unlocalized-strings -- SVG path
@@ -39,8 +65,46 @@ export function ChartEmpty({ H, children }: { H: number; children: string }) {
   return <div className="flex items-center justify-center rounded-[12px] bg-secondary/50 px-6 text-center text-[14px] text-muted-foreground" style={{ height: H }}>{children}</div>
 }
 
+/**
+ * Marks with data-book lead to that book: a click (new tab with Cmd/Ctrl), Enter
+ * while the chart has focus on one, or on touch a tap on a sitting whose tip is
+ * already showing (the first tap shows the tip).
+ */
+function useBookLinks() {
+  const navigate = useNavigate()
+  const wasHot = useRef(false)
+  const book = (el: EventTarget | null) => (el instanceof Element ? el.closest('[data-book]') : null)
+  const go = (m: Element, newTab: boolean) => {
+    const to = `/books/${m.getAttribute('data-book')}`
+    if (newTab) window.open(to, '_blank', 'noopener')
+    else navigate(to)
+  }
+  return {
+    onPointerDown: (e: ReactPointerEvent) => { wasHot.current = !!book(e.target)?.hasAttribute('data-hot') },
+    onClick: (e: MouseEvent) => {
+      const m = book(e.target)
+      if (!m) return
+      if ((e.nativeEvent as PointerEvent).pointerType === 'touch' && !wasHot.current) return
+      go(m, e.metaKey || e.ctrlKey)
+    },
+    onKeyDown: (e: KeyboardEvent) => {
+      if (e.key !== 'Enter') return
+      const m = e.currentTarget.querySelector('[data-hot][data-book]')
+      if (m) go(m, e.metaKey || e.ctrlKey)
+    },
+  }
+}
+
 // ── When you read: hour × weekday, weekday totals right, hour totals under ────
-export function Rhythm({ W, grid, byCol, byDow, phone, loading }: { W: number; grid: HourGrid; byCol: number[]; byDow: number[]; phone: boolean; loading?: boolean }) {
+export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
+  W: number
+  grid: HourGrid
+  byCol: number[]
+  colN: number[]
+  byDow: { s: number[]; n: number[] }
+  phone: boolean
+  loading?: boolean
+}) {
   const ncol = phone ? 12 : 24
   const span = phone ? 2 : 1
   const labelW = phone ? 32 : 40
@@ -52,64 +116,81 @@ export function Rhythm({ W, grid, byCol, byDow, phone, loading }: { W: number; g
   const rp = rowH + gap
   const heatH = 7 * rp - gap
   const histH = phone ? 48 : 64
-  const base = heatH + 12 + histH
+  const hy = heatH + 12
+  const base = hy + histH
   const H = rhythmHeight(phone)
+  const total = byDow.s.reduce((a, s) => a + s, 0)
+  // Marks in DOM order: the 7 rows of cells, the hour columns, then the 7 weekday totals.
+  const tips = useTips((i) => {
+    const range = (k: number) => `${hh(k * span)}–${hh(k * span + span)}`
+    if (i < 7 * ncol) {
+      const r = Math.floor(i / ncol), k = i % ncol
+      const c = grid[r]?.[k]
+      if (!c) return null
+      return { title: `${daysLong()[r]} ${range(k)}`, value: c.s > 0 ? dur(c.s) : t`No reading`, note: c.s > 0 ? sessionsLine(c.n) : undefined }
+    }
+    if (i < 8 * ncol) {
+      const k = i - 7 * ncol
+      const s = byCol[k] ?? 0
+      const r = range(k)
+      return { title: t`${r}, all days`, value: s > 0 ? dur(s) : t`No reading`, note: s > 0 ? sessionsLine(colN[k] ?? 0) : undefined }
+    }
+    const r = i - 8 * ncol
+    const s = byDow.s[r] ?? 0
+    const pct = share(s, total)
+    const sessions = sessionsLine(byDow.n[r] ?? 0)
+    return { title: daysLong()[r], value: s > 0 ? dur(s) : t`No reading`, note: s > 0 ? t`${sessions} · ${pct}% of the reading` : undefined }
+  }, { x: 1, y: ncol })
   if (loading) return <Placeholder W={W} H={H} x={labelW} h={heatH} />
   const days = [t`Mon`, t`Tue`, t`Wed`, t`Thu`, t`Fri`, t`Sat`, t`Sun`]
-  const daysLong = [t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`]
-  const maxDow = Math.max(1, ...byDow)
+  const maxDow = Math.max(1, ...byDow.s)
   const barX = heatR + 24
   const barMax = W - 64 - barX
   const maxH = Math.max(1, ...byCol)
   return (
-    <svg className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading time by hour and weekday`}>
+    <svg {...tips} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading time by hour and weekday`}>
       {grid.map((row, r) => {
         const y = r * rp
-        const tot = formatDuration(byDow[r])
-        const dayLong = daysLong[r]
         return (
           <g key={r}>
             <text x={0} y={y + rowH / 2 + 4}>{days[r]}</text>
-            {row.map((c, k) => {
-              const day = days[r]
-              const range = `${hh(k * span)}–${hh(k * span + span)}`
-              const dur = formatDuration(c.s)
-              return (
-                <rect key={k} x={xs[k]} y={y} width={cell} height={rowH} rx={3} fill={LV[c.lv]}>
-                  <title>{t`${day} ${range}: ${dur}`}</title>
-                </rect>
-              )
-            })}
-            {!phone && byDow[r] > 0 && (
-              <rect x={barX} y={y + (rowH - 12) / 2} width={Math.max(2, Math.round((byDow[r] / maxDow) * barMax))} height={12} rx={2} fill="var(--chart-accent)">
-                <title>{`${dayLong}: ${tot}`}</title>
-              </rect>
+            {row.map((c, k) => (
+              <rect key={k} className={`k-cell ${K.fade}`} style={stagger(k, ncol)} data-tip-i={r * ncol + k} x={xs[k]} y={y} width={cell} height={rowH} rx={3} fill={LV[c.lv]} />
+            ))}
+          </g>
+        )
+      })}
+      {byCol.map((s, k) => {
+        const h = Math.round((s / maxH) * histH)
+        return (
+          <g key={k}>
+            <rect className="k-hit" data-tip-i={7 * ncol + k} x={xs[k] - gap / 2} y={hy} width={cell + gap} height={histH} />
+            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, cell, h, Math.min(2, h))} fill="var(--chart-accent)" />}
+          </g>
+        )
+      })}
+      {byDow.s.map((s, r) => {
+        const y = r * rp
+        return (
+          <g key={r}>
+            <rect className="k-hit" data-tip-i={8 * ncol + r} x={heatR + 8} y={y - gap / 2} width={W - heatR - 8} height={rp} rx={3} />
+            {!phone && s > 0 && (
+              <rect className={`${K.growX} k-nohit`} style={stagger(r, 7)} x={barX} y={y + (rowH - 12) / 2} width={Math.max(2, Math.round((s / maxDow) * barMax))} height={12} rx={2} fill="var(--chart-accent)" />
             )}
-            {byDow[r] > 0 ? (
-              <text x={W} y={y + rowH / 2 + 4} textAnchor="end" fill="var(--foreground)" fontSize={12} fontWeight={500}>{tot}</text>
+            {s > 0 ? (
+              <text className={K.fade} style={late(r, 7)} x={W} y={y + rowH / 2 + 4} textAnchor="end" fill="var(--foreground)" fontSize={12} fontWeight={500}>{formatDuration(s)}</text>
             ) : (
               <text x={W} y={y + rowH / 2 + 4} textAnchor="end" opacity={0.5}>–</text>
             )}
           </g>
         )
       })}
-      {byCol.map((s, k) => {
-        const h = Math.round((s / maxH) * histH)
-        if (h <= 0) return null
-        const range = `${hh(k * span)}–${hh(k * span + span)}`
-        const dur = formatDuration(s)
-        return (
-          <path key={k} d={roundedTop(xs[k], base - h, cell, h, Math.min(2, h))} fill="var(--chart-accent)">
-            <title>{t`${range}, all days: ${dur}`}</title>
-          </path>
-        )
-      })}
-      <line x1={labelW} x2={heatR} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
+      <line className="k-nohit" x1={labelW} x2={heatR} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
       {[0, 6, 12, 18, 24].map((hr) => {
         const k = hr / span
         const x = k >= ncol ? heatR : xs[k]
         return (
-          <g key={hr}>
+          <g key={hr} className="k-nohit">
             <line x1={x + 0.5} x2={x + 0.5} y1={base} y2={base + 4} stroke={TICK} shapeRendering="crispEdges" />
             <text x={x} y={H - 3} textAnchor={hr === 24 ? 'end' : hr === 0 ? 'start' : 'middle'}>{hr}</text>
           </g>
@@ -120,6 +201,8 @@ export function Rhythm({ W, grid, byCol, byDow, phone, loading }: { W: number; g
 }
 
 // ── Last 14 days: a 04:00 → 04:00 track per reading day ───────────────────────
+type TlMark = { row: TlRow; bar?: TlBar }
+
 export function Timeline({ W, rows, phone, loading }: { W: number; rows: TlRow[]; phone: boolean; loading?: boolean }) {
   const pitch = phone ? TL_PITCH_PHONE : TL_PITCH
   const trackH = phone ? TL_TRACK_PHONE : TL_TRACK
@@ -132,8 +215,30 @@ export function Timeline({ W, rows, phone, loading }: { W: number; rows: TlRow[]
   const yb = yTrack(TL_ROWS - 1) + trackH
   const fontSize = 12
   const list: (TlRow | null)[] = loading ? Array.from({ length: TL_ROWS }, () => null) : rows
+  // Marks in DOM order: each day's row (its total), then the day's sittings.
+  const marks: TlMark[] = []
+  for (const r of list) {
+    if (!r) continue
+    marks.push({ row: r })
+    for (const b of r.bars) marks.push({ row: r, bar: b })
+  }
+  const tips = useTips((i) => {
+    const m = marks[i]
+    if (!m) return null
+    const day = fmtLong(m.row.date)
+    if (!m.bar) {
+      return { title: day, value: m.row.seconds > 0 ? dur(m.row.seconds) : t`No reading`, note: m.row.sittings > 0 ? plural(m.row.sittings, { one: '# sitting', other: '# sittings' }) : undefined }
+    }
+    const b = m.bar
+    const from = clock(b.started)
+    const to = clock(new Date(b.started.getTime() + b.seconds * 1000))
+    const len = dur(b.seconds)
+    return { title: b.title ?? t`Unknown book`, value: `${from}–${to}`, note: `${len} · ${day}` }
+  })
+  const links = useBookLinks()
+  let at = 0
   return (
-    <svg className={SVG} style={{ fontSize }} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Sittings in the last 14 reading days, 04:00 to 04:00`}>
+    <svg {...tips} {...links} className={SVG} style={{ fontSize }} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Sittings in the last 14 reading days, 04:00 to 04:00`}>
       {list.map((r, i) => {
         const y = yTrack(i)
         if (!r) {
@@ -145,25 +250,29 @@ export function Timeline({ W, rows, phone, loading }: { W: number; rows: TlRow[]
             </g>
           )
         }
+        const dayI = at++
         return (
           <g key={r.date}>
+            {/* The row answers with the day's total; its sittings, on top, with themselves. */}
+            <rect className="k-hit" data-tip-i={dayI} x={0} y={y - (pitch - trackH) / 2 + 1} width={W} height={pitch - 2} rx={4} />
             <text x={0} y={y + trackH / 2 + 4}>{dayLabel(r.date)}</text>
-            <rect x={x0} y={y} width={tw} height={trackH} rx={3} fill={LV[0]} />
+            <rect className="k-nohit" x={x0} y={y} width={tw} height={trackH} rx={3} fill={LV[0]} />
             {r.bars.map((b, k) => {
               const a = Math.round(xm(b.m0))
               const e = Math.max(a + 2, Math.round(xm(b.m1)))
-              const title = b.title ?? t`Unknown book`
-              const from = clock(b.started)
-              const to = clock(new Date(b.started.getTime() + b.seconds * 1000))
-              const dur = formatDuration(b.seconds)
               return (
-                <rect key={k} x={a} y={y + 2} width={e - a} height={trackH - 4} rx={2} fill="var(--chart-accent)">
-                  <title>{t`${title}: ${from} to ${to} (${dur})`}</title>
-                </rect>
+                <rect
+                  key={k}
+                  className={`k-cell ${K.growX} ${b.bookId != null ? 'cursor-pointer' : ''}`}
+                  style={stagger(i, TL_ROWS)}
+                  data-tip-i={at++}
+                  data-book={b.bookId ?? undefined}
+                  x={a} y={y + 2} width={e - a} height={trackH - 4} rx={2} fill="var(--chart-accent)"
+                />
               )
             })}
             {r.seconds > 0 ? (
-              <text x={W} y={y + trackH / 2 + 4} textAnchor="end" fill="var(--foreground)" fontWeight={500}>{formatDuration(r.seconds)}</text>
+              <text className={K.fade} style={late(i, TL_ROWS)} x={W} y={y + trackH / 2 + 4} textAnchor="end" fill="var(--foreground)" fontWeight={500}>{formatDuration(r.seconds)}</text>
             ) : (
               <text x={W} y={y + trackH / 2 + 4} textAnchor="end" opacity={0.5}>–</text>
             )}
@@ -172,7 +281,7 @@ export function Timeline({ W, rows, phone, loading }: { W: number; rows: TlRow[]
       })}
       {[6, 12, 18].map((h) => {
         const x = Math.round(xm(h * 60)) + 0.5
-        return <line key={h} x1={x} x2={x} y1={yTrack(0)} y2={yb} stroke="var(--background)" shapeRendering="crispEdges" />
+        return <line key={h} className="k-nohit" x1={x} x2={x} y1={yTrack(0)} y2={yb} stroke="var(--background)" shapeRendering="crispEdges" />
       })}
       {[0, 6, 12, 18, 24].map((h) => (
         <text key={h} x={Math.round(xm(h * 60))} y={yb + 14} textAnchor={h === 0 ? 'start' : h === 24 ? 'end' : 'middle'}>{(h + 4) % 24}</text>
@@ -186,37 +295,55 @@ export function Lengths({ W, H, counts, loading }: { W: number; H: number; count
   const valH = 18, labH = 22
   const plotH = H - valH - labH
   const base = valH + plotH
+  const total = counts.reduce((a, n) => a + n, 0)
+  const tips = useTips((i) => {
+    const n = counts[i] ?? 0
+    const long = [t`Under 15 minutes`, t`15 to 30 minutes`, t`30 to 60 minutes`, t`1 to 2 hours`, t`Over 2 hours`][i]
+    const pct = share(n, total)
+    return { title: long, value: plural(n, { one: '# sitting', other: '# sittings' }), note: t`${pct}% of sittings` }
+  })
   if (loading) return <Placeholder W={W} H={H} y={valH} h={plotH} />
   const labels = [t`Under 15m`, t`15 to 30m`, t`30 to 60m`, t`1 to 2h`, t`Over 2h`]
   const slot = W / labels.length
   const bw = Math.round(Math.min(slot * 0.62, 56))
   const max = Math.max(1, ...counts)
   return (
-    <svg className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Sittings by length`}>
+    <svg {...tips} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Sittings by length`}>
       {counts.map((n, i) => {
         const x = Math.round(slot * i + (slot - bw) / 2)
         const h = Math.round((n / max) * plotH)
-        const label = labels[i]
         return (
           <g key={i}>
-            {h > 0 && (
-              <path d={roundedTop(x, base - h, bw, h, Math.min(3, h))} fill="var(--chart-accent)">
-                <title>{t`${label}: ${n} sittings`}</title>
-              </path>
-            )}
-            <text x={x + bw / 2} y={base - h - 5} textAnchor="middle" fill="var(--foreground)" fontWeight={500}>{n.toLocaleString()}</text>
-            <text x={x + bw / 2} y={H - 4} textAnchor="middle">{label}</text>
+            <rect className="k-hit" data-tip-i={i} x={Math.round(slot * i)} y={0} width={Math.round(slot)} height={base} rx={4} />
+            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(i, counts.length)} d={roundedTop(x, base - h, bw, h, Math.min(3, h))} fill="var(--chart-accent)" />}
+            <text className={K.fade} style={late(i, counts.length)} x={x + bw / 2} y={base - h - 5} textAnchor="middle" fill="var(--foreground)" fontWeight={500}>{n.toLocaleString()}</text>
+            <text x={x + bw / 2} y={H - 4} textAnchor="middle">{labels[i]}</text>
           </g>
         )
       })}
-      <line x1={0} x2={W} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
+      <line className="k-nohit" x1={0} x2={W} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
     </svg>
   )
 }
 
 // ── Pace: a dot per reading day, the trailing 7-day mean as a line ────────────
-export function Pace({ W, H, dots, nDays, months, loading }: { W: number; H: number; dots: PaceDot[]; nDays: number; months: { index: number; label: string }[]; loading?: boolean }) {
+export function Pace({ W, H, dots, nDays, ticks, loading }: { W: number; H: number; dots: PaceDot[]; nDays: number; ticks: { index: number; label: string }[]; loading?: boolean }) {
   const padL = 28, padB = 22, padT = 8
+  const n = dots.length
+  // Marks in DOM order: the line's days (hit bands along it), then the dots on top;
+  // Up/Down moves between a day's dot and its mean.
+  const tips = useTips((i) => {
+    const d = dots[i % Math.max(1, n)]
+    if (!d) return null
+    if (i < n) {
+      const mean = d.mean.toFixed(1)
+      return { title: fmtLong(d.date), value: t`${mean} pages a minute`, note: t`7-day mean` }
+    }
+    const ppm = d.ppm.toFixed(1)
+    const pages = plural(d.pages, { one: '# page', other: '# pages' })
+    const len = dur(d.seconds)
+    return { title: fmtLong(d.date), value: t`${ppm} pages a minute`, note: t`${pages} in ${len}` }
+  }, { x: 1, y: n })
   if (loading) return <Placeholder W={W} H={H} x={padL} y={padT} h={H - padT - padB} />
   const plotW = W - padL, plotH = H - padT - padB
   const top = Math.ceil(Math.max(1, ...dots.map((d) => d.ppm)) + 0.25)
@@ -226,47 +353,59 @@ export function Pace({ W, H, dots, nDays, months, loading }: { W: number; H: num
   const by = Math.round(y(0)) + 0.5
   const lines: number[] = []
   for (let v = step; v <= top; v += step) lines.push(v)
-  const path = dots.map((d, k) => `${k ? 'L' : 'M'}${x(d.i).toFixed(1)},${y(d.mean).toFixed(1)}`).join(' ')
+  type Pt = readonly [number, number]
+  const pts: Pt[] = dots.map((d) => [x(d.i), y(d.mean)] as const)
+  const xy = (p: Pt) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`
+  const path = pts.map((p, k) => `${k ? 'L' : 'M'}${xy(p)}`).join(' ')
+  // Each day's stretch of the line: from halfway to the previous day to halfway to the next.
+  const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
+  const band = (k: number) => {
+    const p = pts[k]
+    const a: Pt = k > 0 ? mid(pts[k - 1], p) : [p[0] - 4, p[1]]
+    const b: Pt = k < n - 1 ? mid(p, pts[k + 1]) : [p[0] + 4, p[1]]
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- SVG path
+    return `M${xy(a)} L${xy(p)} L${xy(b)}`
+  }
+  // Tick labels kept apart and inside the chart: one too close to the last shown is left out.
+  let lastEnd = -Infinity
+  const shown = ticks.filter((m) => {
+    const xx = Math.round(x(m.index)) + 4
+    const end = xx + textW(m.label)
+    if (xx < lastEnd + 8 || end > W) return false
+    lastEnd = end
+    return true
+  })
   return (
-    <svg className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Pages per minute per reading day`}>
+    <svg {...tips} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Pages per minute per reading day`}>
       {lines.map((v) => {
         const yy = Math.round(y(v)) + 0.5
         return (
-          <g key={v}>
+          <g key={v} className="k-nohit">
             <line x1={padL} x2={W} y1={yy} y2={yy} stroke={GRID} shapeRendering="crispEdges" />
             <text x={padL - 8} y={yy + 4} textAnchor="end">{v}</text>
           </g>
         )
       })}
-      <line x1={padL} x2={W} y1={by} y2={by} stroke="var(--border)" shapeRendering="crispEdges" />
+      <line className="k-nohit" x1={padL} x2={W} y1={by} y2={by} stroke="var(--border)" shapeRendering="crispEdges" />
       <text x={padL - 8} y={by + 4} textAnchor="end">0</text>
-      {months.map((m) => {
+      {ticks.map((m) => {
         const xx = Math.round(x(m.index)) + 0.5
-        return (
-          <g key={m.index}>
-            <line x1={xx} x2={xx} y1={by} y2={by + 5} stroke={TICK} shapeRendering="crispEdges" />
-            <text x={xx + 4} y={H - 5}>{m.label}</text>
-          </g>
-        )
+        return <line key={m.index} className="k-nohit" x1={xx} x2={xx} y1={by} y2={by + 5} stroke={TICK} shapeRendering="crispEdges" />
       })}
-      {dots.map((d) => {
-        const day = fmtShort(d.date)
-        const ppm = d.ppm.toFixed(1)
-        const pages = d.pages.toLocaleString()
-        const dur = formatDuration(d.seconds)
-        return (
-          <circle key={d.i} cx={x(d.i)} cy={y(d.ppm)} r={3} fill="var(--chart-accent)" fillOpacity={0.5}>
-            <title>{t`${day}: ${ppm} pages a minute, ${pages} pages in ${dur}`}</title>
-          </circle>
-        )
-      })}
-      {dots.length > 1 && <path d={path} fill="none" stroke="var(--chart-accent)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
+      {shown.map((m) => <text key={m.index} x={Math.round(x(m.index)) + 4.5} y={H - 5}>{m.label}</text>)}
+      {n > 1 && <path className={`${K.draw} k-nohit`} pathLength={1} d={path} fill="none" stroke="var(--chart-accent)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
+      {n > 1 && dots.map((d, k) => (
+        <path key={d.i} className={STROKE_HIT} data-tip-i={k} d={band(k)} fill="none" stroke="transparent" strokeWidth={10} strokeLinejoin="round" strokeLinecap="round" />
+      ))}
+      {dots.map((d, k) => (
+        <circle key={d.i} className={`k-cell ${K.fade}`} style={stagger(k, n)} data-tip-i={n + k} cx={x(d.i)} cy={y(d.ppm)} r={3} fill="var(--chart-accent)" fillOpacity={0.5} stroke="transparent" strokeWidth={6} />
+      ))}
     </svg>
   )
 }
 
 // ── The last 12 months: reading hours over books finished ─────────────────────
-type Month = { label: string; seconds: number; books: number }
+type Month = { key: string; label: string; seconds: number; sessions: number; books: number }
 export function Months({ W, months, phone, loading }: { W: number; months: Month[]; phone: boolean; loading?: boolean }) {
   const labelW = phone ? 0 : 132
   const rowGap = phone ? 40 : 24, valH = 18
@@ -275,6 +414,20 @@ export function Months({ W, months, phone, loading }: { W: number; months: Month
   const base1 = top1 + MONTH_ROW
   const top2 = base1 + rowGap + (phone ? 22 : 0)
   const base2 = top2 + MONTH_ROW
+  const n = Math.max(1, months.length)
+  const last = months.length - 1
+  // Marks in DOM order: the hours row's months, then the books row's.
+  const tips = useTips((i) => {
+    const books = i >= n
+    const k = i % n
+    const m = months[k]
+    if (!m) return null
+    const title = dateOf(m.key + '-01').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+    const sofar = k === last ? t`so far` : undefined
+    if (books) return { title, value: plural(m.books, { one: '# book finished', other: '# books finished' }), note: sofar }
+    const note = [m.seconds > 0 ? sessionsLine(m.sessions) : null, sofar].filter(Boolean).join(' · ')
+    return { title, value: m.seconds > 0 ? dur(m.seconds) : t`No reading`, note: note || undefined }
+  }, { x: 1, y: n })
   const rowLabels = [t`Reading hours`, t`Books finished`]
   if (loading) {
     return (
@@ -284,17 +437,16 @@ export function Months({ W, months, phone, loading }: { W: number; months: Month
       </svg>
     )
   }
-  const n = Math.max(1, months.length)
   const slot = (W - labelW) / n
   const bw = Math.round(Math.min(slot * 0.5, 40))
   const xs = months.map((_, i) => Math.round(labelW + slot * i + (slot - bw) / 2))
-  const last = months.length - 1
   const row = (key: 'hours' | 'books', base: number) => {
     const val = (m: Month) => (key === 'hours' ? m.seconds : m.books)
     const lab = (m: Month) => (key === 'hours' ? formatDuration(m.seconds) : m.books.toLocaleString())
     const max = Math.max(1, ...months.map(val))
     const fill = key === 'hours' ? 'var(--chart-accent)' : 'var(--success)'
     const rowLabel = rowLabels[key === 'hours' ? 0 : 1]
+    const off = key === 'hours' ? 0 : n
     return (
       <g key={key}>
         <text x={0} y={phone ? base - MONTH_ROW - 8 : base - 2} fontSize={13}>{rowLabel}</text>
@@ -302,35 +454,32 @@ export function Months({ W, months, phone, loading }: { W: number; months: Month
           const v = val(m)
           const h = Math.round((v / max) * (MONTH_ROW - valH))
           const label = lab(m)
-          const mLabel = m.label
-          const tip = key === 'hours' ? `${mLabel}: ${label}` : t`${mLabel}: ${label} finished`
           const show = !phone || key === 'books' || (last - i) % 2 === 0
           let text = null
           if (show && phone && key === 'hours') {
             const tw = Math.ceil(label.length * 11 * 0.55)
             const cx = xs[i] + bw / 2
             const edge = cx + tw / 2 > W
-            text = <text x={edge ? W : cx} y={base - MONTH_ROW + 11} textAnchor={edge ? 'end' : 'middle'} fill="var(--foreground)" fontWeight={500}>{label}</text>
+            text = <text className={K.fade} style={late(i, n)} x={edge ? W : cx} y={base - MONTH_ROW + 11} textAnchor={edge ? 'end' : 'middle'} fill="var(--foreground)" fontWeight={500}>{label}</text>
           } else if (show) {
-            text = <text x={xs[i] + bw / 2} y={base - h - 5} textAnchor="middle" fill="var(--foreground)" fontWeight={500}>{label}</text>
+            text = <text className={K.fade} style={late(i, n)} x={xs[i] + bw / 2} y={base - h - 5} textAnchor="middle" fill="var(--foreground)" fontWeight={500}>{label}</text>
           }
           return (
             <g key={i}>
+              <rect className="k-hit" data-tip-i={off + i} x={Math.round(labelW + slot * i)} y={base - MONTH_ROW} width={Math.round(slot)} height={MONTH_ROW} rx={4} />
               {h > 0 && (
-                <path d={roundedTop(xs[i], base - h, bw, h, Math.min(3, h))} fill={fill} fillOpacity={i === last ? 0.45 : 1}>
-                  <title>{tip}</title>
-                </path>
+                <path className={`${K.grow} k-nohit`} style={stagger(i, n)} d={roundedTop(xs[i], base - h, bw, h, Math.min(3, h))} fill={fill} fillOpacity={i === last ? 0.45 : 1} />
               )}
               {text}
             </g>
           )
         })}
-        <line x1={labelW} x2={W} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
+        <line className="k-nohit" x1={labelW} x2={W} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
       </g>
     )
   }
   return (
-    <svg className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading hours and books finished per month`}>
+    <svg {...tips} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading hours and books finished per month`}>
       {row('hours', base1)}
       {row('books', base2)}
       {months.map((m, i) => <text key={i} x={xs[i] + bw / 2} y={H - 4} textAnchor="middle">{m.label}</text>)}
