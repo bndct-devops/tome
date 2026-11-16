@@ -21,6 +21,7 @@ import { LibraryPage } from '@/components/stats/library/LibraryPage'
 import { TastePage } from '@/components/stats/taste/TastePage'
 import { SessionsPage } from '@/components/stats/sessions/SessionsPage'
 import type { StatsTab } from '@/components/stats/kit/page'
+import { statsCacheGet, statsCacheSet } from '@/components/stats/kit/useStatsGet'
 import { PAGE_W, loadLocalDashboard, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
 
 /**
@@ -47,9 +48,13 @@ const PAGES: { id: TabId; label: MessageDescriptor }[] = [
   { id: 'boards', label: msg`Boards` },
 ]
 
-// Stats answers by range, kept for the session: coming back to the page is
-// instant, the fresh answer replaces it when it arrives.
-const statsCache = new Map<string, StatsResponse>()
+// Stats answers by range are kept for the session (in the pages' shared cache, so
+// an edit such as a deleted session drops them with the pages' own answers):
+// coming back to the page is instant, the fresh answer replaces it when it arrives.
+const statsCache = {
+  get: (key: string) => statsCacheGet<StatsResponse>(`/stats?${key}`),
+  set: (key: string, r: StatsResponse) => statsCacheSet(`/stats?${key}`, r),
+}
 
 // What the page shows (tab, range, board) is this browser's own view state. It
 // is kept apart from the saved boards so that looking around never writes them.
@@ -106,9 +111,14 @@ export function StatsPage() {
     return cached ? { key, data: cached, days, custom } : null
   })
   const [failed, setFailed] = useState(false)
+  // The range last asked for. Coming back to a stats tab asks again only when its
+  // answer was dropped from the cache meanwhile (an edit on the Sessions tab).
+  const asked = useRef<string | null>(null)
   useEffect(() => {
     if (!wantStats) return
     const cached = statsCache.get(key)
+    if (cached && asked.current === key) return
+    asked.current = key
     if (cached) setStats({ key, data: cached, days, custom })
     setFailed(false)
     // A slow answer for a range the user has already left must not paint over
@@ -123,7 +133,7 @@ export function StatsPage() {
       .catch(() => { if (current) setFailed(true) })
     return () => { current = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- key names days and custom
-  }, [key, wantStats])
+  }, [key, wantStats, tab])
   // A range change keeps the previous answer on screen, dimmed, until this one lands.
   const pending = !!stats && stats.key !== key
   const data = stats?.data ?? null

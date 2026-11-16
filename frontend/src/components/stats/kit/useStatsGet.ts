@@ -8,6 +8,10 @@ import type { CustomRange } from '@/components/stats/range'
 
 const cache = new Map<string, unknown>()
 
+/** The session cache, also used by the Stats frame for /api/stats (keys are paths under /api). */
+export const statsCacheGet = <T,>(path: string) => cache.get(path) as T | undefined
+export const statsCacheSet = (path: string, value: unknown) => { cache.set(path, value) }
+
 /** The query part of a ranged stats request, with the browser's offset. */
 export function rangeQuery(days: number, custom: CustomRange | null): string {
   const range = custom ? `start=${custom.start}&end=${custom.end}` : `days=${days}`
