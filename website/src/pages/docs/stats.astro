@@ -15,7 +15,8 @@ import { withBase } from '../../lib/path'
     fudge factors, no guessing. If a chart is empty, it's because the data isn't there yet.
   </p>
   <p>
-    The page has seven tabs: <strong>Overview</strong>, <strong>Habits</strong>, <strong>Library</strong>, <strong>Taste</strong>, <strong>Timeline</strong>, <strong>Sessions</strong>, and — when
+    Hover (or tap) any bar, cell, dot or row for its exact value; books, series and authors are
+    links. The page has seven tabs: <strong>Overview</strong>, <strong>Habits</strong>, <strong>Library</strong>, <strong>Taste</strong>, <strong>Timeline</strong>, <strong>Sessions</strong>, and — when
     you have any — <strong>Boards</strong>, your own layouts from the earlier customisable
     dashboard. The range pills (7d, 30d, 90d, 1y, All, or a custom range) apply to every tab that
     depends on a period; sections that are all-time say so in their heading.
@@ -141,7 +142,14 @@ import { withBase } from '../../lib/path'
     sessions (with the average length), pages (with the daily average), books finished (with the
     count for the previous period) and your current streak (since when, and whether it is your
     longest). Under them, the reading time as bars: one per day for ranges up to 31 days, one
-    per week above that, with the running week lighter and your average marked.
+    per week above that, with the running week lighter, your average marked and your best day of
+    the range noted in the corner.
+  </p>
+  <p>
+    At <strong>1y</strong> and <strong>All</strong>, a <strong>Year in review</strong> band under the
+    figures adds your top genre and most active month. If you have <strong>reading goals</strong>,
+    they follow: each with its progress and pace, editable in place, with <strong>New goal</strong>
+    in the heading (without goals, a quiet line at the end of the page sets one up).
   </p>
   <p>
     The streak is in local-with-rollover days, with a one-day grace: if you haven't read yet
@@ -149,8 +157,10 @@ import { withBase } from '../../lib/path'
     (plus rollover) passes without a session, the streak breaks.
   </p>
   <ul>
-    <li><strong>Reading now</strong> — the books you're reading, with cover, progress, an estimate
-      of the days left at your recent pace, and when you last read them. Progress is the furthest
+    <li><strong>Reading now</strong> — the books you're reading (up to three, with a link to all of
+      them in the library when there are more), with cover, progress, an estimate of the days left
+      at your recent pace, and when you last read them. At 99 % a <strong>Mark as read</strong>
+      button appears. Progress is the furthest
       of your synced position and the furthest page in imported KOReader history; the same value
       is used everywhere in Stats.</li>
     <li><strong>Finished</strong> — the covers of the books you finished in the range, newest first.</li>
@@ -160,7 +170,7 @@ import { withBase } from '../../lib/path'
     <li><strong>The year</strong> — a 365-day grid of daily reading time. Its five shades are cut at
       your own quantiles, and the legend prints where each step starts.</li>
     <li><strong>Records</strong> — all time: longest session, biggest reading day, most pages in a
-      day, longest streak.</li>
+      day, longest daily streak and longest weekly streak.</li>
   </ul>
   <Callout variant="tip" title="Shelving a book you've set aside">
     Every book has reading-status pills — <strong>Unread / Reading / Read</strong>, plus a fourth
