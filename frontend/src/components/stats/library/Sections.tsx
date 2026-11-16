@@ -147,7 +147,7 @@ export function Backlog({ data, failed, pending, desktop, rows, scope, scopeLabe
           <div className="h-6 text-[16px] leading-[24px] text-muted-foreground">{span}</div>
         </div>
         <div className={cn('mt-3 text-[14px] leading-[20px] text-muted-foreground', !desktop && 'min-h-[40px]')}>{sub}</div>
-        <div data-box="backlog-rows" className="mt-5">
+        <div data-box="backlog-rows" className="k-bars mt-5">
           {list.map((r, i) => {
             const share = r && total > 0 ? r.seconds / total : 0
             const tip = r ? (() => {

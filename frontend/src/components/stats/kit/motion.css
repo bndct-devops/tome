@@ -60,6 +60,17 @@
 .k-hit[data-hot] { fill: color-mix(in oklch, var(--muted-foreground) 14%, transparent); }
 .k-nohit { pointer-events: none; }
 
+/* Bars answer the pointer themselves: in a set of bars (.k-bars around them) the
+   bar under the pointer, the finger or the arrow keys stays at full colour and
+   the set's other bars step back. A bar is .k-bar; it is hot itself (an HTML
+   track with its own tip) or sits in a .k-col with the hot hit area (an SVG
+   column: hit rect + bar, or a whole stack). The column wash stays, quieter.
+   Opacity only, from the data-hot attribute: nothing re-renders, nothing moves. */
+.k-bar { transition: opacity 120ms var(--k-ease); }
+.k-bars:has([data-hot]) .k-bar { opacity: 0.6; }
+.k-bars .k-bar[data-hot], .k-bars .k-col:has([data-hot]) .k-bar { opacity: 1; }
+.k-bars .k-hit[data-hot] { fill: color-mix(in oklch, var(--muted-foreground) 8%, transparent); }
+
 /* Heat cells and dots: a foreground outline. */
 .k-cell[data-hot] { stroke: var(--foreground); stroke-width: 1.5px; stroke-opacity: 0.9; }
 

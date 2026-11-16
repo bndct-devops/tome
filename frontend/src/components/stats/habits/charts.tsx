@@ -152,22 +152,25 @@ export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
           </g>
         )
       })}
+      <g className="k-bars">
       {byCol.map((s, k) => {
         const h = Math.round((s / maxH) * histH)
         return (
-          <g key={k}>
+          <g key={k} className="k-col">
             <rect className="k-hit" data-tip-i={7 * ncol + k} x={xs[k] - gap / 2} y={hy} width={ws[k] + gap} height={histH} />
-            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, ws[k], h, Math.min(2, h))} fill="var(--chart-accent)" />}
+            {h > 0 && <path className={`${K.grow} k-bar k-nohit`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, ws[k], h, Math.min(2, h))} fill="var(--chart-accent)" />}
           </g>
         )
       })}
+      </g>
+      <g className="k-bars">
       {byDow.s.map((s, r) => {
         const y = r * rp
         return (
-          <g key={r}>
+          <g key={r} className="k-col">
             <rect className="k-hit" data-tip-i={8 * ncol + r} x={heatR + 8} y={y - gap / 2} width={W - heatR - 8} height={rp} rx={3} />
             {!phone && s > 0 && (
-              <rect className={`${K.growX} k-nohit`} style={stagger(r, 7)} x={barX} y={y + (rowH - 12) / 2} width={Math.max(2, Math.round((s / maxDow) * barMax))} height={12} rx={2} fill="var(--chart-accent)" />
+              <rect className={`${K.growX} k-bar k-nohit`} style={stagger(r, 7)} x={barX} y={y + (rowH - 12) / 2} width={Math.max(2, Math.round((s / maxDow) * barMax))} height={12} rx={2} fill="var(--chart-accent)" />
             )}
             {s > 0 ? (
               <text className={K.fade} style={late(r, 7)} x={W} y={y + rowH / 2 + 4} textAnchor="end" fill="var(--foreground)" fontSize={12} fontWeight={500}>{formatDuration(s)}</text>
@@ -177,6 +180,7 @@ export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
           </g>
         )
       })}
+      </g>
       <line className="k-nohit" x1={labelW} x2={heatR} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
       {[0, 6, 12, 18, 24].map((hr) => {
         const k = hr / span
@@ -301,18 +305,20 @@ export function Lengths({ W, H, counts, loading }: { W: number; H: number; count
   const max = Math.max(1, ...counts)
   return (
     <svg {...tips} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Sittings by length`}>
+      <g className="k-bars">
       {counts.map((n, i) => {
         const x = Math.round(slot * i + (slot - bw) / 2)
         const h = Math.round((n / max) * plotH)
         return (
-          <g key={i}>
+          <g key={i} className="k-col">
             <rect className="k-hit" data-tip-i={i} x={Math.round(slot * i)} y={0} width={Math.round(slot)} height={base} rx={4} />
-            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(i, counts.length)} d={roundedTop(x, base - h, bw, h, Math.min(3, h))} fill="var(--chart-accent)" />}
+            {h > 0 && <path className={`${K.grow} k-bar k-nohit`} style={stagger(i, counts.length)} d={roundedTop(x, base - h, bw, h, Math.min(3, h))} fill="var(--chart-accent)" />}
             <text className={K.fade} style={late(i, counts.length)} x={x + bw / 2} y={base - h - 5} textAnchor="middle" fill="var(--foreground)" fontWeight={500}>{n.toLocaleString()}</text>
             <text x={x + bw / 2} y={H - 4} textAnchor="middle">{labels[i]}</text>
           </g>
         )
       })}
+      </g>
       <line className="k-nohit" x1={0} x2={W} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
     </svg>
   )
@@ -440,7 +446,7 @@ export function Months({ W, months, phone, loading }: { W: number; months: Month
     const rowLabel = rowLabels[key === 'hours' ? 0 : 1]
     const off = key === 'hours' ? 0 : n
     return (
-      <g key={key}>
+      <g key={key} className="k-bars">
         <text x={0} y={phone ? base - MONTH_ROW - 8 : base - 2} fontSize={13}>{rowLabel}</text>
         {months.map((m, i) => {
           const v = val(m)
@@ -457,10 +463,10 @@ export function Months({ W, months, phone, loading }: { W: number; months: Month
             text = <text className={K.fade} style={late(i, n)} x={xs[i] + bw / 2} y={base - h - 5} textAnchor="middle" fill="var(--foreground)" fontWeight={500}>{label}</text>
           }
           return (
-            <g key={i}>
+            <g key={i} className="k-col">
               <rect className="k-hit" data-tip-i={off + i} x={Math.round(labelW + slot * i)} y={base - MONTH_ROW} width={Math.round(slot)} height={MONTH_ROW} rx={4} />
               {h > 0 && (
-                <path className={`${K.grow} k-nohit`} style={stagger(i, n)} d={roundedTop(xs[i], base - h, bw, h, Math.min(3, h))} fill={fill} fillOpacity={i === last ? 0.45 : 1} />
+                <path className={`${K.grow} k-bar k-nohit`} style={stagger(i, n)} d={roundedTop(xs[i], base - h, bw, h, Math.min(3, h))} fill={fill} fillOpacity={i === last ? 0.45 : 1} />
               )}
               {text}
             </g>

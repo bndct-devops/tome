@@ -15,11 +15,12 @@ export function Ph({ on, children }: { on: boolean; children: ReactNode }) {
 /**
  * Home's progress track: 6 px, accent fill on a tinted track. Inside a section
  * with an entry (motion.ts) the fill grows from the start; `style` takes its
- * stagger() delay. `tip` (tipAttrs()) gives it a tooltip and a hover ring.
+ * stagger() delay. `tip` (tipAttrs()) gives it a tooltip and a hover ring; in a
+ * list marked .k-bars the other tracks dim while one is hovered.
  */
 export function Track({ pct, className, style, tip }: { pct: number; className?: string; style?: CSSProperties; tip?: { 'data-tip': string } }) {
   return (
-    <div className={cn('k-track h-[6px] flex-1 overflow-hidden rounded-full', className)} style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))', ...style }} {...tip}>
+    <div className={cn('k-track k-bar h-[6px] flex-1 overflow-hidden rounded-full', className)} style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))', ...style }} {...tip}>
       <div className="k-grow-x h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
     </div>
   )

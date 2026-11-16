@@ -29,7 +29,7 @@ export function Head({ children, note, stack }: { children: ReactNode; note?: Re
  */
 export function Thin({ frac, className, style, tip }: { frac: number; className?: string; style?: CSSProperties; tip?: { 'data-tip': string } }) {
   return (
-    <div className={cn('relative h-[4px] rounded-full', tip && "k-track before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']", className)} style={style} {...tip}>
+    <div className={cn('relative h-[4px] rounded-full', tip && "k-track k-bar before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']", className)} style={style} {...tip}>
       <div className="h-full overflow-hidden rounded-full" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
         <div className={cn('h-full rounded-full bg-primary', K.growX)} style={{ width: `${Math.min(100, Math.max(0, frac * 100))}%` }} />
       </div>

@@ -59,7 +59,7 @@ export function Goals({ goals, reload, desktop }: { goals: Goal[] | null; reload
       >
         <Trans>Reading goals</Trans>
       </Heading>
-      <div data-box="goal-cells" className={cn('grid', desktop ? 'grid-cols-4' : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)]')}>
+      <div data-box="goal-cells" className={cn('k-bars grid', desktop ? 'grid-cols-4' : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)]')}>
         {cells.map((g, i) => {
           const col = i % cols
           const row = Math.floor(i / cols)

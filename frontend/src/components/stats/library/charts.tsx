@@ -60,19 +60,21 @@ export function SmallBars({ W, H, items, label }: { W: number; H: number; items:
         return <line key={v} x1={0} x2={W} y1={yy} y2={yy} stroke={GRID} shapeRendering="crispEdges" />
       })}
       <line x1={0} x2={W} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
+      <g className="k-bars">
       {items.map((it, i) => {
         const x = Math.round(slot * i + (slot - bw) / 2)
         const yt = Math.round(y(it.value))
         const cx = x + bw / 2
         return (
-          <g key={i}>
+          <g key={i} className="k-col">
             <rect className="k-hit" data-tip-i={i} x={Math.round(slot * i)} y={0} width={Math.round(slot * (i + 1)) - Math.round(slot * i)} height={base} />
-            {it.value > 0 && <path className={`${K.grow} k-nohit`} style={stagger(i, items.length)} d={barPath(x, yt, bw, base)} fill="var(--chart-accent)" />}
+            {it.value > 0 && <path className={`${K.grow} k-bar k-nohit`} style={stagger(i, items.length)} d={barPath(x, yt, bw, base)} fill="var(--chart-accent)" />}
             <text className={`${K.fade} k-nohit`} style={stagger(i, items.length)} x={cx} y={yt - 6} textAnchor="middle" fill="var(--foreground)" fontWeight={600}>{num(it.value)}</text>
             {i % every === 0 && <text className="k-nohit" x={cx} y={H - 6} textAnchor="middle">{it.label}</text>}
           </g>
         )
       })}
+      </g>
     </svg>
   )
 }
@@ -116,6 +118,7 @@ export function AddedChart({ W, H, m }: { W: number; H: number; m: AddedModel })
       })}
       <line x1={padL} x2={W} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
       <text x={padL - 8} y={base + 4} textAnchor="end">0</text>
+      <g className="k-bars">
       {m.months.map((mo, i) => {
         const x = Math.round(padL + slot * i + (slot - bw) / 2)
         const broken = i === m.outlier
@@ -166,15 +169,16 @@ export function AddedChart({ W, H, m }: { W: number; H: number; m: AddedModel })
         // January shows its year, so a chart across a new year reads in order.
         const lab = mo.month.endsWith('-01') && i > 0 ? mo.month.slice(0, 4) : fmtMonthShort(mo.month)
         return (
-          <g key={mo.month}>
+          <g key={mo.month} className="k-col">
             <rect className="k-hit" data-tip-i={i} x={Math.round(padL + slot * i)} y={0} width={Math.round(padL + slot * (i + 1)) - Math.round(padL + slot * i)} height={base} />
             {cut}
-            {parts.length > 0 && <g className={`${K.grow} k-nohit`} style={stagger(i, n)} mask={broken ? `url(#${cutId})` : undefined}>{parts}</g>}
+            {parts.length > 0 && <g className={`${K.grow} k-bar k-nohit`} style={stagger(i, n)} mask={broken ? `url(#${cutId})` : undefined}>{parts}</g>}
             {top}
             {i % every === 0 && <text className="k-nohit" x={cx} y={H - 6} textAnchor="middle">{lab}</text>}
           </g>
         )
       })}
+      </g>
     </svg>
   )
 }

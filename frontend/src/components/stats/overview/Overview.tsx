@@ -553,7 +553,7 @@ function TopBooks({ stats, loading, desktop, rangePhrase, allTime, onAllBooks, d
   return (
     <section ref={e.ref} data-box="top" className={cn('min-w-0', dim)}>
       <Heading><Trans>Where the time went</Trans></Heading>
-      <div data-box="top-rows" style={{ minHeight: TOP_ROWS * 54 + (TOP_ROWS - 1) }}>
+      <div data-box="top-rows" className="k-bars" style={{ minHeight: TOP_ROWS * 54 + (TOP_ROWS - 1) }}>
         {stats && rows.length === 0 ? (
           <p className="pt-3 text-[15px] text-muted-foreground">{allTime ? t`No reading yet.` : t`No reading in ${rangePhrase}.`}</p>
         ) : (

@@ -290,7 +290,7 @@ function SeriesSection({ stats, desktop, width, shape }: Common) {
       ) : (
         <>
           {open.length > 0 && (
-            <div data-box="series-cards" className={desktop ? 'grid grid-cols-3 gap-x-4 gap-y-6' : 'flex flex-col gap-5'}>
+            <div data-box="series-cards" className={cn('k-bars', desktop ? 'grid grid-cols-3 gap-x-4 gap-y-6' : 'flex flex-col gap-5')}>
               {open.map(card)}
             </div>
           )}
@@ -347,7 +347,7 @@ function ByType({ stats, desktop, shape, range, dim }: Common & { range: Range; 
     return (
       <section ref={e.ref} data-box="types">
         <Head note={<span className="inline-flex items-center gap-2"><span><Trans>reading time</Trans></span><RangeChip>{range.label}</RangeChip></span>}><Trans>By type</Trans></Head>
-        <div>
+        <div className="k-bars">
           {list.map((r, i) => (
             <div key={r?.type ?? i} data-box={`type-${i}`} className={cn('py-3', i === 0 && 'pt-0', i > 0 && cn('border-t', HAIR))}>
               <div className="mb-1 truncate text-[15px] font-semibold leading-[20px] text-foreground"><Ph on={!r}>{r?.type ?? PH.type}</Ph></div>
@@ -381,7 +381,7 @@ function ByType({ stats, desktop, shape, range, dim }: Common & { range: Range; 
   return (
     <section ref={e.ref} data-box="types">
       <Head><Trans>By type</Trans></Head>
-      <div role="table" aria-label={t`By type`}>
+      <div role="table" className="k-bars" aria-label={t`By type`}>
         <div role="row" className={cn(TYPE_COLS, 'h-[28px]')}>
           <span role="columnheader" className={th}><Trans>Type</Trans></span>
           <span role="columnheader" className={cn(th, 'text-right')}><Trans>Owned</Trans></span>
@@ -439,7 +439,7 @@ function Authors({ stats, desktop, shape, range, dim }: Common & { range: Range;
       {stats && list.length === 0 ? (
         <Note h={AUTHOR_ROW_H}>{t`No reading in ${rangePhrase}.`}</Note>
       ) : (
-        <div data-box="author-rows" className={cn('grid', desktop ? 'grid-cols-2 gap-x-12' : 'grid-cols-1')}>
+        <div data-box="author-rows" className={cn('k-bars grid', desktop ? 'grid-cols-2 gap-x-12' : 'grid-cols-1')}>
           {list.map((a, i) => {
             const read = a ? plural(a.book_count, { one: '# book read', other: '# books read' }) : ''
             const sub = a

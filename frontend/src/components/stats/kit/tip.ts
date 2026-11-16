@@ -2,7 +2,9 @@
 // the whole page (TipLayer, mounted once by the Stats frame) reads what a mark
 // says when the pointer reaches it; marks only carry attributes, so a pointer
 // move renders nothing in React. The mark under the pointer gets data-hot, which
-// motion.css styles (.k-hit columns wash, .k-cell outlines, .k-track rings).
+// motion.css styles (.k-hit columns wash, .k-cell outlines, .k-track rings; in a
+// .k-bars set the hot .k-bar, or the bars of the hot .k-col, stay at full colour
+// while the set's other bars dim).
 //
 // Two ways for a mark to say what it is:
 //   1. Its own text, for a few marks or HTML elements (covers, tracks):

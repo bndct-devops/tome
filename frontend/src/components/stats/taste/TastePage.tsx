@@ -119,7 +119,7 @@ function RatingsFigure({ r, desktop }: { r: Ratings | null; desktop: boolean }) 
           </div>
           <div className="mt-3 text-[14px] leading-[1.4] text-muted-foreground"><Ph on={loading}>{foot}</Ph></div>
         </div>
-        <div data-box="ratings-dist" className={cn('flex flex-col gap-1', desktop ? cn('col-span-8 min-w-0 border-l pl-6', HAIR) : cn('mt-5 border-t pt-5', HAIR))}>
+        <div data-box="ratings-dist" className={cn('k-bars flex flex-col gap-1', desktop ? cn('col-span-8 min-w-0 border-l pl-6', HAIR) : cn('mt-5 border-t pt-5', HAIR))}>
           {dist.map((d, i) => {
             const n = d.count
             const books = plural(n, { one: '# book', other: '# books' })
@@ -127,7 +127,7 @@ function RatingsFigure({ r, desktop }: { r: Ratings | null; desktop: boolean }) 
             return (
               <div
                 key={d.rating}
-                className={cn('-mx-1.5 grid h-[22px] grid-cols-[52px_minmax(0,1fr)] items-center rounded-[4px] px-1.5', r && !none && 'data-hot:bg-secondary/60')}
+                className={cn('k-col -mx-1.5 grid h-[22px] grid-cols-[52px_minmax(0,1fr)] items-center rounded-[4px] px-1.5', r && !none && 'data-hot:bg-secondary/60')}
                 {...(r && !none ? tipAttrs({ title: stars, value: books, note: (() => { const p = total > 0 ? Math.round((n / total) * 100) : 0; return t`${p}% of your ratings` })() }) : {})}
               >
                 <span className="inline-flex items-center gap-1 text-[13px] tabular-nums text-muted-foreground">
@@ -143,7 +143,7 @@ function RatingsFigure({ r, desktop }: { r: Ratings | null; desktop: boolean }) 
                     </>
                   ) : (
                     <>
-                      <i className={cn('h-[14px] shrink-0 rounded-[4px]', K.growX)} style={{ width: `calc((100% - 40px) * ${(n / max).toFixed(4)})`, background: 'var(--chart-accent)', ...stagger(i, dist.length) }} />
+                      <i className={cn('k-bar h-[14px] shrink-0 rounded-[4px]', K.growX)} style={{ width: `calc((100% - 40px) * ${(n / max).toFixed(4)})`, background: 'var(--chart-accent)', ...stagger(i, dist.length) }} />
                       <span className="text-[13px] font-semibold tabular-nums text-foreground"><CountUp entry={e} value={n} format={num} /></span>
                     </>
                   )}
@@ -394,7 +394,7 @@ function Highlights({ h, desktop }: { h: HighlightsResponse; desktop: boolean })
         </div>
         <div data-box="highlights-list" className={cn('min-w-0', desktop ? cn('col-span-8 border-l pl-6', HAIR) : cn('mt-5 border-t pt-5', HAIR))}>
           <div className="mb-1 text-[14px] text-muted-foreground"><Trans>Most highlighted</Trans></div>
-          <div style={{ minHeight: HL_ROWS * ROW_H }}>
+          <div className="k-bars" style={{ minHeight: HL_ROWS * ROW_H }}>
             {h.top.map((b, i) => {
               const n = plural(b.count, { one: '# highlight', other: '# highlights' })
               const share = h.count > 0 ? Math.round((b.count / h.count) * 100) : 0

@@ -115,17 +115,19 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, best, l
       })}
       <line x1={padL} x2={W} y1={by} y2={by} stroke="var(--border)" shapeRendering="crispEdges" />
       <text x={padL - 8} y={by + 4} textAnchor="end">0</text>
+      <g className="k-bars">
       {bars.map((b, i) => {
         const { x, yt, w } = rects[i]
         const h = Math.round(y(0)) - yt
         // The whole column answers the pointer (washed on hover); the bar on top ignores it.
         return (
-          <g key={b.start}>
+          <g key={b.start} className="k-col">
             <rect className="k-hit" data-tip-i={i} x={padL + slotW * i} y={padT} width={slotW} height={Math.round(y(0)) - padT} />
-            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(i, bars.length)} d={roundedTop(x, yt, w, h, Math.min(4, h))} fill="var(--chart-accent)" fillOpacity={b.current ? 0.45 : 1} />}
+            {h > 0 && <path className={`${K.grow} k-bar k-nohit`} style={stagger(i, bars.length)} d={roundedTop(x, yt, w, h, Math.min(4, h))} fill="var(--chart-accent)" fillOpacity={b.current ? 0.45 : 1} />}
           </g>
         )
       })}
+      </g>
       {monthStarts.map((m) => {
         const x = Math.round(padL + (m.index / nDays) * plotW) + 0.5
         return (
@@ -204,15 +206,17 @@ export function HourHeat({ W, grid, byCol, colN, two, histH, loading }: { W: num
           ))}
         </g>
       ))}
+      <g className="k-bars">
       {byCol.map((s, k) => {
         const h = Math.round((s / maxH) * histH)
         return (
-          <g key={k}>
+          <g key={k} className="k-col">
             <rect className="k-hit" data-tip-i={7 * ncol + k} x={xs[k] - gap / 2} y={hy} width={ws[k] + gap} height={histH} />
-            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, ws[k], h, Math.min(2, h))} fill="var(--chart-accent)" />}
+            {h > 0 && <path className={`${K.grow} k-bar k-nohit`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, ws[k], h, Math.min(2, h))} fill="var(--chart-accent)" />}
           </g>
         )
       })}
+      </g>
       <line x1={labelW} x2={end} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
       {[0, 6, 12, 18, 24].map((hr) => {
         const k = hr * perHour

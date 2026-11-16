@@ -44,7 +44,7 @@ export function Languages({ stats, desktop, rows }: { stats: StatsResponse | nul
   return (
     <section ref={e.ref} data-box="languages">
       <Head note={note}><Trans>Languages</Trans></Head>
-      <div data-box="language-rows">
+      <div data-box="language-rows" className="k-bars">
         {list.map((l, i) => {
           const share = l && total > 0 ? l.seconds / total : 0
           const pct = Math.round(share * 100)
