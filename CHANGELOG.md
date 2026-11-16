@@ -33,6 +33,30 @@ All notable changes to Tome are documented here. Format loosely follows
   total in a series' reading stats include the pages the reader counted
   itself (forward page turns), with pace worked out over the reader's own
   reading time.
+- **Reading from before a CrossInk reader first synced to Tome
+  (experimental).** A reader that was in use before it met Tome has no
+  sessions for that time, only its lifetime totals and a calendar of the days
+  it was read on, and it sends both with every sync. Tome now shows them:
+  the days are marked on the Calendar as reading days without a time
+  ("Read") and count for streaks, and with the Stats page set to All the
+  reading time, sessions and pages include the reader's earlier part, each
+  with a "before sync" line saying how much that is. Dated ranges, books and
+  the hour charts stay as they are, because the reader never recorded which
+  book or when. Nothing needs to be imported for this; it is there after the
+  reader's next sync.
+- **A new book's first sync gives its pages to that sync's sessions
+  (experimental).** The first page count Tome sees for a book used to be
+  only a starting point, so the sittings uploaded with it stayed without
+  pages. When the reader's own reading time for the book matches the
+  sessions Tome holds (the book is new to both), those pages are now shared
+  out over these sessions. A book with months on the reader's counter before
+  its first sync keeps the old behaviour. Sittings that were left without
+  pages this way are filled in at the book's next sync.
+- **A book the reader reports as finished is marked as read
+  (experimental).** The reader's per-book stats say when it counts a book as
+  finished, with the date. Tome now marks the book as read then, also when
+  the last synced position was short of the end. A book you set back to
+  reading in Tome is not finished again by later syncs.
 - **Pages per session for CrossInk reading (experimental).** The reader's
   page counter per book only grows, and it sends the new value whenever it
   changed, so the difference between two syncs is exactly the number of

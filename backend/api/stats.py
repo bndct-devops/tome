@@ -807,13 +807,24 @@ def get_stats(
         }
         lt_pages += sum(extra.pages for bid, extra in _lt_reader.items() if bid in _seen)
     all_daily = rr.daily_map(db, current_user.id, day_ctx, covered, None, None)
+    # Reading a KOSync reader counted before it first synced to Tome: lifetime
+    # totals and reading days with no dates or books to hang them on, so they
+    # go into the all-time figures only (kosync_stats.reader_earlier).
+    from backend.services.kosync_stats import reader_earlier as _reader_earlier
+    from backend.services.kosync_stats import reader_days as _reader_days
+    earlier = _reader_earlier(db, current_user.id)
+    # A day another device was read on in Tome is one active day, not two.
+    earlier.days = sum(
+        1 for d in _reader_days(db, current_user.id)
+        if all_daily.get(d.isoformat(), (0,))[0] <= 0)
     lifetime = {
-        "seconds": lt_secs,
-        "sessions": lt_sessions,
-        "pages": lt_pages,
+        "seconds": lt_secs + earlier.seconds,
+        "sessions": lt_sessions + earlier.sessions,
+        "pages": lt_pages + earlier.pages,
+        "reader_earlier": earlier.as_dict(),
         "books_finished": db.query(UserBookStatus).filter(
             UserBookStatus.user_id == current_user.id, UserBookStatus.status == "read").count(),
-        "active_days": sum(1 for v in all_daily.values() if v[0] > 0),
+        "active_days": sum(1 for v in all_daily.values() if v[0] > 0) + earlier.days,
         "longest_streak_days": longest_streak,
     }
 
@@ -1046,11 +1057,22 @@ def get_stats(
     from backend.services.reading_dna import compute_reading_dna
     reading_dna = compute_reading_dna(db, current_user, tz_offset, tz)
 
+    # The "All" range shows the all-time figures, so it also takes what the
+    # readers counted themselves (per-book page counters, reading from before
+    # their first sync). A dated range cannot: none of that has a date.
+    all_time = cutoff is None and range_end is None
+    if all_time:
+        pages_turned = lifetime["pages"]
+        if lifetime["reader_earlier"]:
+            total_seconds, total_sessions = lifetime["seconds"], lifetime["sessions"]
+            avg_session = int(total_seconds / total_sessions) if total_sessions > 0 else 0
+
     return {
         "range_days": effective_days,
         "headline": {
             "total_reading_seconds": total_seconds,
             "total_sessions": total_sessions,
+            "reader_earlier": lifetime["reader_earlier"] if all_time else None,
             "books_finished": books_finished_count,
             "avg_session_seconds": avg_session,
             "current_streak_days": current_streak,

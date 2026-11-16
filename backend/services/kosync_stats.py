@@ -40,6 +40,8 @@ not undone by a repeat.
 """
 from __future__ import annotations
 
+import base64
+import binascii
 import json
 import logging
 import re
@@ -543,14 +545,63 @@ def store_books(db: Session, user_id: int, body: dict[str, Any]) -> int:
     latest: dict[str, dict[str, Any]] = {}
     for item in body["items"]:   # a document sent twice in one batch: the last one counts
         latest[item["document"].lower()] = item
-    stage_books(db, user_id, body["device_id"], latest)
+    finished: dict[str, Optional[int]] = {}
+    stage_books(db, user_id, body["device_id"], latest, finished=finished)
+    apply_finishes(db, user_id, finished)
     db.commit()
     return count
+
+
+def _completed(snapshot: Optional[str]) -> bool:
+    try:
+        stored = json.loads(snapshot or "{}")
+    except ValueError:
+        return False
+    return isinstance(stored, dict) and stored.get("completed") is True
+
+
+def apply_finishes(db: Session, user_id: int, finished: dict[str, Optional[int]]) -> int:
+    """Mark the books of ``finished`` (document -> the reader's finish date as
+    Unix seconds, or None) as read. Does not commit. Returns how many changed.
+
+    The reader's per-book stats say when it counts a book as finished, which
+    its position alone may not show (a last page short of 99%, back matter
+    left unread). Through the shared progress rule, so a book already read
+    stays as it is. Only a linked document counts, and never a guessed link.
+    """
+    from backend.models.user_book_status import UserBookStatus
+    from backend.services.book_progress import apply_progress_to_status
+
+    changed = 0
+    now_ts = int(datetime.utcnow().replace(tzinfo=timezone.utc).timestamp())
+    for document, finish_ts in finished.items():
+        link = (
+            db.query(KOSyncDocumentMap)
+            .filter(KOSyncDocumentMap.tome_user_id == user_id,
+                    func.lower(KOSyncDocumentMap.document) == document)
+            .first()
+        )
+        if link is None or link.guessed:
+            continue
+        row = (
+            db.query(UserBookStatus)
+            .filter(UserBookStatus.user_id == user_id, UserBookStatus.book_id == link.book_id)
+            .first()
+        )
+        if row is not None and row.status == "read":
+            continue
+        row = apply_progress_to_status(db, user_id=user_id, book_id=link.book_id, pct=1.0, status_row=row)
+        if isinstance(finish_ts, int) and EPOCH_2000 <= finish_ts <= now_ts + 2 * 86400:
+            # A calendar date sent as UTC midnight: noon reads as that day everywhere.
+            row.finished_at = _utc(finish_ts).replace(hour=12, minute=0, second=0, microsecond=0)
+        changed += 1
+    return changed
 
 
 def stage_books(
     db: Session, user_id: int, device_id: str, items: dict[str, dict[str, Any]],
     sent_at: Optional[dict[str, datetime]] = None,
+    finished: Optional[dict[str, Optional[int]]] = None,
 ) -> dict[str, str]:
     """Write per-book snapshots of one device (document, lower-case -> item,
     already checked). Does not commit.
@@ -563,6 +614,11 @@ def stage_books(
 
     Returns per document: ``created``, ``replaced``, ``unchanged`` (same
     numbers) or ``kept_newer`` (Tome's row is newer and stays).
+
+    ``finished`` (live sync only) collects the documents whose snapshot says
+    ``completed`` for the first time, with the reader's finish date: see
+    ``apply_finishes``. Only the first time, so a book the user set back to
+    reading in Tome is not finished again by every later sync.
     """
     existing = {
         row.document: row
@@ -583,12 +639,20 @@ def stage_books(
         pages, seconds = _counter(item.get("pages")), _counter(item.get("seconds"))
         when = sent_at.get(document) if sent_at is not None else None
         row = existing.get(document)
+        if (finished is not None and sent_at is None and item.get("completed") is True
+                and not (row is not None and _completed(row.snapshot))):
+            date = item.get("finished_date")
+            finished[document] = date if isinstance(date, int) and not isinstance(date, bool) else None
         if row is None:
             # A first snapshot is the base later growth is measured from.
             row = KOSyncBookStats(user_id=user_id, device_id=device_id, document=document,
                                   counter_epoch=0, pages_attributed=0, pages_pending=0)
             db.add(row)
             outcome[document] = "created"
+            if sent_at is None:
+                # Never read past row.updated_at below: it is not set yet.
+                row.pages, row.seconds = pages, seconds
+                _settle_base(db, row, seconds, now)
         elif sent_at is not None and (when is None or when <= row.updated_at):
             outcome[document] = (
                 "unchanged" if (row.pages, row.seconds) == (pages, seconds) else "kept_newer")
@@ -598,6 +662,7 @@ def stage_books(
                 "unchanged" if (row.pages, row.seconds, row.snapshot) == (pages, seconds, snapshot)
                 else "replaced")
             if sent_at is None:
+                _settle_base(db, row, row.seconds, row.updated_at)
                 _advance(db, row, pages, now)
             else:
                 # History has no "previous" Tome saw: the imported counter is a
@@ -672,6 +737,24 @@ def stage_books(
 # counts is then counted twice).
 
 OLD_WINDOW_SLACK = timedelta(minutes=5)
+
+# The base. The first counter Tome sees for a book is the base later growth is
+# measured from, and the pages in it belong to no window. For a book the
+# reader had counted for months before its first sync to Tome that is right:
+# Tome has none of those sittings. For a book that is new to both (started
+# after the reader began syncing to Tome) every one of those pages was read in
+# a sitting Tome holds, so they are given to those sittings: the ones received
+# no later than the base that have no pages and were in no window. The test
+# for "new to both" is the reader's own reading time for the book (the
+# snapshot's ``seconds``) at one snapshot against the sittings of that
+# document from that device Tome had received by then (what the reader
+# reported, deleted sittings included): no more than ``BASE_TIME_GAP`` may be
+# missing. A gap, not a share: reading before the first sync is a gap that
+# never closes, however much is read afterwards. Tried at every live snapshot
+# until it succeeds, so a first sync whose session upload failed is settled
+# one sync later. Only in the first epoch: after a reset the base is not the
+# start of the book.
+BASE_TIME_GAP = 15 * 60
 
 
 @dataclass
@@ -762,6 +845,50 @@ def _advance(db: Session, row: KOSyncBookStats, pages: Optional[int], now: datet
         return
     _give(row, candidates, amount)
     row.pages_pending, row.pending_since = 0, None
+
+
+def _settle_base(db: Session, row: KOSyncBookStats, book_seconds: Optional[int], until: datetime) -> None:
+    """Give the pages of ``row``'s base (see "The base" above) to the sittings
+    received by ``until``, when the book is new to the reader and to Tome.
+    ``row`` holds the counter as stored at ``until`` and ``book_seconds`` is
+    the reader's reading time for the book then. Does not commit."""
+    if (row.counter_epoch or 0) != 0 or row.pages is None or not book_seconds:
+        return
+    base = row.pages - (row.pages_attributed or 0) - (row.pages_pending or 0)
+    if base <= 0:
+        return
+    reported = (
+        db.query(func.coalesce(func.sum(KOSyncSessionReceipt.seconds), 0))
+        .filter(
+            KOSyncSessionReceipt.user_id == row.user_id,
+            KOSyncSessionReceipt.device_id == row.device_id,
+            KOSyncSessionReceipt.document == row.document,
+            KOSyncSessionReceipt.received_at <= until,
+        )
+        .scalar()
+    ) or 0
+    if book_seconds - reported > BASE_TIME_GAP:
+        return
+    candidates = [
+        _Candidate(r, s, max(s.duration_seconds or 0, 0))
+        for r, s in (
+            db.query(KOSyncSessionReceipt, ReadingSession)
+            .join(ReadingSession, ReadingSession.id == KOSyncSessionReceipt.reading_session_id)
+            .filter(
+                KOSyncSessionReceipt.user_id == row.user_id,
+                KOSyncSessionReceipt.device_id == row.device_id,
+                KOSyncSessionReceipt.document == row.document,
+                KOSyncSessionReceipt.received_at <= until,
+                ReadingSession.pages_turned.is_(None),
+                ReadingSession.pages_attributed.is_(False),
+            )
+            .order_by(KOSyncSessionReceipt.received_at, KOSyncSessionReceipt.id)
+        )
+    ]
+    if not candidates:
+        return
+    _give(row, candidates, base)
+    db.flush()   # the next query (the window's candidates) must see these as taken
 
 
 def _rebase(row: KOSyncBookStats, pages: Optional[int]) -> None:
@@ -898,6 +1025,133 @@ def reader_pages(db: Session, user_id: int, book_ids: Optional[list[int]] = None
 
 
 # ── summary ──────────────────────────────────────────────────────────────────
+
+# ── reading from before the reader synced to Tome ────────────────────────────
+#
+# A device's lifetime snapshot (``PUT .../stats/global``, stored whole on every
+# sync) carries two things no session holds: lifetime totals (seconds, pages,
+# sessions) and a calendar of the days it was read on, one bit per day for the
+# last ``HISTORY_DAYS`` days (bit i of ``history_b64``, least significant bit
+# first, is ``anchor_day`` minus i; a day is days since 2000-01-01, in the
+# reader's local time: ReadingStatsUtils.cpp, markReadingHistoryDay). For a
+# reader that was in use before it first synced to Tome, that is all there is
+# of the earlier reading: no books, no times of day, no minutes per day.
+#
+# Tome shows it as what it is. The days before the device's first session in
+# Tome are reading days without detail (``reader_days``): they count for
+# streaks and are marked on the calendar. The totals beyond what Tome holds
+# from that device are added to the all-time figures (``reader_earlier``).
+# From the first session on, Tome's own sessions are the record, so nothing
+# is counted twice and the reader's calendar days (cut at midnight, not at
+# Tome's rollover hour) never compete with Tome's.
+
+HISTORY_DAYS = 730
+_DAY_ZERO = date(2000, 1, 1)
+
+
+def _snapshots(db: Session, user_id: int) -> list[tuple[str, dict[str, Any]]]:
+    out = []
+    for row in db.query(KOSyncDeviceStats).filter(KOSyncDeviceStats.user_id == user_id):
+        try:
+            snap = json.loads(row.snapshot or "{}")
+        except ValueError:
+            continue
+        if isinstance(snap, dict):
+            out.append((row.device_id, snap))
+    return out
+
+
+def _uint(value: Any) -> int:
+    return value if isinstance(value, int) and not isinstance(value, bool) and value > 0 else 0
+
+
+def history_days(snap: dict[str, Any]) -> set[date]:
+    """The days a lifetime snapshot marks as read. Empty when it has no
+    readable calendar."""
+    anchor, raw = snap.get("anchor_day"), snap.get("history_b64")
+    if not _uint(anchor) or anchor > 100_000 or not isinstance(raw, str) or len(raw) > 400:
+        return set()
+    try:
+        bits = base64.b64decode(raw, validate=True)
+    except (binascii.Error, ValueError):
+        return set()
+    return {
+        _DAY_ZERO + timedelta(days=anchor - i)
+        for i in range(min(len(bits) * 8, HISTORY_DAYS, anchor + 1))
+        if bits[i // 8] >> (i % 8) & 1
+    }
+
+
+def _first_session_days(db: Session, user_id: int) -> dict[str, date]:
+    """device id -> the day of its earliest session Tome received."""
+    return {
+        device_id: first.date()
+        for device_id, first in db.query(
+            KOSyncSessionReceipt.device_id, func.min(KOSyncSessionReceipt.started_at))
+        .filter(KOSyncSessionReceipt.user_id == user_id)
+        .group_by(KOSyncSessionReceipt.device_id)
+        if first is not None
+    }
+
+
+def reader_days(db: Session, user_id: int) -> set[date]:
+    """The days this user's readers were read on before their first session
+    in Tome (see above). A device with no session in Tome gives all its days."""
+    firsts = _first_session_days(db, user_id)
+    days: set[date] = set()
+    for device_id, snap in _snapshots(db, user_id):
+        first = firsts.get(device_id)
+        days |= {d for d in history_days(snap) if first is None or d < first}
+    return days
+
+
+@dataclass
+class ReaderEarlier:
+    seconds: int = 0
+    pages: int = 0
+    sessions: int = 0
+    days: int = 0
+
+    def as_dict(self) -> Optional[dict[str, int]]:
+        if not (self.seconds or self.pages or self.sessions or self.days):
+            return None
+        return {"seconds": self.seconds, "pages": self.pages, "sessions": self.sessions, "days": self.days}
+
+
+def reader_earlier(db: Session, user_id: int) -> ReaderEarlier:
+    """What this user's readers count in their lifetime totals beyond what
+    Tome holds from them: per device, its seconds and sessions minus the
+    sessions it uploaded (as reported, so one trimmed or deleted in Tome does
+    not come back here), and its pages minus its per-book counters of linked
+    books (those are in the books' all-time pages already)."""
+    snaps = _snapshots(db, user_id)
+    out = ReaderEarlier()
+    if not snaps:
+        return out
+    sent = {
+        device_id: (int(seconds or 0), int(count or 0))
+        for device_id, seconds, count in db.query(
+            KOSyncSessionReceipt.device_id, func.sum(KOSyncSessionReceipt.seconds),
+            func.count(KOSyncSessionReceipt.id))
+        .filter(KOSyncSessionReceipt.user_id == user_id)
+        .group_by(KOSyncSessionReceipt.device_id)
+    }
+    counted = {
+        device_id: int(pages or 0)
+        for device_id, pages in db.query(KOSyncBookStats.device_id, func.sum(KOSyncBookStats.pages))
+        .join(KOSyncDocumentMap, (KOSyncDocumentMap.tome_user_id == KOSyncBookStats.user_id)
+              & (func.lower(KOSyncDocumentMap.document) == KOSyncBookStats.document))
+        .filter(KOSyncBookStats.user_id == user_id)
+        .group_by(KOSyncBookStats.device_id)
+    }
+    for device_id, snap in snaps:
+        seconds, count = sent.get(device_id, (0, 0))
+        out.seconds += max(_uint(snap.get("seconds")) - seconds, 0)
+        out.sessions += max(_uint(snap.get("sessions")) - count, 0)
+        out.pages += max(_uint(snap.get("pages")) - counted.get(device_id, 0), 0)
+    out.days = len(reader_days(db, user_id))
+    return out
+
 
 def summary(db: Session, user_id: int) -> dict[str, Any]:
     """Totals across the user's devices, summed from the stored snapshots.

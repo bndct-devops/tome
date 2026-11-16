@@ -720,6 +720,10 @@ msgstr "{all, plural, one {# book} other {# books}}"
 msgid "{base} · Vol. {idx}"
 msgstr "{base} · Vol. {idx}"
 
+#: src/pages/StatsPage.tsx
+msgid "{before} before sync"
+msgstr "{before} before sync"
+
 #: src/lib/goals.ts
 msgid "{behind} behind pace"
 msgstr "{behind} behind pace"
@@ -1116,6 +1120,10 @@ msgstr "{n, plural, one {This upload satisfies # wish. Review it in Admin > Wish
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {This upload satisfies # wish. Review it in Admin > Wishlist} other {This upload satisfies # wishes. Review them in Admin > Wishlist}}"
 msgstr "{n, plural, one {This upload satisfies # wish. Review it in Admin > Wishlist} other {This upload satisfies # wishes. Review them in Admin > Wishlist}}"
+
+#: src/pages/StatsPage.tsx
+msgid "{n} before sync"
+msgstr "{n} before sync"
 
 #: src/pages/DashboardPage.tsx
 msgid "{n} books · {r} read"
@@ -5106,6 +5114,10 @@ msgstr "Inactive"
 msgid "Include"
 msgstr "Include"
 
+#: src/components/stats/widgets/insights.tsx
+msgid "Includes {earlierTime} and {earlierPages} pages your reader counted before it synced to Tome."
+msgstr "Includes {earlierTime} and {earlierPages} pages your reader counted before it synced to Tome."
+
 #: src/components/stats/AttributedPagesMark.tsx
 msgid "Includes pages attributed from the reader's page counter: what it grew by between two syncs, shared out over those sessions by reading time"
 msgstr "Includes pages attributed from the reader's page counter: what it grew by between two syncs, shared out over those sessions by reading time"
@@ -7693,6 +7705,7 @@ msgstr "read"
 
 #: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
 msgid "Read"
 msgstr "Read"
 
@@ -7749,6 +7762,10 @@ msgstr "Read book"
 #: src/components/home/HomeTab.tsx
 msgid "Read on the web"
 msgstr "Read on the web"
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "read on your reader"
+msgstr "read on your reader"
 
 #: src/components/CrossPointImport.tsx
 msgid "Read status"
@@ -10780,6 +10797,10 @@ msgstr "You rated this {rating}/5"
 #: src/components/stats/BacklogEstimate.tsx
 msgid "you read ~{mpd} min a day (last {win} days)"
 msgstr "you read ~{mpd} min a day (last {win} days)"
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "You read on this day. Your reader kept no details from before it synced to Tome."
+msgstr "You read on this day. Your reader kept no details from before it synced to Tome."
 
 #: src/pages/SettingsPage.tsx
 msgid "You will have to sign in again here."

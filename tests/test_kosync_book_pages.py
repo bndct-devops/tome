@@ -388,22 +388,20 @@ def test_the_per_book_table_never_shows_another_users_pages(db, client, acc, use
 
 
 def test_dated_figures_stay_without_reader_pages(db, client, acc, user, make_book):
-    """The reader never says when its pages were turned, so no day, session,
-    window or total across books takes them."""
+    """The reader never says when its pages were turned, so no day, session
+    or dated window takes them. The "All" range is all time and does."""
     book = make_book(title="Windows")
     _link(db, user, book)
     start = _session(client, acc, seconds=3600)
 
     def snapshot():
         data = client.get("/api/stats?days=30").json()
-        alltime = client.get("/api/stats?days=0").json()
         day = datetime.fromtimestamp(start, timezone.utc).date().isoformat()
         sessions = client.get("/api/stats/sessions").json()
         sessions = sessions["sessions"] if isinstance(sessions, dict) else sessions
         return {
             "headline": data["headline"]["pages_turned"],
             "daily": [d["pages"] for d in data["daily"]],
-            "alltime_headline": alltime["headline"]["pages_turned"],
             "pace_list": data["reading_pace"],
             "pace_by_format": data["pace_by_format"],
             "home": client.get("/api/home/stats").json()["pages_turned_30d"],
@@ -415,6 +413,8 @@ def test_dated_figures_stay_without_reader_pages(db, client, acc, user, make_boo
     _put_books(client, acc, _item(pages=300, seconds=6000))
     assert snapshot() == before
     assert before["calendar_day"] == 0 and before["headline"] == 0
+    alltime = client.get("/api/stats?days=0").json()
+    assert alltime["headline"]["pages_turned"] == alltime["lifetime"]["pages"] == 300
 
 
 def test_all_time_lifetime_pages_include_reader_pages(db, client, acc, user, make_book):
@@ -477,3 +477,56 @@ def test_a_retried_put_racing_the_first_into_a_new_link_is_not_a_500(db, client,
     assert set(r.json()) == {"until", "accepted", "accepted_daily"} and r.json()["accepted_daily"] == 0
     assert len(calls) == 2
     assert _own(client, book)["pages_turned"] == 120
+
+
+# ── the reader's finished flag ───────────────────────────────────────────────
+
+@pytest.fixture()
+def book(db, user, make_book):
+    b = make_book(title="Finished On The Reader")
+    _link(db, user, b)
+    return b
+
+
+def _status(db, user, book):
+    from backend.models.user_book_status import UserBookStatus
+    db.expire_all()
+    return db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).first()
+
+
+def test_a_book_the_reader_reports_finished_becomes_read_with_its_date(db, client, acc, user, book):
+    """The position stopped short of the end (unread back matter); the reader
+    counts the book as finished and says when."""
+    from backend.services.book_progress import apply_progress_to_status
+    apply_progress_to_status(db, user_id=user.id, book_id=book.id, pct=0.6)
+    db.flush()
+    assert _delivered(_put_books(client, acc, _item(pages=100)), book_count=1)
+    assert _status(db, user, book).status == "reading"
+    finished = 1794009600    # 2026-11-07 00:00 UTC
+    assert _delivered(_put_books(client, acc, _item(pages=180, completed=True, finished_date=finished)), book_count=1)
+    row = _status(db, user, book)
+    assert (row.status, row.progress_pct) == ("read", 1.0)
+    assert row.finished_at.date().isoformat() == "2026-11-07"
+
+
+def test_a_book_set_back_to_reading_is_not_finished_again(db, client, acc, user, book):
+    assert _delivered(_put_books(client, acc, _item(pages=180, completed=True)), book_count=1)
+    row = _status(db, user, book)
+    assert row.status == "read" and row.finished_at is not None
+    row.status, row.progress_pct, row.finished_at = "reading", 0.2, None
+    db.flush()
+    assert _delivered(_put_books(client, acc, _item(pages=190, completed=True)), book_count=1)
+    assert _status(db, user, book).status == "reading"
+
+
+def test_a_finished_flag_leaves_a_read_book_and_an_unlinked_document_alone(db, client, acc, user, book):
+    from datetime import datetime
+    from backend.models.user_book_status import UserBookStatus
+    when = datetime(2026, 3, 1, 12, 0)
+    db.add(UserBookStatus(user_id=user.id, book_id=book.id, status="read", progress_pct=1.0, finished_at=when))
+    db.flush()
+    assert _delivered(_put_books(
+        client, acc, _item(pages=180, completed=True, finished_date=1794009600),
+        _item(document=DOC2, pages=50, completed=True)), book_count=2)
+    assert _status(db, user, book).finished_at == when
+    assert db.query(UserBookStatus).filter_by(user_id=user.id).count() == 1

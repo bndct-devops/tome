@@ -49,6 +49,8 @@ interface MonthResponse {
   today: string
   first_day: string | null
   days: MonthDay[]
+  // Days a reader was read on before it synced to Tome: reading days with no time or books.
+  reader_days?: string[]
   totals: { seconds: number; pages: number; reading_days: number; books_finished: number; best_day: string | null }
   // Seconds that shade a day at full strength: your 90th-percentile day, all time.
   scale_seconds: number
@@ -74,6 +76,7 @@ interface DayResponse {
   date: string
   seconds: number
   pages: number
+  reader_day?: boolean
   books: DayBook[]
   finished_elsewhere: BookRef[]
   sittings: { book_id: number; start: number; end: number }[]
@@ -299,6 +302,7 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
 }) {
   const { t } = useLingui()
   const byDay = useMemo(() => new Map((data?.days ?? []).map(d => [d.date, d])), [data])
+  const readerDays = useMemo(() => new Set(data?.reader_days ?? []), [data])
   const scale = data?.scale_seconds ?? 0
   // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
   // Cell contents appear with the month; nothing fades in from zero.
@@ -337,7 +341,9 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
           const finishedIds = new Set(day?.finished.map(b => b.book_id))
           const books = day?.books ?? []
           const tt = heat(day?.seconds ?? 0, scale)
-          const label = [shortDay(iso), day ? formatDuration(day.seconds) : null, finishedIds.size ? t`finished a book` : null].filter(Boolean).join(', ')
+          const onReader = !day && readerDays.has(iso)
+          const label = [shortDay(iso), day ? formatDuration(day.seconds) : null, onReader ? t`read on your reader` : null,
+            finishedIds.size ? t`finished a book` : null].filter(Boolean).join(', ')
           return (
             <button
               key={iso}
@@ -388,6 +394,18 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
                     <span className="px-1.5 text-[11px] leading-tight text-muted-foreground">{plural(books.length - 2, { one: '+# more', other: '+# more' })}</span>
                   )}
                 </span>
+              )}
+              {onReader && (
+                <>
+                  {/* A reading day the reader kept no details for: an outlined chip, no time. */}
+                  <span className={cn('hidden items-center gap-1 rounded-md border border-dashed border-primary/40 px-1.5 py-0.5 text-[11px] leading-tight text-muted-foreground sm:flex', land)}>
+                    <BookOpen className="h-3 w-3 shrink-0" />
+                    <span className="min-w-0 truncate"><Trans>Read</Trans></span>
+                  </span>
+                  <span className={cn('mt-auto flex h-[3px] sm:hidden', land)} aria-hidden>
+                    <span className="h-full w-1/5 rounded-full bg-primary/40" />
+                  </span>
+                </>
               )}
               {tt != null && (
                 <span className={cn('mt-auto flex h-[3px] sm:hidden', land)} aria-hidden>
@@ -470,13 +488,28 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
   const stale = data.date !== day
   const body = cn('transition-opacity duration-200', stale && 'opacity-40', !onClose && CARD)
   if (data.books.length === 0) {
+    const n = data.streak?.day ?? 0, len = data.streak?.length ?? 0
+    const streakLine = data.streak?.is_best ? t`Day ${n} of your best streak (${len} days)` : t`Day ${n} of a ${len}-day streak`
     return (
       <div className={cn('space-y-4 p-6', body)}>
         {header}
-        <div className="flex flex-col items-center gap-2 py-10 text-sm text-muted-foreground">
-          <Moon className="h-5 w-5" />
-          {data.seconds > 0 ? <Trans>Only a brief open this day, under a minute.</Trans> : <Trans>No reading this day.</Trans>}
-        </div>
+        {data.reader_day ? (
+          <div className="flex flex-col items-center gap-2 py-10 text-center text-sm text-muted-foreground">
+            <BookOpen className="h-5 w-5" />
+            <Trans>You read on this day. Your reader kept no details from before it synced to Tome.</Trans>
+            {data.streak && data.streak.length > 1 && (
+              <span className="flex items-center gap-1.5 text-xs">
+                <Flame className="h-3.5 w-3.5" />
+                {streakLine}
+              </span>
+            )}
+          </div>
+        ) : (
+          <div className="flex flex-col items-center gap-2 py-10 text-sm text-muted-foreground">
+            <Moon className="h-5 w-5" />
+            {data.seconds > 0 ? <Trans>Only a brief open this day, under a minute.</Trans> : <Trans>No reading this day.</Trans>}
+          </div>
+        )}
       </div>
     )
   }

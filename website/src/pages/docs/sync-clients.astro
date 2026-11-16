@@ -133,6 +133,20 @@ import { withBase } from '../../lib/path'
       all-time <strong>Pages</strong> and <strong>Pace</strong> always match the reader's
       counter. Reading from before Tome saw the counter, and history from the import, stays
       as time only.</li>
+    <li><strong>Sync Book</strong> on the reader covers the open book only: its position and
+      its page count. Reading time is sent for every book. So after finishing one book and
+      starting the next, sync once from inside each of them; a book you finished without
+      syncing keeps its old progress and gets no pages until you do.</li>
+    <li>For a book that is new on the reader, the first sync gives its pages to the sessions
+      sent with it. For a book the reader had counted long before its first sync to Tome,
+      the first count is only the starting point.</li>
+    <li>When the reader reports a book as finished, Tome marks it as read with the reader's
+      finish date.</li>
+    <li>Reading from before the reader first synced to Tome has no sessions. The reader keeps
+      lifetime totals and a calendar of read days, and sends them with every sync: the days
+      show on the <strong>Calendar</strong> as reading days without a time and count for
+      streaks, and the Stats page set to <strong>All</strong> includes the earlier time,
+      sessions and pages, marked "before sync".</li>
     <li>On CrossInk 2.0.0-rc, <strong>Sync Reading Stats</strong> for more than one book at a
       time reports a failure with any server. The data still arrives; syncing from inside a
       book works.</li>

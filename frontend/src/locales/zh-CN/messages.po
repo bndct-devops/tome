@@ -720,6 +720,10 @@ msgstr ""
 msgid "{base} · Vol. {idx}"
 msgstr ""
 
+#: src/pages/StatsPage.tsx
+msgid "{before} before sync"
+msgstr ""
+
 #: src/lib/goals.ts
 msgid "{behind} behind pace"
 msgstr ""
@@ -1115,6 +1119,10 @@ msgstr ""
 #: src/components/AppShell.tsx
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {This upload satisfies # wish. Review it in Admin > Wishlist} other {This upload satisfies # wishes. Review them in Admin > Wishlist}}"
+msgstr ""
+
+#: src/pages/StatsPage.tsx
+msgid "{n} before sync"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -5106,6 +5114,10 @@ msgstr ""
 msgid "Include"
 msgstr ""
 
+#: src/components/stats/widgets/insights.tsx
+msgid "Includes {earlierTime} and {earlierPages} pages your reader counted before it synced to Tome."
+msgstr ""
+
 #: src/components/stats/AttributedPagesMark.tsx
 msgid "Includes pages attributed from the reader's page counter: what it grew by between two syncs, shared out over those sessions by reading time"
 msgstr ""
@@ -7693,6 +7705,7 @@ msgstr "阅读"
 
 #: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
 msgid "Read"
 msgstr "阅读"
 
@@ -7748,6 +7761,10 @@ msgstr ""
 
 #: src/components/home/HomeTab.tsx
 msgid "Read on the web"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "read on your reader"
 msgstr ""
 
 #: src/components/CrossPointImport.tsx
@@ -10779,6 +10796,10 @@ msgstr ""
 
 #: src/components/stats/BacklogEstimate.tsx
 msgid "you read ~{mpd} min a day (last {win} days)"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "You read on this day. Your reader kept no details from before it synced to Tome."
 msgstr ""
 
 #: src/pages/SettingsPage.tsx

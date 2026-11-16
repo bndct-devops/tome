@@ -161,16 +161,18 @@ def test_several_sessions_split_by_seconds_and_sum_exactly(db, client, acc, book
 
 
 def test_only_sessions_inside_the_window_and_never_twice(db, client, acc, book):
+    # The reader's time for the book grows by its sittings, as on a device:
+    # half an hour of it was read before Tome saw any of it.
     _sess(client, acc, _sid(1), 20, 1200)     # before the first snapshot: never attributed
-    _snap(client, acc, 100)
+    _snap(client, acc, 100, seconds=3000)
     _age(db, 10)
     _sess(client, acc, _sid(2), 8, 1800)
     _sess(client, acc, _sid(3), 4, 600)
-    _snap(client, acc, 140)
+    _snap(client, acc, 140, seconds=5400)
     assert _pages(db, _sid(1), _sid(2), _sid(3)) == [(None, False), (30, True), (10, True)]
     _age(db, 2)
     _sess(client, acc, _sid(4), 1, 900)
-    _snap(client, acc, 152)
+    _snap(client, acc, 152, seconds=6300)
     assert _pages(db, _sid(2), _sid(3), _sid(4)) == [(30, True), (10, True), (12, True)]
     assert _own(client, book)["pages_turned"] == 152
     assert _row(db).pages_attributed == 52
@@ -834,3 +836,69 @@ def test_the_startup_migration_adds_the_columns_with_their_defaults():
         # An older Tome's insert, naming only its own columns, gets the default.
         conn.execute(text("INSERT INTO reading_sessions (user_id, started_at) VALUES (1, '2026-11-02 10:00:00')"))
         assert conn.execute(text("SELECT pages_attributed FROM reading_sessions WHERE id = 2")).scalar() == 0
+
+
+# ── the base: a book that is new to the reader and to Tome ───────────────────
+
+def test_a_new_book_gives_its_first_counter_to_the_sittings_sent_with_it(db, client, acc, book):
+    """The reader's own time for the book is all in Tome as sittings, so the
+    pages of the first counter were read in them."""
+    _sess(client, acc, _sid(1), 20, 1200)
+    _sess(client, acc, _sid(2), 10, 600)
+    _snap(client, acc, 60, seconds=1800)
+    assert _pages(db, _sid(1), _sid(2)) == [(40, True), (20, True)]
+    assert _row(db).pages_attributed == 60
+    assert _own(client, book)["pages_turned"] == 60
+    _age(db, 2)
+    _sess(client, acc, _sid(3), 1, 300)
+    _snap(client, acc, 67, seconds=2100)
+    assert _pages(db, _sid(1), _sid(2), _sid(3)) == [(40, True), (20, True), (7, True)]
+    assert _own(client, book)["pages_turned"] == 67
+
+
+def test_a_book_read_before_its_first_sync_keeps_its_base(db, client, acc, book):
+    """Ten hours on the reader's counter, twenty minutes in Tome: the base is
+    not these sittings' pages, and no amount of later reading makes it so."""
+    _sess(client, acc, _sid(1), 20, 1200)
+    _snap(client, acc, 900, seconds=36000)
+    assert _pages(db, _sid(1)) == [(None, False)]
+    seconds = 36000
+    for n in range(2, 8):
+        _age(db, 5)
+        _sess(client, acc, _sid(n), 1, 7200)
+        seconds += 7200
+        _snap(client, acc, 900 + (n - 1) * 100, seconds=seconds)
+    assert _pages(db, _sid(1)) == [(None, False)]
+    assert _row(db).pages_attributed == 600
+    assert _own(client, book)["pages_turned"] == 1500
+
+
+def test_a_base_stored_before_the_rule_is_settled_at_the_next_snapshot(db, client, acc, book):
+    """The state of a reader that synced a new book before this rule: a base,
+    sittings without pages before it, one window given out after it."""
+    _sess(client, acc, _sid(1), 20, 1200)
+    _snap(client, acc, 60, seconds=3000)          # too far apart: stays the base
+    row = _row(db)
+    row.seconds = 1200                            # what the reader really had
+    db.flush()
+    _age(db, 5)
+    _sess(client, acc, _sid(2), 4, 180)
+    _snap(client, acc, 67, seconds=1380)
+    assert _pages(db, _sid(1), _sid(2)) == [(60, True), (7, True)]
+    _age(db, 1)
+    _sess(client, acc, _sid(3), 0.5, 600)
+    _snap(client, acc, 80, seconds=1980)
+    assert _pages(db, _sid(1), _sid(2), _sid(3)) == [(60, True), (7, True), (13, True)]
+    assert _row(db).pages_attributed == 80
+    assert _own(client, book)["pages_turned"] == 80
+
+
+def test_the_base_is_not_given_out_after_a_reset(db, client, acc, book):
+    _snap(client, acc, 500, seconds=30000)
+    _age(db, 5)
+    _sess(client, acc, _sid(1), 4, 600)
+    _snap(client, acc, 40, seconds=600)           # lower: a reset, new epoch
+    _age(db, 1)
+    _sess(client, acc, _sid(2), 0.5, 300)
+    _snap(client, acc, 50, seconds=900)
+    assert _pages(db, _sid(1), _sid(2)) == [(0, True), (10, True)]

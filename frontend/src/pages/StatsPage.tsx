@@ -233,7 +233,11 @@ const WIDGETS: WidgetDef[] = [
     icon: Clock,
     size: STAT_SIZE,
     render: ({ stats }) => (
-      <HeadlineStatBody value={formatDuration(stats.headline.total_reading_seconds)} sub={(() => { const avg = formatDuration(stats.headline.avg_session_seconds); return t`avg ${avg}` })()} />
+      <HeadlineStatBody value={formatDuration(stats.headline.total_reading_seconds)} sub={(() => {
+        const earlier = stats.headline.reader_earlier
+        if (earlier && earlier.seconds > 0) { const before = formatDuration(earlier.seconds); return t`${before} before sync` }
+        const avg = formatDuration(stats.headline.avg_session_seconds); return t`avg ${avg}`
+      })()} />
     ),
   },
   {
@@ -241,7 +245,10 @@ const WIDGETS: WidgetDef[] = [
     title: msg`Sessions`,
     icon: Activity,
     size: STAT_SIZE,
-    render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.total_sessions)} />,
+    render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.total_sessions)} sub={(() => {
+      const before = stats.headline.reader_earlier?.sessions
+      return before ? t`${before} before sync` : undefined
+    })()} />,
   },
   {
     id: 'stat-finished',
@@ -262,7 +269,12 @@ const WIDGETS: WidgetDef[] = [
     title: msg`Pages turned`,
     icon: FileText,
     size: STAT_SIZE,
-    render: ({ stats }) => <HeadlineStatBody value={stats.headline.pages_turned.toLocaleString()} />,
+    render: ({ stats }) => <HeadlineStatBody value={stats.headline.pages_turned.toLocaleString()} sub={(() => {
+      const before = stats.headline.reader_earlier?.pages
+      if (!before) return undefined
+      const n = before.toLocaleString()
+      return t`${n} before sync`
+    })()} />,
   },
   {
     id: 'stat-completion',

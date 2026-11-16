@@ -116,6 +116,14 @@ def streak_summary_from_dates(day_set: set[date], today: date) -> StreakSummary:
     return s
 
 
+def _with_reader_days(db: Session, user_id: int, day_set: set[date]) -> set[date]:
+    """Plus the days a KOSync reader was read on before it synced to Tome
+    (``kosync_stats.reader_days``): reading days without detail."""
+    from backend.services.kosync_stats import reader_days
+
+    return day_set | reader_days(db, user_id)
+
+
 def compute_user_streaks(
     db: Session,
     user_id: int,
@@ -131,7 +139,7 @@ def compute_user_streaks(
         .all()
     )
     day_set = {date.fromisoformat(r.d) for r in rows if r.d}
-    return streaks_from_dates(day_set, day.today())
+    return streaks_from_dates(_with_reader_days(db, user_id, day_set), day.today())
 
 
 def reconciled_user_streaks(
@@ -158,7 +166,7 @@ def reconciled_user_streaks(
         return compute_user_streaks(db, user_id, tz_offset_minutes, tz_name)
     day = DayCtx(tz_offset_minutes, tz_name)
     day_set = rr.active_days(db, user_id, day, covered)
-    return streaks_from_dates(day_set, day.today())
+    return streaks_from_dates(_with_reader_days(db, user_id, day_set), day.today())
 
 
 def reconciled_streak_summary(
@@ -185,4 +193,4 @@ def reconciled_streak_summary(
             .all()
         )
         day_set = {date.fromisoformat(r.d) for r in rows if r.d}
-    return streak_summary_from_dates(day_set, day.today())
+    return streak_summary_from_dates(_with_reader_days(db, user_id, day_set), day.today())
