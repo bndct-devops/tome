@@ -143,7 +143,7 @@ function WhenYouRead({ stats, width, phone, dim, sig }: { stats: StatsResponse |
     <section ref={enter} data-box="when" className={cn('min-w-0', dim)}>
       <Heading note={phone ? t`two-hour columns` : undefined}><Trans>When you read</Trans></Heading>
       <p className={cn('mb-3.5 text-[15px] leading-[1.45] text-foreground', phone ? 'line-clamp-2 min-h-[44px] [text-wrap:balance]' : 'truncate')}>{sentence}</p>
-      <div data-box="when-chart" style={{ height: rhythmHeight(phone) }}>
+      <div data-box="when-chart" style={{ height: rhythmHeight(width, phone) }}>
         <Rhythm W={width} grid={m.grid} byCol={m.byCol} colN={m.colN} byDow={dow} phone={phone} loading={loading} />
       </div>
     </section>

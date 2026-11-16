@@ -9,7 +9,7 @@ import { formatDuration } from '@/lib/utils'
 import { t, plural } from '@lingui/core/macro'
 import { K, stagger } from '@/components/stats/kit/motion'
 import { useTips } from '@/components/stats/kit/tip'
-import { columns, type Bar, type HourGrid, type YearModel } from './model'
+import { HEAT_GAP, columns, heatRadius, tiles, type Bar, type HourGrid, type YearModel } from './model'
 
 const fmtShort = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 const fmtLong = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
@@ -169,8 +169,8 @@ const daysLong = () => [t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`
 
 export function HourHeat({ W, grid, byCol, colN, two, histH, loading }: { W: number; grid: HourGrid; byCol: number[]; colN: number[]; two: boolean; histH: number; loading?: boolean }) {
   const ncol = two ? 12 : 24
-  const labelW = 34, gap = 2
-  const { cell, xs } = columns(labelW, W - labelW, ncol, gap)
+  const labelW = 34, gap = HEAT_GAP
+  const { cell, xs, ws, end } = tiles(labelW, W - labelW, ncol, gap)
   const rp = cell + gap
   const heatH = 7 * rp - gap
   const hy = heatH + 12
@@ -200,7 +200,7 @@ export function HourHeat({ W, grid, byCol, colN, two, histH, loading }: { W: num
         <g key={r}>
           <text x={labelW - 8} y={r * rp + cell / 2 + 4} textAnchor="end">{days[r]}</text>
           {row.map((c, k) => (
-            <rect key={k} className={`k-cell ${K.fade}`} style={stagger(k, ncol)} data-tip-i={r * ncol + k} x={xs[k]} y={r * rp} width={cell} height={cell} rx={cell >= 16 ? 3 : 2} fill={LV[c.lv]} />
+            <rect key={k} className={`k-cell ${K.fade}`} style={stagger(k, ncol)} data-tip-i={r * ncol + k} x={xs[k]} y={r * rp} width={ws[k]} height={cell} rx={heatRadius(cell)} fill={LV[c.lv]} />
           ))}
         </g>
       ))}
@@ -208,15 +208,15 @@ export function HourHeat({ W, grid, byCol, colN, two, histH, loading }: { W: num
         const h = Math.round((s / maxH) * histH)
         return (
           <g key={k}>
-            <rect className="k-hit" data-tip-i={7 * ncol + k} x={xs[k] - gap / 2} y={hy} width={cell + gap} height={histH} />
-            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, cell, h, Math.min(2, h))} fill="var(--chart-accent)" />}
+            <rect className="k-hit" data-tip-i={7 * ncol + k} x={xs[k] - gap / 2} y={hy} width={ws[k] + gap} height={histH} />
+            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, ws[k], h, Math.min(2, h))} fill="var(--chart-accent)" />}
           </g>
         )
       })}
-      <line x1={labelW} x2={W} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
+      <line x1={labelW} x2={end} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
       {[0, 6, 12, 18, 24].map((hr) => {
         const k = hr * perHour
-        const x = k >= ncol ? xs[ncol - 1] + cell : xs[k]
+        const x = k >= ncol ? end : xs[k]
         return (
           <g key={hr}>
             <line x1={x + 0.5} x2={x + 0.5} y1={base} y2={base + 4} stroke={TICK} shapeRendering="crispEdges" />

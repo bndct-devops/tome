@@ -10,10 +10,10 @@ import { t, plural } from '@lingui/core/macro'
 import { formatDuration } from '@/lib/utils'
 import { K, stagger } from '@/components/stats/kit/motion'
 import { useTips } from '@/components/stats/kit/tip'
-import { columns, type HourGrid } from '@/components/stats/overview/model'
+import { HEAT_GAP, heatRadius, type HourGrid } from '@/components/stats/overview/model'
 import {
-  RHYTHM_ROW, RHYTHM_ROW_PHONE, TL_PITCH, TL_PITCH_PHONE, TL_TRACK, TL_TRACK_PHONE, TL_ROWS, MONTH_ROW,
-  monthsHeight, rhythmHeight, timelineHeight, type PaceDot, type TlBar, type TlRow,
+  TL_PITCH, TL_PITCH_PHONE, TL_TRACK, TL_TRACK_PHONE, TL_ROWS, MONTH_ROW,
+  monthsHeight, rhythmGeom, timelineHeight, type PaceDot, type TlBar, type TlRow,
 } from './model'
 
 const LV = ['var(--k-lv0)', 'var(--k-lv1)', 'var(--k-lv2)', 'var(--k-lv3)', 'var(--k-lv4)', 'var(--k-lv5)']
@@ -105,20 +105,12 @@ export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
   phone: boolean
   loading?: boolean
 }) {
-  const ncol = phone ? 12 : 24
+  const { ncol, labelW, xs, ws, end: heatR, rowH, heatH, histH, H } = rhythmGeom(W, phone)
   const span = phone ? 2 : 1
-  const labelW = phone ? 32 : 40
-  const rightW = phone ? 58 : 208
-  const rowH = phone ? RHYTHM_ROW_PHONE : RHYTHM_ROW
-  const gap = 2
-  const { cell, xs } = columns(labelW, W - labelW - rightW, ncol, gap)
-  const heatR = xs[ncol - 1] + cell
+  const gap = HEAT_GAP
   const rp = rowH + gap
-  const heatH = 7 * rp - gap
-  const histH = phone ? 48 : 64
   const hy = heatH + 12
   const base = hy + histH
-  const H = rhythmHeight(phone)
   const total = byDow.s.reduce((a, s) => a + s, 0)
   // Marks in DOM order: the 7 rows of cells, the hour columns, then the 7 weekday totals.
   const tips = useTips((i) => {
@@ -155,7 +147,7 @@ export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
           <g key={r}>
             <text x={0} y={y + rowH / 2 + 4}>{days[r]}</text>
             {row.map((c, k) => (
-              <rect key={k} className={`k-cell ${K.fade}`} style={stagger(k, ncol)} data-tip-i={r * ncol + k} x={xs[k]} y={y} width={cell} height={rowH} rx={3} fill={LV[c.lv]} />
+              <rect key={k} className={`k-cell ${K.fade}`} style={stagger(k, ncol)} data-tip-i={r * ncol + k} x={xs[k]} y={y} width={ws[k]} height={rowH} rx={heatRadius(rowH)} fill={LV[c.lv]} />
             ))}
           </g>
         )
@@ -164,8 +156,8 @@ export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
         const h = Math.round((s / maxH) * histH)
         return (
           <g key={k}>
-            <rect className="k-hit" data-tip-i={7 * ncol + k} x={xs[k] - gap / 2} y={hy} width={cell + gap} height={histH} />
-            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, cell, h, Math.min(2, h))} fill="var(--chart-accent)" />}
+            <rect className="k-hit" data-tip-i={7 * ncol + k} x={xs[k] - gap / 2} y={hy} width={ws[k] + gap} height={histH} />
+            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, ws[k], h, Math.min(2, h))} fill="var(--chart-accent)" />}
           </g>
         )
       })}

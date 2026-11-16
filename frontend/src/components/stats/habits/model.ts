@@ -1,6 +1,7 @@
 // Shapes /api/stats and /api/stats/habits into what the Habits page draws.
 // Pure functions, no React; nothing here is a figure the server computes itself.
 import type { HabitsResponse, StatsResponse } from '@/components/stats/shared'
+import { HEAT_GAP, tiles } from '@/components/stats/overview/model'
 
 // ── fixed geometry (see the mockup's NOTES "Heights") ─────────────────────────
 export const TL_PITCH = 38
@@ -10,9 +11,21 @@ export const TL_TRACK_PHONE = 18
 export const TL_ROWS = 14
 export const timelineHeight = (phone: boolean) => TL_ROWS * (phone ? TL_PITCH_PHONE : TL_PITCH) + 16
 
-export const RHYTHM_ROW = 26
-export const RHYTHM_ROW_PHONE = 22
-export const rhythmHeight = (phone: boolean) => 7 * ((phone ? RHYTHM_ROW_PHONE : RHYTHM_ROW) + 2) - 2 + 12 + (phone ? 48 : 64) + 20
+/**
+ * The hour grid's tiles: true squares, as wide as the hour columns that fill the
+ * width, so the box's height follows the width (the skeleton computes the same).
+ */
+export function rhythmGeom(W: number, phone: boolean) {
+  const ncol = phone ? 12 : 24
+  const labelW = phone ? 32 : 40
+  const rightW = phone ? 58 : 208
+  const { xs, ws, cell, end } = tiles(labelW, W - labelW - rightW, ncol, HEAT_GAP)
+  const rowH = cell
+  const heatH = 7 * (rowH + HEAT_GAP) - HEAT_GAP
+  const histH = phone ? 48 : 64
+  return { ncol, labelW, rightW, xs, ws, end, rowH, heatH, histH, H: heatH + 12 + histH + 20 }
+}
+export const rhythmHeight = (W: number, phone: boolean) => rhythmGeom(W, phone).H
 
 export const MONTH_ROW = 110
 export const monthsHeight = (phone: boolean) => (phone ? 22 : 0) + MONTH_ROW + (phone ? 40 + 22 : 24) + MONTH_ROW + 22

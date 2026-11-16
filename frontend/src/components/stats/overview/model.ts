@@ -116,10 +116,30 @@ export function columns(x0: number, width: number, n: number, gap: number) {
   return { cell, xs: Array.from({ length: n }, (_, i) => Math.round(x0 + i * pitch)) }
 }
 
+/**
+ * Heat tiles: n columns from x0 filling `width`, exactly `gap` apart (widths
+ * differ by at most 1 px instead of the gaps), so a grid reads as one tiled
+ * surface; bars under the grid use the same columns and end on the same pixel.
+ * `cell` is the narrowest width (the side of a square tile).
+ */
+export function tiles(x0: number, width: number, n: number, gap: number) {
+  const pitch = (width + gap) / n
+  const xs: number[] = [], ws: number[] = []
+  for (let i = 0; i < n; i++) {
+    const a = Math.round(x0 + i * pitch)
+    xs.push(a)
+    ws.push(Math.max(1, Math.round(x0 + (i + 1) * pitch) - gap - a))
+  }
+  return { xs, ws, cell: Math.min(...ws), end: Math.round(x0 + width) }
+}
+
+/** Gap and corner of the hour-by-weekday tiles (Overview and Habits). */
+export const HEAT_GAP = 2
+export const heatRadius = (side: number) => (side >= 16 ? 3 : 2)
+
 export function hourHeatHeight(W: number, two: boolean, histH: number) {
-  const ncol = two ? 12 : 24
-  const { cell } = columns(34, W - 34, ncol, 2)
-  return 7 * (cell + 2) - 2 + 12 + histH + 20
+  const { cell } = tiles(34, W - 34, two ? 12 : 24, HEAT_GAP)
+  return 7 * (cell + HEAT_GAP) - HEAT_GAP + 12 + histH + 20
 }
 
 export function yearHeight(W: number, n: number) {
