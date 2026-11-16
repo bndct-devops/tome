@@ -2,6 +2,9 @@
 // calendar day with each day's counted total, filtered to Counted / Not counted /
 // All, with the trim and delete actions of the session log. It ignores the
 // Stats range (the frame hides the range pills here).
+// Motion: the first page's rows fade in once per session (kit/motion.ts); rows
+// from "Show more" take a quick fade of their own; a filter or sort switch only
+// dims. Hover: a row washes, its cover and title lead to the book.
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans } from '@lingui/react/macro'
@@ -12,6 +15,7 @@ import { cn, formatDuration } from '@/lib/utils'
 import { Pill } from '@/components/page'
 import type { SessionEntry, SessionsPage as SessionsAnswer } from '@/components/stats/shared'
 import { Cover, Ph } from '@/components/stats/kit/Kit'
+import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
 import { DESKTOP_MIN, DIM, HAIR, UNDIM, num, useWidth } from '@/components/stats/kit/tokens'
 import { dropStatsCache } from '@/components/stats/kit/useStatsGet'
 import { sourceLabel, useSessionActions, type SessionActions } from './actions'
@@ -25,6 +29,10 @@ const PH = { day: 'Wednesday, Nov 11', total: '1h 44m counted', time: '08:27 AM'
 const COLS = 'grid-cols-[84px_minmax(0,1fr)_80px_150px_110px_72px]'
 const COLS_LONGEST = 'grid-cols-[110px_minmax(0,1fr)_80px_150px_110px_72px]'
 const PHONE_TOOL = 'h-8 w-7'
+// A row washes on hover a little past its hairline ends (a layer behind it, so no box moves).
+const ROW_HOVER = 'relative isolate before:pointer-events-none before:absolute before:inset-y-0 before:-inset-x-2 before:-z-10 before:rounded-[6px] before:transition-colors hover:before:bg-secondary/60'
+// Rows past the first page: a quick fade as they arrive (not part of the entry).
+const LATE_ROW = 'motion-safe:animate-[k-fade_200ms_cubic-bezier(0.2,0.8,0.2,1)_both]'
 /* eslint-enable lingui/no-unlocalized-strings */
 
 type View = { key: string; total: number; counts: SessionsAnswer['counts']; sessions: SessionEntry[]; dayTotals: Record<string, number> }
@@ -112,11 +120,14 @@ export function SessionsPage() {
   ]
   const longest = (pending ? view!.key.endsWith('longest') : sort === 'longest')
   const remaining = view ? Math.max(0, view.total - view.sessions.length) : 0
+  // One entry, on the first data of the session; a filter or sort switch only dims.
+  const e = useEntry('sessions/log', view ? ONCE : null)
 
   return (
     <div ref={ref} aria-busy={loading || pending}>
       {width > 0 && (
-        <section data-box="sessions">
+        // eslint-disable-next-line react-hooks/refs -- Entry.ref is a callback ref (a method), not a ref object
+        <section ref={e.ref} data-box="sessions">
           <p data-box="sessions-explain" className={cn('text-muted-foreground', desktop ? 'text-[14px]' : 'text-[13px]', 'leading-[1.5]')}>
             <Trans><span className="font-medium text-foreground">Imported</span>: from KOReader&apos;s synced reading history. Delete only: KOReader already caps idle time, so there is nothing to trim.</Trans>{' '}
             <Trans><span className="font-medium text-foreground">Not counted</span>: a live device session whose sitting is also described by imported history. Listed for completeness, excluded from the totals so nothing is counted twice.</Trans>
@@ -245,14 +256,18 @@ function Row({ s, i, desktop, a, withDate = false }: { s: SessionEntry; i: numbe
     : !s.counted ? t`Not in totals: this book's imported KOReader history already covers this reading` : undefined
   const warn = s.suspect && <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={t`Unusually long session`} />
   const cover = s.book_id ? (
-    <Link to={`/books/${s.book_id}`} className="shrink-0" aria-label={s.book_title}><Cover id={s.book_id} h={40} className="rounded-[4px]" /></Link>
+    <Link to={`/books/${s.book_id}`} className="group/cover shrink-0 rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={s.book_title} tabIndex={-1}>
+      <Cover id={s.book_id} h={40} className="rounded-[4px] transition-transform duration-200 group-hover/cover:-translate-y-0.5" />
+    </Link>
   ) : <Cover id={null} h={40} className="rounded-[4px]" />
   const title = s.book_id
-    ? <Link to={`/books/${s.book_id}`} className="hover:underline underline-offset-4">{s.book_title}</Link>
+    ? <Link to={`/books/${s.book_id}`} className="transition-colors hover:text-primary focus-visible:underline focus-visible:outline-none underline-offset-4">{s.book_title}</Link>
     : <span className="text-muted-foreground">{s.book_title}</span>
   const device = sourceLabel(s.device)
+  // The first page fades in with the entry (opacity only: the row's box stays put); later pages fade as they arrive.
+  const motion = i < PAGE ? { className: K.fade, style: stagger(i, PAGE) } : { className: LATE_ROW, style: undefined }
   return (
-    <div className={cn('border-b', HAIR)}>
+    <div className={cn('border-b', HAIR, ROW_HOVER, motion.className)} style={motion.style}>
       {desktop ? (
         <div data-box={`srow-${i}`} className={cn('grid h-14 items-center gap-x-4', withDate ? COLS_LONGEST : COLS)}>
           <span className="whitespace-nowrap text-[14px] tabular-nums text-muted-foreground" title={withDate ? timeOf(s.started_at) : undefined}>{when}</span>

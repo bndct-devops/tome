@@ -4,6 +4,10 @@
 // five highlights. All time: a range change neither dims nor refetches it.
 // Every section's box follows from fixed heights and row counts, so the
 // skeleton draws each box where the loaded page has it.
+// Motion: each section's entry plays once per session (it is all time; kit/motion.ts);
+// figures count up, bars and tracks grow, covers rise and dots fade in. Hover:
+// bars, covers, dots and tracks have tips (kit/tip.ts); rows that lead to a book
+// or a series are one link each.
 import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans } from '@lingui/react/macro'
@@ -14,7 +18,10 @@ import { StarRating } from '@/components/StarRating'
 import type { HighlightsResponse } from '@/components/stats/shared'
 import type { DesignedPageProps } from '@/components/stats/kit/page'
 import { Cover, Heading, Ph, Track } from '@/components/stats/kit/Kit'
-import { DESKTOP_MIN, HAIR, LEVELS, num, useWidth } from '@/components/stats/kit/tokens'
+import { CountUp } from '@/components/stats/kit/CountUp'
+import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
+import { tipAttrs } from '@/components/stats/kit/tip'
+import { DESKTOP_MIN, HAIR, LEVELS, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
 import { useStatsGet } from '@/components/stats/kit/useStatsGet'
 import { OVER_TIME_H, OverTime, TimeVsRating } from './charts'
 import { lowestFour, shelfOrder, wholeStarMedians, type Ratings } from './model'
@@ -39,6 +46,13 @@ const PH = {
 /* eslint-enable lingui/no-unlocalized-strings */
 
 const ratingWord = (r: number) => plural(r, { one: '# star', other: '# stars' })
+/** A one-decimal figure counted up in tenths ("4.3"). */
+const tenths = (n: number) => (n / 10).toFixed(1)
+const ratedOn = (iso: string | null) => { if (!iso) return undefined; const d = fmtDay(iso.slice(0, 10)); return t`Rated ${d}` }
+/** A row that is one link: the title takes the accent and the cover lifts on hover, as the Overview's rows. */
+const LINK_ROW = 'group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
+const LIFT = 'transition-transform duration-200 group-hover:-translate-y-0.5'
+const ACCENT = 'transition-colors group-hover:text-primary'
 
 /** Read-only stars at a pixel size (half stars as the app draws them). */
 function Stars({ value, px }: { value: number; px: number }) {
@@ -89,15 +103,17 @@ function RatingsFigure({ r, desktop }: { r: Ratings | null; desktop: boolean }) 
   const fake = [0.9, 0.6, 0.2, 0.08, 0.04]
   const avg = r && r.count > 0 ? r.avg : 0
   const foot = r ? (none ? t`No books rated yet. Rate a book on its page.` : plural(r.count, { one: '# book rated', other: '# books rated' })) : PH.foot
+  const e = useEntry('taste/ratings', r ? ONCE : null)
+  const total = r ? r.count : 0
   return (
-    <section data-box="ratings">
+    <section ref={e.ref} data-box="ratings">
       <Heading note={<Trans>all time</Trans>}><Trans>Ratings</Trans></Heading>
       <div className={desktop ? 'grid grid-cols-12 items-start gap-4' : ''}>
         <div data-box="ratings-avg" className={desktop ? 'col-span-4 min-w-0' : ''}>
           <div className="text-[14px] text-muted-foreground"><Trans>Average rating</Trans></div>
           <div className="mt-2.5 flex items-center gap-4">
             <span className={cn('font-display font-bold tabular-nums text-foreground', desktop ? 'text-[60px]' : 'text-[48px]', 'leading-none')}>
-              <Ph on={loading}>{loading ? PH.avg : none ? '–' : avg.toFixed(1)}</Ph>
+              <Ph on={loading}>{loading ? PH.avg : none ? '–' : <CountUp entry={e} value={Math.round(avg * 10)} format={tenths} />}</Ph>
             </span>
             <span className={loading ? 'opacity-40' : ''}><Stars value={Math.round(avg * 2) / 2} px={desktop ? 20 : 18} /></span>
           </div>
@@ -109,7 +125,11 @@ function RatingsFigure({ r, desktop }: { r: Ratings | null; desktop: boolean }) 
             const books = plural(n, { one: '# book', other: '# books' })
             const stars = ratingWord(d.rating)
             return (
-              <div key={d.rating} className="grid h-[22px] grid-cols-[52px_minmax(0,1fr)] items-center" title={r ? t`${stars}: ${books}` : undefined}>
+              <div
+                key={d.rating}
+                className={cn('-mx-1.5 grid h-[22px] grid-cols-[52px_minmax(0,1fr)] items-center rounded-[4px] px-1.5', r && !none && 'data-hot:bg-secondary/60')}
+                {...(r && !none ? tipAttrs({ title: stars, value: books, note: (() => { const p = total > 0 ? Math.round((n / total) * 100) : 0; return t`${p}% of your ratings` })() }) : {})}
+              >
                 <span className="inline-flex items-center gap-1 text-[13px] tabular-nums text-muted-foreground">
                   {d.rating}<Star className="h-[11px] w-[11px] fill-current stroke-none opacity-70" aria-hidden="true" />
                 </span>
@@ -123,8 +143,8 @@ function RatingsFigure({ r, desktop }: { r: Ratings | null; desktop: boolean }) 
                     </>
                   ) : (
                     <>
-                      <i className="h-[14px] shrink-0 rounded-[4px]" style={{ width: `calc((100% - 40px) * ${(n / max).toFixed(4)})`, background: 'var(--chart-accent)' }} />
-                      <span className="text-[13px] font-semibold tabular-nums text-foreground">{num(n)}</span>
+                      <i className={cn('h-[14px] shrink-0 rounded-[4px]', K.growX)} style={{ width: `calc((100% - 40px) * ${(n / max).toFixed(4)})`, background: 'var(--chart-accent)', ...stagger(i, dist.length) }} />
+                      <span className="text-[13px] font-semibold tabular-nums text-foreground"><CountUp entry={e} value={n} format={num} /></span>
                     </>
                   )}
                 </span>
@@ -150,11 +170,18 @@ function Favourites({ r, width, desktop }: { r: Ratings | null; width: number; d
     const b = shelf[i]
     const stars = b ? ratingWord(b.rating) : ''
     const title = b?.title ?? ''
-    const tip = b ? t`${title}, ${stars}` : undefined
+    const label = b ? t`${title}, ${stars}` : undefined
     cells.push(
-      <div key={b?.book_id ?? i} className="flex shrink-0 flex-col gap-2">
+      <div key={b?.book_id ?? i} className={cn('flex shrink-0 flex-col gap-2', b && K.rise)} style={b ? stagger(i, slots) : undefined}>
         {b ? (
-          <Link to={`/books/${b.book_id}`} title={tip} aria-label={tip}><Cover id={b.has_cover ? b.book_id : null} h={SHELF_H} /></Link>
+          <Link
+            to={`/books/${b.book_id}`}
+            aria-label={label}
+            {...tipAttrs({ title, value: stars, note: ratedOn(b.rated_at) })}
+            className="group block rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <Cover id={b.has_cover ? b.book_id : null} h={SHELF_H} className={LIFT} />
+          </Link>
         ) : (
           <Cover id={null} h={SHELF_H} />
         )}
@@ -163,8 +190,9 @@ function Favourites({ r, width, desktop }: { r: Ratings | null; width: number; d
     )
   }
   const lowRows = r ? low : Array.from({ length: 4 }, () => null)
+  const e = useEntry('taste/favourites', r ? ONCE : null)
   return (
-    <section data-box="favourites">
+    <section ref={e.ref} data-box="favourites">
       <Heading><Trans>Highest rated</Trans></Heading>
       <div data-box="shelf" style={{ height: SHELF_H + 20 }}>
         {r && shelf.length === 0 ? (
@@ -184,25 +212,27 @@ function Favourites({ r, width, desktop }: { r: Ratings | null; width: number; d
             {shelf.length === 0 ? <Trans>Nothing rated yet.</Trans> : <Trans>No book is rated below the rest.</Trans>}
           </p>
         ) : (
-          lowRows.map((b, i) => (
-            <div key={b?.book_id ?? i} data-box={`lowest-${i}`} className={cn('flex h-[62px] min-w-0 items-center gap-3.5', (desktop ? i >= 2 : i >= 1) && cn('border-t', HAIR))}>
-              {b ? (
-                <Link to={`/books/${b.book_id}`} className="shrink-0" aria-label={b.title}><Cover id={b.has_cover ? b.book_id : null} h={44} className="rounded-[4px]" /></Link>
-              ) : (
-                <Cover id={null} h={44} className="rounded-[4px]" />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className="truncate text-[15px] font-medium text-foreground">
-                  {b ? <Link to={`/books/${b.book_id}`} className="hover:underline underline-offset-4">{b.title}</Link> : <Ph on>{PH.title}</Ph>}
+          lowRows.map((b, i) => {
+            const row = cn('flex h-[62px] min-w-0 items-center gap-3.5', (desktop ? i >= 2 : i >= 1) && cn('border-t', HAIR))
+            const body = (
+              <>
+                <Cover id={b ? (b.has_cover ? b.book_id : null) : null} h={44} className={cn('rounded-[4px]', b && LIFT)} />
+                <div className="min-w-0 flex-1">
+                  <div className={cn('truncate text-[15px] font-medium text-foreground', ACCENT)}>{b ? b.title : <Ph on>{PH.title}</Ph>}</div>
+                  <div className="mt-[3px] flex items-center gap-2.5 whitespace-nowrap text-[13px] text-muted-foreground">
+                    {(b?.author || !b) && <span className="truncate"><Ph on={!b}>{b?.author ?? PH.author}</Ph></span>}
+                    {!desktop && b && <Stars value={b.rating} px={12} />}
+                  </div>
                 </div>
-                <div className="mt-[3px] flex items-center gap-2.5 whitespace-nowrap text-[13px] text-muted-foreground">
-                  {(b?.author || !b) && <span className="truncate"><Ph on={!b}>{b?.author ?? PH.author}</Ph></span>}
-                  {!desktop && b && <Stars value={b.rating} px={12} />}
-                </div>
-              </div>
-              {desktop && <span className={cn('shrink-0', !b && 'opacity-40')}><Stars value={b?.rating ?? 0} px={13} /></span>}
-            </div>
-          ))
+                {desktop && <span className={cn('shrink-0', !b && 'opacity-40')}><Stars value={b?.rating ?? 0} px={13} /></span>}
+              </>
+            )
+            return b ? (
+              <Link key={b.book_id} to={`/books/${b.book_id}`} data-box={`lowest-${i}`} className={cn(row, LINK_ROW)}>{body}</Link>
+            ) : (
+              <div key={i} data-box={`lowest-${i}`} className={row}>{body}</div>
+            )
+          })
         )}
       </div>
     </section>
@@ -224,17 +254,24 @@ function SeriesList({ r }: { r: Ratings | null }) {
         ) : (
           rows.map((s, i) => {
             const n = s?.book_count ?? 0
-            return (
-              <div key={s?.series ?? i} data-box={`series-${i}`} className={cn('flex h-[62px] min-w-0 items-center gap-3.5', i > 0 && cn('border-t', HAIR))}>
-                <Cover id={s?.sample_book_id ?? null} h={54} className="rounded-[4px]" />
+            const row = cn('flex h-[62px] min-w-0 items-center gap-3.5', i > 0 && cn('border-t', HAIR))
+            const body = (
+              <>
+                <Cover id={s?.sample_book_id ?? null} h={54} className={cn('rounded-[4px]', s && LIFT)} />
                 <div className="min-w-0 flex-1">
-                  <div className="truncate text-[15px] font-semibold text-foreground"><Ph on={!s}>{s?.series ?? PH.series}</Ph></div>
+                  <div className={cn('truncate text-[15px] font-semibold text-foreground', ACCENT)}><Ph on={!s}>{s?.series ?? PH.series}</Ph></div>
                   <div className="mt-[3px] flex items-center gap-2.5 whitespace-nowrap text-[13px] text-muted-foreground">
                     <span className={!s ? 'opacity-40' : ''}><Stars value={s?.rating ?? 0} px={12} /></span>
                     {s ? n > 0 && <span className="tabular-nums">{plural(n, { one: '# book', other: '# books' })}</span> : <Ph on>{PH.books}</Ph>}
                   </div>
                 </div>
-              </div>
+              </>
+            )
+            // A series opens in the Series view, as Home and the book page link it.
+            return s ? (
+              <Link key={s.series} to={`/?tab=series&series_detail=${encodeURIComponent(s.series)}`} data-box={`series-${i}`} className={cn(row, LINK_ROW)}>{body}</Link>
+            ) : (
+              <div key={i} data-box={`series-${i}`} className={row}>{body}</div>
             )
           })
         )}
@@ -261,8 +298,9 @@ function TimeMatch({ r, width, desktop }: { r: Ratings | null; width: number; de
       sentence = t`${sa}-star books took a median of ${da}, ${sb}-star books ${db}.`
     }
   }
+  const e = useEntry('taste/scatter', r ? ONCE : null)
   return (
-    <section data-box="scatter" className="min-w-0">
+    <section ref={e.ref} data-box="scatter" className="min-w-0">
       <Heading><Trans>Does time spent match the rating?</Trans></Heading>
       <p data-box="scatter-text" className={cn('mb-3.5 text-foreground', desktop ? 'h-[22px] truncate text-[15px]' : 'line-clamp-2 min-h-[41px] text-[14px]', 'leading-[1.45]')}>{sentence}</p>
       <div data-box="scatter-chart" style={{ height: H }}>
@@ -290,8 +328,10 @@ function Legend() {
 
 function RatingsOverTime({ r, width, desktop }: { r: Ratings | null; width: number; desktop: boolean }) {
   const dated = useMemo(() => (r ? r.books.filter((b) => b.rated_at) : []), [r])
+  const e = useEntry('taste/overtime', r ? ONCE : null)
   return (
-    <section data-box="overtime">
+    // eslint-disable-next-line react-hooks/refs -- Entry.ref is a callback ref (a method), not a ref object
+    <section ref={e.ref} data-box="overtime">
       {desktop ? (
         <Heading right note={<Legend />}><Trans>Ratings over time</Trans></Heading>
       ) : (
@@ -314,35 +354,39 @@ function RatingsOverTime({ r, width, desktop }: { r: Ratings | null; width: numb
 // ── By type (two or more types with ratings) ──────────────────────────────────
 
 function ByType({ r, desktop }: { r: Ratings; desktop: boolean }) {
+  const e = useEntry('taste/bytype', ONCE)
+  /* eslint-disable react-hooks/refs -- Entry.ref is a callback ref (a method) and CountUp reads the entry in effects */
   return (
-    <section data-box="bytype">
+    <section ref={e.ref} data-box="bytype">
       <Heading note={<Trans>average rating per type</Trans>}><Trans>By type</Trans></Heading>
       <div className={desktop ? 'grid grid-cols-2 gap-x-4' : ''}>
         {r.by_category.map((c, i) => (
           <div key={c.category} data-box={`bytype-${i}`} className={cn('flex h-[52px] min-w-0 items-center gap-4', (desktop ? i >= 2 : i >= 1) && cn('border-t', HAIR))}>
             <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-foreground">{c.category}</span>
-            <Stars value={Math.round(c.avg * 2) / 2} px={13} />
-            <span className="w-8 text-right text-[15px] font-semibold tabular-nums text-foreground">{c.avg.toFixed(1)}</span>
+            <span className={K.fade} style={stagger(i, r.by_category.length)}><Stars value={Math.round(c.avg * 2) / 2} px={13} /></span>
+            <span className="w-8 text-right text-[15px] font-semibold tabular-nums text-foreground"><CountUp entry={e} value={Math.round(c.avg * 10)} format={tenths} align="end" /></span>
             <span className="w-[72px] text-right text-[13px] tabular-nums text-muted-foreground">{plural(c.count, { one: '# rated', other: '# rated' })}</span>
           </div>
         ))}
       </div>
     </section>
   )
+  /* eslint-enable react-hooks/refs */
 }
 
 // ── Highlights (from five) ────────────────────────────────────────────────────
 
 function Highlights({ h, desktop }: { h: HighlightsResponse; desktop: boolean }) {
   const max = Math.max(1, ...h.top.map((x) => x.count))
+  const e = useEntry('taste/highlights', ONCE)
   return (
-    <section data-box="highlights">
+    <section ref={e.ref} data-box="highlights">
       <Heading note={<Trans>all time</Trans>}><Trans>Highlights</Trans></Heading>
       <div className={desktop ? 'grid grid-cols-12 items-start gap-4' : ''}>
         <div data-box="highlights-fig" className={desktop ? 'col-span-4 min-w-0' : ''}>
           <div className="text-[14px] text-muted-foreground"><Trans>Highlights</Trans></div>
           <div className="mt-1.5 font-display text-[40px] font-bold leading-none tabular-nums text-foreground">
-            {num(h.count)}
+            <CountUp entry={e} value={h.count} format={num} />
             <span className="ml-1.5 font-sans text-[16px] font-semibold tracking-normal">{plural(h.count, { one: 'highlight', other: 'highlights' })}</span>
           </div>
           <div className="mt-2 text-[14px] text-muted-foreground">{plural(h.books, { one: 'in # book', other: 'in # books' })}</div>
@@ -351,18 +395,22 @@ function Highlights({ h, desktop }: { h: HighlightsResponse; desktop: boolean })
         <div data-box="highlights-list" className={cn('min-w-0', desktop ? cn('col-span-8 border-l pl-6', HAIR) : cn('mt-5 border-t pt-5', HAIR))}>
           <div className="mb-1 text-[14px] text-muted-foreground"><Trans>Most highlighted</Trans></div>
           <div style={{ minHeight: HL_ROWS * ROW_H }}>
-            {h.top.map((b, i) => (
-              <div key={b.book_id} data-box={`highlights-${i}`} className={cn('flex h-[62px] min-w-0 items-center gap-3.5', i > 0 && cn('border-t', HAIR))}>
-                <Link to={`/books/${b.book_id}`} className="shrink-0" aria-label={b.title}><Cover id={b.book_id} h={54} className="rounded-[4px]" /></Link>
-                <div className="min-w-0 flex-1">
-                  <div className="truncate text-[15px] font-semibold text-foreground"><Link to={`/books/${b.book_id}`} className="hover:underline underline-offset-4">{b.title}</Link></div>
-                  <div className="mt-[9px] flex items-center gap-3">
-                    <Track pct={(b.count / max) * 100} />
-                    <span className="min-w-4 text-right text-[13px] font-semibold tabular-nums text-foreground">{num(b.count)}</span>
+            {h.top.map((b, i) => {
+              const n = plural(b.count, { one: '# highlight', other: '# highlights' })
+              const share = h.count > 0 ? Math.round((b.count / h.count) * 100) : 0
+              return (
+                <Link key={b.book_id} to={`/books/${b.book_id}`} data-box={`highlights-${i}`} className={cn('flex h-[62px] min-w-0 items-center gap-3.5', i > 0 && cn('border-t', HAIR), LINK_ROW)}>
+                  <Cover id={b.book_id} h={54} className={cn('rounded-[4px]', LIFT)} />
+                  <div className="min-w-0 flex-1">
+                    <div className={cn('truncate text-[15px] font-semibold text-foreground', ACCENT)}>{b.title}</div>
+                    <div className="mt-[9px] flex items-center gap-3">
+                      <Track pct={(b.count / max) * 100} style={stagger(i, h.top.length)} tip={tipAttrs({ title: b.title, value: n, note: t`${share}% of your highlights` })} />
+                      <span className="min-w-4 text-right text-[13px] font-semibold tabular-nums text-foreground"><CountUp entry={e} value={b.count} format={num} align="end" /></span>
+                    </div>
                   </div>
-                </div>
-              </div>
-            ))}
+                </Link>
+              )
+            })}
           </div>
         </div>
       </div>
