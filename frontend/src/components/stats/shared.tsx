@@ -54,7 +54,7 @@ export interface StatsResponse {
     current_seconds: number
     previous_seconds: number
     pct_change: number | null
-    // Headline counts of the window just before the range (servers before 3.1 omit them).
+    // Headline counts of the window just before the range (older servers omit them).
     previous_sessions?: number
     previous_pages?: number
     previous_books_finished?: number

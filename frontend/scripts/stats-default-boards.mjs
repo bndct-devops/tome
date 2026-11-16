@@ -15,9 +15,11 @@ import vm from 'node:vm'
 import ts from 'typescript'
 import { normaliseBoard } from '../src/lib/statsBoards.ts'
 
-const FILE = 'frontend/src/pages/StatsPage.tsx'
+// Where the default boards were built: StatsPage.tsx until the designed pages,
+// the Boards view after it (which builds them with TAB_DEFS.map(buildTab)).
+const FILES = ['frontend/src/pages/StatsPage.tsx', 'frontend/src/components/stats/boards/BoardsView.tsx']
 const git = (...a) => execFileSync('git', a, { encoding: 'utf8', maxBuffer: 64 << 20 })
-const commits = git('log', '--reverse', '--format=%h %ad', '--date=short', '7137bf9^..HEAD', '--', FILE)
+const commits = git('log', '--reverse', '--format=%h %ad', '--date=short', '7137bf9^..HEAD', '--', ...FILES)
   .trim().split('\n').map((l) => { const [hash, date] = l.split(' '); return { hash, date } })
 
 // A callable proxy stands in for every import: tagged templates (msg`…`, t`…`)
@@ -37,7 +39,9 @@ function stub() {
 }
 
 function defaultsAt(hash) {
-  const src = git('show', `${hash}:${FILE}`) + '\n;module.exports.__boards = buildTabs();\n'
+  const file = FILES.find((f) => { try { return git('show', `${hash}:${f}`).includes('function buildTab(') } catch { return false } })
+  if (!file) throw new Error('no default boards in this commit')
+  const src = git('show', `${hash}:${file}`) + '\n;module.exports.__boards = TAB_DEFS.map((d) => buildTab(d));\n'
   const js = ts.transpileModule(src, {
     compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022, jsx: ts.JsxEmit.React },
   }).outputText

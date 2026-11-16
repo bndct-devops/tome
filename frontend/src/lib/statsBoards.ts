@@ -14,7 +14,7 @@
 /** The parts of a saved board this module reads (a subset of the page's TabState). */
 export type SavedTile = { id: string; defId: string; config?: Record<string, unknown> | null }
 export type SavedLayoutItem = { i: string; x: number; y: number; w: number; h: number }
-export type SavedBoard = { id?: string; label?: string; tiles?: SavedTile[] | null; layout?: SavedLayoutItem[] | null }
+export type SavedBoard = { id?: string; label?: string; tiles?: readonly SavedTile[] | null; layout?: readonly SavedLayoutItem[] | null }
 
 export type NormTile = { defId: string; x: number; y: number; w: number; h: number; config: Record<string, unknown> }
 export type NormBoard = { label: string; tiles: NormTile[] }
@@ -102,7 +102,7 @@ export function isShippedDefault(board: SavedBoard, fingerprints: NormBoard[] = 
 }
 
 /** Ids of the saved boards the Boards tab shows: those that are not a shipped default. */
-export function customBoardIds(boards: SavedBoard[] | null | undefined): string[] {
+export function customBoardIds(boards: readonly SavedBoard[] | null | undefined): string[] {
   if (!Array.isArray(boards)) return []
   return boards.filter((b) => b && typeof b === 'object' && !isShippedDefault(b)).map((b) => String(b.id))
 }
