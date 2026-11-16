@@ -190,7 +190,7 @@ function SeriesSection({ stats, desktop, width, shape }: Common) {
           </>
         )
       : <Ph on>{PH.next}</Ph>
-    const seriesHref = s ? `/?series=${encodeURIComponent(s.series)}&tab=books` : ''
+    const seriesHref = s ? `/?tab=series&series_detail=${encodeURIComponent(s.series)}` : ''
     const trackTip = s ? (() => {
       const r = num(s.read), tot = num(s.total)
       const left = s.total - s.read
@@ -235,7 +235,7 @@ function SeriesSection({ stats, desktop, width, shape }: Common) {
         return (
           <Link
             key={s.series}
-            to={`/?series=${encodeURIComponent(s.series)}&tab=books`}
+            to={`/?tab=series&series_detail=${encodeURIComponent(s.series)}`}
             aria-label={t`${name}, ${read}`}
             {...tipAttrs({ title: name, value: read, note: t`Complete` })}
             className={cn('group block rounded-[6px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', K.rise)}
