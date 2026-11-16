@@ -88,7 +88,8 @@ import { withBase } from '../../lib/path'
     pre-fills a suggestion — the session's own page turns priced at your median seconds-per-page,
     computed from your recent plausible sessions so the runaways can't skew their own baseline.
     It's only ever a pre-fill; nothing is changed until you confirm. Session lists live in the
-    <strong>Sessions</strong> tab (sortable longest-first) and in a collapsible
+    <strong>Sessions</strong> tab (sortable longest-first), in each row of the Library page's book
+    table, and in a collapsible
     <strong>Sessions</strong> section under Reading Stats on every book page; a
     <strong>Recent sessions</strong> tile on one of your own boards works the same way.
   </p>
@@ -185,7 +186,10 @@ import { withBase } from '../../lib/path'
       lengths, from under 15 minutes to over two hours.</li>
     <li><strong>Pace</strong> — pages per minute, a dot per reading day and a 7-day mean, with a
       sentence comparing your last seven reading days to the whole range. Both come from the same
-      daily pages and minutes, so the sentence and the chart always agree.</li>
+      daily pages and minutes, so the sentence and the chart always agree; the
+      change between the two ("up 27 %") is worked out from the two printed figures. Under the
+      chart, one line gives each format's pages a minute and its share of the time once you read
+      in more than one format.</li>
     <li><strong>Reading speed</strong> — all time: your words per minute (word count over the time
       actually recorded) with your fastest and slowest books.</li>
     <li><strong>The last 12 months</strong> — reading hours and books finished per month, as two
@@ -204,9 +208,12 @@ import { withBase } from '../../lib/path'
       shelf. Finished series collapse to a row of covers.</li>
     <li><strong>By type</strong> — per book type: owned, read (out of everything you own), finish
       rate (out of what you started) and reading time in the range.</li>
-    <li><strong>Authors</strong> — your most-read authors in the range by reading time.</li>
-    <li><strong>Backlog</strong> — how long your unread pile would take at your own pace, in total
-      and per type.</li>
+    <li><strong>Languages</strong> — reading time per language, all time, once you read in at least
+      two.</li>
+    <li><strong>Authors</strong> — your ten most-read authors in the range by reading time.</li>
+    <li><strong>Backlog</strong> — how long a pile would take at your own pace, in total and per
+      type. The pile is chosen in the heading: your want-to-read list (the default), everything
+      unread, a library, or a shelf; the choice is remembered in this browser.</li>
   </ul>
   <ul>
     <li><strong>Hours</strong> come from the book's word count at your measured words per minute.
@@ -225,7 +232,8 @@ import { withBase } from '../../lib/path'
     <li><strong>Added to the library</strong> — books added per month by type. A bulk import shows as
       a broken bar with its number instead of flattening every other month.</li>
     <li><strong>All books by reading time</strong> — every book you read in the range, sortable by
-      time, sessions or pages.</li>
+      time, sessions or pages. The arrow at the end of a row opens that book's sessions in place,
+      with the same trim and delete actions as the Sessions tab.</li>
   </ul>
 
   <h2>Taste</h2>
