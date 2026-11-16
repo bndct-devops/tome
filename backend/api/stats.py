@@ -5,7 +5,7 @@ from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
 from fastapi import APIRouter, Depends, Query, HTTPException
-from sqlalchemy import func, case, or_
+from sqlalchemy import func, case, false, or_
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
@@ -14,7 +14,8 @@ from backend.core.permissions import book_visibility_filter
 from backend.core.security import get_current_user
 from backend.models.user import User
 from backend.models.user_dashboard import UserDashboard
-from backend.models.tome_sync import ReadingSession, TomeSyncPosition
+from backend.models.ko_stats import PageStat
+from backend.models.tome_sync import Annotation, ReadingSession, TomeSyncPosition
 from backend.models.book import Book, BookFile
 from backend.models.user_book_status import UserBookStatus
 from backend.models.user_series_rating import UserSeriesRating
@@ -22,7 +23,7 @@ from backend.models.library import BookType
 from backend.services.streaks import reconciled_streak_summary
 from backend.services.reading_day import ROLLOVER_HOURS, DayCtx
 from backend.services import reconciled_reading as rr
-from backend.services.reading_stats import finished_date_expr
+from backend.services.reading_stats import finished_date, finished_date_expr
 from backend.services.audit import audit
 from backend.services.session_hygiene import is_suspect, median_secs_per_page, suggested_seconds
 
@@ -34,6 +35,92 @@ def _date_range(days: int) -> Optional[datetime]:
         return None
     return datetime.utcnow() - timedelta(days=days)
 
+
+
+def _resolve_range(days: int, start: Optional[str], end: Optional[str], tz_offset: int):
+    """(cutoff, range_end, fill_start_local, fill_end_local) for a stats range.
+
+    An explicit `start` switches to a custom date range and overrides `days`.
+    Dates are local; convert to UTC for filtering (UTC = local + tz_offset) but
+    keep the local dates for the daily-fill window, since the daily rows are
+    bucketed by local date. `range_end` is the exclusive upper bound in UTC.
+    """
+    range_end: Optional[datetime] = None
+    fill_start_local = None
+    fill_end_local = None
+    if start:
+        try:
+            sdate = datetime.strptime(start, "%Y-%m-%d")
+            # Reading day D spans local D 04:00 → D+1 04:00 (the 4h rollover), so
+            # the UTC filter bounds shift by the rollover too — otherwise a 1am
+            # session inside the range's last day would be filtered out of it.
+            cutoff = sdate + timedelta(minutes=tz_offset, hours=ROLLOVER_HOURS)
+            fill_start_local = sdate.date()
+        except ValueError:
+            cutoff = _date_range(days)
+        else:
+            if end:
+                try:
+                    edate = datetime.strptime(end, "%Y-%m-%d")
+                    range_end = edate + timedelta(days=1) + timedelta(minutes=tz_offset, hours=ROLLOVER_HOURS)
+                    fill_end_local = edate.date()
+                except ValueError:
+                    range_end = None
+    else:
+        cutoff = _date_range(days)
+    return cutoff, range_end, fill_start_local, fill_end_local
+
+
+def _book_progress(synced, page_pct: float) -> float:
+    """How far through a book is, 0-100: the best of the synced position
+    (stored 0-1 or 0-100) and the furthest page reached in imported page-stats.
+    The Stats page and the completion estimates both use this, so one book
+    shows one percentage everywhere."""
+    p = synced or 0.0
+    p = p * 100 if p <= 1.0 else p
+    return round(min(max(p, page_pct or 0.0), 100.0), 1)
+
+
+def _page_progress(db: Session, user_id: int, book_ids: list[int]) -> dict[int, float]:
+    """book_id -> furthest position in imported page-stats, as a percentage."""
+    if not book_ids:
+        return {}
+    rows = (
+        db.query(PageStat.book_id, func.max(PageStat.page * 1.0 / PageStat.total_pages))
+        .filter(PageStat.user_id == user_id, PageStat.book_id.in_(book_ids), PageStat.total_pages > 0)
+        .group_by(PageStat.book_id)
+        .all()
+    )
+    return {bid: min(float(frac or 0.0), 1.0) * 100 for bid, frac in rows}
+
+
+def _series_next(db: Session, user: User, names: list[str]) -> dict[str, dict]:
+    """Per series: the next volume after the highest one read or being read.
+
+    ``next_index`` is that highest index plus one; ``next_book_id`` is the active
+    book holding it, or None when the library does not have it. Series without
+    numbered volumes get no next index."""
+    if not names:
+        return {}
+    rows = (
+        db.query(Book.id, Book.series, Book.series_index, UserBookStatus.status)
+        .outerjoin(UserBookStatus, (UserBookStatus.book_id == Book.id) & (UserBookStatus.user_id == user.id))
+        .filter(Book.series.in_(names), Book.status == "active", book_visibility_filter(db, user))
+        .all()
+    )
+    top: dict[str, float] = {}
+    by_index: dict[tuple[str, float], int] = {}
+    for bid, series, idx, status in rows:
+        if idx is None:
+            continue
+        by_index.setdefault((series, float(idx)), bid)
+        if status in ("read", "reading"):
+            top[series] = max(top.get(series, idx), idx)
+    out = {}
+    for series, idx in top.items():
+        nxt = float(int(idx) + 1)
+        out[series] = {"next_index": nxt, "next_book_id": by_index.get((series, nxt))}
+    return out
 
 def _last_months(ref, n: int) -> list[date]:
     """First days of the last ``n`` calendar months ending with ``ref``'s
@@ -105,32 +192,8 @@ def get_stats(
     day_ctx = DayCtx(tz_offset, tz)
 
     # Range resolution: an explicit `start` switches to a custom date range and
-    # overrides `days`. Dates are local; convert to UTC for filtering (UTC = local +
-    # tz_offset) but keep the local dates for the daily-fill window, since the daily
-    # rows are bucketed by local date.
-    range_end: Optional[datetime] = None  # exclusive upper bound, UTC
-    fill_start_local = None
-    fill_end_local = None
-    if start:
-        try:
-            sdate = datetime.strptime(start, "%Y-%m-%d")
-            # Reading day D spans local D 04:00 → D+1 04:00 (the 4h rollover), so
-            # the UTC filter bounds shift by the rollover too — otherwise a 1am
-            # session inside the range's last day would be filtered out of it.
-            cutoff = sdate + timedelta(minutes=tz_offset, hours=ROLLOVER_HOURS)
-            fill_start_local = sdate.date()
-        except ValueError:
-            cutoff = _date_range(days)
-        else:
-            if end:
-                try:
-                    edate = datetime.strptime(end, "%Y-%m-%d")
-                    range_end = edate + timedelta(days=1) + timedelta(minutes=tz_offset, hours=ROLLOVER_HOURS)
-                    fill_end_local = edate.date()
-                except ValueError:
-                    range_end = None
-    else:
-        cutoff = _date_range(days)
+    # overrides `days` (see _resolve_range).
+    cutoff, range_end, fill_start_local, fill_end_local = _resolve_range(days, start, end, tz_offset)
 
     # Effective span (days) for period-comparison + year-summary gating.
     if cutoff is not None:
@@ -291,13 +354,14 @@ def get_stats(
         .order_by(UserBookStatus.updated_at.desc())
         .all()
     )
+    page_pct = _page_progress(db, current_user.id, [r.id for r in in_progress_rows])
     books_in_progress = [
         {
             "book_id": r.id,
             "title": r.title,
             "author": r.author,
             "has_cover": bool(r.cover_path),
-            "progress": round(r.progress * 100, 1) if r.progress and r.progress <= 1 else round(r.progress, 1) if r.progress else 0,
+            "progress": _book_progress(r.progress, page_pct.get(r.id, 0.0)),
             "last_read": r.updated_at.isoformat() + "Z" if r.updated_at else None,
         }
         for r in in_progress_rows
@@ -580,6 +644,7 @@ def get_stats(
         .order_by(func.max(UserBookStatus.updated_at).desc().nullslast())
         .all()
     )
+    series_next = _series_next(db, current_user, [r.series for r in series_rows])
     series_completion = [
         {
             "series": r.series,
@@ -588,6 +653,7 @@ def get_stats(
             "reading": int(r.reading_count or 0),
             "pct": round((int(r.read_count or 0) / int(r.total)) * 100, 1) if r.total else 0,
             "sample_book_id": r.sample_book_id,
+            **series_next.get(r.series, {"next_index": None, "next_book_id": None}),
         }
         for r in series_rows
     ]
@@ -781,17 +847,20 @@ def get_stats(
         .all()
     )
     series_sample: dict[str, int] = {}
+    series_books: dict[str, int] = {}
     if series_rating_rows:
         names = [s.series_name for s in series_rating_rows]
-        for sname, bid in (
-            db.query(Book.series, func.min(Book.id))
-            .filter(Book.series.in_(names), Book.status == "active")
+        for sname, bid, n in (
+            db.query(Book.series, func.min(Book.id), func.count(Book.id))
+            .filter(Book.series.in_(names), Book.status == "active", book_visibility_filter(db, current_user))
             .group_by(Book.series)
         ):
             series_sample[sname] = bid
+            series_books[sname] = int(n)
     series_ratings = [
         {"series": s.series_name, "rating": float(s.rating),  # half-star steps
-         "sample_book_id": series_sample.get(s.series_name)}
+         "sample_book_id": series_sample.get(s.series_name),
+         "book_count": series_books.get(s.series_name, 0)}
         for s in series_rating_rows
     ]
 
@@ -1289,8 +1358,7 @@ def get_completion_estimates(
         # and the furthest position reached. Page-stats are coverage, so use the
         # furthest position, not the distinct-page count. max() covers a synced
         # position ahead of the dwell history *and* a stale position behind it.
-        page_pct = round(ps_frac * 100, 1)
-        progress = min(max(progress, page_pct), 100.0)
+        progress = _book_progress(row.progress_raw, ps_frac * 100)
 
         estimated_days: Optional[int] = None
         if session_count == 0 and ps_total > 0 and ps_pages_30 > 0 and ps_days_30 >= 1 and progress < 100:
@@ -1405,6 +1473,187 @@ def get_reading_timeline(
     return {"books": books, "today": today}
 
 
+def _sittings(db: Session, user_id: int, day_ctx: DayCtx, covered: list,
+              cutoff: Optional[datetime], range_end: Optional[datetime]) -> list[tuple[int, int, Optional[int]]]:
+    """Counted sittings in a window as (start epoch, seconds, book_id): the live
+    sessions the totals keep plus the imported page-stat sittings, so their
+    number equals the headline's session count for the same window."""
+    rows = (
+        rr._rs_filtered(db, user_id, covered, cutoff, range_end)
+        .with_entities(ReadingSession.started_at, ReadingSession.duration_seconds, ReadingSession.book_id)
+        .all()
+    )
+    out = [
+        (int(r.started_at.replace(tzinfo=timezone.utc).timestamp()) if r.started_at else 0,
+         int(r.duration_seconds or 0), r.book_id)
+        for r in rows
+    ]
+    if covered:
+        out.extend((int(c.start), int(c.secs or 0), c.book_id)
+                   for c in rr._cluster_rows(db, user_id, day_ctx, cutoff, range_end))
+    return out
+
+
+SESSION_LENGTH_BUCKETS = [
+    ("under_15m", 0, 15 * 60),
+    ("15_to_30m", 15 * 60, 30 * 60),
+    ("30_to_60m", 30 * 60, 60 * 60),
+    ("1_to_2h", 60 * 60, 120 * 60),
+    ("over_2h", 120 * 60, None),
+]
+
+
+@router.get("/stats/habits")
+def get_habits(
+    days: int = Query(30, ge=0),
+    start: Optional[str] = Query(None),
+    end: Optional[str] = Query(None),
+    tz_offset: int = Query(0),
+    tz: Optional[str] = Query(None),
+    db: Session = Depends(_memoized_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """What the Habits page needs beyond /stats: the length of the range's
+    sittings in five buckets, its longest sitting, and the last 14 reading days
+    (4 h rollover) with each day's sittings, for a 04:00-to-04:00 track."""
+    day_ctx = DayCtx(tz_offset, tz)
+    cutoff, range_end, _, _ = _resolve_range(days, start, end, tz_offset)
+    covered = rr.covered_book_ids(db, current_user.id)
+    sits = _sittings(db, current_user.id, day_ctx, covered, cutoff, range_end)
+    lengths = [
+        {"bucket": key, "count": sum(1 for _, secs, _b in sits if secs >= lo and (hi is None or secs < hi))}
+        for key, lo, hi in SESSION_LENGTH_BUCKETS
+    ]
+
+    today = day_ctx.today()
+    first = today - timedelta(days=13)
+    # Sittings that may start on one of the 14 days, then bucketed exactly by reading day.
+    win_start = datetime.combine(first, datetime.min.time()) - timedelta(days=1)
+    recent = [x for x in _sittings(db, current_user.id, day_ctx, covered, win_start, None)
+              if first <= day_ctx.py_day(x[0]) <= today]
+    longest = max(sits, key=lambda x: x[1], default=None)
+    ids = {b for _, _, b in recent if b is not None} | ({longest[2]} if longest and longest[2] else set())
+    titles = dict(db.query(Book.id, Book.title).filter(Book.id.in_(ids)).all()) if ids else {}
+
+    def iso(epoch: int) -> str:
+        return datetime.fromtimestamp(epoch, timezone.utc).replace(tzinfo=None).isoformat() + "Z"
+
+    daily = rr.daily_map(db, current_user.id, day_ctx, covered, win_start, None)
+    by_day: dict[str, list] = defaultdict(list)
+    for st, secs, bid in sorted(recent):
+        by_day[day_ctx.py_day(st).isoformat()].append(
+            {"started_at": iso(st), "seconds": secs, "book_id": bid, "title": titles.get(bid)})
+    last_14 = []
+    for i in range(14):
+        d = (first + timedelta(days=i)).isoformat()
+        last_14.append({"date": d, "seconds": int(daily.get(d, (0, 0, 0))[0]), "sittings": by_day.get(d, [])})
+
+    return {
+        "sessions": len(sits),
+        "session_lengths": lengths,
+        "longest_session": {
+            "seconds": longest[1], "book_id": longest[2], "title": titles.get(longest[2]),
+            "started_at": iso(longest[0]),
+        } if longest and longest[1] > 0 else None,
+        "last_14_days": last_14,
+    }
+
+
+@router.get("/stats/library")
+def get_library_stats(
+    tz_offset: int = Query(0),
+    tz: Optional[str] = Query(None),
+    db: Session = Depends(_memoized_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Finished books by publication year, and how long finishing took.
+
+    Days to finish count inclusively from a book's first reading day to its
+    finish, where the finish is the earlier of the finished date and the last
+    reading day: a book marked read in bulk weeks after it was last opened
+    finished when the reading stopped."""
+    day_ctx = DayCtx(tz_offset, tz)
+    finished = (
+        db.query(UserBookStatus, Book.title, Book.year)
+        .join(Book, Book.id == UserBookStatus.book_id)
+        .filter(
+            UserBookStatus.user_id == current_user.id,
+            UserBookStatus.status == "read",
+            Book.status == "active",
+            book_visibility_filter(db, current_user),
+        )
+        .all()
+    )
+    years: dict[int, int] = defaultdict(int)
+    no_year = 0
+    for _st, _title, year in finished:
+        if year:
+            years[int(year)] += 1
+        else:
+            no_year += 1
+
+    covered = rr.covered_book_ids(db, current_user.id)
+    first_last: dict[int, list[str]] = {}
+    for (bid, d), secs in rr.book_day_seconds(db, current_user.id, day_ctx, covered).items():
+        if secs <= 0 or d is None:
+            continue
+        fl = first_last.setdefault(bid, [d, d])
+        fl[0], fl[1] = min(fl[0], d), max(fl[1], d)
+    spans = []
+    for st, title, _year in finished:
+        fl = first_last.get(st.book_id)
+        fd = finished_date(st)
+        if not fl or fd is None:
+            continue
+        first = date.fromisoformat(fl[0])
+        finish = min(day_ctx.py_day(int(fd.replace(tzinfo=timezone.utc).timestamp())), date.fromisoformat(fl[1]))
+        spans.append((max(1, (finish - first).days + 1), st.book_id, title))
+    spans.sort()
+    buckets = [("1_day", 1, 1), ("2_to_3", 2, 3), ("4_to_7", 4, 7), ("1_to_2_weeks", 8, 14), ("longer", 15, None)]
+    n = len(spans)
+    median = None
+    if n:
+        mid = n // 2
+        median = spans[mid][0] if n % 2 else (spans[mid - 1][0] + spans[mid][0]) / 2
+    return {
+        "finished": len(finished),
+        "published": {"years": [{"year": y, "count": c} for y, c in sorted(years.items())], "no_year": no_year},
+        "time_to_finish": {
+            "books": n,
+            "median_days": median,
+            "buckets": [{"bucket": k, "count": sum(1 for d, _, _ in spans if d >= lo and (hi is None or d <= hi))}
+                        for k, lo, hi in buckets],
+            "quickest": {"days": spans[0][0], "count": sum(1 for d, _, _ in spans if d == spans[0][0])} if n else None,
+            "slowest": {"days": spans[-1][0], "book_id": spans[-1][1], "title": spans[-1][2]} if n else None,
+        },
+    }
+
+
+@router.get("/stats/highlights")
+def get_highlight_stats(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """How many highlights the user has, in how many books, and the books with the most."""
+    q = (
+        db.query(Annotation)
+        .join(Book, Book.id == Annotation.book_id)
+        .filter(Annotation.user_id == current_user.id, Book.status == "active",
+                book_visibility_filter(db, current_user))
+    )
+    count = q.count()
+    books = q.with_entities(func.count(func.distinct(Annotation.book_id))).scalar() or 0
+    top = (
+        q.with_entities(Annotation.book_id, Book.title, func.count(Annotation.id).label("n"))
+        .group_by(Annotation.book_id, Book.title)
+        .order_by(func.count(Annotation.id).desc(), func.max(Annotation.created_at).desc())
+        .limit(5)
+        .all()
+    )
+    return {"count": count, "books": int(books),
+            "top": [{"book_id": r.book_id, "title": r.title, "count": int(r.n)} for r in top]}
+
+
 @router.get("/stats/sessions")
 def list_sessions(
     offset: int = Query(0, ge=0),
@@ -1414,11 +1663,19 @@ def list_sessions(
     tz_offset: int = Query(0),
     tz: Optional[str] = Query(None),
     day: Optional[str] = Query(None, pattern=r"^\d{4}-\d{2}-\d{2}$"),
+    counted: str = Query("all", pattern="^(all|counted|not_counted)$"),
+    day_totals: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
     """List the current user's reading sessions, merged with imported KOReader
     history.
+
+    ``counted`` narrows the list to the rows the totals count (``counted``) or
+    to the live sessions they leave out (``not_counted``); ``counts`` always
+    reports all three sizes. With ``day_totals`` the answer also carries, for
+    each local calendar day (no rollover) that has a row on this page, the
+    seconds of every counted row that started that day, on this page or not.
 
     ``day`` (a reading-day string as emitted in ``session_timeline``, bucketed
     with ``tz_offset`` + 4h rollover) narrows the list to sittings that
@@ -1455,6 +1712,18 @@ def list_sessions(
         base = base.filter(
             DayCtx(tz_offset, tz).dt_day(ReadingSession.started_at) == day
         )
+    # Live sessions the totals leave out: device sittings imported history also
+    # describes. Only sessions on covered books can be superseded.
+    not_counted_q = (
+        base.filter(ReadingSession.book_id.in_(covered), rr.superseded_clause())
+        if covered else None
+    )
+    n_sessions_all = base.count()
+    n_not_counted = not_counted_q.count() if not_counted_q is not None else 0
+    if counted == "not_counted":
+        base = not_counted_q if not_counted_q is not None else base.filter(false())
+    elif counted == "counted" and covered:
+        base = base.filter(or_(ReadingSession.book_id.notin_(covered), rr.counted_clause()))
     total_sessions = base.count()
     order = (
         ReadingSession.duration_seconds.desc()
@@ -1496,7 +1765,15 @@ def list_sessions(
         )
         if day is not None:
             clusters = [c for c in clusters if c.day == day]
+    all_clusters = clusters
+    if counted == "not_counted":
+        clusters = []
     total = total_sessions + len(clusters)
+    counts = {
+        "all": n_sessions_all + len(all_clusters),
+        "counted": n_sessions_all - n_not_counted + len(all_clusters),
+        "not_counted": n_not_counted,
+    }
 
     def _sess_key(r) -> int:
         if sort == "longest":
@@ -1528,10 +1805,14 @@ def list_sessions(
     # Which of this page's live sessions are superseded by imported history —
     # one probe over the page's ids, same predicate the totals use.
     page_ids = [e[2].id for e in page if e[1] == "session" and e[2].book_id in covered]
+    if counted != "all":
+        page_ids = []
     superseded_ids: set[int] = set(
         r[0] for r in db.query(ReadingSession.id)
         .filter(ReadingSession.id.in_(page_ids), rr.superseded_clause()).all()
     ) if page_ids else set()
+    if counted == "not_counted":
+        superseded_ids = {e[2].id for e in page if e[1] == "session"}
 
     out = []
     for _, kind, r in page:
@@ -1574,7 +1855,43 @@ def list_sessions(
                 "range_start": start,
                 "range_end": last_start,
             })
-    return {"total": total, "sessions": out}
+    result: dict = {"total": total, "counts": counts, "sessions": out}
+    if day_totals:
+        result["day_totals"] = _calendar_day_totals(
+            db, current_user.id, DayCtx(tz_offset, tz, rollover_hours=0), covered, all_clusters,
+            book_id, [o["started_at"] for o in out if o["started_at"]],
+        )
+    return result
+
+
+def _calendar_day_totals(db: Session, user_id: int, cal: DayCtx, covered: set, clusters: list,
+                         book_id: Optional[int], starts: list[str]) -> dict[str, int]:
+    """Seconds of every counted row per local calendar day, for the days these
+    rows started on. Counted rows are the live sessions the totals keep plus
+    every imported sitting, as the session list shows them."""
+    def epoch(iso: str) -> int:
+        return int(datetime.fromisoformat(iso.rstrip("Z")).replace(tzinfo=timezone.utc).timestamp())
+
+    days = {cal.py_day(epoch(s)).isoformat() for s in starts}
+    if not days:
+        return {}
+    lo = datetime.strptime(min(days), "%Y-%m-%d") - timedelta(days=1)
+    hi = datetime.strptime(max(days), "%Y-%m-%d") + timedelta(days=2)
+    q = rr._rs_filtered(db, user_id, sorted(covered), lo, hi)
+    if book_id is not None:
+        q = q.filter(ReadingSession.book_id == book_id)
+    out = {d: 0 for d in days}
+    for started_at, secs in q.with_entities(ReadingSession.started_at, ReadingSession.duration_seconds):
+        if started_at is None:
+            continue
+        d = cal.py_day(int(started_at.replace(tzinfo=timezone.utc).timestamp())).isoformat()
+        if d in out:
+            out[d] += int(secs or 0)
+    for c in clusters:
+        d = cal.py_day(int(c.start)).isoformat()
+        if d in out:
+            out[d] += int(c.secs or 0)
+    return out
 
 
 @router.delete("/stats/sessions/{session_id}")

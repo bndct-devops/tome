@@ -37,7 +37,7 @@ def test_ratings_block(client, db, admin_user, make_book):
     assert r["by_category"][0]["avg"] == 3.0 and r["by_category"][0]["count"] == 3
 
     # series rating, with a sample book for the cover
-    assert r["series"] == [{"series": "S1", "rating": 4, "sample_book_id": great.id}]
+    assert r["series"] == [{"series": "S1", "rating": 4, "sample_book_id": great.id, "book_count": 1}]
 
     # trend ordered by rated_at
     assert [t["rating"] for t in r["trend"]] == [5, 3, 1]
