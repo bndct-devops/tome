@@ -2,6 +2,9 @@
 // titles, Stat figures, real covers on hairlines). Every section's size follows
 // from fixed heights and row counts, so the skeleton below draws each box where
 // the loaded page will have it and nothing moves when the data arrives.
+// Motion and hover come from the kit: each section has an entry (kit/motion.ts:
+// range-bound sections play again for a new range, the rest once a session),
+// figures count up (CountUp), and chart marks, tracks and covers have tips (kit/tip.ts).
 import { useEffect, useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans } from '@lingui/react/macro'
@@ -11,6 +14,9 @@ import { SectionTitle } from '@/components/page'
 import type { CompletionEstimate, StatsResponse } from '@/components/stats/shared'
 import { fmtDay as fmtShortDay, type CustomRange } from '@/components/stats/range'
 import { Cover, Heading, Ph, Track } from '@/components/stats/kit/Kit'
+import { CountUp } from '@/components/stats/kit/CountUp'
+import { K, ONCE, rangeSig, stagger, useEntry } from '@/components/stats/kit/motion'
+import { tipAttrs } from '@/components/stats/kit/tip'
 import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
 import { BarsChart, HourHeat, YearGrid } from './charts'
 import { dayDiff, emptyYear, heroBars, hourHeatHeight, hourModel, readingDayOf, yearHeight, yearModel } from './model'
@@ -59,20 +65,23 @@ export function Overview({ stats, estimates, pending, days, custom, onAllBooks }
   const prevPhrase = custom ? t`the previous ${span} days` : days === 365 ? t`the previous 12 months` : t`the previous ${days} days`
 
   const dim = pending ? DIM : UNDIM
+  // What the entries key on: the range the answer is for (sections that follow it), or once.
+  const sig = stats ? rangeSig(days, custom) : null
+  const once = stats ? ONCE : null
 
   return (
     <div ref={ref} style={LEVELS} className={cn('flex flex-col', desktop ? 'gap-[52px]' : 'gap-10')} aria-busy={loading || pending}>
       {width > 0 && (
         <>
-          <Hero stats={stats} desktop={desktop} width={width} loading={loading} neverRead={neverRead} prevPhrase={prevPhrase} days={days} dim={dim} />
-          <ReadingNow stats={stats} estimates={estimates} desktop={desktop} loading={loading} />
-          <Finished stats={stats} width={width} desktop={desktop} loading={loading} rangePhrase={rangePhrase} dim={dim} />
+          <Hero stats={stats} desktop={desktop} width={width} loading={loading} neverRead={neverRead} prevPhrase={prevPhrase} days={days} dim={dim} sig={sig} />
+          <ReadingNow stats={stats} estimates={estimates} desktop={desktop} loading={loading} sig={once} />
+          <Finished stats={stats} width={width} desktop={desktop} loading={loading} rangePhrase={rangePhrase} dim={dim} sig={sig} />
           <div className={cn(desktop ? 'grid grid-cols-2 gap-4' : 'flex flex-col gap-10')}>
-            <TopBooks stats={stats} loading={loading} desktop={desktop} rangePhrase={rangePhrase} onAllBooks={onAllBooks} dim={dim} />
-            <WhenYouRead stats={stats} loading={loading} width={desktop ? Math.floor((width - 16) / 2) : width} desktop={desktop} dim={dim} />
+            <TopBooks stats={stats} loading={loading} desktop={desktop} rangePhrase={rangePhrase} onAllBooks={onAllBooks} dim={dim} sig={sig} />
+            <WhenYouRead stats={stats} loading={loading} width={desktop ? Math.floor((width - 16) / 2) : width} desktop={desktop} dim={dim} sig={sig} />
           </div>
-          <TheYear stats={stats} loading={loading} width={width} desktop={desktop} />
-          <Records stats={stats} loading={loading} desktop={desktop} />
+          <TheYear stats={stats} loading={loading} width={width} desktop={desktop} sig={once} />
+          <Records stats={stats} loading={loading} desktop={desktop} sig={once} />
         </>
       )}
     </div>
@@ -81,7 +90,7 @@ export function Overview({ stats, estimates, pending, days, custom, onAllBooks }
 
 // ── Hero: reading time, four figures, the chart ───────────────────────────────
 
-function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, dim }: {
+function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, dim, sig }: {
   stats: StatsResponse | null
   desktop: boolean
   width: number
@@ -90,11 +99,13 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, dim
   prevPhrase: string
   days: number
   dim: string
+  sig: string | null
 }) {
+  const e = useEntry('overview/hero', sig)
   const h = stats?.headline
   const pc = stats?.period_comparison ?? null
   const chart = useMemo(() => (stats ? heroBars(stats.daily) : null), [stats])
-  const totalLabel = h ? formatDuration(h.total_reading_seconds) : PH.total
+  const totalLabel = h ? <CountUp entry={e} value={h.total_reading_seconds} format={formatDuration} /> : PH.total
 
   let delta: ReactNode = ' '
   if (loading) delta = <Ph on>{PH.delta}</Ph>
@@ -130,22 +141,22 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, dim
   const longestLine = h && h.streaks.current_days > 0 && h.streaks.current_days >= longest ? t`your longest` : plural(longest, { one: 'longest # day', other: 'longest # days' })
 
   const figs: { label: ReactNode; value: ReactNode; unit?: ReactNode; foot: ReactNode; tone?: string; ph: string; phFoot: string }[] = [
-    { label: <Trans>Sessions</Trans>, value: h ? num(h.total_sessions) : '', foot: h ? (() => { const avg = formatDuration(h.avg_session_seconds); return t`avg ${avg}` })() : '', ph: PH.sessions, phFoot: PH.sessionsFoot },
+    { label: <Trans>Sessions</Trans>, value: h ? <CountUp entry={e} value={h.total_sessions} format={num} /> : '', foot: h ? (() => { const avg = formatDuration(h.avg_session_seconds); return t`avg ${avg}` })() : '', ph: PH.sessions, phFoot: PH.sessionsFoot },
     {
       label: <Trans>Pages</Trans>,
-      value: h ? num(h.pages_turned) : '',
+      value: h ? <CountUp entry={e} value={h.pages_turned} format={num} /> : '',
       foot: h && stats ? (() => { const perDay = num(Math.round(h.pages_turned / Math.max(1, stats.daily.length))); return t`${perDay} a day` })() : '',
       ph: PH.pages, phFoot: PH.pagesFoot,
     },
     {
       label: <Trans context="reading">Finished</Trans>,
-      value: h ? num(h.books_finished) : '',
+      value: h ? <CountUp entry={e} value={h.books_finished} format={num} /> : '',
       foot: <span className="whitespace-nowrap">{pc ? prev(pc.previous_books_finished, prevPhrase) : ' '}</span>,
       tone: 'text-success', ph: PH.finished, phFoot: PH.finishedFoot,
     },
     {
       label: <Trans>Streak</Trans>,
-      value: h ? num(h.streaks.current_days) : '',
+      value: h ? <CountUp entry={e} value={h.streaks.current_days} format={num} /> : '',
       unit: h ? plural(h.streaks.current_days, { one: 'day', other: 'days' }) : null,
       foot: h ? <>{streakStart ? t`since ${streakStart}` : ' '}<br />{longestLine}</> : '',
       tone: 'text-primary', ph: PH.streak, phFoot: PH.streakFoot,
@@ -190,7 +201,7 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, dim
   )
 
   return (
-    <section data-box="hero" className={cn(desktop ? cn('border-b pb-10', HAIR) : 'flex flex-col', dim)}>
+    <section ref={e.ref} data-box="hero" className={cn(desktop ? cn('border-b pb-10', HAIR) : 'flex flex-col', dim)}>
       <div className={desktop ? 'grid grid-cols-[342px_repeat(4,minmax(0,1fr))] items-start' : 'contents'}>
         <div data-box="hero-total" className={cn('min-w-0', desktop ? 'pr-5' : 'order-0')}>
           <div className="text-[14px] text-muted-foreground"><Trans>Reading time</Trans></div>
@@ -226,7 +237,8 @@ function rememberNowCount(n: number) {
   }
 }
 
-function ReadingNow({ stats, estimates, desktop, loading }: { stats: StatsResponse | null; estimates: CompletionEstimate[] | null; desktop: boolean; loading: boolean }) {
+function ReadingNow({ stats, estimates, desktop, loading, sig }: { stats: StatsResponse | null; estimates: CompletionEstimate[] | null; desktop: boolean; loading: boolean; sig: string | null }) {
+  const e = useEntry('overview/now', sig)
   // The skeleton reserves as many cards as the last answer had (remembered per
   // browser), so a reader with one or three books in progress sees no shift.
   const books = stats ? stats.books_in_progress.slice(0, 3) : Array.from({ length: rememberedNowCount() }, () => null)
@@ -255,32 +267,39 @@ function ReadingNow({ stats, estimates, desktop, loading }: { stats: StatsRespon
   }
 
   return (
-    <section data-box="now">
+    <section ref={e.ref} data-box="now">
       <Heading><Trans>Reading now</Trans></Heading>
       {books.length === 0 ? (
         <p className="flex h-[108px] items-center text-[15px] text-muted-foreground">{stats && <Trans>Nothing in progress. Books you start show up here.</Trans>}</p>
       ) : (
         <div className={desktop ? 'grid grid-cols-12 gap-4' : 'flex flex-col gap-5'}>
-          {books.map((b, i) => (
-            <div key={b?.book_id ?? i} data-box={`now-card-${i}`} className={cn('flex min-w-0 items-center gap-5', span)}>
-              {b ? (
-                <Link to={`/books/${b.book_id}`} className="shrink-0" aria-label={b.title}><Cover id={b.has_cover ? b.book_id : null} h={108} /></Link>
-              ) : (
-                <Cover id={null} h={108} />
-              )}
-              <div className="min-w-0 flex-1">
-                <div className={cn('truncate font-display font-bold text-foreground', desktop ? 'text-[20px]' : 'text-[18px]', 'leading-[1.15]')}>
-                  {b ? <Link to={`/books/${b.book_id}`} className="hover:underline underline-offset-4">{b.title}</Link> : <Ph on>{PH.title}</Ph>}
+          {books.map((b, i) => {
+            // A card is one link to its book: the title underlines and the cover lifts on hover, as on Home.
+            const body = (
+              <>
+                <Cover id={b ? (b.has_cover ? b.book_id : null) : null} h={108} className={b ? 'transition-transform duration-200 group-hover:-translate-y-0.5' : undefined} />
+                <div className="min-w-0 flex-1">
+                  <div className={cn('truncate font-display font-bold text-foreground', desktop ? 'text-[20px]' : 'text-[18px]', 'leading-[1.15]')}>
+                    {b ? <span className="underline-offset-4 group-hover:underline">{b.title}</span> : <Ph on>{PH.title}</Ph>}
+                  </div>
+                  <div className="mt-1 truncate text-[15px] leading-[1.4] text-muted-foreground">{b ? b.author ?? ' ' : <Ph on>{PH.author}</Ph>}</div>
+                  <div className="mt-3 flex h-5 items-center gap-3">
+                    <Track pct={b?.progress ?? 0} className={loading ? 'opacity-40' : ''} style={stagger(i, books.length)} />
+                    <span className="text-[17px] font-bold tabular-nums text-foreground">
+                      <Ph on={!b}>{b ? <><CountUp entry={e} value={Math.round(b.progress)} format={String} />%</> : PH.pct}</Ph>
+                    </span>
+                  </div>
+                  <div className="mt-2 truncate text-[14px] leading-[1.4] text-muted-foreground">{b ? line(b) || ' ' : <Ph on>{PH.bookLine}</Ph>}</div>
                 </div>
-                <div className="mt-1 truncate text-[15px] leading-[1.4] text-muted-foreground">{b ? b.author ?? ' ' : <Ph on>{PH.author}</Ph>}</div>
-                <div className="mt-3 flex h-5 items-center gap-3">
-                  <Track pct={b?.progress ?? 0} className={loading ? 'opacity-40' : ''} />
-                  <span className="text-[17px] font-bold tabular-nums text-foreground"><Ph on={!b}>{b ? `${Math.round(b.progress)}%` : PH.pct}</Ph></span>
-                </div>
-                <div className="mt-2 truncate text-[14px] leading-[1.4] text-muted-foreground">{b ? line(b) || ' ' : <Ph on>{PH.bookLine}</Ph>}</div>
-              </div>
-            </div>
-          ))}
+              </>
+            )
+            const box = cn('flex min-w-0 items-center gap-5', span)
+            return b ? (
+              <Link key={b.book_id} to={`/books/${b.book_id}`} data-box={`now-card-${i}`} className={cn(box, 'group rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background')}>{body}</Link>
+            ) : (
+              <div key={i} data-box={`now-card-${i}`} className={box}>{body}</div>
+            )
+          })}
         </div>
       )}
     </section>
@@ -289,7 +308,8 @@ function ReadingNow({ stats, estimates, desktop, loading }: { stats: StatsRespon
 
 // ── Finished: one row of covers at a fixed height ─────────────────────────────
 
-function Finished({ stats, width, desktop, loading, rangePhrase, dim }: { stats: StatsResponse | null; width: number; desktop: boolean; loading: boolean; rangePhrase: string; dim: string }) {
+function Finished({ stats, width, desktop, loading, rangePhrase, dim, sig }: { stats: StatsResponse | null; width: number; desktop: boolean; loading: boolean; rangePhrase: string; dim: string; sig: string | null }) {
+  const e = useEntry('overview/finished', sig)
   const books = useMemo(() => {
     if (!stats) return []
     const monthOf = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short' })
@@ -312,13 +332,19 @@ function Finished({ stats, width, desktop, loading, rangePhrase, dim }: { stats:
     const label = b && b.monthKey !== prevMonth ? b.month : ''
     if (b) prevMonth = b.monthKey
     const finishedOn = b ? fmtDay(b.date) : ''
-    const bookTitle = b?.title ?? ''
-    const tip = b ? t`${bookTitle}, finished ${finishedOn}` : undefined
     cells.push(
       <div key={b ? `${b.book_id}-${b.k}` : i} className="flex shrink-0 flex-col gap-2">
         <div className="h-[18px] whitespace-nowrap text-[13px] font-medium leading-[18px] text-muted-foreground">{loading && i === 0 ? <Ph on>{PH.month}</Ph> : label}</div>
         {b ? (
-          <Link to={`/books/${b.book_id}`} title={tip} aria-label={tip}><Cover id={b.book_id} h={COVER_SHELF_H} /></Link>
+          <Link
+            to={`/books/${b.book_id}`}
+            aria-label={b.title}
+            {...tipAttrs({ title: b.title, value: t`Finished ${finishedOn}` })}
+            className={cn('group block rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', K.rise)}
+            style={stagger(i, shown + (n > shown ? 1 : 0))}
+          >
+            <Cover id={b.book_id} h={COVER_SHELF_H} className="transition-transform duration-200 group-hover:-translate-y-0.5" />
+          </Link>
         ) : (
           <Cover id={null} h={COVER_SHELF_H} />
         )}
@@ -327,19 +353,28 @@ function Finished({ stats, width, desktop, loading, rangePhrase, dim }: { stats:
   }
   if (n > shown) {
     const more = n - shown
+    // "+N" leads to the library's read books, as Home's "+N" leads to the books being read.
+    // The library has no finish dates to filter by, so the list there is every read book,
+    // which the tip says.
+    const moreTitle = plural(more, { one: '# more finished', other: '# more finished' })
     cells.push(
       <div key="more" className="flex shrink-0 flex-col gap-2">
         <div className="h-[18px]" />
-        <div className="grid place-items-center rounded-[8px] bg-secondary text-[15px] font-semibold text-muted-foreground" style={{ width: COVER_SHELF_W, height: COVER_SHELF_H }} title={plural(n, { one: '# finished book', other: '# finished books' })}>
+        <Link
+          to="/?tab=books&reading_status=read"
+          {...tipAttrs({ title: moreTitle, note: t`Show every read book in the library` })}
+          className={cn('grid place-items-center rounded-[8px] bg-secondary text-[15px] font-semibold text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', K.rise)}
+          style={{ width: COVER_SHELF_W, height: COVER_SHELF_H, ...stagger(shown, shown + 1) }}
+        >
           +{more}
-        </div>
+        </Link>
       </div>,
     )
   }
   const note = stats ? plural(count, { one: `# book in ${rangePhrase}`, other: `# books in ${rangePhrase}` }) : <Ph on>{PH.shelfNote}</Ph>
 
   return (
-    <section data-box="finished" className={dim}>
+    <section ref={e.ref} data-box="finished" className={dim}>
       <Heading note={note}><Trans context="reading">Finished</Trans></Heading>
       {stats && count === 0 ? (
         <p className="flex items-center text-[15px] text-muted-foreground" style={{ height: COVER_SHELF_H + 26 }}>{t`Nothing finished in ${rangePhrase}.`}</p>
@@ -356,12 +391,14 @@ function Finished({ stats, width, desktop, loading, rangePhrase, dim }: { stats:
 
 // ── Where the time went ───────────────────────────────────────────────────────
 
-function TopBooks({ stats, loading, desktop, rangePhrase, onAllBooks, dim }: { stats: StatsResponse | null; loading: boolean; desktop: boolean; rangePhrase: string; onAllBooks: () => void; dim: string }) {
+function TopBooks({ stats, loading, desktop, rangePhrase, onAllBooks, dim, sig }: { stats: StatsResponse | null; loading: boolean; desktop: boolean; rangePhrase: string; onAllBooks: () => void; dim: string; sig: string | null }) {
+  const e = useEntry('overview/top', sig)
+  const total = stats?.headline.total_reading_seconds ?? 0
   const rows = stats ? stats.top_books.slice(0, TOP_ROWS) : Array.from({ length: TOP_ROWS }, () => null)
   const max = Math.max(1, ...(stats?.top_books.slice(0, 1).map((b) => b.seconds) ?? [1]))
   const covers = useMemo(() => new Map((stats?.per_book_time ?? []).map((b) => [b.book_id, b.has_cover])), [stats])
   return (
-    <section data-box="top" className={cn('min-w-0', dim)}>
+    <section ref={e.ref} data-box="top" className={cn('min-w-0', dim)}>
       <Heading><Trans>Where the time went</Trans></Heading>
       <div data-box="top-rows" style={{ minHeight: TOP_ROWS * 54 + (TOP_ROWS - 1) }}>
         {stats && rows.length === 0 ? (
@@ -369,26 +406,36 @@ function TopBooks({ stats, loading, desktop, rangePhrase, onAllBooks, dim }: { s
         ) : (
           rows.map((b, i) => {
             const dur = b ? formatDuration(b.seconds) : PH.dur
-            return (
-              <div key={b?.book_id ?? i} data-box={`top-row-${i}`} className={cn('flex h-[54px] items-center gap-4', i > 0 && cn('border-t', HAIR))}>
-                {b ? (
-                  <Link to={`/books/${b.book_id}`} className="shrink-0" aria-label={b.title}><Cover id={covers.get(b.book_id) === false ? null : b.book_id} h={48} className="rounded-[6px]" /></Link>
-                ) : (
-                  <Cover id={null} h={48} className="rounded-[6px]" />
-                )}
+            const share = b && total > 0 ? Math.round((b.seconds / total) * 100) : 0
+            const sessions = b ? plural(b.sessions, { one: '# session', other: '# sessions' }) : ''
+            const body = (
+              <>
+                <Cover id={b ? (covers.get(b.book_id) === false ? null : b.book_id) : null} h={48} className="rounded-[6px]" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-4">
-                    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-foreground">
-                      {b ? <Link to={`/books/${b.book_id}`} className="hover:underline underline-offset-4">{b.title}</Link> : <Ph on>{PH.title}</Ph>}
+                    <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-foreground transition-colors group-hover:text-primary">
+                      {b ? b.title : <Ph on>{PH.title}</Ph>}
                     </span>
                     {desktop && <span className="whitespace-nowrap text-[14px] text-muted-foreground"><Ph on={!b}>{dur}</Ph></span>}
                   </div>
                   <div className={cn('flex items-center gap-3', desktop ? 'mt-[9px]' : 'mt-2')}>
-                    <Track pct={b ? (b.seconds / max) * 100 : 0} className={loading ? 'opacity-40' : ''} />
+                    <Track
+                      pct={b ? (b.seconds / max) * 100 : 0}
+                      className={loading ? 'opacity-40' : ''}
+                      style={stagger(i, rows.length)}
+                      tip={b ? tipAttrs({ title: b.title, value: dur, note: t`${sessions} · ${share}% of the reading in ${rangePhrase}` }) : undefined}
+                    />
                     {!desktop && <span className="whitespace-nowrap text-[13px] text-muted-foreground"><Ph on={!b}>{dur}</Ph></span>}
                   </div>
                 </div>
-              </div>
+              </>
+            )
+            const row = cn('flex h-[54px] items-center gap-4', i > 0 && cn('border-t', HAIR))
+            // A row is one link to its book; the title takes the accent on hover, as Home's rows do.
+            return b ? (
+              <Link key={b.book_id} to={`/books/${b.book_id}`} data-box={`top-row-${i}`} className={cn(row, 'group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}>{body}</Link>
+            ) : (
+              <div key={i} data-box={`top-row-${i}`} className={row}>{body}</div>
             )
           })
         )}
@@ -402,7 +449,8 @@ function TopBooks({ stats, loading, desktop, rangePhrase, onAllBooks, dim }: { s
 
 // ── When you read ─────────────────────────────────────────────────────────────
 
-function WhenYouRead({ stats, loading, width, desktop, dim }: { stats: StatsResponse | null; loading: boolean; width: number; desktop: boolean; dim: string }) {
+function WhenYouRead({ stats, loading, width, desktop, dim, sig }: { stats: StatsResponse | null; loading: boolean; width: number; desktop: boolean; dim: string; sig: string | null }) {
+  const e = useEntry('overview/when', sig)
   const two = !desktop
   const histH = desktop ? 86 : 48
   const m = useMemo(() => hourModel(stats?.hour_dow_heatmap ?? [], two), [stats, two])
@@ -417,11 +465,11 @@ function WhenYouRead({ stats, loading, width, desktop, dim }: { stats: StatsResp
     sentence = t`Mostly between ${fromH} and ${toH}, most on ${day}.`
   }
   return (
-    <section data-box="when" className={cn('min-w-0', dim)}>
+    <section ref={e.ref} data-box="when" className={cn('min-w-0', dim)}>
       <Heading note={two ? t`two-hour columns` : undefined}><Trans>When you read</Trans></Heading>
       <p className={cn('mb-3.5 text-[15px] leading-[1.45] text-foreground', desktop ? 'truncate' : 'line-clamp-2 min-h-[44px] [text-wrap:balance]')}>{sentence}</p>
       <div data-box="when-chart" style={{ height: hourHeatHeight(width, two, histH) }}>
-        <HourHeat W={width} grid={m.grid} byCol={m.byCol} two={two} histH={histH} loading={loading} />
+        <HourHeat W={width} grid={m.grid} byCol={m.byCol} colN={m.colN} two={two} histH={histH} loading={loading} />
       </div>
     </section>
   )
@@ -429,7 +477,8 @@ function WhenYouRead({ stats, loading, width, desktop, dim }: { stats: StatsResp
 
 // ── The year ──────────────────────────────────────────────────────────────────
 
-function TheYear({ stats, loading, width, desktop }: { stats: StatsResponse | null; loading: boolean; width: number; desktop: boolean }) {
+function TheYear({ stats, loading, width, desktop, sig }: { stats: StatsResponse | null; loading: boolean; width: number; desktop: boolean; sig: string | null }) {
+  const e = useEntry('overview/year', sig)
   const year = useMemo(() => yearModel(stats?.heatmap_daily ?? emptyYear()), [stats])
   const weeks = desktop ? null : 26
   const active = year.activeDays
@@ -449,7 +498,7 @@ function TheYear({ stats, loading, width, desktop }: { stats: StatsResponse | nu
       })()
     : []
   return (
-    <section data-box="year">
+    <section ref={e.ref} data-box="year">
       {desktop ? (
         <Heading right note={<Ph on={loading}>{loading ? PH.active : activeText}</Ph>}><Trans>The year</Trans></Heading>
       ) : (
@@ -483,24 +532,25 @@ function TheYear({ stats, loading, width, desktop }: { stats: StatsResponse | nu
 
 // ── Records ───────────────────────────────────────────────────────────────────
 
-function Records({ stats, loading, desktop }: { stats: StatsResponse | null; loading: boolean; desktop: boolean }) {
+function Records({ stats, loading, desktop, sig }: { stats: StatsResponse | null; loading: boolean; desktop: boolean; sig: string | null }) {
+  const e = useEntry('overview/records', sig)
   const r = stats?.records
   const s = stats?.headline.streaks
   const dash = '—'
   const cells: { label: ReactNode; value: ReactNode; unit?: string; sub: string; ph: string; phSub: string }[] = [
-    { label: <Trans>Longest session</Trans>, value: r ? formatDuration(r.longest_session_seconds) : '', sub: r?.longest_session_title ?? dash, ph: PH.session, phSub: PH.title },
-    { label: <Trans>Biggest reading day</Trans>, value: r ? formatDuration(r.biggest_day_seconds) : '', sub: r?.biggest_day_date ? fmtDay(r.biggest_day_date) : dash, ph: PH.day, phSub: PH.date },
-    { label: <Trans>Most pages in a day</Trans>, value: r ? num(r.most_pages_day) : '', unit: r ? plural(r.most_pages_day, { one: 'page', other: 'pages' }) : undefined, sub: r?.most_pages_date ? fmtDay(r.most_pages_date) : dash, ph: PH.pagesDay, phSub: PH.date },
+    { label: <Trans>Longest session</Trans>, value: r ? <CountUp entry={e} value={r.longest_session_seconds} format={formatDuration} /> : '', sub: r?.longest_session_title ?? dash, ph: PH.session, phSub: PH.title },
+    { label: <Trans>Biggest reading day</Trans>, value: r ? <CountUp entry={e} value={r.biggest_day_seconds} format={formatDuration} /> : '', sub: r?.biggest_day_date ? fmtDay(r.biggest_day_date) : dash, ph: PH.day, phSub: PH.date },
+    { label: <Trans>Most pages in a day</Trans>, value: r ? <CountUp entry={e} value={r.most_pages_day} format={num} /> : '', unit: r ? plural(r.most_pages_day, { one: 'page', other: 'pages' }) : undefined, sub: r?.most_pages_date ? fmtDay(r.most_pages_date) : dash, ph: PH.pagesDay, phSub: PH.date },
     {
       label: <Trans>Longest streak</Trans>,
-      value: s ? num(s.longest_days) : '',
+      value: s ? <CountUp entry={e} value={s.longest_days} format={num} /> : '',
       unit: s ? plural(s.longest_days, { one: 'day', other: 'days' }) : undefined,
       sub: s?.longest_start && s.longest_end ? (() => { const a = fmtDay(s.longest_start!), b = fmtDay(s.longest_end!); return t`${a} to ${b}` })() : dash,
       ph: PH.streak, phSub: PH.streakSpan,
     },
   ]
   return (
-    <section data-box="records">
+    <section ref={e.ref} data-box="records">
       <Heading note={<Trans>all time</Trans>}><Trans>Records</Trans></Heading>
       <div className={cn('grid', desktop ? 'grid-cols-4' : 'grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]')}>
         {cells.map((c, i) => (

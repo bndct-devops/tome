@@ -2,10 +2,10 @@
 // computed from the response; nothing is invented. Pure functions, no React.
 import type { StatsResponse } from '@/components/stats/shared'
 
-export type Bar = { start: string; end: string; days: number; seconds: number; current: boolean }
-export type HourCell = { s: number; lv: number }
+export type Bar = { start: string; end: string; days: number; seconds: number; sessions: number; pages: number; current: boolean }
+export type HourCell = { s: number; n: number; lv: number }
 export type HourGrid = HourCell[][]
-export type YearCell = { date: string; s: number; lv: number; col: number; row: number }
+export type YearCell = { date: string; s: number; n: number; pages: number; lv: number; col: number; row: number }
 export type YearModel = { cells: YearCell[]; cols: number; months: { col: number; label: string }[]; cuts: number[]; activeDays: number }
 
 const DAY_MS = 86_400_000
@@ -27,16 +27,17 @@ const monthShort = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateStri
 // today, so every bar but possibly the oldest holds a full week. The newest bar
 // contains today, which is still running, so it is drawn lighter.
 export function heroBars(daily: StatsResponse['daily']) {
+  const total = (xs: StatsResponse['daily'], k: 'seconds' | 'sessions' | 'pages') => xs.reduce((a, d) => a + (d[k] ?? 0), 0)
   const n = daily.length
   const weekly = n > 31
   const bars: Bar[] = []
   if (!weekly) {
-    daily.forEach((d, i) => bars.push({ start: d.date, end: d.date, days: 1, seconds: d.seconds, current: i === n - 1 }))
+    daily.forEach((d, i) => bars.push({ start: d.date, end: d.date, days: 1, seconds: d.seconds, sessions: d.sessions ?? 0, pages: d.pages ?? 0, current: i === n - 1 }))
   } else {
     for (let end = n - 1; end >= 0; end -= 7) {
       const start = Math.max(0, end - 6)
       const slice = daily.slice(start, end + 1)
-      bars.unshift({ start: daily[start].date, end: daily[end].date, days: slice.length, seconds: slice.reduce((a, d) => a + d.seconds, 0), current: end === n - 1 })
+      bars.unshift({ start: daily[start].date, end: daily[end].date, days: slice.length, seconds: total(slice, 'seconds'), sessions: total(slice, 'sessions'), pages: total(slice, 'pages'), current: end === n - 1 })
     }
   }
   // The average per bar of what the chart shows (for All, `daily` is the last 365 days).
@@ -65,24 +66,28 @@ const level = (v: number, cuts: number[]) => (v <= 0 ? 0 : 1 + cuts.filter((c) =
 // ── hour × weekday ────────────────────────────────────────────────────────────
 export function hourModel(cells: StatsResponse['hour_dow_heatmap'], two: boolean) {
   const hd = Array.from({ length: 7 }, () => Array<number>(24).fill(0))
+  const hn = Array.from({ length: 7 }, () => Array<number>(24).fill(0))
   // The server counts weekdays from Sunday = 0; rows here start on Monday.
-  for (const c of cells) hd[(c.dow + 6) % 7][c.hour] += c.seconds
+  for (const c of cells) { hd[(c.dow + 6) % 7][c.hour] += c.seconds; hn[(c.dow + 6) % 7][c.hour] += c.sessions ?? 0 }
   const byHour = Array.from({ length: 24 }, (_, h) => hd.reduce((a, row) => a + row[h], 0))
   const byDow = hd.map((row) => row.reduce((a, v) => a + v, 0))
   const total = byHour.reduce((a, v) => a + v, 0)
-  const values = two ? hd.map((row) => Array.from({ length: 12 }, (_, k) => row[2 * k] + row[2 * k + 1])) : hd
+  const pair = (m: number[][]) => (two ? m.map((row) => Array.from({ length: 12 }, (_, k) => row[2 * k] + row[2 * k + 1])) : m)
+  const values = pair(hd)
+  const counts = pair(hn)
   const cuts = steps(values.flat(), false)
-  const grid: HourGrid = values.map((row) => row.map((s) => ({ s, lv: level(s, cuts) })))
+  const grid: HourGrid = values.map((row, r) => row.map((s, k) => ({ s, n: counts[r][k], lv: level(s, cuts) })))
   const byCol = two ? Array.from({ length: 12 }, (_, k) => byHour[2 * k] + byHour[2 * k + 1]) : byHour
+  const colN = counts[0].map((_, k) => counts.reduce((a, row) => a + row[k], 0))
   const peakHour = total > 0 ? byHour.indexOf(Math.max(...byHour)) : null
   const peakDow = total > 0 ? byDow.indexOf(Math.max(...byDow)) : null
-  return { grid, byCol, peakHour, peakDow }
+  return { grid, byCol, colN, peakHour, peakDow }
 }
 
 // ── the year ──────────────────────────────────────────────────────────────────
 // The last 365 reading days, today included. If that starts mid-week, the partial
 // first week is dropped so the grid starts on a full column (today's may be partial).
-export function yearModel(heatmap: { date: string; seconds: number }[]): YearModel {
+export function yearModel(heatmap: { date: string; seconds: number; sessions?: number; pages?: number }[]): YearModel {
   let year = heatmap.slice(-365)
   const activeDays = year.filter((d) => d.seconds > 0).length
   while (year.length && dowOf(year[0].date) !== 0) year = year.slice(1)
@@ -91,7 +96,7 @@ export function yearModel(heatmap: { date: string; seconds: number }[]): YearMod
   const gridStart = year[0].date
   const cells = year.map((d) => {
     const off = dayDiff(gridStart, d.date)
-    return { date: d.date, s: d.seconds, lv: level(d.seconds, cuts), col: Math.floor(off / 7), row: off % 7 }
+    return { date: d.date, s: d.seconds, n: d.sessions ?? 0, pages: d.pages ?? 0, lv: level(d.seconds, cuts), col: Math.floor(off / 7), row: off % 7 }
   })
   const cols = Math.max(...cells.map((c) => c.col)) + 1
   const months = cells.filter((c) => c.date.endsWith('-01')).map((c) => ({ col: c.row === 0 ? c.col : c.col + 1, label: monthShort(c.date) }))

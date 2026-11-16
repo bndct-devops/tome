@@ -1,12 +1,25 @@
 // The Overview's three charts, drawn as plain SVG on whole pixels at a width the
 // page measures before its first paint, so each chart's box is final at once and
 // nothing resizes when data arrives. Data shaping lives in model.ts.
+// Hover: every mark has a tip (kit/tip.ts); each chart is one focus stop with
+// arrow keys. Entry: marks carry the motion kit's classes (kit/motion.ts); the
+// section around the chart decides when they play.
+import type { CSSProperties } from 'react'
 import { formatDuration } from '@/lib/utils'
-import { t } from '@lingui/core/macro'
+import { t, plural } from '@lingui/core/macro'
+import { K, stagger } from '@/components/stats/kit/motion'
+import { useTips } from '@/components/stats/kit/tip'
 import { columns, type Bar, type HourGrid, type YearModel } from './model'
 
 const fmtShort = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
-const fmtDay = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
+const fmtLong = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
+/** "3 sessions · 120 pages" (pages left out when none were counted). */
+function sessionsLine(sessions: number, pages?: number) {
+  const s = plural(sessions, { one: '# session', other: '# sessions' })
+  if (!pages) return s
+  const p = plural(pages, { one: '# page', other: '# pages' })
+  return `${s} · ${p}`
+}
 const hh = (h: number) => `${String(h % 24).padStart(2, '0')}:00`
 // Onest at 10-11 px: about 0.545 em per character, enough to keep a label clear of a bar.
 const textW = (s: string, px: number) => Math.ceil(s.length * px * 0.545)
@@ -14,6 +27,9 @@ const textW = (s: string, px: number) => Math.ceil(s.length * px * 0.545)
 const LV = ['var(--k-lv0)', 'var(--k-lv1)', 'var(--k-lv2)', 'var(--k-lv3)', 'var(--k-lv4)', 'var(--k-lv5)']
 const GRID = 'color-mix(in oklch, var(--border) 70%, transparent)'
 const TICK = 'color-mix(in oklch, var(--muted-foreground) 60%, transparent)'
+
+// The average's label appears as its line finishes drawing.
+const AVG_LABEL = { '--k-d': '460ms' } as CSSProperties
 
 const roundedTop = (x: number, yt: number, w: number, h: number, r: number) =>
   // eslint-disable-next-line lingui/no-unlocalized-strings -- SVG path
@@ -42,6 +58,15 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, loading
   loading?: boolean
 }) {
   const padL = 30, padB = 24
+  const tips = useTips((i, el) => {
+    const b = bars[i]
+    if (!b) return null
+    const from = fmtShort(b.start), to = fmtShort(b.end)
+    const title = b.days === 1 ? fmtLong(b.start) : t`${from} to ${to}`
+    const note = b.seconds > 0 ? sessionsLine(b.sessions, b.pages) : undefined
+    const today = b.current ? (b.days === 1 ? t`today, still counting` : t`includes today`) : undefined
+    return { title, value: b.seconds > 0 ? formatDuration(b.seconds) : t`No reading`, note: [note, today].filter(Boolean).join(' · ') || undefined, anchor: el.nextElementSibling ?? el }
+  })
   if (loading || W <= padL) return <Placeholder W={Math.max(W, 1)} H={H} x={padL} y={10} h={H - 10 - padB} />
   const avgLabel = formatDuration(Math.round(avg))
   const avgWord = t({ message: 'avg', comment: 'Short for average, before a duration on a chart' })
@@ -67,6 +92,7 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, loading
   const inside = avg > 0 && !g.rects.some((r) => r.x < box.x1 && r.x + r.w > box.x0 && r.yt < box.y1)
   if (avg > 0 && !inside) { padT = 24; g = layout(padT) }
   const { plotW, step, top, y, rects } = g
+  const slotW = plotW / Math.max(1, bars.length)
   const gridLines: number[] = []
   // Hour lines only when the scale is at least an hour; short ranges keep the base line.
   if (top >= 3600) for (let v = step; v * 3600 <= top; v += step) gridLines.push(v)
@@ -74,7 +100,7 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, loading
   const ay = Math.round(y(avg)) + 0.5
   const label = weekly ? t`Reading time per week` : t`Reading time per day`
   return (
-    <svg className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
+    <svg {...tips} className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
       {gridLines.map((v) => {
         const yy = Math.round(y(v * 3600)) + 0.5
         return (
@@ -89,15 +115,12 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, loading
       {bars.map((b, i) => {
         const { x, yt, w } = rects[i]
         const h = Math.round(y(0)) - yt
-        if (h <= 0) return null
-        const dur = formatDuration(b.seconds)
-        const from = fmtShort(b.start)
-        const to = fmtShort(b.end)
-        const tip = b.days === 1 ? `${from}: ${dur}` : b.current ? t`${from} to ${to}: ${dur} (includes today)` : t`${from} to ${to}: ${dur}`
+        // The whole column answers the pointer (washed on hover); the bar on top ignores it.
         return (
-          <path key={b.start} d={roundedTop(x, yt, w, h, Math.min(4, h))} fill="var(--chart-accent)" fillOpacity={b.current ? 0.45 : 1}>
-            <title>{tip}</title>
-          </path>
+          <g key={b.start}>
+            <rect className="k-hit" data-tip-i={i} x={padL + slotW * i} y={padT} width={slotW} height={Math.round(y(0)) - padT} />
+            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(i, bars.length)} d={roundedTop(x, yt, w, h, Math.min(4, h))} fill="var(--chart-accent)" fillOpacity={b.current ? 0.45 : 1} />}
+          </g>
         )
       })}
       {monthStarts.map((m) => {
@@ -111,13 +134,13 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, loading
       })}
       {avg > 0 && (
         <>
-          <line x1={padL} x2={W} y1={ay} y2={ay} stroke="var(--foreground)" strokeOpacity={0.55} strokeDasharray="3 3" shapeRendering="crispEdges" />
+          <line className={`${K.wipe} k-nohit`} x1={padL} x2={W} y1={ay} y2={ay} stroke="var(--foreground)" strokeOpacity={0.55} strokeDasharray="3 3" shapeRendering="crispEdges" />
           {inside ? (
-            <text x={W} y={ay - 6} textAnchor="end" fontSize={10}>{avgWord} <tspan fill="var(--foreground)" fontWeight={600}>{avgLabel}</tspan></text>
+            <text className={`${K.fade} k-nohit`} style={AVG_LABEL} x={W} y={ay - 6} textAnchor="end" fontSize={10}>{avgWord} <tspan fill="var(--foreground)" fontWeight={600}>{avgLabel}</tspan></text>
           ) : (
             <>
-              <line x1={W - labW - 26} x2={W - labW - 8} y1={8.5} y2={8.5} stroke="var(--foreground)" strokeOpacity={0.55} strokeDasharray="3 3" shapeRendering="crispEdges" />
-              <text x={W} y={12} textAnchor="end">{avgWord} <tspan fill="var(--foreground)" fontWeight={600}>{avgLabel}</tspan></text>
+              <line className={K.fade} style={AVG_LABEL} x1={W - labW - 26} x2={W - labW - 8} y1={8.5} y2={8.5} stroke="var(--foreground)" strokeOpacity={0.55} strokeDasharray="3 3" shapeRendering="crispEdges" />
+              <text className={K.fade} style={AVG_LABEL} x={W} y={12} textAnchor="end">{avgWord} <tspan fill="var(--foreground)" fontWeight={600}>{avgLabel}</tspan></text>
             </>
           )}
         </>
@@ -127,7 +150,9 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, loading
 }
 
 // ── Hour by weekday, with the time per hour under it on the same columns ──────
-export function HourHeat({ W, grid, byCol, two, histH, loading }: { W: number; grid: HourGrid; byCol: number[]; two: boolean; histH: number; loading?: boolean }) {
+const daysLong = () => [t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`]
+
+export function HourHeat({ W, grid, byCol, colN, two, histH, loading }: { W: number; grid: HourGrid; byCol: number[]; colN: number[]; two: boolean; histH: number; loading?: boolean }) {
   const ncol = two ? 12 : 24
   const labelW = 34, gap = 2
   const { cell, xs } = columns(labelW, W - labelW, ncol, gap)
@@ -136,37 +161,41 @@ export function HourHeat({ W, grid, byCol, two, histH, loading }: { W: number; g
   const hy = heatH + 12
   const H = hy + histH + 20
   const days = [t`Mon`, t`Tue`, t`Wed`, t`Thu`, t`Fri`, t`Sat`, t`Sun`]
-  if (loading) return <Placeholder W={W} H={H} x={labelW} h={heatH} />
   const span = two ? 2 : 1
+  // Marks in DOM order: the 7 rows of cells, then one column of the histogram per hour.
+  const tips = useTips((i) => {
+    const r = Math.floor(i / ncol), k = i % ncol
+    const range = `${hh(k * span)}–${hh(k * span + span)}`
+    if (r < 7) {
+      const c = grid[r]?.[k]
+      if (!c) return null
+      const day = daysLong()[r]
+      return { title: `${day} ${range}`, value: c.s > 0 ? formatDuration(c.s) : t`No reading`, note: c.s > 0 ? sessionsLine(c.n) : undefined }
+    }
+    const s = byCol[k] ?? 0
+    return { title: t`${range}, all days`, value: s > 0 ? formatDuration(s) : t`No reading`, note: s > 0 ? sessionsLine(colN[k] ?? 0) : undefined }
+  }, { x: 1, y: ncol })
+  if (loading) return <Placeholder W={W} H={H} x={labelW} h={heatH} />
   const maxH = Math.max(1, ...byCol)
   const base = hy + histH
   const perHour = two ? 0.5 : 1
   return (
-    <svg className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading time by hour and weekday`}>
+    <svg {...tips} className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading time by hour and weekday`}>
       {grid.map((row, r) => (
         <g key={r}>
           <text x={labelW - 8} y={r * rp + cell / 2 + 4} textAnchor="end">{days[r]}</text>
-          {row.map((c, k) => {
-            const range = `${hh(k * span)}–${hh(k * span + span)}`
-            const dur = formatDuration(c.s)
-            const day = days[r]
-            return (
-              <rect key={k} x={xs[k]} y={r * rp} width={cell} height={cell} rx={cell >= 16 ? 3 : 2} fill={LV[c.lv]}>
-                <title>{t`${day} ${range}: ${dur}`}</title>
-              </rect>
-            )
-          })}
+          {row.map((c, k) => (
+            <rect key={k} className={`k-cell ${K.fade}`} style={stagger(k, ncol)} data-tip-i={r * ncol + k} x={xs[k]} y={r * rp} width={cell} height={cell} rx={cell >= 16 ? 3 : 2} fill={LV[c.lv]} />
+          ))}
         </g>
       ))}
       {byCol.map((s, k) => {
         const h = Math.round((s / maxH) * histH)
-        if (h <= 0) return null
-        const range = `${hh(k * span)}–${hh(k * span + span)}`
-        const dur = formatDuration(s)
         return (
-          <path key={k} d={roundedTop(xs[k], base - h, cell, h, Math.min(2, h))} fill="var(--chart-accent)">
-            <title>{t`${range}, all days: ${dur}`}</title>
-          </path>
+          <g key={k}>
+            <rect className="k-hit" data-tip-i={7 * ncol + k} x={xs[k] - gap / 2} y={hy} width={cell + gap} height={histH} />
+            {h > 0 && <path className={`${K.grow} k-nohit`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, cell, h, Math.min(2, h))} fill="var(--chart-accent)" />}
+          </g>
         )
       })}
       <line x1={labelW} x2={W} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
@@ -192,26 +221,26 @@ export function YearGrid({ W, year, weeks, loading }: { W: number; year: YearMod
   const { cell, xs } = columns(labelW, W - labelW, n, gap)
   const rp = cell + gap
   const H = top + 7 * rp - gap
+  // Cells in date order, a week per column: Left/Right a week, Up/Down a day.
+  const tips = useTips((i) => {
+    const c = year.cells[i]
+    if (!c) return null
+    return { title: fmtLong(c.date), value: c.s > 0 ? formatDuration(c.s) : t`No reading`, note: c.s > 0 ? sessionsLine(c.n, c.pages) : undefined }
+  }, { x: 7, y: 1 })
   if (loading) return <Placeholder W={W} H={H} x={labelW} y={top} />
   const dayLetters: [number, string][] = [[0, t`M`], [2, t`W`], [4, t`F`]]
   return (
-    <svg className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading time per day, last 365 days`}>
+    <svg {...tips} className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading time per day, last 365 days`}>
       {year.months.map((m) => {
         const c = m.col - firstCol
         if (c < 0 || c > n - 2) return null
         return <text key={m.col} x={xs[c]} y={12}>{m.label}</text>
       })}
       {dayLetters.map(([r, l]) => <text key={r} x={0} y={top + r * rp + cell / 2 + 4}>{l}</text>)}
-      {year.cells.map((c) => {
+      {year.cells.map((c, i) => {
         const k = c.col - firstCol
         if (k < 0 || k >= n) return null
-        const day = fmtDay(c.date)
-        const dur = formatDuration(c.s)
-        return (
-          <rect key={c.date} x={xs[k]} y={top + c.row * rp} width={cell} height={cell} rx={cell >= 14 ? 3 : 2} fill={LV[c.lv]}>
-            <title>{`${day}: ${dur}`}</title>
-          </rect>
-        )
+        return <rect key={c.date} className={`k-cell ${K.fade}`} style={stagger(k, n)} data-tip-i={i} x={xs[k]} y={top + c.row * rp} width={cell} height={cell} rx={cell >= 14 ? 3 : 2} fill={LV[c.lv]} />
       })}
     </svg>
   )
