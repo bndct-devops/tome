@@ -559,6 +559,7 @@ msgstr "{0, plural, one {# session · {pages} pages} other {# sessions · {pages
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/SeriesReadingStats.tsx
 #: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/habits.tsx
 #: src/components/stats/widgets/overview.tsx
 msgid "{0, plural, one {# session} other {# sessions}}"
@@ -856,8 +857,8 @@ msgid "{books}, {a} to {b}"
 msgstr "{books}, {a} to {b}"
 
 #: src/components/stats/overview/Overview.tsx
-msgid "{bookTitle}, finished {finishedOn}"
-msgstr "{bookTitle}, finished {finishedOn}"
+#~ msgid "{bookTitle}, finished {finishedOn}"
+#~ msgstr "{bookTitle}, finished {finishedOn}"
 
 #: src/components/stats/widgets/habits.tsx
 #~ msgid "{bt} — {st} to {en} ({dur})"
@@ -936,7 +937,6 @@ msgid "{dailyStreak, plural, one {day} other {days}}"
 msgstr "{dailyStreak, plural, one {day} other {days}}"
 
 #: src/components/stats/habits/charts.tsx
-#: src/components/stats/overview/charts.tsx
 msgid "{day} {range}: {dur}"
 msgstr "{day} {range}: {dur}"
 
@@ -1079,6 +1079,7 @@ msgstr "{flagged} of {scanned} books flagged (low-res = narrower than {minW}px).
 
 #: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/insights.tsx
 #: src/pages/StatsPage.tsx
@@ -1086,12 +1087,12 @@ msgid "{from} to {to}"
 msgstr "{from} to {to}"
 
 #: src/components/stats/overview/charts.tsx
-msgid "{from} to {to}: {dur}"
-msgstr "{from} to {to}: {dur}"
+#~ msgid "{from} to {to}: {dur}"
+#~ msgstr "{from} to {to}: {dur}"
 
 #: src/components/stats/overview/charts.tsx
-msgid "{from} to {to}: {dur} (includes today)"
-msgstr "{from} to {to}: {dur} (includes today)"
+#~ msgid "{from} to {to}: {dur} (includes today)"
+#~ msgstr "{from} to {to}: {dur} (includes today)"
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{from}% to {to}%"
@@ -1274,6 +1275,10 @@ msgstr "{mm} min"
 msgid "{months}mo ago"
 msgstr "{months}mo ago"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "{more, plural, one {# more finished} other {# more finished}}"
+msgstr "{more, plural, one {# more finished} other {# more finished}}"
+
 #: src/components/stats/library/Sections.tsx
 msgid "{n, plural, one {# book read in {rangePhrase}} other {# books read in {rangePhrase}}}"
 msgstr "{n, plural, one {# book read in {rangePhrase}} other {# books read in {rangePhrase}}}"
@@ -1285,8 +1290,8 @@ msgid "{n, plural, one {# book} other {# books}}"
 msgstr "{n, plural, one {# book} other {# books}}"
 
 #: src/components/stats/overview/Overview.tsx
-msgid "{n, plural, one {# finished book} other {# finished books}}"
-msgstr "{n, plural, one {# finished book} other {# finished books}}"
+#~ msgid "{n, plural, one {# finished book} other {# finished books}}"
+#~ msgstr "{n, plural, one {# finished book} other {# finished books}}"
 
 #: src/pages/AdminPage.tsx
 msgid "{n, plural, one {# matching volume currently in the library.} other {# matching volumes currently in the library.}}"
@@ -1479,6 +1484,7 @@ msgstr "{othersCount, plural, one {Delete # other} other {Delete # others}}"
 #~ msgstr "{pacePerMin} pg/min"
 
 #: src/components/home/HomeTab.tsx
+#: src/components/stats/overview/charts.tsx
 msgid "{pages, plural, one {# page} other {# pages}}"
 msgstr "{pages, plural, one {# page} other {# pages}}"
 
@@ -1543,8 +1549,11 @@ msgstr "{r, plural, one {# star} other {# stars}}"
 msgid "{r} of {tot} read"
 msgstr "{r} of {tot} read"
 
-#: src/components/stats/habits/charts.tsx
 #: src/components/stats/overview/charts.tsx
+msgid "{range}, all days"
+msgstr "{range}, all days"
+
+#: src/components/stats/habits/charts.tsx
 msgid "{range}, all days: {dur}"
 msgstr "{range}, all days: {dur}"
 
@@ -1601,8 +1610,13 @@ msgid "{seriesName} Chapter {num}"
 msgstr "{seriesName} Chapter {num}"
 
 #: src/components/home/HomeTab.tsx
+#: src/components/stats/overview/charts.tsx
 msgid "{sessions, plural, one {# session} other {# sessions}}"
 msgstr "{sessions, plural, one {# session} other {# sessions}}"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{sessions} · {share}% of the reading in {rangePhrase}"
+msgstr "{sessions} · {share}% of the reading in {rangePhrase}"
 
 #: src/pages/DashboardPage.tsx
 #~ msgid "{sessions} sessions · {time}"
@@ -5024,6 +5038,10 @@ msgstr "Finished {a} and went straight into {b}."
 msgid "Finished {a}."
 msgstr "Finished {a}."
 
+#: src/components/stats/overview/Overview.tsx
+msgid "Finished {finishedOn}"
+msgstr "Finished {finishedOn}"
+
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Finished {l}"
 msgstr "Finished {l}"
@@ -5181,6 +5199,7 @@ msgstr "Fri"
 
 #: src/components/stats/habits/charts.tsx
 #: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "Fridays"
 msgstr "Fridays"
@@ -5606,6 +5625,10 @@ msgstr "Inactive"
 #: src/pages/HardcoverPage.tsx
 msgid "Include"
 msgstr "Include"
+
+#: src/components/stats/overview/charts.tsx
+msgid "includes today"
+msgstr "includes today"
 
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
@@ -6371,6 +6394,7 @@ msgstr "Mon"
 
 #: src/components/stats/habits/charts.tsx
 #: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "Mondays"
 msgstr "Mondays"
@@ -6956,6 +6980,10 @@ msgstr "No readable file found for this book."
 #: src/components/stats/TimelineRibbon.tsx
 msgid "no reading"
 msgstr "no reading"
+
+#: src/components/stats/overview/charts.tsx
+msgid "No reading"
+msgstr "No reading"
 
 #: src/pages/AdminPage.tsx
 msgid "No reading activity yet. Records appear when users start reading books."
@@ -9168,6 +9196,7 @@ msgstr "Sat"
 
 #: src/components/stats/habits/charts.tsx
 #: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "Saturdays"
 msgstr "Saturdays"
@@ -9944,6 +9973,10 @@ msgstr "Show another highlight"
 msgid "Show details"
 msgstr "Show details"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "Show every read book in the library"
+msgstr "Show every read book in the library"
+
 #: src/components/stats/library/Sections.tsx
 msgid "Show fewer"
 msgstr "Show fewer"
@@ -10346,6 +10379,7 @@ msgstr "Sun"
 
 #: src/components/stats/habits/charts.tsx
 #: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "Sundays"
 msgstr "Sundays"
@@ -10789,6 +10823,7 @@ msgstr "Thu"
 
 #: src/components/stats/habits/charts.tsx
 #: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "Thursdays"
 msgstr "Thursdays"
@@ -10918,6 +10953,10 @@ msgstr "To"
 #: src/pages/WishlistPage.tsx
 msgid "Today"
 msgstr "Today"
+
+#: src/components/stats/overview/charts.tsx
+msgid "today, still counting"
+msgstr "today, still counting"
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Toggle metadata edit"
@@ -11091,6 +11130,7 @@ msgstr "Tue"
 
 #: src/components/stats/habits/charts.tsx
 #: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "Tuesdays"
 msgstr "Tuesdays"
@@ -11522,6 +11562,7 @@ msgstr "Wed"
 
 #: src/components/stats/habits/charts.tsx
 #: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "Wednesdays"
 msgstr "Wednesdays"
