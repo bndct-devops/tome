@@ -102,16 +102,25 @@ export function typeRows(s: StatsResponse): TypeRow[] {
 }
 
 // ── the shape of the last answer, so the skeleton reserves the same rows ─────
-export type Shape = { series: number; done: boolean; types: number; authors: number; backlog: number; books: number }
+// `langs`: rows of the Languages section (0: the section was not shown).
+// `booksMore`: the All books table had more rows than it shows (its "Show all" line).
+// `backlogs`: per backlog scope, its estimated rows, or -1 when it answered
+// with a message instead (nothing unread, none estimated, failed).
+export type Shape = { series: number; done: boolean; types: number; authors: number; langs: number; backlogs: Record<string, number>; books: number; booksMore: boolean }
 const SHAPE_KEY = 'tome_stats_library_shape'
-const DEFAULT_SHAPE: Shape = { series: 3, done: true, types: 4, authors: 2, backlog: 3, books: 10 }
+const DEFAULT_SHAPE: Shape = { series: 3, done: true, types: 4, authors: 2, langs: 0, backlogs: {}, books: 10, booksMore: false }
+/** Backlog rows the skeleton draws for a scope never seen in this browser. */
+export const BACKLOG_DEFAULT_ROWS = 3
 export const SERIES_MAX = 6
-export const AUTHORS_MAX = 6
+/** Authors: 10 on desktop (five rows of two), 6 on the phone (one column). */
+export const AUTHORS_MAX = 10
+export const AUTHORS_MAX_PHONE = 6
+export const LANGS_MAX = 6
 export const BOOKS_SHOWN = 10
 
 export function rememberedShape(): Shape {
   try {
-    const raw = JSON.parse(localStorage.getItem(SHAPE_KEY) ?? 'null') as Partial<Shape> | null
+    const raw = JSON.parse(localStorage.getItem(SHAPE_KEY) ?? 'null') as (Partial<Shape> & { backlog?: unknown }) | null
     if (!raw || typeof raw !== 'object') return DEFAULT_SHAPE
     const n = (v: unknown, max: number, d: number) => (Number.isInteger(v) && (v as number) >= 0 && (v as number) <= max ? (v as number) : d)
     return {
@@ -119,8 +128,13 @@ export function rememberedShape(): Shape {
       done: typeof raw.done === 'boolean' ? raw.done : DEFAULT_SHAPE.done,
       types: n(raw.types, 20, DEFAULT_SHAPE.types),
       authors: n(raw.authors, AUTHORS_MAX, DEFAULT_SHAPE.authors),
-      backlog: n(raw.backlog, 20, DEFAULT_SHAPE.backlog),
+      langs: n(raw.langs, LANGS_MAX, DEFAULT_SHAPE.langs),
+      backlogs: raw.backlogs && typeof raw.backlogs === 'object'
+        ? Object.fromEntries(Object.entries(raw.backlogs).filter(([, v]) => Number.isInteger(v) && v >= -1 && v <= 20))
+        // Stored before the scope choice: one count, for "All unread".
+        : Number.isInteger(raw.backlog) ? { [DEFAULT_SCOPE]: raw.backlog as number } : {},
       books: n(raw.books, BOOKS_SHOWN, DEFAULT_SHAPE.books),
+      booksMore: typeof raw.booksMore === 'boolean' ? raw.booksMore : DEFAULT_SHAPE.booksMore,
     }
   } catch {
     return DEFAULT_SHAPE
@@ -128,7 +142,9 @@ export function rememberedShape(): Shape {
 }
 export function rememberShape(part: Partial<Shape>) {
   try {
-    localStorage.setItem(SHAPE_KEY, JSON.stringify({ ...rememberedShape(), ...part }))
+    const was = rememberedShape()
+    const next = { ...was, ...part, backlogs: { ...was.backlogs, ...part.backlogs } }
+    localStorage.setItem(SHAPE_KEY, JSON.stringify(next))
   } catch {
     // storage unavailable: the skeleton keeps the default rows
   }
@@ -141,3 +157,45 @@ export const fmtMonthShort = (ym: string) => new Date(ym + '-01T00:00:00').toLoc
 /** The type colours of the additions chart: the app's chart palette, mixed at 75 % like its stacks. */
 const TYPE_VARS = ['--chart-accent', '--info', '--success', '--rating', '--muted-foreground', '--warning']
 export const typeColor = (k: number) => `color-mix(in srgb, var(${TYPE_VARS[k % TYPE_VARS.length]}) ${k < TYPE_VARS.length ? 75 : 45}%, var(--background))`
+
+// ── languages: the known ones with reading time; the section shows from two ──
+export type Lang = StatsResponse['language'][number]
+export type LangModel = { rows: Lang[]; rest: Lang[]; total: number; books: number }
+/**
+ * Languages with reading time, longest first. Books without a language
+ * ("unknown") are listed but do not count towards the two the section needs:
+ * one language and some untagged books is not a mix worth a section.
+ */
+export function langModel(langs: StatsResponse['language']): LangModel | null {
+  const withTime = langs.filter((l) => l.seconds > 0).sort((a, b) => b.seconds - a.seconds)
+  if (withTime.filter((l) => l.code !== 'unknown').length < 2) return null
+  return {
+    rows: withTime.slice(0, LANGS_MAX),
+    rest: withTime.slice(LANGS_MAX),
+    total: withTime.reduce((a, l) => a + l.seconds, 0),
+    books: withTime.reduce((a, l) => a + l.books, 0),
+  }
+}
+
+// ── backlog scope: the choice, per browser ───────────────────────────────────
+const SCOPE_KEY = 'tome_stats_backlog_scope'
+export const DEFAULT_SCOPE = 'unread'
+/** The scope picked last in this browser, with its label (shown before the options load). */
+export function rememberedScope(): { id: string; label: string | null } {
+  try {
+    const raw = JSON.parse(localStorage.getItem(SCOPE_KEY) ?? 'null') as { id?: unknown; label?: unknown } | null
+    if (raw && typeof raw.id === 'string' && /^(want|unread|library:\d+|shelf:\d+)$/.test(raw.id)) {
+      return { id: raw.id, label: typeof raw.label === 'string' ? raw.label : null }
+    }
+  } catch {
+    // storage unavailable or garbled
+  }
+  return { id: DEFAULT_SCOPE, label: null }
+}
+export function rememberScope(id: string, label: string | null) {
+  try {
+    localStorage.setItem(SCOPE_KEY, JSON.stringify({ id, label }))
+  } catch {
+    // storage unavailable: the choice lasts for this visit
+  }
+}

@@ -1,21 +1,22 @@
 // The Library page's lower sections: Backlog, the three small charts, the
 // monthly additions and the All books table.
-import { useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
-import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
+import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown } from 'lucide-react'
 import { cn, formatDuration } from '@/lib/utils'
-import { formatEstimateDays, type BacklogSummary } from '@/lib/backlog'
+import { formatEstimateDays, type BacklogScope, type BacklogSummary } from '@/lib/backlog'
 import type { LibraryResponse, StatsResponse } from '@/components/stats/shared'
 import { Cover, Ph } from '@/components/stats/kit/Kit'
-import { HAIR, num } from '@/components/stats/kit/tokens'
+import { DIM, HAIR, UNDIM, num } from '@/components/stats/kit/tokens'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { AddedChart, ChartPlaceholder, SmallBars, type SmallBar } from './charts'
 import { BOOKS_SHOWN, addedModel, fmtMonth, publishedModel, typeColor, type Range } from './model'
 import { Head, Note, RangeChip, Thin } from './parts'
+import { BookSessions } from './BookSessions'
 
 /* eslint-disable lingui/no-unlocalized-strings -- placeholder text: drawn as blocks
    while loading and never read; it only gives each line its loaded width. */
@@ -24,7 +25,7 @@ const PH = {
   rowName: 'Light Novels', rowBooks: '140 books', rowH: '717 hours · about 1.5 years', skip: 'Not estimated yet: Manga (344 books).',
   chartNote: '58 finished', foot1: 'Average 113k words · median 94k', foot2: 'Longest: He Who Fights with Monsters 9 (277k)',
   median: '0', ttfNote: 'median, first day to finish', addedNote: '588 books, Mar 2026 to Nov 2026', type: 'Light Novels',
-  title: 'He Who Fights with Monsters 10', author: 'Shirtaloon', dur: '00h 00m', n: '000', tableNote: '10 books read in the last 90 days',
+  title: 'He Who Fights with Monsters 10', author: 'Shirtaloon', dur: '00h 00m', n: '000', tableNote: '10 books read in the last 90 days', showAll: 'Show all 46',
 }
 /* eslint-enable lingui/no-unlocalized-strings */
 
@@ -41,13 +42,57 @@ function aboutDays(days: number): string {
 const BL_ROW_H = 44
 const BL_ROW_H_PHONE = 54
 
-export function Backlog({ data, failed, desktop, rows }: { data: BacklogSummary | null; failed: boolean; desktop: boolean; rows: number }) {
+const BL_NOTE_H = 160
+
+/**
+ * The scope choice in the Backlog heading: a chip over a native select (the
+ * phone's own picker, keyboard and screen readers for free). Options come from
+ * /stats/backlog-scopes; until they land the chip shows the remembered label.
+ */
+function ScopePicker({ value, label, scopes, onPick }: { value: string; label: string | null; scopes: BacklogScope[] | null; onPick: (id: string, label: string | null) => void }) {
+  const fixed: Record<string, string> = { want: t`Want to read`, unread: t`All unread` }
+  const name = (s: BacklogScope) => fixed[s.id] ?? s.label
+  const current = scopes?.find((s) => s.id === value)
+  const text = fixed[value] ?? (current ? current.label : label) ?? t`Library`
+  const options = scopes ?? [{ id: value, label: text, group: null }]
+  return (
+    <label className="relative inline-flex h-[22px] max-w-[200px] cursor-pointer items-center gap-1 rounded-full bg-secondary pl-2.5 pr-2 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-within:ring-2 focus-within:ring-ring">
+      <span className="truncate">{text}</span>
+      <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
+      <select
+        aria-label={t`Backlog of`}
+        value={value}
+        onChange={(ev) => { const s = options.find((o) => o.id === ev.target.value); onPick(ev.target.value, s ? name(s) : null) }}
+        className="absolute inset-0 cursor-pointer appearance-none opacity-0"
+      >
+        {options.filter((s) => !s.group).map((s) => <option key={s.id} value={s.id}>{name(s)}</option>)}
+        {/* eslint-disable-next-line lingui/no-unlocalized-strings -- API group keys */}
+        {(['Libraries', 'Shelves'] as const).map((g) => {
+          const items = options.filter((s) => s.group === g)
+          return items.length > 0 ? (
+            <optgroup key={g} label={g === 'Libraries' ? t`Libraries` : t`Shelves`}>
+              {items.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
+            </optgroup>
+          ) : null
+        })}
+      </select>
+    </label>
+  )
+}
+
+export function Backlog({ data, failed, pending, desktop, rows, scope, scopeLabel, scopes, onScope }: {
+  data: BacklogSummary | null; failed: boolean; pending: boolean; desktop: boolean
+  /** Rows the skeleton reserves (the last answer for this scope); -1: it answered with a message. */
+  rows: number
+  scope: string; scopeLabel: string | null; scopes: BacklogScope[] | null; onScope: (id: string, label: string | null) => void
+}) {
   const est = data ? data.by_type.filter((r) => r.seconds > 0) : null
   const skipped = data ? data.by_type.filter((r) => r.seconds === 0 && r.unestimated > 0) : []
-  const list = est ?? Array.from({ length: rows }, () => null)
+  const list = est ?? Array.from({ length: Math.max(0, rows) }, () => null)
   const rowH = desktop ? BL_ROW_H : BL_ROW_H_PHONE
   const loading = !data
-  const e = useEntry('library/backlog', data ? ONCE : null)
+  // Plays on the first answer and again when an answer for another scope lands (not while it is on its way).
+  const e = useEntry('library/backlog', data && !pending ? `scope:${scope}` : null)
   const total = data?.seconds ?? 0
   const hours = Math.round(total / 3600)
   const bigN = total < 3600 ? Math.max(1, Math.round(total / 60)) : hours
@@ -82,11 +127,15 @@ export function Backlog({ data, failed, desktop, rows }: { data: BacklogSummary 
     : ' '
 
   const body = () => {
-    if (failed) return <Note h={160}><Trans>Could not load the backlog.</Trans></Note>
-    if (data && data.books === 0) return <Note h={160}><Trans>No unread books. Everything in the library is started or read.</Trans></Note>
+    if (failed) return <Note h={BL_NOTE_H}><Trans>Could not load the backlog.</Trans></Note>
+    // A scope that answered with a message last time: its box, as a block.
+    if (!data && rows < 0) return <div className="rounded-[12px] bg-muted" style={{ height: BL_NOTE_H }} />
+    if (data && data.books === 0) {
+      return <Note h={BL_NOTE_H}>{scope === 'unread' ? <Trans>No unread books. Everything in the library is started or read.</Trans> : <Trans>Nothing unstarted here. Every book in this scope is started or read.</Trans>}</Note>
+    }
     if (data && data.estimated === 0) {
       const n = data.books
-      return <Note h={160}>{plural(n, { one: '# unread book, none estimated yet.', other: '# unread books, none estimated yet.' })} <Trans>Finish a couple of books of each type so Tome can measure your pace.</Trans></Note>
+      return <Note h={BL_NOTE_H}>{plural(n, { one: '# unstarted book, none estimated yet.', other: '# unstarted books, none estimated yet.' })} <Trans>Finish a couple of books of each type so Tome can measure your pace.</Trans></Note>
     }
     return (
       <>
@@ -150,10 +199,10 @@ export function Backlog({ data, failed, desktop, rows }: { data: BacklogSummary 
 
   return (
     <section ref={e.ref} data-box="backlog">
-      <Head note={<span className="inline-flex h-[22px] items-center rounded-full bg-secondary px-2.5 text-[12px] font-medium text-muted-foreground"><Trans>All unread</Trans></span>}>
+      <Head note={<ScopePicker value={scope} label={scopeLabel} scopes={scopes} onPick={onScope} />}>
         <Trans>Backlog</Trans>
       </Head>
-      {body()}
+      <div className={pending && !failed ? DIM : UNDIM}>{body()}</div>
     </section>
   )
 }
@@ -336,16 +385,18 @@ export function AddedSection({ stats, desktop, width }: { stats: StatsResponse |
 // ── All books by reading time ────────────────────────────────────────────────
 
 type SortKey = 'seconds' | 'sessions' | 'pages_turned'
-const BOOK_COLS = 'grid-cols-[29px_minmax(0,1fr)_minmax(0,24%)_110px_110px_100px] gap-x-4'
-const BOOK_COLS_PHONE = 'grid-cols-[29px_minmax(0,1fr)_78px] gap-x-3'
+const BOOK_COLS = 'grid-cols-[29px_minmax(0,1fr)_minmax(0,22%)_100px_100px_90px_32px] gap-x-4'
+const BOOK_COLS_PHONE = 'grid-cols-[29px_minmax(0,1fr)_72px_28px] gap-x-3'
 const TH = 'whitespace-nowrap text-[12px] font-bold uppercase tracking-[0.1em]'
 
-export function AllBooks({ stats, desktop, rows, range, dim }: { stats: StatsResponse | null; desktop: boolean; rows: number; range: Range; dim: string }) {
+export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: StatsResponse | null; desktop: boolean; rows: number; more: boolean; range: Range; dim: string }) {
   const rangePhrase = range.phrase
   const e = useEntry('library/books', range.sig)
   const [key, setKey] = useState<SortKey>('seconds')
   const [asc, setAsc] = useState(false)
   const [all, setAll] = useState(false)
+  // The row whose sessions are open (#38): one at a time, opened by the reader.
+  const [open, setOpen] = useState<number | null>(null)
   const data = stats?.per_book_time ?? null
   const sorted = useMemo(() => (data ? [...data].sort((a, b) => (asc ? a[key] - b[key] : b[key] - a[key]) || a.title.localeCompare(b.title)) : null), [data, key, asc])
   const list = sorted ? (all ? sorted : sorted.slice(0, BOOKS_SHOWN)) : Array.from({ length: rows }, () => null)
@@ -383,11 +434,27 @@ export function AllBooks({ stats, desktop, rows, range, dim }: { stats: StatsRes
             <span role="columnheader" className="text-right">{sortHead('seconds', <Trans>Time</Trans>)}</span>
             {desktop && <span role="columnheader" className="text-right">{sortHead('sessions', <Trans>Sessions</Trans>)}</span>}
             {desktop && <span role="columnheader" className="text-right">{sortHead('pages_turned', <Trans>Pages</Trans>)}</span>}
+            <span role="columnheader"><span className="sr-only"><Trans>Sessions of the book</Trans></span></span>
           </div>
           {list.map((b, i) => {
             const row = cn('grid items-center border-t text-[14px]', HAIR, cols)
             const style = { height: rowH }
             const box = i < BOOKS_SHOWN ? `book-${i}` : undefined
+            const isOpen = !!b && open === b.book_id
+            const panel = b ? `stats-book-sessions-${b.book_id}` : undefined
+            const toggle = b ? (
+              <button
+                type="button"
+                onClick={() => setOpen(isOpen ? null : b.book_id)}
+                aria-expanded={isOpen}
+                aria-controls={isOpen ? panel : undefined}
+                aria-label={(() => { const title = b.title; return isOpen ? t`Hide the sessions of ${title}` : t`Show the sessions of ${title}` })()}
+                title={isOpen ? t`Hide sessions` : t`Show sessions`}
+                className={cn('pointer-events-auto relative grid h-8 w-8 place-items-center rounded-full transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', isOpen ? 'bg-secondary text-foreground' : 'text-muted-foreground', !desktop && 'w-7')}
+              >
+                <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', isOpen && 'rotate-180')} aria-hidden="true" />
+              </button>
+            ) : null
             const cells = (
               <>
                 <span role="cell">
@@ -403,19 +470,31 @@ export function AllBooks({ stats, desktop, rows, range, dim }: { stats: StatsRes
                 <span role="cell" className="whitespace-nowrap text-right text-foreground"><Ph on={!b}>{b ? formatDuration(b.seconds) : PH.dur}</Ph></span>
                 {desktop && <span role="cell" className="text-right tabular-nums text-foreground"><Ph on={!b}>{b ? num(b.sessions) : PH.n}</Ph></span>}
                 {desktop && <span role="cell" className="text-right tabular-nums text-foreground"><Ph on={!b}>{b ? num(b.pages_turned) : PH.n}</Ph></span>}
+                <span role="cell" className="flex justify-end">{toggle}</span>
               </>
             )
-            // A row is one link to its book: the row washes and the title takes the accent, as the old table did.
+            // A row leads to its book (a link stretched under the cells; the row washes and the
+            // title takes the accent, as the old table did); the chevron at its end opens the
+            // book's sessions under it.
             return b ? (
-              <Link key={b.book_id} to={`/books/${b.book_id}`} role="row" title={b.title} data-box={box} className={cn(row, 'group transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring')} style={style}>{cells}</Link>
+              <Fragment key={b.book_id}>
+                <div role="row" data-box={box} className={cn(row, 'group relative transition-colors hover:bg-accent/30 [&>[role=cell]]:pointer-events-none', isOpen && 'bg-accent/20')} style={style}>
+                  <Link to={`/books/${b.book_id}`} title={b.title} aria-label={b.title} className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" />
+                  {cells}
+                </div>
+                {isOpen && <BookSessions id={panel!} bookId={b.book_id} desktop={desktop} />}
+              </Fragment>
             ) : (
               <div key={i} role="row" data-box={box} className={row} style={style}>{cells}</div>
             )
           })}
         </div>
       )}
+      {!stats && more && (
+        <div className="mt-3 flex h-6 items-center text-[15px] font-medium"><Ph on>{PH.showAll}</Ph></div>
+      )}
       {n > BOOKS_SHOWN && (
-        <div className="mt-3">
+        <div className="mt-3 flex h-6 items-center">
           <button type="button" onClick={() => setAll(!all)} className="text-[15px] font-medium text-primary hover:underline underline-offset-4">
             {all ? <Trans>Show fewer</Trans> : (() => { const total = num(n); return <Trans>Show all {total}</Trans> })()}
           </button>
