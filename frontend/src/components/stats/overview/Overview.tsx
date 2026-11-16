@@ -75,9 +75,9 @@ export function Overview({ stats, estimates, pending, days, custom, onAllBooks }
         <>
           <Hero stats={stats} desktop={desktop} width={width} loading={loading} neverRead={neverRead} prevPhrase={prevPhrase} days={days} dim={dim} sig={sig} />
           <ReadingNow stats={stats} estimates={estimates} desktop={desktop} loading={loading} sig={once} />
-          <Finished stats={stats} width={width} desktop={desktop} loading={loading} rangePhrase={rangePhrase} dim={dim} sig={sig} />
+          <Finished stats={stats} width={width} desktop={desktop} loading={loading} rangePhrase={rangePhrase} allTime={days === 0 && !custom} dim={dim} sig={sig} />
           <div className={cn(desktop ? 'grid grid-cols-2 gap-4' : 'flex flex-col gap-10')}>
-            <TopBooks stats={stats} loading={loading} desktop={desktop} rangePhrase={rangePhrase} onAllBooks={onAllBooks} dim={dim} sig={sig} />
+            <TopBooks stats={stats} loading={loading} desktop={desktop} rangePhrase={rangePhrase} allTime={days === 0 && !custom} onAllBooks={onAllBooks} dim={dim} sig={sig} />
             <WhenYouRead stats={stats} loading={loading} width={desktop ? Math.floor((width - 16) / 2) : width} desktop={desktop} dim={dim} sig={sig} />
           </div>
           <TheYear stats={stats} loading={loading} width={width} desktop={desktop} sig={once} />
@@ -308,7 +308,7 @@ function ReadingNow({ stats, estimates, desktop, loading, sig }: { stats: StatsR
 
 // ── Finished: one row of covers at a fixed height ─────────────────────────────
 
-function Finished({ stats, width, desktop, loading, rangePhrase, dim, sig }: { stats: StatsResponse | null; width: number; desktop: boolean; loading: boolean; rangePhrase: string; dim: string; sig: string | null }) {
+function Finished({ stats, width, desktop, loading, rangePhrase, allTime, dim, sig }: { stats: StatsResponse | null; width: number; desktop: boolean; loading: boolean; rangePhrase: string; allTime: boolean; dim: string; sig: string | null }) {
   const e = useEntry('overview/finished', sig)
   const books = useMemo(() => {
     if (!stats) return []
@@ -371,13 +371,13 @@ function Finished({ stats, width, desktop, loading, rangePhrase, dim, sig }: { s
       </div>,
     )
   }
-  const note = stats ? plural(count, { one: `# book in ${rangePhrase}`, other: `# books in ${rangePhrase}` }) : <Ph on>{PH.shelfNote}</Ph>
+  const note = !stats ? <Ph on>{PH.shelfNote}</Ph> : allTime ? plural(count, { one: '# book, all time', other: '# books, all time' }) : plural(count, { one: `# book in ${rangePhrase}`, other: `# books in ${rangePhrase}` })
 
   return (
     <section ref={e.ref} data-box="finished" className={dim}>
       <Heading note={note}><Trans context="reading">Finished</Trans></Heading>
       {stats && count === 0 ? (
-        <p className="flex items-center text-[15px] text-muted-foreground" style={{ height: COVER_SHELF_H + 26 }}>{t`Nothing finished in ${rangePhrase}.`}</p>
+        <p className="flex items-center text-[15px] text-muted-foreground" style={{ height: COVER_SHELF_H + 26 }}>{allTime ? t`Nothing finished yet.` : t`Nothing finished in ${rangePhrase}.`}</p>
       ) : desktop ? (
         <div data-box="shelf" className={cn('flex', full ? 'justify-between' : 'gap-6')}>{cells}</div>
       ) : (
@@ -391,7 +391,7 @@ function Finished({ stats, width, desktop, loading, rangePhrase, dim, sig }: { s
 
 // ── Where the time went ───────────────────────────────────────────────────────
 
-function TopBooks({ stats, loading, desktop, rangePhrase, onAllBooks, dim, sig }: { stats: StatsResponse | null; loading: boolean; desktop: boolean; rangePhrase: string; onAllBooks: () => void; dim: string; sig: string | null }) {
+function TopBooks({ stats, loading, desktop, rangePhrase, allTime, onAllBooks, dim, sig }: { stats: StatsResponse | null; loading: boolean; desktop: boolean; rangePhrase: string; allTime: boolean; onAllBooks: () => void; dim: string; sig: string | null }) {
   const e = useEntry('overview/top', sig)
   const total = stats?.headline.total_reading_seconds ?? 0
   const rows = stats ? stats.top_books.slice(0, TOP_ROWS) : Array.from({ length: TOP_ROWS }, () => null)
@@ -402,7 +402,7 @@ function TopBooks({ stats, loading, desktop, rangePhrase, onAllBooks, dim, sig }
       <Heading><Trans>Where the time went</Trans></Heading>
       <div data-box="top-rows" style={{ minHeight: TOP_ROWS * 54 + (TOP_ROWS - 1) }}>
         {stats && rows.length === 0 ? (
-          <p className="pt-3 text-[15px] text-muted-foreground">{t`No reading in ${rangePhrase}.`}</p>
+          <p className="pt-3 text-[15px] text-muted-foreground">{allTime ? t`No reading yet.` : t`No reading in ${rangePhrase}.`}</p>
         ) : (
           rows.map((b, i) => {
             const dur = b ? formatDuration(b.seconds) : PH.dur
@@ -423,7 +423,7 @@ function TopBooks({ stats, loading, desktop, rangePhrase, onAllBooks, dim, sig }
                       pct={b ? (b.seconds / max) * 100 : 0}
                       className={loading ? 'opacity-40' : ''}
                       style={stagger(i, rows.length)}
-                      tip={b ? tipAttrs({ title: b.title, value: dur, note: t`${sessions} · ${share}% of the reading in ${rangePhrase}` }) : undefined}
+                      tip={b ? tipAttrs({ title: b.title, value: dur, note: allTime ? t`${sessions} · ${share}% of all your reading` : t`${sessions} · ${share}% of the reading in ${rangePhrase}` }) : undefined}
                     />
                     {!desktop && <span className="whitespace-nowrap text-[13px] text-muted-foreground"><Ph on={!b}>{dur}</Ph></span>}
                   </div>
