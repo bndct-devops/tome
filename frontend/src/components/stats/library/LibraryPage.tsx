@@ -13,12 +13,12 @@
 // all-time sections play once per session (ONCE), range-bound ones again when
 // the range changes. Figures count up, tracks and bars grow, covers rise; every
 // track and bar has a tip (kit/tip.ts); series, authors and books are links.
-import { useEffect, useMemo, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { cn, formatDuration } from '@/lib/utils'
-import type { BacklogSummary } from '@/lib/backlog'
+import type { BacklogScope, BacklogSummary } from '@/lib/backlog'
 import type { LibraryResponse, StatsResponse } from '@/components/stats/shared'
 import { fmtDay as fmtShortDay } from '@/components/stats/range'
 import type { DesignedPageProps } from '@/components/stats/kit/page'
@@ -28,9 +28,10 @@ import { K, ONCE, rangeSig, stagger, useEntry } from '@/components/stats/kit/mot
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, num, useWidth } from '@/components/stats/kit/tokens'
 import { useStatsGet } from '@/components/stats/kit/useStatsGet'
-import { AUTHORS_MAX, BOOKS_SHOWN, SERIES_MAX, fmtMonth, libraryStart, rememberShape, rememberedShape, seriesModel, typeRows, type Range, type Series, type Shape, type TypeRow } from './model'
+import { AUTHORS_MAX, AUTHORS_MAX_PHONE, BACKLOG_DEFAULT_ROWS, BOOKS_SHOWN, DEFAULT_SCOPE, SERIES_MAX, fmtMonth, langModel, libraryStart, rememberScope, rememberShape, rememberedScope, rememberedShape, seriesModel, typeRows, type Range, type Series, type Shape, type TypeRow } from './model'
 import { Head, Note, RangeChip, Thin } from './parts'
 import { AddedSection, AllBooks, Backlog, ChartsRow } from './Sections'
+import { Languages } from './Languages'
 
 /* eslint-disable lingui/no-unlocalized-strings -- placeholder text: drawn as blocks
    while loading and never read; it only gives each line its loaded width. */
@@ -48,7 +49,14 @@ export function LibraryPage({ stats, pending, days, custom }: DesignedPageProps)
   const tz = new Date().getTimezoneOffset()
   // All time, so the same URL on every range: these never dim.
   const lib = useStatsGet<LibraryResponse>(`/stats/library?tz_offset=${tz}`)
-  const backlog = useStatsGet<BacklogSummary>(`/stats/backlog?scope=unread&tz_offset=${tz}`)
+  // Backlog scope (#32): the choice is remembered per browser; a change keeps the
+  // previous answer on screen, dimmed (useStatsGet's pending), until the new one lands.
+  const [scope, setScope] = useState(rememberedScope)
+  const scopes = useStatsGet<BacklogScope[]>('/stats/backlog-scopes')
+  // A remembered library or shelf that is gone (deleted, no longer visible): back to all unread.
+  const scopeId = scopes.data && !scopes.data.some((s) => s.id === scope.id) ? DEFAULT_SCOPE : scope.id
+  const backlog = useStatsGet<BacklogSummary>(`/stats/backlog?scope=${encodeURIComponent(scopeId)}&tz_offset=${tz}`)
+  const pickScope = (id: string, label: string | null) => { setScope({ id, label }); rememberScope(id, label) }
   const shape = useMemo(rememberedShape, [])
 
   useEffect(() => {
@@ -57,11 +65,18 @@ export function LibraryPage({ stats, pending, days, custom }: DesignedPageProps)
     rememberShape({
       series: Math.min(SERIES_MAX, open.length), done: done.length > 0, types: stats.tbr.by_type.length,
       authors: Math.min(AUTHORS_MAX, stats.author_affinity.length), books: Math.min(BOOKS_SHOWN, stats.per_book_time.length),
+      langs: langModel(stats.language)?.rows.length ?? 0,
+      booksMore: stats.per_book_time.length > BOOKS_SHOWN,
     })
   }, [stats])
+  // The rows each scope answered with (-1: a message instead of rows), for the skeleton of the next visit.
   useEffect(() => {
-    if (backlog.data) rememberShape({ backlog: backlog.data.by_type.filter((r) => r.seconds > 0).length })
-  }, [backlog.data])
+    if (backlog.failed) rememberShape({ backlogs: { [scopeId]: -1 } })
+    else if (backlog.data && !backlog.pending) {
+      const d = backlog.data
+      rememberShape({ backlogs: { [scopeId]: d.books === 0 || d.estimated === 0 ? -1 : d.by_type.filter((r) => r.seconds > 0).length } })
+    }
+  }, [backlog.data, backlog.pending, backlog.failed, scopeId])
 
   const from = custom ? fmtShortDay(custom.start) : ''
   const to = custom ? fmtShortDay(custom.end) : ''
@@ -81,18 +96,24 @@ export function LibraryPage({ stats, pending, days, custom }: DesignedPageProps)
           {desktop ? (
             <>
               <ByType {...common} range={range} dim={dim} />
+              <Languages stats={stats} desktop={desktop} rows={shape.langs} />
               <Authors {...common} range={range} dim={dim} />
             </>
           ) : (
             <>
               <Authors {...common} range={range} dim={dim} />
               <ByType {...common} range={range} dim={dim} />
+              <Languages stats={stats} desktop={desktop} rows={shape.langs} />
             </>
           )}
-          <Backlog data={backlog.data} failed={backlog.failed} desktop={desktop} rows={shape.backlog} />
+          <Backlog
+            data={backlog.data} failed={backlog.failed} pending={backlog.pending} desktop={desktop}
+            rows={shape.backlogs[scopeId] ?? BACKLOG_DEFAULT_ROWS}
+            scope={scopeId} scopeLabel={scope.id === scopeId ? scope.label : null} scopes={scopes.data} onScope={pickScope}
+          />
           <ChartsRow stats={stats} lib={lib.data} libFailed={lib.failed} desktop={desktop} width={width} />
           <AddedSection stats={stats} desktop={desktop} width={width} />
-          <AllBooks stats={stats} desktop={desktop} rows={shape.books} range={range} dim={dim} />
+          <AllBooks stats={stats} desktop={desktop} rows={shape.books} more={shape.booksMore} range={range} dim={dim} />
         </>
       )}
     </div>
@@ -407,7 +428,8 @@ const AUTHOR_ROW_H = 54
 function Authors({ stats, desktop, shape, range, dim }: Common & { range: Range; dim: string }) {
   const rangePhrase = range.phrase
   const e = useEntry('library/authors', range.sig)
-  const list = stats ? stats.author_affinity.slice(0, AUTHORS_MAX) : Array.from({ length: shape.authors }, () => null)
+  const cap = desktop ? AUTHORS_MAX : AUTHORS_MAX_PHONE
+  const list = stats ? stats.author_affinity.slice(0, cap) : Array.from({ length: Math.min(cap, shape.authors) }, () => null)
   const max = Math.max(1, ...(stats?.author_affinity.slice(0, 1).map((a) => a.seconds) ?? [1]))
   const cols = desktop ? 2 : 1
   const note = stats ? <span className="inline-flex items-center gap-2"><span><Trans>by reading time</Trans></span><RangeChip>{range.label}</RangeChip></span> : <Ph on>{PH.rangeNote}</Ph>
