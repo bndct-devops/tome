@@ -50,7 +50,15 @@ export interface StatsResponse {
     total_sessions: number
     most_active_month: string | null
   } | null
-  period_comparison?: { current_seconds: number; previous_seconds: number; pct_change: number | null } | null
+  period_comparison?: {
+    current_seconds: number
+    previous_seconds: number
+    pct_change: number | null
+    // Headline counts of the window just before the range (servers before 3.1 omit them).
+    previous_sessions?: number
+    previous_pages?: number
+    previous_books_finished?: number
+  } | null
   per_book_time: { book_id: number; title: string; author: string | null; has_cover: boolean; seconds: number; sessions: number; pages_turned: number }[]
   monthly_comparison: { month: string; label: string; books_finished: number; reading_hours: number; sessions: number; reading_seconds: number }[]
   genre_over_time: { month: string; [category: string]: number | string }[]

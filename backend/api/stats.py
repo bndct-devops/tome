@@ -377,9 +377,21 @@ def get_stats(
         start_date = cutoff
         duration = (range_end or now) - cutoff
         prev_start = start_date - duration
-        prev_seconds = rr.totals(
+        prev_seconds, prev_sessions, prev_pages = rr.totals(
             db, current_user.id, day_ctx, covered, prev_start, start_date
-        )[0]
+        )
+        # The same counts the headline shows, for the window just before the range,
+        # so the page can compare each figure without a second /stats request.
+        prev_finished = (
+            db.query(UserBookStatus)
+            .filter(
+                UserBookStatus.user_id == current_user.id,
+                UserBookStatus.status == "read",
+                finished_on >= prev_start,
+                finished_on < start_date,
+            )
+            .count()
+        )
         pct_change: Optional[float] = 0.0
         if prev_seconds > 0:
             pct_change = round(((total_seconds - prev_seconds) / prev_seconds) * 100, 1)
@@ -390,6 +402,9 @@ def get_stats(
             "current_seconds": total_seconds,
             "previous_seconds": int(prev_seconds),
             "pct_change": pct_change,
+            "previous_sessions": int(prev_sessions),
+            "previous_pages": int(prev_pages),
+            "previous_books_finished": prev_finished,
         }
 
     # ── Year summary ──────────────────────────────────────────────────────────
