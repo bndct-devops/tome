@@ -242,7 +242,7 @@ export function StatsPage() {
   } else if (shownTab === 'sessions') {
     content = <SessionsPage />
   } else if (shownTab === 'habits' || shownTab === 'library' || shownTab === 'taste') {
-    const props = { stats: data, pending, days: stats?.days ?? days, custom: stats ? stats.custom : custom, goto }
+    const props = { stats: data, pending, days: stats?.days ?? days, custom: stats ? stats.custom : custom, requested: { days, custom }, goto }
     content = shownTab === 'habits' ? <HabitsPage {...props} /> : shownTab === 'library' ? <LibraryPage {...props} /> : <TastePage {...props} />
   } else if (!data) {
     content = <Spinner />

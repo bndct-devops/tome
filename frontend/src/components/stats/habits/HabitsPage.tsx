@@ -35,16 +35,16 @@ const PH = {
 }
 /* eslint-enable lingui/no-unlocalized-strings */
 
-export function HabitsPage({ stats, pending, days, custom }: DesignedPageProps) {
+export function HabitsPage({ stats, pending, days, custom, requested }: DesignedPageProps) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const desktop = width >= DESKTOP_MIN
-  const habitsQ = useStatsGet<HabitsResponse>('/stats/habits?' + rangeQuery(days, custom))
+  const habitsQ = useStatsGet<HabitsResponse>('/stats/habits?' + rangeQuery(requested.days, requested.custom))
   const habits = habitsQ.data
   const left = Math.floor(((width - 11 * GAP) / 12) * 7 + 6 * GAP)
   const right = width - left - GAP
   const statsDim = pending ? DIM : UNDIM
-  // The frame hands over the range /stats answers, so /stats/habits for a new range
-  // starts once /stats lands; its sections stay dimmed through both requests.
+  // /stats/habits starts with /stats for the requested range; sections drawing from
+  // both stay dimmed until both have answered for it.
   const bothDim = pending || habitsQ.pending ? DIM : UNDIM
 
   const rangeWords = custom || days === 0 ? t`the range` : t`the ${days} days`

@@ -12,6 +12,9 @@ export type DesignedPageProps = {
   /** The range `stats` answers (while pending, the previous range). */
   days: number
   custom: CustomRange | null
+  /** The range now asked for (differs from days/custom while pending): a page's own
+      range-bound requests use this, so they start together with /api/stats. */
+  requested: { days: number; custom: CustomRange | null }
   /** Switch to another Stats tab, optionally scrolling to an element id on it. */
   goto: (tab: StatsTab, anchor?: string) => void
 }
