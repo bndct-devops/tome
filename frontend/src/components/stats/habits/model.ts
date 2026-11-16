@@ -18,16 +18,20 @@ export const MONTH_ROW = 110
 export const monthsHeight = (phone: boolean) => (phone ? 22 : 0) + MONTH_ROW + (phone ? 40 + 22 : 24) + MONTH_ROW + 22
 
 // ── When you read: weekday totals beside the grid ─────────────────────────────
-/** Seconds per weekday, Monday first (the server counts from Sunday = 0). */
+/** Seconds and sessions per weekday, Monday first (the server counts from Sunday = 0). */
 export function byWeekday(cells: StatsResponse['hour_dow_heatmap']) {
-  const out = Array<number>(7).fill(0)
-  for (const c of cells) out[(c.dow + 6) % 7] += c.seconds
-  return out
+  const s = Array<number>(7).fill(0)
+  const n = Array<number>(7).fill(0)
+  for (const c of cells) {
+    s[(c.dow + 6) % 7] += c.seconds
+    n[(c.dow + 6) % 7] += c.sessions
+  }
+  return { s, n }
 }
 
 // ── Last 14 days ──────────────────────────────────────────────────────────────
-export type TlBar = { m0: number; m1: number; seconds: number; title: string | null; started: Date }
-export type TlRow = { date: string; seconds: number; bars: TlBar[] }
+export type TlBar = { m0: number; m1: number; seconds: number; title: string | null; bookId: number | null; started: Date }
+export type TlRow = { date: string; seconds: number; sittings: number; bars: TlBar[] }
 
 /** One row per reading day; bars in minutes from the day's local 04:00, cut at the track's ends. */
 export function timelineRows(days: HabitsResponse['last_14_days']): TlRow[] {
@@ -40,9 +44,9 @@ export function timelineRows(days: HabitsResponse['last_14_days']): TlRow[] {
       const m1 = m0 + s.seconds / 60
       const a = Math.max(0, m0), b = Math.min(1440, m1)
       if (m1 < 0 || m0 > 1440) continue
-      bars.push({ m0: a, m1: Math.max(a, b), seconds: s.seconds, title: s.title, started: new Date(t0) })
+      bars.push({ m0: a, m1: Math.max(a, b), seconds: s.seconds, title: s.title, bookId: s.book_id, started: new Date(t0) })
     }
-    return { date: d.date, seconds: d.seconds, bars }
+    return { date: d.date, seconds: d.seconds, sittings: d.sittings.length, bars }
   })
 }
 
@@ -66,6 +70,19 @@ export function paceModel(daily: StatsResponse['daily']) {
   }
   const recent = dots.slice(-7)
   return { dots, nDays: daily.length, recent: weighted(recent), all: weighted(dots), recentCount: recent.length }
+}
+
+/** Axis ticks of the pace chart: month starts, or for a range with fewer than two
+ *  of them, about five evenly spaced days ("Nov 3"). */
+export function paceTicks(daily: { date: string }[]) {
+  const months = monthStarts(daily)
+  if (months.length >= 2 || daily.length < 2) return months
+  const every = Math.max(1, Math.ceil(daily.length / 5))
+  const out: { index: number; label: string }[] = []
+  for (let i = 0; i < daily.length; i += every) {
+    out.push({ index: i, label: new Date(daily[i].date + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) })
+  }
+  return out
 }
 
 /** Month starts in `daily` as chart indices. */
