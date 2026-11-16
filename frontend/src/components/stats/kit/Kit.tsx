@@ -1,7 +1,7 @@
 // Shared pieces of the designed Stats pages (look A2: Home's section titles,
 // Stat figures and covers on hairlines). Every piece keeps its loaded box while
 // loading, so a skeleton built from them reserves the final layout.
-import type { ReactNode } from 'react'
+import type { CSSProperties, ReactNode } from 'react'
 import { cn } from '@/lib/utils'
 import { coverSrc } from '@/lib/covers'
 import { CoverImage } from '@/components/CoverImage'
@@ -12,11 +12,15 @@ export function Ph({ on, children }: { on: boolean; children: ReactNode }) {
   return on ? <span aria-hidden="true" className="select-none rounded-[6px] bg-muted text-transparent">{children}</span> : <>{children}</>
 }
 
-/** Home's progress track: 6 px, accent fill on a tinted track. */
-export function Track({ pct, className }: { pct: number; className?: string }) {
+/**
+ * Home's progress track: 6 px, accent fill on a tinted track. Inside a section
+ * with an entry (motion.ts) the fill grows from the start; `style` takes its
+ * stagger() delay. `tip` (tipAttrs()) gives it a tooltip and a hover ring.
+ */
+export function Track({ pct, className, style, tip }: { pct: number; className?: string; style?: CSSProperties; tip?: { 'data-tip': string } }) {
   return (
-    <div className={cn('h-[6px] flex-1 overflow-hidden rounded-full', className)} style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
-      <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+    <div className={cn('k-track h-[6px] flex-1 overflow-hidden rounded-full', className)} style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))', ...style }} {...tip}>
+      <div className="k-grow-x h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
     </div>
   )
 }

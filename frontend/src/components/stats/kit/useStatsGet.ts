@@ -7,6 +7,24 @@ import { api } from '@/lib/api'
 import type { CustomRange } from '@/components/stats/range'
 
 const cache = new Map<string, unknown>()
+// Requests on their way, by URL: a second asker (another section, a tab switched
+// back and forth mid-load) shares the first request instead of starting its own.
+const inflight = new Map<string, Promise<unknown>>()
+
+/**
+ * GET `url` (under /api) once while it is in flight, and keep the answer in the
+ * session cache under `key` (default: the URL itself).
+ */
+export function statsFetch<T>(url: string, key: string = url): Promise<T> {
+  const running = inflight.get(url) as Promise<T> | undefined
+  if (running) return running
+  // An answer whose request was dropped meanwhile (dropStatsCache) is not cached.
+  const p: Promise<T> = api.get<T>(url).then((r) => { if (inflight.get(url) === p) cache.set(key, r); return r })
+  inflight.set(url, p)
+  const clear = () => { if (inflight.get(url) === p) inflight.delete(url) }
+  p.then(clear, clear)
+  return p
+}
 
 /** The session cache, also used by the Stats frame for /api/stats (keys are paths under /api). */
 export const statsCacheGet = <T,>(path: string) => cache.get(path) as T | undefined
@@ -28,11 +46,8 @@ export function useStatsGet<T>(path: string | null): { data: T | null; pending: 
   useEffect(() => {
     if (!path) return
     let current = true
-    api.get<T>(path)
-      .then((r) => {
-        cache.set(path, r)
-        if (current) setState({ path, data: r })
-      })
+    statsFetch<T>(path)
+      .then((r) => { if (current) setState({ path, data: r }) })
       .catch(() => { if (current) setFailedPath(path) })
     return () => { current = false }
   }, [path])
@@ -48,4 +63,5 @@ export function useStatsGet<T>(path: string | null): { data: T | null; pending: 
 /** Forget cached answers (after an edit that changes them, e.g. a deleted session). */
 export function dropStatsCache(prefix: string) {
   for (const k of [...cache.keys()]) if (k.startsWith(prefix)) cache.delete(k)
+  for (const k of [...inflight.keys()]) if (k.startsWith(prefix)) inflight.delete(k)
 }

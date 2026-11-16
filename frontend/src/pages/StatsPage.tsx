@@ -21,7 +21,9 @@ import { LibraryPage } from '@/components/stats/library/LibraryPage'
 import { TastePage } from '@/components/stats/taste/TastePage'
 import { SessionsPage } from '@/components/stats/sessions/SessionsPage'
 import type { StatsTab } from '@/components/stats/kit/page'
-import { statsCacheGet, statsCacheSet } from '@/components/stats/kit/useStatsGet'
+import { statsCacheGet, statsFetch } from '@/components/stats/kit/useStatsGet'
+import { TipLayer } from '@/components/stats/kit/TipLayer'
+import { finishEntries } from '@/components/stats/kit/motion'
 import { PAGE_W, loadLocalDashboard, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
 
 /**
@@ -51,9 +53,10 @@ const PAGES: { id: TabId; label: MessageDescriptor }[] = [
 // Stats answers by range are kept for the session (in the pages' shared cache, so
 // an edit such as a deleted session drops them with the pages' own answers):
 // coming back to the page is instant, the fresh answer replaces it when it arrives.
+// One request per URL while it is in flight (statsFetch), also across tab switches mid-load.
 const statsCache = {
   get: (key: string) => statsCacheGet<StatsResponse>(`/stats?${key}`),
-  set: (key: string, r: StatsResponse) => statsCacheSet(`/stats?${key}`, r),
+  fetch: (key: string) => statsFetch<StatsResponse>(`/stats?${key}&tz_offset=${new Date().getTimezoneOffset()}`, `/stats?${key}`),
 }
 
 // What the page shows (tab, range, board) is this browser's own view state. It
@@ -124,12 +127,9 @@ export function StatsPage() {
     // A slow answer for a range the user has already left must not paint over
     // the current one: only the latest request may set state.
     let current = true
-    api
-      .get<StatsResponse>(`/stats?${key}&tz_offset=${new Date().getTimezoneOffset()}`)
-      .then((r) => {
-        statsCache.set(key, r)
-        if (current) setStats({ key, data: r, days, custom })
-      })
+    statsCache
+      .fetch(key)
+      .then((r) => { if (current) setStats({ key, data: r, days, custom }) })
       .catch(() => { if (current) setFailed(true) })
     return () => { current = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- key names days and custom
@@ -143,7 +143,8 @@ export function StatsPage() {
   const wantEstimates = tab === 'overview' || tab === 'boards'
   useEffect(() => {
     if (!wantEstimates || estimates) return
-    api.get<CompletionEstimate[]>(`/stats/completion-estimates?tz_offset=${new Date().getTimezoneOffset()}`).then(setEstimates).catch(() => {})
+    // Kept even when the tab changed meanwhile: StatsPage stays mounted, and the answer is the same.
+    statsFetch<CompletionEstimate[]>(`/stats/completion-estimates?tz_offset=${new Date().getTimezoneOffset()}`).then(setEstimates).catch(() => {})
   }, [wantEstimates, estimates])
 
   // ── Saved boards: read here, written only by edits under Boards ──────────────
@@ -203,6 +204,8 @@ export function StatsPage() {
     const node = (shownTab === 'boards' ? boardRef.current : null) ?? contentRef.current
     if (!node || shotBusy) return
     setShotBusy(true)
+    // Sections still waiting to be scrolled to (or mid-entry) are drawn final in the image.
+    finishEntries()
     const bg = getComputedStyle(document.body).backgroundColor
     import('html-to-image')
       .then(({ toPng }) => toPng(node, { pixelRatio: 2, backgroundColor: bg }))
@@ -238,7 +241,9 @@ export function StatsPage() {
   const rangeLabel = custom
     ? (() => { const from = fmtDay(custom.start), to = fmtDay(custom.end); return t`${from} to ${to}` })()
     : days === 0 ? t`All time` : days === 365 ? t`Last 12 months` : t`Last ${days} days`
+  // Sessions lists every session; Taste is all time. Neither follows the range.
   const rangeless = shownTab === 'sessions'
+  const allTime = shownTab === 'taste'
 
   const tabs = useMemo(() => PAGES.filter((p) => p.id !== 'boards' || boardsShown), [boardsShown])
 
@@ -279,11 +284,12 @@ export function StatsPage() {
     <AppShell>
       {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
       <style>{`@keyframes stats-pending { from { transform: translateX(-100%) } to { transform: translateX(270%) } }`}</style>
+      <TipLayer />
       <PageBody width="wide" className={cn(shownTab === 'boards' && dash.data && PAGE_W[dash.data.pad ?? 'lot'])}>
         <div className="flex flex-col gap-5">
           <div className="relative">
             <PageHeader
-              eyebrow={rangeless ? <Trans>All sessions</Trans> : rangeLabel}
+              eyebrow={rangeless ? <Trans>All sessions</Trans> : allTime ? <Trans>All time</Trans> : rangeLabel}
               title={
                 <span className="inline-flex items-center gap-2">
                   <Trans>Stats</Trans>
@@ -301,7 +307,7 @@ export function StatsPage() {
               }
               actions={
                 <div className="flex max-w-[calc(100vw-2.5rem)] flex-wrap items-center gap-1">
-                  {!rangeless && (
+                  {!rangeless && !allTime && (
                     <RangeControl
                       days={days}
                       custom={custom}
