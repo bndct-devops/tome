@@ -10,9 +10,12 @@ import { formatEstimateDays, type BacklogSummary } from '@/lib/backlog'
 import type { LibraryResponse, StatsResponse } from '@/components/stats/shared'
 import { Cover, Ph } from '@/components/stats/kit/Kit'
 import { HAIR, num } from '@/components/stats/kit/tokens'
+import { CountUp } from '@/components/stats/kit/CountUp'
+import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
+import { tipAttrs } from '@/components/stats/kit/tip'
 import { AddedChart, ChartPlaceholder, SmallBars, type SmallBar } from './charts'
-import { BOOKS_SHOWN, addedModel, fmtMonth, publishedModel, typeColor } from './model'
-import { Head, Note, Thin } from './parts'
+import { BOOKS_SHOWN, addedModel, fmtMonth, publishedModel, typeColor, type Range } from './model'
+import { Head, Note, RangeChip, Thin } from './parts'
 
 /* eslint-disable lingui/no-unlocalized-strings -- placeholder text: drawn as blocks
    while loading and never read; it only gives each line its loaded width. */
@@ -44,9 +47,11 @@ export function Backlog({ data, failed, desktop, rows }: { data: BacklogSummary 
   const list = est ?? Array.from({ length: rows }, () => null)
   const rowH = desktop ? BL_ROW_H : BL_ROW_H_PHONE
   const loading = !data
+  const e = useEntry('library/backlog', data ? ONCE : null)
   const total = data?.seconds ?? 0
   const hours = Math.round(total / 3600)
-  const big = loading ? PH.hours : total < 3600 ? num(Math.max(1, Math.round(total / 60))) : num(hours)
+  const bigN = total < 3600 ? Math.max(1, Math.round(total / 60)) : hours
+  const big = loading ? PH.hours : <CountUp entry={e} value={bigN} format={num} />
   const unit = loading ? PH.unit : total < 3600 ? plural(Math.max(1, Math.round(total / 60)), { one: 'minute', other: 'minutes' }) : plural(hours, { one: 'hour', other: 'hours' })
   let span: ReactNode = null
   if (loading) span = <Ph on>{PH.span}</Ph>
@@ -67,6 +72,10 @@ export function Backlog({ data, failed, desktop, rows }: { data: BacklogSummary 
     if (s < 3600) { const m = Math.max(1, Math.round(s / 60)); return desktop ? plural(m, { one: '# minute', other: '# minutes' }) : t`${m} min` }
     const h = num(Math.round(s / 3600))
     return desktop ? plural(Math.round(s / 3600), { one: '# hour', other: '# hours' }) : t`${h} h`
+  }
+  const rowHoursLong = (s: number) => {
+    if (s < 3600) { const m = Math.max(1, Math.round(s / 60)); return plural(m, { one: '# minute', other: '# minutes' }) }
+    return plural(Math.round(s / 3600), { one: '# hour', other: '# hours' })
   }
   const skipLine = skipped.length
     ? (() => { const list = skipped.map((r) => { const b = plural(r.books, { one: '# book', other: '# books' }); return `${r.label} (${b})` }).join(', '); return t`Not estimated yet: ${list}.` })()
@@ -92,6 +101,14 @@ export function Backlog({ data, failed, desktop, rows }: { data: BacklogSummary 
         <div data-box="backlog-rows" className="mt-5">
           {list.map((r, i) => {
             const share = r && total > 0 ? r.seconds / total : 0
+            const tip = r ? (() => {
+              const books = plural(r.books, { one: '# unread book', other: '# unread books' })
+              const pct = Math.round(share * 100)
+              const left = r.days != null ? aboutDays(r.days) : null
+              const note = [books, left ? t`${left} at your pace` : null, r.unestimated > 0 ? plural(r.unestimated, { one: '# not estimated', other: '# not estimated' }) : null, t`${pct}% of the backlog`].filter(Boolean).join(' · ')
+              return tipAttrs({ title: r.label, value: rowHoursLong(r.seconds), note })
+            })() : undefined
+            const bar = { style: stagger(i, list.length), tip }
             const name = (
               <span className="min-w-0 truncate text-[15px] font-semibold text-foreground">
                 <Ph on={!r}>{r?.label ?? PH.rowName}</Ph>
@@ -114,14 +131,14 @@ export function Backlog({ data, failed, desktop, rows }: { data: BacklogSummary 
             return desktop ? (
               <div key={r?.label ?? i} data-box={`backlog-row-${i}`} className={cn('grid grid-cols-[220px_minmax(0,1fr)_minmax(200px,auto)] items-center gap-x-6', i > 0 && cn('border-t', HAIR))} style={{ height: rowH }}>
                 {name}
-                <Thin frac={share} className={!r ? 'opacity-40' : ''} />
+                <Thin frac={share} className={!r ? 'opacity-40' : ''} {...bar} />
                 {value}
               </div>
             ) : (
               <div key={r?.label ?? i} data-box={`backlog-row-${i}`} className={cn('grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[20px_10px] content-center items-center gap-x-3', i > 0 && cn('border-t', HAIR))} style={{ height: rowH }}>
                 {name}
                 {value}
-                <Thin frac={share} className={cn('col-span-2 self-end', !r && 'opacity-40')} />
+                <Thin frac={share} className={cn('col-span-2 self-end', !r && 'opacity-40')} {...bar} />
               </div>
             )
           })}
@@ -132,7 +149,7 @@ export function Backlog({ data, failed, desktop, rows }: { data: BacklogSummary 
   }
 
   return (
-    <section data-box="backlog">
+    <section ref={e.ref} data-box="backlog">
       <Head note={<span className="inline-flex h-[22px] items-center rounded-full bg-secondary px-2.5 text-[12px] font-medium text-muted-foreground"><Trans>All unread</Trans></span>}>
         <Trans>Backlog</Trans>
       </Head>
@@ -162,11 +179,13 @@ export function ChartsRow({ stats, lib, libFailed, desktop, width }: { stats: St
 
 function BookLength({ stats, W }: { stats: StatsResponse | null; W: number }) {
   const L = stats?.book_lengths
+  const e = useEntry('library/length', L ? ONCE : null)
   const k = (n: number) => { const v = Math.round(n / 1000); return t`${v}k` }
   const items: SmallBar[] = (L?.buckets ?? []).map((b) => {
     const label = b.label
-    const books = plural(b.count, { one: '# book', other: '# books' })
-    return { label, value: b.count, title: t`${label} words: ${books}` }
+    const books = plural(b.count, { one: '# finished book', other: '# finished books' })
+    const pct = L && L.count > 0 ? Math.round((b.count / L.count) * 100) : 0
+    return { label, value: b.count, tip: { title: t`${label} words`, value: books, note: t`${pct}% of the finished books with a word count` } }
   })
   let foot: ReactNode = <><div><Ph on>{PH.foot1}</Ph></div><div><Ph on>{PH.foot2}</Ph></div></>
   if (L) {
@@ -182,7 +201,7 @@ function BookLength({ stats, W }: { stats: StatsResponse | null; W: number }) {
     }
   }
   return (
-    <section data-box="length" className="min-w-0">
+    <section ref={e.ref} data-box="length" className="min-w-0">
       <Head note={L ? plural(L.count, { one: '# finished', other: '# finished' }) : <Ph on>{PH.chartNote}</Ph>}><Trans>Book length</Trans></Head>
       <div data-box="length-chart" style={{ height: CH }}>
         {!L ? <ChartPlaceholder W={W} H={CH} y={18} h={CH - 18 - 22} />
@@ -197,11 +216,13 @@ function BookLength({ stats, W }: { stats: StatsResponse | null; W: number }) {
 function Published({ lib, failed, W }: { lib: LibraryResponse | null; failed: boolean; W: number }) {
   const P = lib?.published
   const m = useMemo(() => (P ? publishedModel(P) : null), [P])
+  const e = useEntry('library/published', m ? ONCE : null)
   const items: SmallBar[] = (m?.periods ?? []).map((p) => {
     const a = p.start, b = p.start + p.span - 1
     const label = p.span === 5 ? t`${a} to ${b}` : t`${a}s`
-    const books = plural(p.count, { one: '# book', other: '# books' })
-    return { label, value: p.count, title: `${label}: ${books}` }
+    const books = plural(p.count, { one: '# finished book', other: '# finished books' })
+    const pct = m && m.withYear > 0 ? Math.round((p.count / m.withYear) * 100) : 0
+    return { label, value: p.count, tip: { title: t`Published ${a} to ${b}`, value: books, note: t`${pct}% of the finished books with a year` } }
   })
   let foot: ReactNode = <><div><Ph on>{PH.foot1}</Ph></div><div><Ph on>{PH.foot2}</Ph></div></>
   if (P && m) {
@@ -210,7 +231,7 @@ function Published({ lib, failed, W }: { lib: LibraryResponse | null; failed: bo
     foot = <><div>{m.withYear > 0 ? per : ' '}</div><div>{noYear}</div></>
   }
   return (
-    <section data-box="published" className="min-w-0">
+    <section ref={e.ref} data-box="published" className="min-w-0">
       <Head note={m ? plural(m.withYear, { one: '# finished', other: '# finished' }) : <Ph on>{PH.chartNote}</Ph>}><Trans>Published</Trans></Head>
       <div data-box="published-chart" style={{ height: CH }}>
         {failed ? <Note h={CH} center><Trans>Could not load this chart.</Trans></Note>
@@ -225,6 +246,7 @@ function Published({ lib, failed, W }: { lib: LibraryResponse | null; failed: bo
 
 function TimeToFinish({ lib, failed, W }: { lib: LibraryResponse | null; failed: boolean; W: number }) {
   const T = lib?.time_to_finish
+  const e = useEntry('library/ttf', T ? ONCE : null)
   const H = CH - FIG_H
   const LABELS: Record<string, [string, string]> = {
     '1_day': [t`1 day`, t`1 day`],
@@ -235,8 +257,9 @@ function TimeToFinish({ lib, failed, W }: { lib: LibraryResponse | null; failed:
   }
   const items: SmallBar[] = (T?.buckets ?? []).map((b) => {
     const [label, long] = LABELS[b.bucket] ?? [b.bucket, b.bucket]
-    const books = plural(b.count, { one: '# book', other: '# books' })
-    return { label, value: b.count, title: `${long}: ${books}` }
+    const books = plural(b.count, { one: '# finished book', other: '# finished books' })
+    const pct = T && T.books > 0 ? Math.round((b.count / T.books) * 100) : 0
+    return { label, value: b.count, tip: { title: long, value: books, note: t`From the first reading day to the finish · ${pct}%` } }
   })
   let foot: ReactNode = <><div><Ph on>{PH.foot1}</Ph></div><div><Ph on>{PH.foot2}</Ph></div></>
   if (T) {
@@ -257,11 +280,11 @@ function TimeToFinish({ lib, failed, W }: { lib: LibraryResponse | null; failed:
   }
   const median = T?.median_days
   return (
-    <section data-box="ttf" className="min-w-0">
+    <section ref={e.ref} data-box="ttf" className="min-w-0">
       <Head note={T ? plural(T.books, { one: '# with reading days', other: '# with reading days' }) : <Ph on>{PH.chartNote}</Ph>}><Trans>Time to finish</Trans></Head>
       <div data-box="ttf-figure" className="mb-2 flex h-10 items-baseline gap-2">
         <span className="font-display text-[32px] font-bold leading-none tabular-nums text-foreground">
-          <Ph on={!T}>{T ? median != null ? num(median) : '—' : PH.median}</Ph>
+          {T ? median != null ? <CountUp entry={e} value={median} format={num} /> : '—' : <Ph on>{PH.median}</Ph>}
           {(!T || median != null) && <span className="ml-1.5 font-sans text-[16px] font-semibold tracking-normal"><Ph on={!T}>{median != null ? plural(median, { one: 'day', other: 'days' }) : t`days`}</Ph></span>}
         </span>
         <span className="truncate text-[14px] text-muted-foreground"><Ph on={!T}>{T ? t`median, first day to finish` : PH.ttfNote}</Ph></span>
@@ -281,6 +304,7 @@ function TimeToFinish({ lib, failed, W }: { lib: LibraryResponse | null; failed:
 
 export function AddedSection({ stats, desktop, width }: { stats: StatsResponse | null; desktop: boolean; width: number }) {
   const m = useMemo(() => (stats ? addedModel(stats.library_growth) : null), [stats])
+  const e = useEntry('library/added', m ? ONCE : null)
   const H = desktop ? 240 : 200
   let note: ReactNode = <Ph on>{PH.addedNote}</Ph>
   if (m) {
@@ -293,7 +317,7 @@ export function AddedSection({ stats, desktop, width }: { stats: StatsResponse |
   }
   const types = m?.types ?? []
   return (
-    <section data-box="added">
+    <section ref={e.ref} data-box="added">
       <Head note={note} stack={!desktop}><Trans>Added to the library</Trans></Head>
       <div data-box="added-chart" style={{ height: H }}>
         {!m ? <ChartPlaceholder W={width} H={H} y={26} h={H - 26 - 24} />
@@ -316,7 +340,9 @@ const BOOK_COLS = 'grid-cols-[29px_minmax(0,1fr)_minmax(0,24%)_110px_110px_100px
 const BOOK_COLS_PHONE = 'grid-cols-[29px_minmax(0,1fr)_78px] gap-x-3'
 const TH = 'whitespace-nowrap text-[12px] font-bold uppercase tracking-[0.1em]'
 
-export function AllBooks({ stats, desktop, rows, rangePhrase, dim }: { stats: StatsResponse | null; desktop: boolean; rows: number; rangePhrase: string; dim: string }) {
+export function AllBooks({ stats, desktop, rows, range, dim }: { stats: StatsResponse | null; desktop: boolean; rows: number; range: Range; dim: string }) {
+  const rangePhrase = range.phrase
+  const e = useEntry('library/books', range.sig)
   const [key, setKey] = useState<SortKey>('seconds')
   const [asc, setAsc] = useState(false)
   const [all, setAll] = useState(false)
@@ -340,11 +366,11 @@ export function AllBooks({ stats, desktop, rows, rangePhrase, dim }: { stats: St
     )
   }
   const n = data?.length ?? 0
-  const note = stats ? plural(n, { one: `# book read in ${rangePhrase}`, other: `# books read in ${rangePhrase}` }) : <Ph on>{PH.tableNote}</Ph>
+  const note = stats ? <span className="inline-flex items-center gap-2"><span>{plural(n, { one: '# book read', other: '# books read' })}</span><RangeChip>{range.label}</RangeChip></span> : <Ph on>{PH.tableNote}</Ph>
   const rowH = desktop ? 60 : 64
 
   return (
-    <section id="stats-all-books" data-box="books" className={cn('scroll-mt-6', dim)}>
+    <section ref={e.ref} id="stats-all-books" data-box="books" className={cn('scroll-mt-6', dim)}>
       <Head note={note} stack={!desktop}><Trans>All books by reading time</Trans></Head>
       {stats && n === 0 ? (
         <Note h={rowH}>{t`No reading in ${rangePhrase}.`}</Note>
@@ -358,23 +384,34 @@ export function AllBooks({ stats, desktop, rows, rangePhrase, dim }: { stats: St
             {desktop && <span role="columnheader" className="text-right">{sortHead('sessions', <Trans>Sessions</Trans>)}</span>}
             {desktop && <span role="columnheader" className="text-right">{sortHead('pages_turned', <Trans>Pages</Trans>)}</span>}
           </div>
-          {list.map((b, i) => (
-            <div key={b?.book_id ?? i} role="row" data-box={i < BOOKS_SHOWN ? `book-${i}` : undefined} className={cn('grid items-center border-t text-[14px]', HAIR, cols)} style={{ height: rowH }}>
-              <span role="cell">
-                {b ? <Link to={`/books/${b.book_id}`} aria-label={b.title}><Cover id={b.has_cover ? b.book_id : null} h={44} className="rounded-[6px]" /></Link> : <Cover id={null} h={44} className="rounded-[6px]" />}
-              </span>
-              <span role="cell" className="min-w-0">
-                <span className={cn('block truncate font-semibold text-foreground', desktop ? 'text-[15px]' : 'text-[14px] leading-[19px]')}>
-                  {b ? <Link to={`/books/${b.book_id}`} className="hover:underline underline-offset-4" title={b.title}>{b.title}</Link> : <Ph on>{PH.title}</Ph>}
+          {list.map((b, i) => {
+            const row = cn('grid items-center border-t text-[14px]', HAIR, cols)
+            const style = { height: rowH }
+            const box = i < BOOKS_SHOWN ? `book-${i}` : undefined
+            const cells = (
+              <>
+                <span role="cell">
+                  <Cover id={b ? (b.has_cover ? b.book_id : null) : null} h={44} className={cn('rounded-[6px]', b && cn(K.fade, 'transition-transform duration-200 group-hover:-translate-y-0.5'))} />
                 </span>
-                {!desktop && <span className="mt-0.5 block truncate text-[13px] text-muted-foreground"><Ph on={!b}>{b ? b.author ?? ' ' : PH.author}</Ph></span>}
-              </span>
-              {desktop && <span role="cell" className="truncate text-muted-foreground"><Ph on={!b}>{b ? b.author ?? '—' : PH.author}</Ph></span>}
-              <span role="cell" className="whitespace-nowrap text-right text-foreground"><Ph on={!b}>{b ? formatDuration(b.seconds) : PH.dur}</Ph></span>
-              {desktop && <span role="cell" className="text-right tabular-nums text-foreground"><Ph on={!b}>{b ? num(b.sessions) : PH.n}</Ph></span>}
-              {desktop && <span role="cell" className="text-right tabular-nums text-foreground"><Ph on={!b}>{b ? num(b.pages_turned) : PH.n}</Ph></span>}
-            </div>
-          ))}
+                <span role="cell" className="min-w-0">
+                  <span className={cn('block truncate font-semibold text-foreground transition-colors group-hover:text-primary', desktop ? 'text-[15px]' : 'text-[14px] leading-[19px]')}>
+                    {b ? b.title : <Ph on>{PH.title}</Ph>}
+                  </span>
+                  {!desktop && <span className="mt-0.5 block truncate text-[13px] text-muted-foreground"><Ph on={!b}>{b ? b.author ?? ' ' : PH.author}</Ph></span>}
+                </span>
+                {desktop && <span role="cell" className="truncate text-muted-foreground"><Ph on={!b}>{b ? b.author ?? '—' : PH.author}</Ph></span>}
+                <span role="cell" className="whitespace-nowrap text-right text-foreground"><Ph on={!b}>{b ? formatDuration(b.seconds) : PH.dur}</Ph></span>
+                {desktop && <span role="cell" className="text-right tabular-nums text-foreground"><Ph on={!b}>{b ? num(b.sessions) : PH.n}</Ph></span>}
+                {desktop && <span role="cell" className="text-right tabular-nums text-foreground"><Ph on={!b}>{b ? num(b.pages_turned) : PH.n}</Ph></span>}
+              </>
+            )
+            // A row is one link to its book: the row washes and the title takes the accent, as the old table did.
+            return b ? (
+              <Link key={b.book_id} to={`/books/${b.book_id}`} role="row" title={b.title} data-box={box} className={cn(row, 'group transition-colors hover:bg-accent/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring')} style={style}>{cells}</Link>
+            ) : (
+              <div key={i} role="row" data-box={box} className={row} style={style}>{cells}</div>
+            )
+          })}
         </div>
       )}
       {n > BOOKS_SHOWN && (

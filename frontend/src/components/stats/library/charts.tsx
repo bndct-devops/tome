@@ -1,9 +1,14 @@
 // The Library page's charts: small bar charts (book length, published, time to
 // finish) and the monthly additions stacked by type. Plain SVG on whole pixels
 // at a width the page measures before its first paint, like the Overview's.
+// Each bar column is a hit area (k-hit) with a tip from a chart-wide lookup
+// (kit/tip.ts: one focus stop, arrow keys between columns); bars grow from the
+// base and the counts above them fade in when the section's entry plays.
 import type { ReactNode } from 'react'
 import { t } from '@lingui/core/macro'
 import { num } from '@/components/stats/kit/tokens'
+import { K, stagger } from '@/components/stats/kit/motion'
+import { useTips, type Tip } from '@/components/stats/kit/tip'
 import type { AddedModel } from './model'
 import { fmtMonth, fmtMonthShort, typeColor } from './model'
 
@@ -28,7 +33,7 @@ export function ChartPlaceholder({ W, H, y = 0, h }: { W: number; H: number; y?:
   )
 }
 
-export type SmallBar = { label: string; value: number; title: string }
+export type SmallBar = { label: string; value: number; tip: Omit<Tip, 'anchor'> }
 
 // Quiet gridlines, the count above each bar, the label under it, no y labels.
 export function SmallBars({ W, H, items, label }: { W: number; H: number; items: SmallBar[]; label: string }) {
@@ -47,8 +52,9 @@ export function SmallBars({ W, H, items, label }: { W: number; H: number; items:
   const every = Math.max(1, Math.ceil((widest + 8) / slot))
   const lines: number[] = []
   for (let v = step; v <= top; v += step) lines.push(v)
+  const tips = useTips((i) => items[i]?.tip ?? null, { x: 1 })
   return (
-    <svg className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
+    <svg {...tips} className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
       {lines.map((v) => {
         const yy = Math.round(y(v)) + 0.5
         return <line key={v} x1={0} x2={W} y1={yy} y2={yy} stroke={GRID} shapeRendering="crispEdges" />
@@ -60,13 +66,10 @@ export function SmallBars({ W, H, items, label }: { W: number; H: number; items:
         const cx = x + bw / 2
         return (
           <g key={i}>
-            {it.value > 0 && (
-              <path d={barPath(x, yt, bw, base)} fill="var(--chart-accent)">
-                <title>{it.title}</title>
-              </path>
-            )}
-            <text x={cx} y={yt - 6} textAnchor="middle" fill="var(--foreground)" fontWeight={600}>{num(it.value)}</text>
-            {i % every === 0 && <text x={cx} y={H - 6} textAnchor="middle">{it.label}</text>}
+            <rect className="k-hit" data-tip-i={i} x={Math.round(slot * i)} y={0} width={Math.round(slot * (i + 1)) - Math.round(slot * i)} height={base} />
+            {it.value > 0 && <path className={`${K.grow} k-nohit`} style={stagger(i, items.length)} d={barPath(x, yt, bw, base)} fill="var(--chart-accent)" />}
+            <text className={`${K.fade} k-nohit`} style={stagger(i, items.length)} x={cx} y={yt - 6} textAnchor="middle" fill="var(--foreground)" fontWeight={600}>{num(it.value)}</text>
+            {i % every === 0 && <text className="k-nohit" x={cx} y={H - 6} textAnchor="middle">{it.label}</text>}
           </g>
         )
       })}
@@ -88,8 +91,17 @@ export function AddedChart({ W, H, m }: { W: number; H: number; m: AddedModel })
   const every = Math.max(1, Math.ceil(30 / slot))
   const lines: number[] = []
   for (let v = m.step; v <= m.top; v += m.step) lines.push(v)
+  const tips = useTips((i) => {
+    const mo = m.months[i]
+    if (!mo) return null
+    const when = fmtMonth(mo.month)
+    const total = num(mo.total)
+    const parts = mo.byType.map((v, k) => ({ v, k })).filter((s) => s.v > 0).sort((a, b) => b.v - a.v).map((s) => { const ty = m.types[s.k], n = num(s.v); return `${ty} ${n}` })
+    const note = i === m.outlier ? t`Drawn shorter than its count, so the other months stay readable.` : undefined
+    return { title: when, value: mo.total === 1 ? t`1 book added` : t`${total} books added`, note: [parts.join(' · '), note].filter(Boolean).join('. ') || undefined }
+  }, { x: 1 })
   return (
-    <svg className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Books added per month`}>
+    <svg {...tips} className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Books added per month`}>
       {lines.map((v) => {
         const yy = Math.round(y(v)) + 0.5
         return (
@@ -106,46 +118,42 @@ export function AddedChart({ W, H, m }: { W: number; H: number; m: AddedModel })
         const broken = i === m.outlier
         const scale = broken ? plotH / mo.total : plotH / m.top
         const segs = mo.byType.map((v, k) => ({ v, k })).filter((s) => s.v > 0)
-        const when = fmtMonth(mo.month)
         let yb = base
         const parts = segs.map((s, j) => {
           const last = j === segs.length - 1
           const yt = last ? (broken ? padT : Math.round(base - mo.total * scale)) : Math.round(yb - s.v * scale)
-          const type = m.types[s.k]
-          const books = num(s.v)
-          const tip = t`${when}, ${type}: ${books}`
           const el = last ? (
-            <path key={s.k} d={barPath(x, yt, bw, yb)} style={{ fill: typeColor(s.k) }}><title>{tip}</title></path>
+            <path key={s.k} d={barPath(x, yt, bw, yb)} style={{ fill: typeColor(s.k) }} />
           ) : (
-            <rect key={s.k} x={x} y={yt} width={bw} height={Math.max(0, yb - yt)} style={{ fill: typeColor(s.k) }}><title>{tip}</title></rect>
+            <rect key={s.k} x={x} y={yt} width={bw} height={Math.max(0, yb - yt)} style={{ fill: typeColor(s.k) }} />
           )
           yb = yt
           return el
         })
         const cx = x + bw / 2
         let top: ReactNode = null
+        let brk: ReactNode = null
         if (broken) {
           const by = padT + 22
           const total = num(mo.total)
+          const when = fmtMonth(mo.month)
           const label = t`${total} in ${when}`
           const half = textW(label) / 2
           const lx = Math.min(W - half, Math.max(half, cx))
-          top = (
-            <>
-              <path d={`M${x - 2},${by + 3} L${x + bw + 2},${by - 3} M${x - 2},${by + 9} L${x + bw + 2},${by + 3}`} stroke="var(--background)" strokeWidth={3} fill="none" />
-              <text x={lx} y={padT - 9} textAnchor="middle" fill="var(--foreground)" fontWeight={600}>{label}</text>
-            </>
-          )
+          // The break mark grows with its bar; the count fades in.
+          brk = <path d={`M${x - 2},${by + 3} L${x + bw + 2},${by - 3} M${x - 2},${by + 9} L${x + bw + 2},${by + 3}`} stroke="var(--background)" strokeWidth={3} fill="none" />
+          top = <text className={`${K.fade} k-nohit`} style={stagger(i, n)} x={lx} y={padT - 9} textAnchor="middle" fill="var(--foreground)" fontWeight={600}>{label}</text>
         } else if (mo.total > 0) {
-          top = <text x={cx} y={Math.round(base - mo.total * scale) - 6} textAnchor="middle" fill="var(--foreground)" fontWeight={600}>{num(mo.total)}</text>
+          top = <text className={`${K.fade} k-nohit`} style={stagger(i, n)} x={cx} y={Math.round(base - mo.total * scale) - 6} textAnchor="middle" fill="var(--foreground)" fontWeight={600}>{num(mo.total)}</text>
         }
         // January shows its year, so a chart across a new year reads in order.
         const lab = mo.month.endsWith('-01') && i > 0 ? mo.month.slice(0, 4) : fmtMonthShort(mo.month)
         return (
           <g key={mo.month}>
-            {parts}
+            <rect className="k-hit" data-tip-i={i} x={Math.round(padL + slot * i)} y={0} width={Math.round(padL + slot * (i + 1)) - Math.round(padL + slot * i)} height={base} />
+            {parts.length > 0 && <g className={`${K.grow} k-nohit`} style={stagger(i, n)}>{parts}{brk}</g>}
             {top}
-            {i % every === 0 && <text x={cx} y={H - 6} textAnchor="middle">{lab}</text>}
+            {i % every === 0 && <text className="k-nohit" x={cx} y={H - 6} textAnchor="middle">{lab}</text>}
           </g>
         )
       })}
