@@ -1,0 +1,154 @@
+// The Library page's charts: small bar charts (book length, published, time to
+// finish) and the monthly additions stacked by type. Plain SVG on whole pixels
+// at a width the page measures before its first paint, like the Overview's.
+import type { ReactNode } from 'react'
+import { t } from '@lingui/core/macro'
+import { num } from '@/components/stats/kit/tokens'
+import type { AddedModel } from './model'
+import { fmtMonth, fmtMonthShort, typeColor } from './model'
+
+const GRID = 'color-mix(in oklch, var(--border) 70%, transparent)'
+// Onest at 11 px: about 0.545 em per character.
+const textW = (s: string, px = 11) => Math.ceil(s.length * px * 0.545)
+
+
+const barPath = (x: number, yt: number, w: number, base: number, r = 4) => {
+  const h = base - yt
+  const rr = Math.max(0, Math.min(r, h, w / 2))
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- SVG path
+  return `M${x},${base} V${yt + rr} Q${x},${yt} ${x + rr},${yt} H${x + w - rr} Q${x + w},${yt} ${x + w},${yt + rr} V${base} Z`
+}
+
+/** A chart with no data yet: a block in the chart's own box. */
+export function ChartPlaceholder({ W, H, y = 0, h }: { W: number; H: number; y?: number; h?: number }) {
+  return (
+    <svg className="block" width={Math.max(1, W)} height={H} viewBox={`0 0 ${Math.max(1, W)} ${H}`} aria-hidden="true">
+      <rect x={0} y={y} width={Math.max(1, W)} height={h ?? H - y} rx={8} fill="var(--muted)" />
+    </svg>
+  )
+}
+
+export type SmallBar = { label: string; value: number; title: string }
+
+// Quiet gridlines, the count above each bar, the label under it, no y labels.
+export function SmallBars({ W, H, items, label }: { W: number; H: number; items: SmallBar[]; label: string }) {
+  const padT = 18, padB = 22
+  const plotH = H - padT - padB
+  const max = Math.max(1, ...items.map((i) => i.value))
+  const STEPS = [1, 2, 5, 10, 20, 25, 50, 100, 200, 250, 500, 1000]
+  const step = STEPS.find((s) => max / s <= 4) ?? 1000
+  const top = Math.max(max, Math.ceil(max / step) * step)
+  const y = (v: number) => padT + plotH - (v / top) * plotH
+  const base = Math.round(y(0))
+  const slot = W / Math.max(1, items.length)
+  const bw = Math.max(2, Math.round(Math.min(slot * 0.6, 56)))
+  // Labels too wide for their slot: every k-th one.
+  const widest = Math.max(0, ...items.map((i) => textW(i.label)))
+  const every = Math.max(1, Math.ceil((widest + 8) / slot))
+  const lines: number[] = []
+  for (let v = step; v <= top; v += step) lines.push(v)
+  return (
+    <svg className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={label}>
+      {lines.map((v) => {
+        const yy = Math.round(y(v)) + 0.5
+        return <line key={v} x1={0} x2={W} y1={yy} y2={yy} stroke={GRID} shapeRendering="crispEdges" />
+      })}
+      <line x1={0} x2={W} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
+      {items.map((it, i) => {
+        const x = Math.round(slot * i + (slot - bw) / 2)
+        const yt = Math.round(y(it.value))
+        const cx = x + bw / 2
+        return (
+          <g key={i}>
+            {it.value > 0 && (
+              <path d={barPath(x, yt, bw, base)} fill="var(--chart-accent)">
+                <title>{it.title}</title>
+              </path>
+            )}
+            <text x={cx} y={yt - 6} textAnchor="middle" fill="var(--foreground)" fontWeight={600}>{num(it.value)}</text>
+            {i % every === 0 && <text x={cx} y={H - 6} textAnchor="middle">{it.label}</text>}
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
+
+// Monthly additions stacked by type. A month far above the rest is drawn to the
+// top of the plot with a double break mark and its count above it; its segments
+// keep their shares inside the drawn height, so its mix stays readable.
+export function AddedChart({ W, H, m }: { W: number; H: number; m: AddedModel }) {
+  const padL = 30, padT = 26, padB = 24
+  const plotW = W - padL, plotH = H - padT - padB
+  const y = (v: number) => padT + plotH - (v / m.top) * plotH
+  const base = Math.round(y(0))
+  const n = Math.max(1, m.months.length)
+  const slot = plotW / n
+  const bw = Math.max(2, Math.round(Math.min(slot * 0.5, 48)))
+  const every = Math.max(1, Math.ceil(30 / slot))
+  const lines: number[] = []
+  for (let v = m.step; v <= m.top; v += m.step) lines.push(v)
+  return (
+    <svg className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Books added per month`}>
+      {lines.map((v) => {
+        const yy = Math.round(y(v)) + 0.5
+        return (
+          <g key={v}>
+            <line x1={padL} x2={W} y1={yy} y2={yy} stroke={GRID} shapeRendering="crispEdges" />
+            <text x={padL - 8} y={yy + 4} textAnchor="end">{num(v)}</text>
+          </g>
+        )
+      })}
+      <line x1={padL} x2={W} y1={base + 0.5} y2={base + 0.5} stroke="var(--border)" shapeRendering="crispEdges" />
+      <text x={padL - 8} y={base + 4} textAnchor="end">0</text>
+      {m.months.map((mo, i) => {
+        const x = Math.round(padL + slot * i + (slot - bw) / 2)
+        const broken = i === m.outlier
+        const scale = broken ? plotH / mo.total : plotH / m.top
+        const segs = mo.byType.map((v, k) => ({ v, k })).filter((s) => s.v > 0)
+        const when = fmtMonth(mo.month)
+        let yb = base
+        const parts = segs.map((s, j) => {
+          const last = j === segs.length - 1
+          const yt = last ? (broken ? padT : Math.round(base - mo.total * scale)) : Math.round(yb - s.v * scale)
+          const type = m.types[s.k]
+          const books = num(s.v)
+          const tip = t`${when}, ${type}: ${books}`
+          const el = last ? (
+            <path key={s.k} d={barPath(x, yt, bw, yb)} style={{ fill: typeColor(s.k) }}><title>{tip}</title></path>
+          ) : (
+            <rect key={s.k} x={x} y={yt} width={bw} height={Math.max(0, yb - yt)} style={{ fill: typeColor(s.k) }}><title>{tip}</title></rect>
+          )
+          yb = yt
+          return el
+        })
+        const cx = x + bw / 2
+        let top: ReactNode = null
+        if (broken) {
+          const by = padT + 22
+          const total = num(mo.total)
+          const label = t`${total} in ${when}`
+          const half = textW(label) / 2
+          const lx = Math.min(W - half, Math.max(half, cx))
+          top = (
+            <>
+              <path d={`M${x - 2},${by + 3} L${x + bw + 2},${by - 3} M${x - 2},${by + 9} L${x + bw + 2},${by + 3}`} stroke="var(--background)" strokeWidth={3} fill="none" />
+              <text x={lx} y={padT - 9} textAnchor="middle" fill="var(--foreground)" fontWeight={600}>{label}</text>
+            </>
+          )
+        } else if (mo.total > 0) {
+          top = <text x={cx} y={Math.round(base - mo.total * scale) - 6} textAnchor="middle" fill="var(--foreground)" fontWeight={600}>{num(mo.total)}</text>
+        }
+        // January shows its year, so a chart across a new year reads in order.
+        const lab = mo.month.endsWith('-01') && i > 0 ? mo.month.slice(0, 4) : fmtMonthShort(mo.month)
+        return (
+          <g key={mo.month}>
+            {parts}
+            {top}
+            {i % every === 0 && <text x={cx} y={H - 6} textAnchor="middle">{lab}</text>}
+          </g>
+        )
+      })}
+    </svg>
+  )
+}
