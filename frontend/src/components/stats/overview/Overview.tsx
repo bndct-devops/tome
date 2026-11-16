@@ -2,43 +2,25 @@
 // titles, Stat figures, real covers on hairlines). Every section's size follows
 // from fixed heights and row counts, so the skeleton below draws each box where
 // the loaded page will have it and nothing moves when the data arrives.
-import { useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
+import { useEffect, useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { cn, formatDuration } from '@/lib/utils'
-import { coverSrc } from '@/lib/covers'
-import { CoverImage } from '@/components/CoverImage'
 import { SectionTitle } from '@/components/page'
 import type { CompletionEstimate, StatsResponse } from '@/components/stats/shared'
 import { fmtDay as fmtShortDay, type CustomRange } from '@/components/stats/range'
+import { Cover, Heading, Ph, Track } from '@/components/stats/kit/Kit'
+import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
 import { BarsChart, HourHeat, YearGrid } from './charts'
 import { dayDiff, emptyYear, heroBars, hourHeatHeight, hourModel, readingDayOf, yearHeight, yearModel } from './model'
 
-/** Container width from which the desktop layout applies. */
-const DESKTOP_MIN = 896
+
 const HERO_CHART_H = 180
 const COVER_SHELF_H = 120
 const COVER_SHELF_W = 80 // 2:3 at 120 high
 const SHELF_GAP = 12
 const TOP_ROWS = 5
-
-const fmtDay = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-const num = (n: number) => n.toLocaleString()
-
-// The five heat shades of the page's charts, from the reader's own quantiles.
-/* eslint-disable lingui/no-unlocalized-strings -- CSS */
-const LEVELS = {
-  '--k-lv0': 'color-mix(in oklch, var(--foreground) 7%, var(--background))',
-  '--k-lv1': 'color-mix(in oklch, var(--chart-accent) 36%, var(--background))',
-  '--k-lv2': 'color-mix(in oklch, var(--chart-accent) 52%, var(--background))',
-  '--k-lv3': 'color-mix(in oklch, var(--chart-accent) 68%, var(--background))',
-  '--k-lv4': 'color-mix(in oklch, var(--chart-accent) 84%, var(--background))',
-  '--k-lv5': 'var(--chart-accent)',
-} as CSSProperties
-/* eslint-enable lingui/no-unlocalized-strings */
-
-const HAIR = 'border-border/70'
 
 /* eslint-disable lingui/no-unlocalized-strings -- placeholder text: drawn as blocks
    while loading and never read; it only gives each line its loaded width. */
@@ -50,58 +32,7 @@ const PH = {
   month: 'Nov', shelfNote: '13 books in the last 90 days', dur: '00h 00m', when: 'Mostly between 01:00 and 02:00, most on Mondays.',
   active: '361 active days in the last 365', session: '0h 0m', day: '0h 00m', pagesDay: '0,000', date: 'Sep 9, 2026', streakSpan: 'Dec 10, 2025 to Nov 15, 2026',
 }
-const DIM = 'opacity-50 transition-opacity duration-150'
-const UNDIM = 'transition-opacity duration-150'
 /* eslint-enable lingui/no-unlocalized-strings */
-
-/** Text that is only a placeholder while loading: it keeps its line box, drawn as a block. */
-function Ph({ on, children }: { on: boolean; children: ReactNode }) {
-  return on ? <span aria-hidden="true" className="select-none rounded-[6px] bg-muted text-transparent">{children}</span> : <>{children}</>
-}
-
-/** Measures its own width before the first paint. */
-function useWidth<T extends HTMLElement>() {
-  const ref = useRef<T>(null)
-  const [w, setW] = useState(0)
-  useLayoutEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const read = () => setW(Math.floor(el.getBoundingClientRect().width))
-    read()
-    const ro = new ResizeObserver(read)
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-  return [ref, w] as const
-}
-
-function Track({ pct, className }: { pct: number; className?: string }) {
-  return (
-    <div className={cn('h-[6px] flex-1 overflow-hidden rounded-full', className)} style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
-      <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
-    </div>
-  )
-}
-
-/** A cover in a fixed 2:3 box, as Home's rows draw them. */
-function Cover({ id, h, title, className }: { id: number | null; h: number; title?: string; className?: string }) {
-  return (
-    <span className={cn('relative block shrink-0 overflow-hidden rounded-[8px] bg-muted', className)} style={{ height: h, width: Math.round((h * 2) / 3) }} title={title}>
-      {id != null && <CoverImage src={coverSrc(id, { w: h > 60 ? 400 : 160 })} alt="" iconClassName="w-5 h-5" />}
-    </span>
-  )
-}
-
-function Heading({ children, note, right }: { children: ReactNode; note?: ReactNode; right?: boolean }) {
-  return (
-    <SectionTitle
-      className={cn('mb-5', right ? '' : 'justify-start gap-3.5')}
-      action={note ? <span className="text-[14px] font-normal text-muted-foreground">{note}</span> : undefined}
-    >
-      {children}
-    </SectionTitle>
-  )
-}
 
 export type OverviewProps = {
   /** null while the first answer is on its way: the skeleton is drawn. */
@@ -278,8 +209,30 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, dim
 
 // ── Reading now ───────────────────────────────────────────────────────────────
 
+const NOW_COUNT_KEY = 'tome_stats_now_count'
+function rememberedNowCount(): number {
+  try {
+    const n = Number(localStorage.getItem(NOW_COUNT_KEY) ?? '2')
+    return Number.isInteger(n) && n >= 0 && n <= 3 ? n : 2
+  } catch {
+    return 2
+  }
+}
+function rememberNowCount(n: number) {
+  try {
+    localStorage.setItem(NOW_COUNT_KEY, String(n))
+  } catch {
+    // storage unavailable - the skeleton keeps reserving two cards
+  }
+}
+
 function ReadingNow({ stats, estimates, desktop, loading }: { stats: StatsResponse | null; estimates: CompletionEstimate[] | null; desktop: boolean; loading: boolean }) {
-  const books = stats ? stats.books_in_progress.slice(0, 3) : [null, null]
+  // The skeleton reserves as many cards as the last answer had (remembered per
+  // browser), so a reader with one or three books in progress sees no shift.
+  const books = stats ? stats.books_in_progress.slice(0, 3) : Array.from({ length: rememberedNowCount() }, () => null)
+  useEffect(() => {
+    if (stats) rememberNowCount(Math.min(3, stats.books_in_progress.length))
+  }, [stats])
   const today = stats ? stats.heatmap_daily[stats.heatmap_daily.length - 1]?.date ?? readingDayOf(Date.now()) : ''
   const span = desktop ? ({ 1: 'col-span-12', 2: 'col-span-6', 3: 'col-span-4' } as Record<number, string>)[Math.max(1, books.length)] : ''
 
@@ -304,8 +257,8 @@ function ReadingNow({ stats, estimates, desktop, loading }: { stats: StatsRespon
   return (
     <section data-box="now">
       <Heading><Trans>Reading now</Trans></Heading>
-      {stats && books.length === 0 ? (
-        <p className="flex h-[108px] items-center text-[15px] text-muted-foreground"><Trans>Nothing in progress. Books you start show up here.</Trans></p>
+      {books.length === 0 ? (
+        <p className="flex h-[108px] items-center text-[15px] text-muted-foreground">{stats && <Trans>Nothing in progress. Books you start show up here.</Trans>}</p>
       ) : (
         <div className={desktop ? 'grid grid-cols-12 gap-4' : 'flex flex-col gap-5'}>
           {books.map((b, i) => (

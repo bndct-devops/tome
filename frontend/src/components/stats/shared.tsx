@@ -63,7 +63,8 @@ export interface StatsResponse {
   monthly_comparison: { month: string; label: string; books_finished: number; reading_hours: number; sessions: number; reading_seconds: number }[]
   genre_over_time: { month: string; [category: string]: number | string }[]
   hour_dow_heatmap: { dow: number; hour: number; seconds: number; sessions: number }[]
-  series_completion: { series: string; total: number; read: number; reading: number; pct: number; sample_book_id: number }[]
+  // next_index: highest volume read or being read, plus one; next_book_id: the library's book holding it (null: not in the library).
+  series_completion: { series: string; total: number; read: number; reading: number; pct: number; sample_book_id: number; next_index?: number | null; next_book_id?: number | null }[]
   author_affinity: { author: string; seconds: number; sessions: number; book_count: number; books_finished: number }[]
   completion_rate: { started: number; finished: number; pct: number }
   completion_by_type: { category: string; started: number; finished: number; pct: number }[]
@@ -75,7 +76,7 @@ export interface StatsResponse {
     distribution: { rating: number; count: number }[]
     by_category: { category: string; avg: number; count: number }[]
     books: { book_id: number; title: string; author: string | null; has_cover: boolean; category: string; rating: number; seconds: number; rated_at: string | null }[]
-    series: { series: string; rating: number; sample_book_id: number | null }[]
+    series: { series: string; rating: number; sample_book_id: number | null; book_count?: number }[]
     trend: { date: string; rating: number }[]
   }
   lifetime: { seconds: number; sessions: number; pages: number; books_finished: number; active_days: number; longest_streak_days: number }
@@ -291,4 +292,45 @@ export function HeatmapChart({ data }: { data: { date: string; seconds: number }
         )}
     </div>
   )
+}
+
+// ── Designed-page endpoints ────────────────────────────────────────────────────
+
+/** GET /api/stats/habits?days|start&end&tz_offset: what Habits needs beyond /stats. */
+export interface HabitsResponse {
+  /** Counted sittings in the range; equals headline.total_sessions for the same range. */
+  sessions: number
+  session_lengths: { bucket: 'under_15m' | '15_to_30m' | '30_to_60m' | '1_to_2h' | 'over_2h'; count: number }[]
+  longest_session: { seconds: number; book_id: number | null; title: string | null; started_at: string } | null
+  /** The last 14 reading days (4 h rollover), oldest first, with each day's sittings (UTC ISO starts). */
+  last_14_days: { date: string; seconds: number; sittings: { started_at: string; seconds: number; book_id: number | null; title: string | null }[] }[]
+}
+
+/** GET /api/stats/library?tz_offset: all time. */
+export interface LibraryResponse {
+  finished: number
+  published: { years: { year: number; count: number }[]; no_year: number }
+  time_to_finish: {
+    books: number
+    median_days: number | null
+    buckets: { bucket: '1_day' | '2_to_3' | '4_to_7' | '1_to_2_weeks' | 'longer'; count: number }[]
+    quickest: { days: number; count: number } | null
+    slowest: { days: number; book_id: number; title: string } | null
+  }
+}
+
+/** GET /api/stats/highlights. */
+export interface HighlightsResponse {
+  count: number
+  books: number
+  top: { book_id: number; title: string; count: number }[]
+}
+
+/** GET /api/stats/sessions with `counted` and `day_totals`. */
+export interface SessionsPage {
+  total: number
+  counts: { all: number; counted: number; not_counted: number }
+  sessions: SessionEntry[]
+  /** Local calendar day (YYYY-MM-DD) -> seconds of every counted row that started that day. */
+  day_totals?: Record<string, number>
 }

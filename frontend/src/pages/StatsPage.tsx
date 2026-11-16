@@ -16,7 +16,11 @@ import { RangeControl } from '@/components/stats/RangeControl'
 import { fmtDay, type CustomRange } from '@/components/stats/range'
 import { Overview } from '@/components/stats/overview/Overview'
 import { FullBleedTimeline } from '@/components/stats/FullBleedTimeline'
-import { SessionLog, SessionLogHint } from '@/components/stats/SessionLog'
+import { HabitsPage } from '@/components/stats/habits/HabitsPage'
+import { LibraryPage } from '@/components/stats/library/LibraryPage'
+import { TastePage } from '@/components/stats/taste/TastePage'
+import { SessionsPage } from '@/components/stats/sessions/SessionsPage'
+import type { StatsTab } from '@/components/stats/kit/page'
 import { PAGE_W, loadLocalDashboard, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
 
 /**
@@ -27,11 +31,12 @@ import { PAGE_W, loadLocalDashboard, saveLocalDashboard, type Persisted } from '
  * on demand, so the Overview never pays for it.
  */
 
-// The grid and its tile catalog: one chunk, loaded when a board is shown.
+// The grid and its tile catalog: one chunk, loaded only for the Boards tab.
 const BoardsView = lazy(() => import('@/components/stats/boards/BoardsView'))
-const DefaultBoard = lazy(() => import('@/components/stats/boards/BoardsView').then((m) => ({ default: m.DefaultBoard })))
 
-type TabId = 'overview' | 'habits' | 'library' | 'taste' | 'timeline' | 'sessions' | 'boards'
+type TabId = StatsTab
+// Tabs drawn from the shared /api/stats answer; Timeline and Sessions have their own requests.
+const NEEDS_STATS = new Set<TabId>(['overview', 'habits', 'library', 'taste', 'boards'])
 const PAGES: { id: TabId; label: MessageDescriptor }[] = [
   { id: 'overview', label: msg`Overview` },
   { id: 'habits', label: msg`Habits` },
@@ -89,6 +94,10 @@ export function StatsPage() {
 
   // ── /api/stats: one request per range, the range known before it starts ──────
   const key = rangeKey(days, custom)
+  const [tab0] = useState(initial.tab)
+  // Asked for once a tab that shows it has been opened (not on Timeline or Sessions).
+  const [wantStats, setWantStats] = useState(NEEDS_STATS.has(tab0))
+  useEffect(() => { if (NEEDS_STATS.has(tab)) setWantStats(true) }, [tab])
   // Each answer keeps the range it was asked for, so what is on screen is described
   // by its own range while a newer one is on its way.
   type Answer = { key: string; data: StatsResponse; days: number; custom: CustomRange | null }
@@ -98,6 +107,7 @@ export function StatsPage() {
   })
   const [failed, setFailed] = useState(false)
   useEffect(() => {
+    if (!wantStats) return
     const cached = statsCache.get(key)
     if (cached) setStats({ key, data: cached, days, custom })
     setFailed(false)
@@ -113,16 +123,18 @@ export function StatsPage() {
       .catch(() => { if (current) setFailed(true) })
     return () => { current = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- key names days and custom
-  }, [key])
+  }, [key, wantStats])
   // A range change keeps the previous answer on screen, dimmed, until this one lands.
   const pending = !!stats && stats.key !== key
   const data = stats?.data ?? null
 
   // Second wave, started with the main request rather than after it.
   const [estimates, setEstimates] = useState<CompletionEstimate[] | null>(null)
+  const wantEstimates = tab === 'overview' || tab === 'boards'
   useEffect(() => {
+    if (!wantEstimates || estimates) return
     api.get<CompletionEstimate[]>(`/stats/completion-estimates?tz_offset=${new Date().getTimezoneOffset()}`).then(setEstimates).catch(() => {})
-  }, [])
+  }, [wantEstimates, estimates])
 
   // ── Saved boards: read here, written only by edits under Boards ──────────────
   // The local copy answers at once (so the Boards tab is there on the first
@@ -194,6 +206,25 @@ export function StatsPage() {
       .finally(() => setShotBusy(false))
   }, [shownTab, shotBusy])
 
+  // Switch tab and, once the target exists, bring an element on it into view.
+  const [anchor, setAnchor] = useState<string | null>(null)
+  const goto = useCallback((next: TabId, id?: string) => {
+    setTab(next)
+    setAnchor(id ?? null)
+  }, [])
+  useEffect(() => {
+    if (!anchor) return
+    let tries = 0
+    const tick = () => {
+      const el = document.getElementById(anchor)
+      if (el) { el.scrollIntoView({ block: 'start', behavior: 'smooth' }); setAnchor(null) }
+      else if (tries++ < 60) raf = requestAnimationFrame(tick)
+      else setAnchor(null)
+    }
+    let raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [anchor, shownTab, data])
+
   const rangeLabel = custom
     ? (() => { const from = fmtDay(custom.start), to = fmtDay(custom.end); return t`${from} to ${to}` })()
     : days === 0 ? t`All time` : days === 365 ? t`Last 12 months` : t`Last ${days} days`
@@ -205,19 +236,14 @@ export function StatsPage() {
   if (failed && !data) {
     content = <p className="py-32 text-center text-[14px] text-muted-foreground"><Trans>Couldn’t load stats.</Trans></p>
   } else if (shownTab === 'overview') {
-    content = <Overview stats={data} estimates={estimates} pending={pending} days={stats?.days ?? days} custom={stats ? stats.custom : custom} onAllBooks={() => setTab('library')} />
+    content = <Overview stats={data} estimates={estimates} pending={pending} days={stats?.days ?? days} custom={stats ? stats.custom : custom} onAllBooks={() => goto('library', 'stats-all-books')} />
   } else if (shownTab === 'timeline') {
     content = <FullBleedTimeline />
   } else if (shownTab === 'sessions') {
-    content = (
-      <section>
-        <div className="mb-3 flex items-center gap-1.5">
-          <h2 className="font-display text-[24px] font-bold leading-none text-foreground"><Trans>Sessions</Trans></h2>
-          <SessionLogHint />
-        </div>
-        <SessionLog />
-      </section>
-    )
+    content = <SessionsPage />
+  } else if (shownTab === 'habits' || shownTab === 'library' || shownTab === 'taste') {
+    const props = { stats: data, pending, days: stats?.days ?? days, custom: stats ? stats.custom : custom, goto }
+    content = shownTab === 'habits' ? <HabitsPage {...props} /> : shownTab === 'library' ? <LibraryPage {...props} /> : <TastePage {...props} />
   } else if (!data) {
     content = <Spinner />
   } else if (shownTab === 'boards') {
@@ -237,14 +263,6 @@ export function StatsPage() {
         />
       </Suspense>
     ) : <Spinner />
-  } else {
-    content = (
-      <Suspense fallback={<Spinner />}>
-        <div className={cn('transition-opacity duration-150', pending && 'opacity-50')}>
-          <DefaultBoard id={shownTab} stats={data} estimates={estimates} />
-        </div>
-      </Suspense>
-    )
   }
 
   return (
@@ -255,7 +273,7 @@ export function StatsPage() {
         <div className="flex flex-col gap-5">
           <div className="relative">
             <PageHeader
-              eyebrow={rangeless ? <Trans>Every session</Trans> : rangeLabel}
+              eyebrow={rangeless ? <Trans>All sessions</Trans> : rangeLabel}
               title={
                 <span className="inline-flex items-center gap-2">
                   <Trans>Stats</Trans>
@@ -284,7 +302,7 @@ export function StatsPage() {
                       onCustom={setCustom}
                     />
                   )}
-                  <Pill
+                  {!rangeless && <Pill
                     variant="quiet"
                     icon
                     onClick={exportImage}
@@ -293,7 +311,7 @@ export function StatsPage() {
                     aria-label={t`Save page as image`}
                   >
                     {shotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageDown className="h-4 w-4" />}
-                  </Pill>
+                  </Pill>}
                   <div className="relative">
                     <Pill variant={menuOpen ? 'secondary' : 'quiet'} icon onClick={() => setMenuOpen((o) => !o)} aria-label={t`More`} aria-expanded={menuOpen} title={t`More`}>
                       <MoreHorizontal className="h-4 w-4" />
