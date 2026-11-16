@@ -83,8 +83,8 @@ export function scatterDots(books: RatedBook[], x: (s: number) => number, y: (r:
   return placed
 }
 
-export type TimePoint = { date: string; rating: number; title: string; mean: number | null }
-export type TimeGroup = { date: string; rating: number; titles: string[] }
+export type TimePoint = { date: string; rating: number; title: string; id: number; mean: number | null }
+export type TimeGroup = { date: string; rating: number; titles: string[]; ids: number[] }
 
 /**
  * Every rating with a time, in the order it was given (full timestamps; the
@@ -96,15 +96,16 @@ export function timeline(books: RatedBook[]): { points: TimePoint[]; groups: Tim
     .filter((b) => b.rated_at)
     .slice()
     .sort((a, b) => ts(a).localeCompare(ts(b)) || a.book_id - b.book_id)
-    .map((b) => ({ date: ts(b).slice(0, 10), rating: b.rating, title: b.title, mean: null }))
+    .map((b) => ({ date: ts(b).slice(0, 10), rating: b.rating, title: b.title, id: b.book_id, mean: null }))
   points.forEach((p, i) => {
     if (i >= 4) p.mean = points.slice(i - 4, i + 1).reduce((a, q) => a + q.rating, 0) / 5
   })
   const groups: TimeGroup[] = []
   for (const p of points) {
     let g = groups.find((q) => q.date === p.date && q.rating === p.rating)
-    if (!g) groups.push((g = { date: p.date, rating: p.rating, titles: [] }))
+    if (!g) groups.push((g = { date: p.date, rating: p.rating, titles: [], ids: [] }))
     g.titles.push(p.title)
+    g.ids.push(p.id)
   }
   return { points, groups }
 }
