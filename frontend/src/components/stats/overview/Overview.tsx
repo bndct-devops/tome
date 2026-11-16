@@ -5,12 +5,15 @@
 // Motion and hover come from the kit: each section has an entry (kit/motion.ts:
 // range-bound sections play again for a new range, the rest once a session),
 // figures count up (CountUp), and chart marks, tracks and covers have tips (kit/tip.ts).
-import { useEffect, useMemo, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { Check } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { cn, formatDuration } from '@/lib/utils'
 import { SectionTitle } from '@/components/page'
+import { api } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
 import type { CompletionEstimate, StatsResponse } from '@/components/stats/shared'
 import { fmtDay as fmtShortDay, type CustomRange } from '@/components/stats/range'
 import { Cover, Heading, Ph, Track } from '@/components/stats/kit/Kit'
@@ -19,7 +22,9 @@ import { K, ONCE, rangeSig, stagger, useEntry } from '@/components/stats/kit/mot
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
 import { BarsChart, HourHeat, YearGrid } from './charts'
-import { dayDiff, emptyYear, heroBars, hourHeatHeight, hourModel, readingDayOf, yearHeight, yearModel } from './model'
+import { Goals, GoalsStart } from './Goals'
+import { useGoals } from './goalsData'
+import { bestDay, busiestMonth, dayDiff, emptyYear, heroBars, hourHeatHeight, hourModel, readingDayOf, yearHeight, yearModel, yearSummary } from './model'
 
 
 const HERO_CHART_H = 180
@@ -35,6 +40,7 @@ const PH = {
   sessions: '000', sessionsFoot: 'avg 00m', pages: '00,000', pagesFoot: '000 a day',
   finished: '00', finishedFoot: '00 in the previous 90 days', streak: '000', streakFoot: 'since Dec 10, 2025', streakFoot2: 'your longest',
   title: 'He Who Fights with Monsters', author: 'Shirtaloon', pct: '00%', bookLine: 'about 4 days left · last read yesterday',
+  genre: 'Fantasy', genreFoot: '000h 00m · 00 books', monthLong: 'September', monthFoot: '00h 00m of reading, 2026',
   month: 'Nov', shelfNote: '13 books in the last 90 days', dur: '00h 00m', when: 'Mostly between 01:00 and 02:00, most on Mondays.',
   active: '361 active days in the last 365', session: '0h 0m', day: '0h 00m', pagesDay: '0,000', date: 'Sep 9, 2026', streakSpan: 'Dec 10, 2025 to Nov 15, 2026',
 }
@@ -48,10 +54,14 @@ export type OverviewProps = {
   pending: boolean
   days: number
   custom: CustomRange | null
+  /** The range asked for (differs from days/custom while a newer answer is on its way). */
+  requested: { days: number; custom: CustomRange | null }
   onAllBooks: () => void
+  /** Ask for the stats again, keeping this answer on screen until the new one lands (after a book is marked read). */
+  onRefresh: () => void
 }
 
-export function Overview({ stats, estimates, pending, days, custom, onAllBooks }: OverviewProps) {
+export function Overview({ stats, estimates, pending, days, custom, requested, onAllBooks, onRefresh }: OverviewProps) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const desktop = width >= DESKTOP_MIN
   const loading = !stats
@@ -68,13 +78,19 @@ export function Overview({ stats, estimates, pending, days, custom, onAllBooks }
   // What the entries key on: the range the answer is for (sections that follow it), or once.
   const sig = stats ? rangeSig(days, custom) : null
   const once = stats ? ONCE : null
+  const { goals, reload: reloadGoals } = useGoals()
+  // The year band follows the range asked for, so it is in place (as a placeholder)
+  // from the click on 1y or All, and the skeleton reserves it exactly.
+  const yearBand = !requested.custom && (requested.days === 365 || requested.days === 0)
 
   return (
     <div ref={ref} style={LEVELS} className={cn('flex flex-col', desktop ? 'gap-[52px]' : 'gap-10')} aria-busy={loading || pending}>
       {width > 0 && (
         <>
-          <Hero stats={stats} desktop={desktop} width={width} loading={loading} neverRead={neverRead} prevPhrase={prevPhrase} days={days} dim={dim} sig={sig} />
-          <ReadingNow stats={stats} estimates={estimates} desktop={desktop} loading={loading} sig={once} />
+          <Hero stats={stats} desktop={desktop} width={width} loading={loading} neverRead={neverRead} prevPhrase={prevPhrase} days={days} custom={custom} dim={dim} sig={sig} />
+          {yearBand && <YearBand stats={stats} desktop={desktop} allTime={requested.days === 0} dim={dim} sig={sig} />}
+          <Goals goals={goals} reload={reloadGoals} desktop={desktop} />
+          <ReadingNow stats={stats} estimates={estimates} desktop={desktop} loading={loading} sig={once} onRefresh={onRefresh} />
           <Finished stats={stats} width={width} desktop={desktop} loading={loading} rangePhrase={rangePhrase} allTime={days === 0 && !custom} dim={dim} sig={sig} />
           <div className={cn(desktop ? 'grid grid-cols-2 gap-4' : 'flex flex-col gap-10')}>
             <TopBooks stats={stats} loading={loading} desktop={desktop} rangePhrase={rangePhrase} allTime={days === 0 && !custom} onAllBooks={onAllBooks} dim={dim} sig={sig} />
@@ -82,6 +98,7 @@ export function Overview({ stats, estimates, pending, days, custom, onAllBooks }
           </div>
           <TheYear stats={stats} loading={loading} width={width} desktop={desktop} sig={once} />
           <Records stats={stats} loading={loading} desktop={desktop} sig={once} />
+          <GoalsStart goals={goals} reload={reloadGoals} />
         </>
       )}
     </div>
@@ -90,7 +107,7 @@ export function Overview({ stats, estimates, pending, days, custom, onAllBooks }
 
 // ── Hero: reading time, four figures, the chart ───────────────────────────────
 
-function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, dim, sig }: {
+function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, custom, dim, sig }: {
   stats: StatsResponse | null
   desktop: boolean
   width: number
@@ -98,6 +115,7 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, dim
   neverRead: boolean
   prevPhrase: string
   days: number
+  custom: CustomRange | null
   dim: string
   sig: string | null
 }) {
@@ -105,6 +123,9 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, dim
   const h = stats?.headline
   const pc = stats?.period_comparison ?? null
   const chart = useMemo(() => (stats ? heroBars(stats.daily) : null), [stats])
+  // The best day of the range, as a quiet line in the chart. All time: the all-time
+  // record (the chart itself shows only the last 365 days).
+  const best = useMemo(() => (stats ? bestDay(stats, days === 0 && !custom) : null), [stats, days, custom])
   const totalLabel = h ? <CountUp entry={e} value={h.total_reading_seconds} format={formatDuration} /> : PH.total
 
   let delta: ReactNode = ' '
@@ -195,7 +216,7 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, dim
           <Link to="/settings/koreader" className="text-[14px] font-medium text-primary hover:underline"><Trans>Download the plugin from Settings</Trans></Link>
         </div>
       ) : (
-        <BarsChart W={width} H={HERO_CHART_H} bars={chart?.bars ?? []} avg={chart?.avg ?? 0} monthStarts={chart?.monthStarts ?? []} nDays={chart?.nDays ?? 1} weekly={chart?.weekly ?? false} loading={loading} />
+        <BarsChart W={width} H={HERO_CHART_H} bars={chart?.bars ?? []} avg={chart?.avg ?? 0} monthStarts={chart?.monthStarts ?? []} nDays={chart?.nDays ?? 1} weekly={chart?.weekly ?? false} best={best} loading={loading} />
       )}
     </div>
   )
@@ -214,6 +235,70 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, dim
       </div>
       {chartBox}
       {!desktop && <div className={cn('order-2 mt-5 grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] border-t', HAIR)}>{figures}</div>}
+    </section>
+  )
+}
+
+// ── Year in review: a band under the hero at 1y and All ──────────────────────
+// The old tile's six figures were books finished, hours, top genre, longest
+// streak, sessions and most active month. The hero above already shows four of
+// them (Finished, Reading time, Sessions, and the longest streak under Streak),
+// so the band keeps the two it lacks: top genre and most active month.
+
+function YearBand({ stats, desktop, allTime, dim, sig }: { stats: StatsResponse | null; desktop: boolean; allTime: boolean; dim: string; sig: string | null }) {
+  // Only an answer for a year range carries a summary: while 1y or All is on its
+  // way from a shorter range, the band shows its placeholder (dimmed).
+  const ys = stats ? yearSummary(stats) : null
+  const e = useEntry('overview/year-band', ys ? sig : null)
+  const enter = useCallback((el: Element | null) => e.ref(el), [e])
+  const loading = !ys
+  const cat = ys?.top_genre && stats ? stats.by_category.find((c) => c.category === ys.top_genre) : undefined
+  const month = useMemo(() => (stats ? busiestMonth(stats.daily) : null), [stats])
+  const monthName = month ? new Date(month.month + '-01T00:00:00').toLocaleDateString(undefined, { month: 'long' }) : null
+  const monthOk = !!month && !!ys?.most_active_month && monthName === ys.most_active_month
+  const year = month?.month.slice(0, 4) ?? ''
+  const cells: { label: ReactNode; value: ReactNode; foot: ReactNode; ph: string; phFoot: string }[] = [
+    {
+      label: <Trans>Top genre</Trans>,
+      value: ys?.top_genre ?? '—',
+      foot: cat ? <><CountUp entry={e} value={cat.seconds} format={formatDuration} /> · {plural(cat.book_count, { one: '# book', other: '# books' })}</> : ' ',
+      ph: PH.genre, phFoot: PH.genreFoot,
+    },
+    {
+      label: <Trans>Most active month</Trans>,
+      value: ys?.most_active_month ?? '—',
+      foot: monthOk && month ? <><CountUp entry={e} value={month.seconds} format={formatDuration} />{', '}{year}</> : ' ',
+      ph: PH.monthLong, phFoot: PH.monthFoot,
+    },
+  ]
+  const title = (
+    <>
+      <div className={cn('font-display font-bold leading-none text-foreground', desktop ? 'text-[24px]' : 'text-[20px]')}><Trans>Year in review</Trans></div>
+      <div className="mt-2 text-[14px] leading-[1.4] text-muted-foreground">{allTime ? <Trans>all time; the month within the last 12</Trans> : <Trans>the last 12 months</Trans>}</div>
+    </>
+  )
+  const figures = cells.map((c, i) => (
+    <div key={i} data-box={`year-band-${i}`} className={cn('min-w-0', desktop ? cn('self-stretch border-l pl-3.5', HAIR) : cn('pt-4', i === 0 ? 'pr-3' : cn('border-l pl-4', HAIR)))}>
+      <div className="text-[14px] text-muted-foreground">{c.label}</div>
+      <div className={cn('mt-1.5 truncate font-display font-bold leading-none text-foreground', desktop ? 'text-[30px]' : 'text-[26px]')}>
+        <Ph on={loading}>{loading ? c.ph : <span className={cn('inline-block', K.rise)} style={stagger(i, cells.length)}>{c.value}</span>}</Ph>
+      </div>
+      <div className="mt-1.5 truncate text-[13px] leading-[1.4] text-muted-foreground"><Ph on={loading}>{loading ? c.phFoot : c.foot}</Ph></div>
+    </div>
+  ))
+  return (
+    <section ref={enter} data-box="year-band" className={dim}>
+      {desktop ? (
+        <div className="grid grid-cols-[342px_repeat(4,minmax(0,1fr))] items-start">
+          <div className="min-w-0 pr-5 pt-0.5">{title}</div>
+          {figures}
+        </div>
+      ) : (
+        <>
+          {title}
+          <div className={cn('mt-4 grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] border-t', HAIR)}>{figures}</div>
+        </>
+      )}
     </section>
   )
 }
@@ -237,21 +322,54 @@ function rememberNowCount(n: number) {
   }
 }
 
-function ReadingNow({ stats, estimates, desktop, loading, sig }: { stats: StatsResponse | null; estimates: CompletionEstimate[] | null; desktop: boolean; loading: boolean; sig: string | null }) {
+// At or above this a book is as good as finished (devices round the last page
+// differently); its card offers "Mark as read", as the old Currently reading tile did.
+const FINISHED_PCT = 99
+const NOW_CARD_H = 108
+const NOW_GAP_PHONE = 20
+
+function ReadingNow({ stats, estimates, desktop, loading, sig, onRefresh }: { stats: StatsResponse | null; estimates: CompletionEstimate[] | null; desktop: boolean; loading: boolean; sig: string | null; onRefresh: () => void }) {
   const e = useEntry('overview/now', sig)
+  const { toast } = useToast()
+  // Marked read here: gone from the list at once, while the stats are asked for again.
+  const [marked, setMarked] = useState<ReadonlySet<number>>(() => new Set())
+  const [marking, setMarking] = useState<number | null>(null)
+  // After a mark the list keeps the height it had for the rest of the visit, so
+  // nothing under it moves when a card leaves (only the phone stacks cards; on
+  // desktop the row's height never changes).
+  const [hold, setHold] = useState(0)
+  const all = stats ? stats.books_in_progress.filter((b) => !marked.has(b.book_id)) : []
   // The skeleton reserves as many cards as the last answer had (remembered per
   // browser), so a reader with one or three books in progress sees no shift.
-  const books = stats ? stats.books_in_progress.slice(0, 3) : Array.from({ length: rememberedNowCount() }, () => null)
+  const books = stats ? all.slice(0, 3) : Array.from({ length: rememberedNowCount() }, () => null)
   useEffect(() => {
     if (stats) rememberNowCount(Math.min(3, stats.books_in_progress.length))
   }, [stats])
   const today = stats ? stats.heatmap_daily[stats.heatmap_daily.length - 1]?.date ?? readingDayOf(Date.now()) : ''
   const span = desktop ? ({ 1: 'col-span-12', 2: 'col-span-6', 3: 'col-span-4' } as Record<number, string>)[Math.max(1, books.length)] : ''
+  const minH = !desktop && hold > 0 ? hold * NOW_CARD_H + (hold - 1) * NOW_GAP_PHONE : undefined
+
+  async function markRead(id: number, title: string) {
+    setMarking(id)
+    try {
+      await api.put(`/books/${id}/status`, { status: 'read' })
+      setHold((h) => Math.max(h, books.length))
+      setMarked((m) => new Set(m).add(id))
+      toast.success(t`Marked as read: ${title}`)
+      // The finished count, the shelf and the rest follow from a fresh answer, drawn in place.
+      onRefresh()
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t`Failed to update status`)
+    } finally {
+      setMarking(null)
+    }
+  }
 
   const line = (b: StatsResponse['books_in_progress'][number]) => {
     const parts: string[] = []
     const est = estimates?.find((e) => e.book_id === b.book_id)
-    if (est?.estimated_days != null) {
+    if (b.progress >= FINISHED_PCT) { /* the button says it */ }
+    else if (est?.estimated_days != null) {
       const n = est.estimated_days
       parts.push(plural(n, { one: 'about a day left', other: 'about # days left' }))
     } else if (b.progress < 5) parts.push(t`just started`)
@@ -266,38 +384,73 @@ function ReadingNow({ stats, estimates, desktop, loading, sig }: { stats: StatsR
     return parts.join(' · ')
   }
 
+  const more = all.length > 3 ? all.length : 0
   return (
     <section ref={e.ref} data-box="now">
-      <Heading><Trans>Reading now</Trans></Heading>
+      <Heading
+        right
+        note={more > 0 ? (
+          // As Home's "+N": the library filtered to the books being read.
+          <Link to="/?tab=books&reading_status=reading" className="text-[15px] font-medium text-primary underline-offset-4 hover:underline">
+            {t`All ${more} in progress`}
+          </Link>
+        ) : undefined}
+      >
+        <Trans>Reading now</Trans>
+      </Heading>
       {books.length === 0 ? (
-        <p className="flex h-[108px] items-center text-[15px] text-muted-foreground">{stats && <Trans>Nothing in progress. Books you start show up here.</Trans>}</p>
+        <p className="flex items-center text-[15px] text-muted-foreground" style={{ height: Math.max(NOW_CARD_H, minH ?? 0) }}>{stats && <Trans>Nothing in progress. Books you start show up here.</Trans>}</p>
       ) : (
-        <div className={desktop ? 'grid grid-cols-12 gap-4' : 'flex flex-col gap-5'}>
+        <div className={desktop ? 'grid grid-cols-12 gap-4' : 'flex flex-col gap-5'} style={{ minHeight: minH }}>
           {books.map((b, i) => {
-            // A card is one link to its book: the title underlines and the cover lifts on hover, as on Home.
-            const body = (
-              <>
-                <Cover id={b ? (b.has_cover ? b.book_id : null) : null} h={108} className={b ? 'transition-transform duration-200 group-hover:-translate-y-0.5' : undefined} />
+            const done = !!b && b.progress >= FINISHED_PCT
+            const rest = b ? line(b) : ''
+            // A card is one link to its book (the title stretches over the card): the
+            // title underlines and the cover lifts on hover, as on Home. "Mark as read"
+            // sits above that link.
+            return (
+              <div
+                key={b ? b.book_id : i}
+                data-box={`now-card-${i}`}
+                className={cn('relative flex min-w-0 items-center gap-5', span, b && 'group')}
+              >
+                <Cover id={b ? (b.has_cover ? b.book_id : null) : null} h={NOW_CARD_H} className={b ? 'transition-transform duration-200 group-hover:-translate-y-0.5' : undefined} />
                 <div className="min-w-0 flex-1">
                   <div className={cn('truncate font-display font-bold text-foreground', desktop ? 'text-[20px]' : 'text-[18px]', 'leading-[1.15]')}>
-                    {b ? <span className="underline-offset-4 group-hover:underline">{b.title}</span> : <Ph on>{PH.title}</Ph>}
+                    {b ? (
+                      <Link
+                        to={`/books/${b.book_id}`}
+                        className="underline-offset-4 after:absolute after:inset-0 after:rounded-[8px] group-hover:underline focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-offset-4 focus-visible:after:ring-offset-background"
+                      >
+                        {b.title}
+                      </Link>
+                    ) : <Ph on>{PH.title}</Ph>}
                   </div>
-                  <div className="mt-1 truncate text-[15px] leading-[1.4] text-muted-foreground">{b ? b.author ?? ' ' : <Ph on>{PH.author}</Ph>}</div>
+                  <div className="mt-1 truncate text-[15px] leading-[1.4] text-muted-foreground">{b ? b.author ?? ' ' : <Ph on>{PH.author}</Ph>}</div>
                   <div className="mt-3 flex h-5 items-center gap-3">
                     <Track pct={b?.progress ?? 0} className={loading ? 'opacity-40' : ''} style={stagger(i, books.length)} />
                     <span className="text-[17px] font-bold tabular-nums text-foreground">
                       <Ph on={!b}>{b ? <><CountUp entry={e} value={Math.round(b.progress)} format={String} />%</> : PH.pct}</Ph>
                     </span>
                   </div>
-                  <div className="mt-2 truncate text-[14px] leading-[1.4] text-muted-foreground">{b ? line(b) || ' ' : <Ph on>{PH.bookLine}</Ph>}</div>
+                  <div className="mt-2 h-5 truncate text-[14px] leading-5 text-muted-foreground">
+                    {!b ? <Ph on>{PH.bookLine}</Ph> : done ? (
+                      <>
+                        <button
+                          type="button"
+                          onClick={() => markRead(b.book_id, b.title)}
+                          disabled={marking === b.book_id}
+                          className="relative z-10 inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline disabled:opacity-50"
+                        >
+                          <Check className="h-3.5 w-3.5" aria-hidden="true" />
+                          <Trans>Mark as read</Trans>
+                        </button>
+                        {rest && <> · {rest}</>}
+                      </>
+                    ) : rest || ' '}
+                  </div>
                 </div>
-              </>
-            )
-            const box = cn('flex min-w-0 items-center gap-5', span)
-            return b ? (
-              <Link key={b.book_id} to={`/books/${b.book_id}`} data-box={`now-card-${i}`} className={cn(box, 'group rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background')}>{body}</Link>
-            ) : (
-              <div key={i} data-box={`now-card-${i}`} className={box}>{body}</div>
+              </div>
             )
           })}
         </div>
@@ -537,6 +690,13 @@ function Records({ stats, loading, desktop, sig }: { stats: StatsResponse | null
   const r = stats?.records
   const s = stats?.headline.streaks
   const dash = '—'
+  // A longest streak that is the running one reads "since …" (as the hero's Streak does), which keeps it on one line.
+  const spanText = (from: string, to: string, running: boolean) => {
+    const a = fmtDay(from)
+    if (running) return t`since ${a}`
+    const b = fmtDay(to)
+    return t`${a} to ${b}`
+  }
   const cells: { label: ReactNode; value: ReactNode; unit?: string; sub: string; ph: string; phSub: string }[] = [
     { label: <Trans>Longest session</Trans>, value: r ? <CountUp entry={e} value={r.longest_session_seconds} format={formatDuration} /> : '', sub: r?.longest_session_title ?? dash, ph: PH.session, phSub: PH.title },
     { label: <Trans>Biggest reading day</Trans>, value: r ? <CountUp entry={e} value={r.biggest_day_seconds} format={formatDuration} /> : '', sub: r?.biggest_day_date ? fmtDay(r.biggest_day_date) : dash, ph: PH.day, phSub: PH.date },
@@ -545,21 +705,34 @@ function Records({ stats, loading, desktop, sig }: { stats: StatsResponse | null
       label: <Trans>Longest streak</Trans>,
       value: s ? <CountUp entry={e} value={s.longest_days} format={num} /> : '',
       unit: s ? plural(s.longest_days, { one: 'day', other: 'days' }) : undefined,
-      sub: s?.longest_start && s.longest_end ? (() => { const a = fmtDay(s.longest_start!), b = fmtDay(s.longest_end!); return t`${a} to ${b}` })() : dash,
+      sub: s?.longest_start && s.longest_end ? spanText(s.longest_start, s.longest_end, s.current_days > 0 && s.current_start === s.longest_start) : dash,
+      ph: PH.streak, phSub: PH.streakSpan,
+    },
+    {
+      // The weekly streak (weeks with any reading, Monday-based), as the old Personal records tile showed it.
+      label: <Trans>Longest weekly streak</Trans>,
+      value: s ? <CountUp entry={e} value={s.longest_weeks} format={num} /> : '',
+      unit: s ? plural(s.longest_weeks, { one: 'week', other: 'weeks' }) : undefined,
+      sub: s?.longest_weeks_start && s.longest_weeks_end ? spanText(s.longest_weeks_start, s.longest_weeks_end, s.current_weeks > 0 && s.current_weeks_start === s.longest_weeks_start) : dash,
       ph: PH.streak, phSub: PH.streakSpan,
     },
   ]
   return (
     <section ref={e.ref} data-box="records">
       <Heading note={<Trans>all time</Trans>}><Trans>Records</Trans></Heading>
-      <div className={cn('grid', desktop ? 'grid-cols-4' : 'grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]')}>
+      <div className={cn('grid', desktop ? 'grid-cols-5' : 'grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]')}>
         {cells.map((c, i) => (
           <div
             key={i}
             data-box={`record-${i}`}
             className={cn(
               'min-w-0',
-              desktop ? cn('px-6 py-0.5', i === 0 && 'pl-0', i > 0 && cn('border-l', HAIR)) : cn('py-4', i % 2 === 0 ? 'pr-2.5' : cn('border-l pl-3.5', HAIR), i < 2 ? cn('border-b pt-0', HAIR) : 'pb-0'),
+              // Desktop: one row of five. Phone: two by two, the weekly streak across the last row.
+              desktop
+                ? cn('px-4 py-0.5', i === 0 && 'pl-0', i === cells.length - 1 && 'pr-0', i > 0 && cn('border-l', HAIR))
+                : i === 4
+                  ? 'col-span-2 pb-0 pt-4'
+                  : cn('py-4', i % 2 === 0 ? 'pr-2.5' : cn('border-l pl-3.5', HAIR), cn('border-b', HAIR), i < 2 && 'pt-0'),
             )}
           >
             <div className={cn('text-muted-foreground', desktop ? 'text-[14px]' : 'text-[13px]')}>{c.label}</div>
@@ -567,7 +740,7 @@ function Records({ stats, loading, desktop, sig }: { stats: StatsResponse | null
               <Ph on={loading}>{loading ? c.ph : c.value}</Ph>
               {c.unit && <span className="ml-1.5 font-sans text-[16px] font-semibold tracking-normal">{c.unit}</span>}
             </div>
-            <div className={cn('mt-1.5 truncate text-muted-foreground', desktop ? 'text-[14px]' : 'text-[12px]', 'leading-[1.4]', !desktop && i === 3 && 'whitespace-normal')} title={c.sub}>
+            <div className={cn('mt-1.5 truncate text-muted-foreground', desktop ? 'text-[14px]' : 'text-[12px]', 'leading-[1.4]', (desktop ? i >= 3 : i === 3) && 'line-clamp-2 h-[2.8em] whitespace-normal')} title={c.sub}>
               <Ph on={loading}>{loading ? c.phSub : c.sub}</Ph>
             </div>
           </div>

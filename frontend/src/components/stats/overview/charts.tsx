@@ -47,7 +47,9 @@ function Placeholder({ W, H, x = 0, y = 0, w, h }: { W: number; H: number; x?: n
 // ── Reading time per day or week ──────────────────────────────────────────────
 // The average's label sits inside the plot at the right end, above the dashed
 // line, unless a bar would run through it; then it moves to a key above the plot.
-export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, loading }: {
+// The range's best day is a quiet line at the top left, above where any bar can
+// reach (the scale tops out 8 % over the tallest bar).
+export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, best, loading }: {
   W: number
   H: number
   bars: Bar[]
@@ -55,6 +57,7 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, loading
   monthStarts: { index: number; label: string }[]
   nDays: number
   weekly: boolean
+  best?: { date: string; seconds: number } | null
   loading?: boolean
 }) {
   const padL = 30, padB = 24
@@ -132,6 +135,18 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, loading
           </g>
         )
       })}
+      {best && (() => {
+        const day = fmtShort(best.date), dur = formatDuration(best.seconds)
+        const word = t({ message: 'best day', comment: 'Before a date and a duration at the top of a chart' })
+        // Clear of the average's key at the right edge, or left out when the chart is too narrow for both.
+        const w = textW(`${word} ${day} · ${dur}`, 10)
+        if (padL + w > (inside ? W : W - labW - 34)) return null
+        return (
+          <text className={`${K.fade} k-nohit`} style={AVG_LABEL} x={padL} y={12} fontSize={10}>
+            {word} <tspan fill="var(--foreground)" fontWeight={600}>{day} · {dur}</tspan>
+          </text>
+        )
+      })()}
       {avg > 0 && (
         <>
           <line className={`${K.wipe} k-nohit`} x1={padL} x2={W} y1={ay} y2={ay} stroke="var(--foreground)" strokeOpacity={0.55} strokeDasharray="3 3" shapeRendering="crispEdges" />
