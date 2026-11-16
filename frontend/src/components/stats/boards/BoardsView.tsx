@@ -949,7 +949,6 @@ function ConfigPopover({
                 }}
               >
                 {scopes.filter((s) => !s.group).map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-                {/* eslint-disable-next-line lingui/no-unlocalized-strings -- API group keys */}
                 {(['Libraries', 'Shelves'] as const).map((g) => {
                   const items = scopes.filter((s) => s.group === g)
                   return items.length > 0 ? (
