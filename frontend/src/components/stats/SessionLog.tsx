@@ -4,12 +4,14 @@
 import { useEffect, useState } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
-import { Trash2, Loader2, ChevronDown, ArrowUpDown, Scissors, TriangleAlert } from 'lucide-react'
+import { Loader2, ChevronDown, ArrowUpDown, TriangleAlert } from 'lucide-react'
 import { cn, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
 import { InfoHint } from '@/components/InfoHint'
-import { Input, Pill } from '@/components/page'
+import { Pill } from '@/components/page'
 import type { SessionEntry } from '@/components/stats/shared'
+import { sourceLabel, useSessionActions } from '@/components/stats/sessions/actions'
+import { SessionTools, TrimPanel } from '@/components/stats/sessions/SessionTools'
 
 // Legend for the session log's labels and actions, rendered as an InfoHint
 // beside whatever heads the list (the "Sessions (N)" header on BookDetailPage,
@@ -56,12 +58,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
   const [total, setTotal] = useState(0)
   const [loaded, setLoaded] = useState(0)
   const [loading, setLoading] = useState(false)
-  const [deleting, setDeleting] = useState<Set<number | string>>(new Set())
   const [sort, setSort] = useState<'recent' | 'longest'>('recent')
-  const [trimId, setTrimId] = useState<number | string | null>(null)
-  const [trimMinutes, setTrimMinutes] = useState('')
-  const [trimBusy, setTrimBusy] = useState(false)
-
   const load = (offset: number, replace: boolean) => {
     setLoading(true)
     const bookParam = bookId != null ? `&book_id=${bookId}` : ''
@@ -83,48 +80,24 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sort, bookId, day])
 
-  const openTrim = (s: SessionEntry) => {
-    setTrimId(s.id)
-    const preFill = s.suggested_seconds ?? s.duration_seconds ?? 60
-    setTrimMinutes(String(Math.max(1, Math.round(preFill / 60))))
-  }
-
-  const applyTrim = (s: SessionEntry) => {
-    const seconds = Math.round(Number(trimMinutes) * 60)
-    if (!Number.isFinite(seconds) || seconds < 60) return
-    setTrimBusy(true)
-    api.patch(`/stats/sessions/${s.id}`, { duration_seconds: seconds })
-      .then(() => {
-        setSessions((prev) =>
-          prev.map((row) =>
-            row.id === s.id
-              ? { ...row, duration_seconds: seconds, suspect: false, suggested_seconds: null }
-              : row,
-          ),
-        )
-        setTrimId(null)
-        onChange?.()
-      })
-      .catch(() => {})
-      .finally(() => setTrimBusy(false))
-  }
-
-  const deleteSession = (s: SessionEntry) => {
-    setDeleting((prev) => new Set(prev).add(s.id))
-    const req =
-      s.kind === 'imported'
-        ? api.delete(`/stats/imported-sessions?book_id=${s.book_id}&start=${s.range_start}&end=${s.range_end}`)
-        : api.delete(`/stats/sessions/${s.id}`)
-    req
-      .then(() => {
-        setSessions((prev) => prev.filter((row) => row.id !== s.id))
-        setTotal((prev) => prev - 1)
-        setLoaded((prev) => prev - 1)
-        onChange?.()
-      })
-      .catch(() => {})
-      .finally(() => setDeleting((prev) => { const n = new Set(prev); n.delete(s.id); return n }))
-  }
+  const actions = useSessionActions({
+    onTrimmed: (s, seconds) => {
+      setSessions((prev) =>
+        prev.map((row) =>
+          row.id === s.id
+            ? { ...row, duration_seconds: seconds, suspect: false, suggested_seconds: null }
+            : row,
+        ),
+      )
+      onChange?.()
+    },
+    onDeleted: (s) => {
+      setSessions((prev) => prev.filter((row) => row.id !== s.id))
+      setTotal((prev) => prev - 1)
+      setLoaded((prev) => prev - 1)
+      onChange?.()
+    },
+  })
 
   if (sessions.length === 0 && !loading) {
     return <p className="py-8 text-center text-[14px] text-muted-foreground"><Trans>No sessions recorded.</Trans></p>
@@ -204,60 +177,10 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
               {s.suspect && (
                 <TriangleAlert className="mr-1 h-3.5 w-3.5 shrink-0 text-warning sm:hidden" aria-label={t`Unusually long session`} />
               )}
-              {s.kind !== 'imported' && (
-                <button
-                  type="button"
-                  onClick={() => (trimId === s.id ? setTrimId(null) : openTrim(s))}
-                  className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
-                  title={t`Trim session`}
-                  aria-label={t`Trim session`}
-                >
-                  <Scissors className="h-3.5 w-3.5" />
-                </button>
-              )}
-              <button
-                type="button"
-                onClick={() => deleteSession(s)}
-                disabled={deleting.has(s.id)}
-                className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-40"
-                title={s.kind === 'imported' ? t`Delete this imported sitting` : t`Delete session`}
-                aria-label={s.kind === 'imported' ? t`Delete this imported sitting` : t`Delete session`}
-              >
-                <Trash2 className="h-3.5 w-3.5" />
-              </button>
+              <SessionTools s={s} a={actions} />
             </div>
           </div>
-          {trimId === s.id && (
-            <div className="flex flex-wrap items-center gap-2 pb-3 text-[14px]">
-              <span className="text-muted-foreground"><Trans>New duration</Trans></span>
-              <InfoHint text={t`Trimming only shortens this session's length and end time. Page turns, progress and every other session stay untouched, and the previous duration is kept in the audit log. The suggestion re-prices this session's page turns at your usual reading pace.`} />
-              <Input
-                type="number"
-                min={1}
-                value={trimMinutes}
-                onChange={(e) => setTrimMinutes(e.target.value)}
-                aria-label={t`New duration in minutes`}
-                className="w-20 text-right tabular-nums"
-              />
-              <span className="text-muted-foreground"><Trans>min</Trans></span>
-              {s.suggested_seconds != null && (
-                <button
-                  type="button"
-                  onClick={() => setTrimMinutes(String(Math.max(1, Math.round(s.suggested_seconds! / 60))))}
-                  className="text-[13px] text-primary transition-colors hover:underline underline-offset-4"
-                  title={t`Your page turns at your usual reading pace`}
-                >
-                  {(() => { const d = formatDuration(s.suggested_seconds); return t`Suggested: ${d}` })()}
-                </button>
-              )}
-              <div className="ml-auto flex gap-1.5">
-                <Pill variant="quiet" onClick={() => setTrimId(null)}><Trans>Cancel</Trans></Pill>
-                <Pill variant="primary" onClick={() => applyTrim(s)} disabled={trimBusy}>
-                  <Trans>Trim</Trans>
-                </Pill>
-              </div>
-            </div>
-          )}
+          <TrimPanel s={s} a={actions} />
         </div>
       ))}
       {loaded < total && (
@@ -276,15 +199,4 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
       )}
     </div>
   )
-}
-
-// Friendly label for a session's device value, the same words the book
-// page's "Where you read" legend uses.
-function sourceLabel(device: string | null): string {
-  if (!device) return '-'
-  if (device === 'web-reader' || device === 'web') return t`Web reader`
-  if (device === 'manual') return t`Manual`
-  // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
-  if (device === 'koreader') return 'KOReader'
-  return device
 }
