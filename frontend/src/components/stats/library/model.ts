@@ -5,6 +5,9 @@ import type { LibraryResponse, StatsResponse } from '@/components/stats/shared'
 
 export type Series = StatsResponse['series_completion'][number]
 
+/** The range the range-bound sections answer: in a sentence, as a chip, and as their entry signature (null while loading). */
+export type Range = { phrase: string; label: string; sig: string | null }
+
 // ── series: unfinished by percent (ties: more read first), completed by size ──
 export function seriesModel(rows: Series[]) {
   const open = rows.filter((s) => s.read < s.total).sort((a, b) => b.pct - a.pct || b.read - a.read || a.series.localeCompare(b.series))

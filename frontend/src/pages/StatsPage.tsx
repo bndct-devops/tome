@@ -242,6 +242,7 @@ export function StatsPage() {
     ? (() => { const from = fmtDay(custom.start), to = fmtDay(custom.end); return t`${from} to ${to}` })()
     : days === 0 ? t`All time` : days === 365 ? t`Last 12 months` : t`Last ${days} days`
   // Sessions lists every session; Taste is all time. Neither follows the range.
+  // Library is all time too, except three sections that carry the range as a chip; it keeps the range control.
   const rangeless = shownTab === 'sessions'
   const allTime = shownTab === 'taste'
 
@@ -289,7 +290,7 @@ export function StatsPage() {
         <div className="flex flex-col gap-5">
           <div className="relative">
             <PageHeader
-              eyebrow={rangeless ? <Trans>All sessions</Trans> : allTime ? <Trans>All time</Trans> : rangeLabel}
+              eyebrow={rangeless ? <Trans>All sessions</Trans> : allTime || shownTab === 'library' ? <Trans>All time</Trans> : rangeLabel}
               title={
                 <span className="inline-flex items-center gap-2">
                   <Trans>Stats</Trans>
