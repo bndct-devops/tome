@@ -21,7 +21,7 @@ import { LibraryPage } from '@/components/stats/library/LibraryPage'
 import { TastePage } from '@/components/stats/taste/TastePage'
 import { SessionsPage } from '@/components/stats/sessions/SessionsPage'
 import type { StatsTab } from '@/components/stats/kit/page'
-import { statsCacheGet, statsFetch } from '@/components/stats/kit/useStatsGet'
+import { dropStatsCache, statsCacheGet, statsFetch } from '@/components/stats/kit/useStatsGet'
 import { TipLayer } from '@/components/stats/kit/TipLayer'
 import { finishEntries } from '@/components/stats/kit/motion'
 import { PAGE_W, loadLocalDashboard, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
@@ -117,6 +117,13 @@ export function StatsPage() {
   // The range last asked for. Coming back to a stats tab asks again only when its
   // answer was dropped from the cache meanwhile (an edit on the Sessions tab).
   const asked = useRef<string | null>(null)
+  // Bumped to ask again for the same range (an edit on a page, e.g. a book marked read on the Overview).
+  const [rev, setRev] = useState(0)
+  const refresh = useCallback(() => {
+    dropStatsCache('/stats')
+    asked.current = null
+    setRev((r) => r + 1)
+  }, [])
   useEffect(() => {
     if (!wantStats) return
     const cached = statsCache.get(key)
@@ -133,7 +140,7 @@ export function StatsPage() {
       .catch(() => { if (current) setFailed(true) })
     return () => { current = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- key names days and custom
-  }, [key, wantStats, tab])
+  }, [key, wantStats, tab, rev])
   // A range change keeps the previous answer on screen, dimmed, until this one lands.
   const pending = !!stats && stats.key !== key
   const data = stats?.data ?? null
@@ -252,7 +259,7 @@ export function StatsPage() {
   if (failed && !data) {
     content = <p className="py-32 text-center text-[14px] text-muted-foreground"><Trans>Couldn’t load stats.</Trans></p>
   } else if (shownTab === 'overview') {
-    content = <Overview stats={data} estimates={estimates} pending={pending} days={stats?.days ?? days} custom={stats ? stats.custom : custom} onAllBooks={() => goto('library', 'stats-all-books')} />
+    content = <Overview stats={data} estimates={estimates} pending={pending} days={stats?.days ?? days} custom={stats ? stats.custom : custom} requested={{ days, custom }} onAllBooks={() => goto('library', 'stats-all-books')} onRefresh={refresh} />
   } else if (shownTab === 'timeline') {
     content = <FullBleedTimeline />
   } else if (shownTab === 'sessions') {
