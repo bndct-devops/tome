@@ -1941,8 +1941,8 @@ msgid "{total} books added"
 msgstr "{total} books added"
 
 #: src/components/stats/library/charts.tsx
-msgid "{total} in {when}"
-msgstr "{total} in {when}"
+#~ msgid "{total} in {when}"
+#~ msgstr "{total} in {when}"
 
 #: src/pages/DashboardPage.tsx
 #~ msgid "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
@@ -3189,6 +3189,11 @@ msgstr "Backlog of"
 #: src/components/InstanceBackup.tsx
 msgid "Backup failed"
 msgstr "Backup failed"
+
+#. Beside the count above a bar drawn shorter than its value (an axis break)
+#: src/components/stats/library/charts.tsx
+msgid "bar shortened"
+msgstr "bar shortened"
 
 #: src/pages/ReaderPage.tsx
 msgid "Based on a default pace (no reading history yet)"
@@ -4597,8 +4602,8 @@ msgid "Downloads per day"
 msgstr "Downloads per day"
 
 #: src/components/stats/library/charts.tsx
-msgid "Drawn shorter than its count, so the other months stay readable."
-msgstr "Drawn shorter than its count, so the other months stay readable."
+#~ msgid "Drawn shorter than its count, so the other months stay readable."
+#~ msgstr "Drawn shorter than its count, so the other months stay readable."
 
 #: src/components/UploadModal.tsx
 msgid "Drop books here or <0>click to browse</0>"
@@ -11067,6 +11072,10 @@ msgstr "That SSO identity is already linked to another account."
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "the {days} days"
 msgstr "the {days} days"
+
+#: src/components/stats/library/charts.tsx
+msgid "The bar is not to scale: it is cut short so the other months stay readable."
+msgstr "The bar is not to scale: it is cut short so the other months stay readable."
 
 #: src/pages/BinderyPage.tsx
 msgid "The book type's own library is always added automatically."

@@ -1941,8 +1941,8 @@ msgid "{total} books added"
 msgstr ""
 
 #: src/components/stats/library/charts.tsx
-msgid "{total} in {when}"
-msgstr ""
+#~ msgid "{total} in {when}"
+#~ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 #~ msgid "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
@@ -3188,6 +3188,11 @@ msgstr ""
 
 #: src/components/InstanceBackup.tsx
 msgid "Backup failed"
+msgstr ""
+
+#. Beside the count above a bar drawn shorter than its value (an axis break)
+#: src/components/stats/library/charts.tsx
+msgid "bar shortened"
 msgstr ""
 
 #: src/pages/ReaderPage.tsx
@@ -4597,8 +4602,8 @@ msgid "Downloads per day"
 msgstr ""
 
 #: src/components/stats/library/charts.tsx
-msgid "Drawn shorter than its count, so the other months stay readable."
-msgstr ""
+#~ msgid "Drawn shorter than its count, so the other months stay readable."
+#~ msgstr ""
 
 #: src/components/UploadModal.tsx
 msgid "Drop books here or <0>click to browse</0>"
@@ -11066,6 +11071,10 @@ msgstr ""
 
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "the {days} days"
+msgstr ""
+
+#: src/components/stats/library/charts.tsx
+msgid "The bar is not to scale: it is cut short so the other months stay readable."
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
