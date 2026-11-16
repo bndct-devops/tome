@@ -98,3 +98,30 @@ export const BUCKETS = ['under_15m', '15_to_30m', '30_to_60m', '1_to_2h', 'over_
 export function bucketCounts(h: HabitsResponse | null) {
   return BUCKETS.map((b) => h?.session_lengths.find((x) => x.bucket === b)?.count ?? 0)
 }
+
+// ── Pace by format ────────────────────────────────────────────────────────────
+export type FormatShare = { format: string; ppm: number; pages: number; seconds: number; sessions: number; pct: number }
+
+/** Formats with time, longest first, each with its share of the summed format time in whole
+ *  percent (largest remainder, so the shown shares add up to 100). The server joins every file
+ *  of a book, so a book kept in two formats puts its sessions under both: its time then counts
+ *  in each format's share, and the shares are of that sum, not of the clock. */
+export function formatShares(rows: StatsResponse['pace_by_format']): FormatShare[] {
+  const fs = rows.filter((f) => f.seconds > 0).sort((a, b) => b.seconds - a.seconds)
+  const total = fs.reduce((a, f) => a + f.seconds, 0)
+  if (total <= 0) return []
+  const raw = fs.map((f) => (f.seconds / total) * 100)
+  const pct = raw.map(Math.floor)
+  let left = 100 - pct.reduce((a, p) => a + p, 0)
+  raw.map((r, i) => ({ i, rem: r - Math.floor(r) })).sort((a, b) => b.rem - a.rem).forEach(({ i }) => { if (left > 0) { pct[i]++; left-- } })
+  return fs.map((f, i) => ({ format: f.format.toUpperCase(), ppm: f.pages_per_min, pages: f.pages, seconds: f.seconds, sessions: f.sessions, pct: pct[i] }))
+}
+
+/** The change from the range's pace to the recent one in whole percent, computed from the two
+ *  figures as the Pace sentence prints them (one decimal), so a reader's own sum agrees;
+ *  null when the range figure is 0.0. */
+export function paceChange(recentShown: string, allShown: string): number | null {
+  const r = Number(recentShown), a = Number(allShown)
+  if (!(a > 0)) return null
+  return Math.round(((r - a) / a) * 100)
+}

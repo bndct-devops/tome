@@ -20,7 +20,7 @@ import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, fmtDay, num, useWidth } from '@/
 import { rangeQuery, useStatsGet } from '@/components/stats/kit/useStatsGet'
 import { hourModel, readingDayOf } from '@/components/stats/overview/model'
 import { ChartEmpty, Lengths, Months, Pace, Rhythm, Timeline } from './charts'
-import { bucketCounts, byWeekday, monthsHeight, paceModel, paceTicks, rhythmHeight, timelineHeight, timelineRows } from './model'
+import { bucketCounts, byWeekday, formatShares, monthsHeight, paceChange, paceModel, paceTicks, rhythmHeight, timelineHeight, timelineRows, type FormatShare } from './model'
 
 const GAP = 16
 // Session length's chart height: tuned so the side column ends on the same pixel as the 14 timeline rows.
@@ -38,7 +38,7 @@ const WPM_ROW_H = 64
 const PH = {
   when: 'Mostly between 01:00 and 02:00, most on Mondays.',
   fig: '00m', figFoot: '000 sessions', perDay: '0.0', perDayFoot: 'on 00 of 00 days', longest: '0h 00m', title: 'He Who Fights with Monsters', date: 'Sep 20, 2026',
-  sittings: '000 sittings', pace: '0.0 pages a minute over the last 7 reading days, 0.0 across the 90 days.', formats: 'By format: EPUB 0.0 · PDF 0.0',
+  sittings: '000 sittings', pace: '0.0 pages a minute over the last 7 reading days, 0.0 across the 90 days.', formats: 'By format: EPUB 0.0 pg/min, 00 % · CBZ 00.0 pg/min, 00 %',
   wpm: '000', wpmFoot: 'across 00 books', wpmUnit: 'words a minute', book: 'Sentenced to Be a Hero', bookV: '000 wpm',
   arch: 'Night-Owl Constant Reader', archSum: 'Consistent · night owl · fast-paced.', pole: 'Short reads',
 }
@@ -284,36 +284,62 @@ function SessionLength({ habits, width, desktop, dim, sig }: { habits: HabitsRes
 
 // ── Pace ──────────────────────────────────────────────────────────────────────
 
-/** The one line under Pace: pages a minute per format when the range has two or more. */
-function FormatLine({ stats }: { stats: StatsResponse | null }) {
-  const fs = useMemo(() => (stats?.pace_by_format ?? []).filter((f) => f.seconds > 0).sort((a, b) => b.seconds - a.seconds), [stats])
-  const tips = useTips((i) => {
-    const f = fs[i]
-    if (!f) return null
-    const ppm = f.pages_per_min.toFixed(1)
+/** The one line under Pace when the range has two or more formats: each format's pages a
+ *  minute and share of the reading time ("EPUB 3.7 pg/min · 82 %"), the top `cap` of them
+ *  (desktop 3, phone 2) and "+N" for the rest; full numbers in each mark's tip. One line
+ *  always: the slot never grows. */
+function FormatLine({ stats, desktop }: { stats: StatsResponse | null; desktop: boolean }) {
+  const fs = useMemo(() => formatShares(stats?.pace_by_format ?? []), [stats])
+  const cap = desktop ? 3 : 2
+  const shown = fs.slice(0, cap)
+  const rest = fs.slice(shown.length)
+  const share = (f: FormatShare) => {
+    const n = f.pct
+    return n > 0 ? t`${n} %` : t`<1 %`
+  }
+  const tipOf = (f: FormatShare) => {
+    const ppm = f.ppm.toFixed(1)
+    const pct = share(f)
     const sessions = plural(f.sessions, { one: '# session', other: '# sessions' })
     const pages = plural(f.pages, { one: '# page', other: '# pages' })
     const dur = formatDuration(f.seconds)
-    return { title: f.format.toUpperCase(), value: t`${ppm} pages a minute`, note: t`${pages} in ${dur} · ${sessions}` }
+    return { title: f.format, value: t`${ppm} pages a minute · ${pct} of the time`, note: t`${pages} in ${dur} · ${sessions}` }
+  }
+  const tips = useTips((i) => {
+    if (i < shown.length) return tipOf(shown[i])
+    if (rest.length === 1) return tipOf(rest[0])
+    if (!rest.length) return null
+    const n = rest.length
+    const list = rest.map((f) => `${f.format} ${f.ppm.toFixed(1)} · ${share(f)}`).join(', ')
+    return { title: t`${n} more formats`, value: list, note: t`pages a minute · share of the time` }
   })
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
+  const fig = 'font-medium tabular-nums text-foreground'
   let body: ReactNode = ' '
   if (!stats) body = <Ph on>{PH.formats}</Ph>
   else if (fs.length === 1) {
-    const f = fs[0].format.toUpperCase()
+    const f = fs[0].format
     body = t`All of it read as ${f}.`
   } else if (fs.length > 1) {
     body = (
       <>
-        <Trans>By format:</Trans>{' '}
-        {fs.map((f, i) => (
+        {desktop && <><Trans>By format:</Trans>{' '}</>}
+        {shown.map((f, i) => (
           <span key={f.format}>
-            {i > 0 && ' · '}
-            <span data-tip-i={i} className="rounded-sm data-[hot]:text-foreground">
-              {f.format.toUpperCase()} <span className="font-medium tabular-nums text-foreground">{f.pages_per_min.toFixed(1)}</span>
+            {i > 0 && <span className="px-1.5 opacity-60">·</span>}
+            <span data-tip-i={i} className={cn('rounded-sm data-[hot]:text-foreground', K.fade)} style={stagger(i, fs.length)}>
+              {f.format} <span className={fig}>{f.ppm.toFixed(1)}</span> <Trans>pg/min</Trans>, <span className={fig}>{share(f)}</span>
             </span>
           </span>
         ))}
-        {' '}<Trans>pages a minute</Trans>
+        {rest.length > 0 && (
+          <>
+            <span className="px-1.5 opacity-60">·</span>
+            <span data-tip-i={shown.length} className={cn('rounded-sm data-[hot]:text-foreground', K.fade)} style={stagger(shown.length, fs.length)}>
+              +{rest.length}
+            </span>
+          </>
+        )}
       </>
     )
   }
@@ -322,7 +348,7 @@ function FormatLine({ stats }: { stats: StatsResponse | null }) {
     <p
       {...(many ? tips : {})}
       data-box="pace-formats"
-      className="mt-2 truncate text-[13px] text-muted-foreground"
+      className="mt-2 truncate whitespace-nowrap text-[13px] text-muted-foreground"
       style={{ height: FMT_LINE - 8, lineHeight: `${FMT_LINE - 8}px` }}
     >
       {body}
@@ -341,9 +367,25 @@ function PaceSection({ stats, width, desktop, rangeWords, dim, sig }: { stats: S
   else {
     const recent = p.recent.toFixed(1)
     const all = p.all.toFixed(1)
-    lead = p.dots.length > 7
-      ? t`${recent} pages a minute over the last 7 reading days, ${all} across ${rangeWords}.`
-      : t`${all} pages a minute across ${rangeWords}.`
+    // The trend is the change between the two figures as printed, so it cannot disagree with
+    // them; a short "(up 27 %)" after the recent figure, the comparison spelled out in its tip.
+    const ch = p.dots.length > 7 ? paceChange(recent, all) : null
+    const pct = Math.abs(ch ?? 0)
+    let tip: { 'data-tip': string } | null = null
+    if (ch != null) {
+      let title: string
+      if (ch >= 3) title = t`${pct} % faster lately`
+      else if (ch <= -3) title = t`${pct} % slower lately`
+      else title = t`About as fast as usual`
+      tip = tipAttrs({ title, value: t`${recent} against ${all} pages a minute`, note: t`the last 7 reading days against ${rangeWords}` })
+    }
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
+    const tc = 'rounded-sm text-muted-foreground data-[hot]:text-foreground'
+    if (p.dots.length <= 7) lead = t`${all} pages a minute across ${rangeWords}.`
+    else if (ch == null) lead = t`${recent} pages a minute over the last 7 reading days, ${all} across ${rangeWords}.`
+    else if (ch >= 3) lead = <Trans>{recent} pages a minute over the last 7 reading days <span {...tip} className={tc}>(up {pct} %)</span>, {all} across {rangeWords}.</Trans>
+    else if (ch <= -3) lead = <Trans>{recent} pages a minute over the last 7 reading days <span {...tip} className={tc}>(down {pct} %)</span>, {all} across {rangeWords}.</Trans>
+    else lead = <Trans>{recent} pages a minute over the last 7 reading days <span {...tip} className={tc}>(steady)</span>, {all} across {rangeWords}.</Trans>
   }
   return (
     <section ref={enter} data-box="pace" className={cn('min-w-0', dim)}>
@@ -360,7 +402,7 @@ function PaceSection({ stats, width, desktop, rangeWords, dim, sig }: { stats: S
           <Pace W={width} H={H} dots={p?.dots ?? []} nDays={p?.nDays ?? 1} ticks={ticks} loading={!p} />
         )}
       </div>
-      <FormatLine stats={stats} />
+      <FormatLine stats={stats} desktop={desktop} />
     </section>
   )
 }
