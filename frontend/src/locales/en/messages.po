@@ -509,7 +509,7 @@ msgid "{0, plural, one {# open} other {# open}}"
 msgstr "{0, plural, one {# open} other {# open}}"
 
 #. placeholder {0}: b.pages
-#. placeholder {0}: d.pages
+#. placeholder {0}: d.dot.pages
 #. placeholder {0}: f.pages
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/stats/habits/charts.tsx
@@ -929,6 +929,10 @@ msgstr "{books}, {a} to {b}"
 msgid "{bt}: {st} to {en} ({dur})"
 msgstr "{bt}: {st} to {en} ({dur})"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "{c} in {phrase}"
+msgstr "{c} in {phrase}"
+
 #: src/pages/AdminPage.tsx
 #~ msgid "{clearResult} covers deleted."
 #~ msgstr "{clearResult} covers deleted."
@@ -1318,8 +1322,8 @@ msgid "{matched} matched"
 msgstr "{matched} matched"
 
 #: src/components/stats/habits/charts.tsx
-msgid "{mean} pages a minute"
-msgstr "{mean} pages a minute"
+#~ msgid "{mean} pages a minute"
+#~ msgstr "{mean} pages a minute"
 
 #: src/components/stats/library/Sections.tsx
 msgid "{median, plural, one {day} other {days}}"
@@ -1460,13 +1464,17 @@ msgstr "{n, plural, one {This upload satisfies # wish.} other {This upload satis
 msgid "{n} %"
 msgstr "{n} %"
 
+#: src/components/stats/taste/charts.tsx
+msgid "{n} books"
+msgstr "{n} books"
+
 #: src/pages/DashboardPage.tsx
 msgid "{n} books · {r} read"
 msgstr "{n} books · {r} read"
 
 #: src/components/stats/taste/charts.tsx
-msgid "{n} books at {stars}"
-msgstr "{n} books at {stars}"
+#~ msgid "{n} books at {stars}"
+#~ msgstr "{n} books at {stars}"
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{n} chapters of {mainTitle}."
@@ -1485,8 +1493,8 @@ msgid "{n} finished {when}, the only finishes in this range."
 msgstr "{n} finished {when}, the only finishes in this range."
 
 #: src/components/stats/overview/Overview.tsx
-msgid "{n} in {phrase}"
-msgstr "{n} in {phrase}"
+#~ msgid "{n} in {phrase}"
+#~ msgstr "{n} in {phrase}"
 
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "{n} more formats"
@@ -1619,8 +1627,8 @@ msgid "{pages} in {dur} · {sessions}"
 msgstr "{pages} in {dur} · {sessions}"
 
 #: src/components/stats/habits/charts.tsx
-msgid "{pages} in {len}"
-msgstr "{pages} in {len}"
+#~ msgid "{pages} in {len}"
+#~ msgstr "{pages} in {len}"
 
 #: src/components/stats/widgets/habits.tsx
 msgid "{pages} pages in {dur}"
@@ -1695,12 +1703,16 @@ msgid "{pph} p/h"
 msgstr "{pph} p/h"
 
 #: src/components/stats/habits/charts.tsx
-msgid "{ppm} pages a minute"
-msgstr "{ppm} pages a minute"
+#~ msgid "{ppm} pages a minute"
+#~ msgstr "{ppm} pages a minute"
 
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "{ppm} pages a minute · {pct} of the time"
 msgstr "{ppm} pages a minute · {pct} of the time"
+
+#: src/components/stats/habits/charts.tsx
+msgid "{ppm} pages a minute, {pages} in {len}"
+msgstr "{ppm} pages a minute, {pages} in {len}"
 
 #: src/components/stats/widgets/habits.tsx
 #~ msgid "{ppm} pages/min"
@@ -1792,8 +1804,12 @@ msgid "{recent} pages a minute over the last 7 reading days, {all} across {range
 msgstr "{recent} pages a minute over the last 7 reading days, {all} across {rangeWords}."
 
 #: src/components/stats/taste/charts.tsx
-msgid "{rest, plural, one {{names} and # more} other {{names} and # more}}"
-msgstr "{rest, plural, one {{names} and # more} other {{names} and # more}}"
+#~ msgid "{rest, plural, one {{names} and # more} other {{names} and # more}}"
+#~ msgstr "{rest, plural, one {{names} and # more} other {{names} and # more}}"
+
+#: src/components/stats/taste/charts.tsx
+msgid "{rest, plural, one {{st}: {names} and # more} other {{st}: {names} and # more}}"
+msgstr "{rest, plural, one {{st}: {names} and # more} other {{st}: {names} and # more}}"
 
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "{s} of 100"
@@ -2231,10 +2247,13 @@ msgstr "4–7"
 msgid "7 days"
 msgstr "7 days"
 
-#: src/components/stats/habits/charts.tsx
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "7-day mean"
 msgstr "7-day mean"
+
+#: src/components/stats/habits/charts.tsx
+msgid "7-day mean {m}"
+msgstr "7-day mean {m}"
 
 #: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/range.ts
@@ -3524,6 +3543,7 @@ msgid "By format:"
 msgstr "By format:"
 
 #: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "by reading time"
 msgstr "by reading time"
 
@@ -5928,6 +5948,10 @@ msgstr "Imported from KOReader reading history"
 msgid "Importing…"
 msgstr "Importing…"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "in {rangePhrase}"
+msgstr "in {rangePhrase}"
+
 #: src/pages/SettingsPage.tsx
 msgid "In KOReader: main menu -> TomeSync -> \"Test connection\" to confirm the plugin can reach your Tome server."
 msgstr "In KOReader: main menu -> TomeSync -> \"Test connection\" to confirm the plugin can reach your Tome server."
@@ -6717,6 +6741,10 @@ msgstr "Minutes per week"
 msgid "Minutes read per day"
 msgstr "Minutes read per day"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "missed yesterday"
+msgstr "missed yesterday"
+
 #: src/components/MetadataManager.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Missing"
@@ -6791,6 +6819,10 @@ msgstr "Most active month"
 #: src/components/stats/widgets/library.tsx
 #~ msgid "Most Active Month"
 #~ msgstr "Most Active Month"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "most books finished"
+msgstr "most books finished"
 
 #: src/components/stats/taste/TastePage.tsx
 msgid "Most highlighted"
@@ -7064,6 +7096,10 @@ msgstr "No books added in the last two years."
 #: src/components/stats/widgets/habits.tsx
 msgid "No books currently in progress."
 msgstr "No books currently in progress."
+
+#: src/components/stats/overview/Overview.tsx
+msgid "no books finished"
+msgstr "no books finished"
 
 #: src/pages/AdminPage.tsx
 msgid "No books found. Upload the book first, then fulfill."
@@ -7383,6 +7419,10 @@ msgstr "No reading in {rangePhrase}."
 msgid "No reading in the last 12 months."
 msgstr "No reading in the last 12 months."
 
+#: src/components/stats/habits/charts.tsx
+msgid "no reading in the last 7 days"
+msgstr "no reading in the last 7 days"
+
 #: src/components/stats/habits/HabitsPage.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "No reading in this range yet."
@@ -7420,9 +7460,18 @@ msgstr "No reading this month yet."
 msgid "No reading time in Tome"
 msgstr "No reading time in Tome"
 
+#: src/components/stats/overview/Overview.tsx
+#~ msgid "no reading yesterday or today"
+#~ msgstr "no reading yesterday or today"
+
 #: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "no reading yet"
 msgstr "no reading yet"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "No reading yet"
+msgstr "No reading yet"
 
 #: src/components/stats/overview/Overview.tsx
 msgid "No reading yet."
@@ -7937,6 +7986,10 @@ msgstr "on your shelf"
 msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes. Separately, Tome checks upgrades.bndct.dev once a day for a newer version; only the version number is sent."
 msgstr "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes. Separately, Tome checks upgrades.bndct.dev once a day for a newer version; only the version number is sent."
 
+#: src/components/stats/overview/Overview.tsx
+msgid "one day starts it"
+msgstr "one day starts it"
+
 #: src/pages/StatsPage.tsx
 #~ msgid "One series front and center — you pick which"
 #~ msgstr "One series front and center — you pick which"
@@ -8086,6 +8139,10 @@ msgstr "Optional. Set it together with the user."
 #: src/components/CoverPickerModal.tsx
 #~ msgid "or use a custom source"
 #~ msgstr "or use a custom source"
+
+#: src/components/stats/sessions/SessionsPage.tsx
+msgid "Order"
+msgstr "Order"
 
 #: src/pages/SettingsPage.tsx
 msgid "Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive"
@@ -8792,6 +8849,10 @@ msgstr "Rated {d}"
 msgid "Rated {day}"
 msgstr "Rated {day}"
 
+#: src/components/stats/taste/charts.tsx
+msgid "Rated {day} · mean of the last five {m}"
+msgstr "Rated {day} · mean of the last five {m}"
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "rated {rating}"
 msgstr "rated {rating}"
@@ -8939,6 +9000,10 @@ msgstr "Read on the web"
 #: src/pages/SettingsPage.tsx
 msgid "Read the QR code an offline KOReader device shows under TomeSync > Show sync code"
 msgstr "Read the QR code an offline KOReader device shows under TomeSync > Show sync code"
+
+#: src/components/stats/overview/Overview.tsx
+#~ msgid "read today to start one"
+#~ msgstr "read today to start one"
 
 #: src/pages/SettingsPage.tsx
 msgid "Read-only"
@@ -9591,6 +9656,10 @@ msgstr "Role"
 #: src/pages/AdminPage.tsx
 msgid "Roles guide"
 msgstr "Roles guide"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "running"
+msgstr "running"
 
 #: src/components/stats/RangeControl.tsx
 msgid "Sa"
@@ -11434,7 +11503,6 @@ msgid "Toggle RTL (manga) mode"
 msgstr "Toggle RTL (manga) mode"
 
 #: src/components/stats/SessionLog.tsx
-#: src/components/stats/sessions/SessionsPage.tsx
 msgid "Toggle sort order"
 msgstr "Toggle sort order"
 

@@ -508,7 +508,7 @@ msgid "{0, plural, one {# open} other {# open}}"
 msgstr ""
 
 #. placeholder {0}: b.pages
-#. placeholder {0}: d.pages
+#. placeholder {0}: d.dot.pages
 #. placeholder {0}: f.pages
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/stats/habits/charts.tsx
@@ -926,6 +926,10 @@ msgstr ""
 msgid "{bt}: {st} to {en} ({dur})"
 msgstr ""
 
+#: src/components/stats/overview/Overview.tsx
+msgid "{c} in {phrase}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 #~ msgid "{clearResult} covers deleted."
 #~ msgstr "{clearResult} couvertures supprimées."
@@ -1315,8 +1319,8 @@ msgid "{matched} matched"
 msgstr "{matched} correspondances trouvées"
 
 #: src/components/stats/habits/charts.tsx
-msgid "{mean} pages a minute"
-msgstr ""
+#~ msgid "{mean} pages a minute"
+#~ msgstr ""
 
 #: src/components/stats/library/Sections.tsx
 msgid "{median, plural, one {day} other {days}}"
@@ -1457,13 +1461,17 @@ msgstr ""
 msgid "{n} %"
 msgstr ""
 
+#: src/components/stats/taste/charts.tsx
+msgid "{n} books"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{n} books · {r} read"
 msgstr "{n} livres · {r} lus"
 
 #: src/components/stats/taste/charts.tsx
-msgid "{n} books at {stars}"
-msgstr ""
+#~ msgid "{n} books at {stars}"
+#~ msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{n} chapters of {mainTitle}."
@@ -1482,8 +1490,8 @@ msgid "{n} finished {when}, the only finishes in this range."
 msgstr ""
 
 #: src/components/stats/overview/Overview.tsx
-msgid "{n} in {phrase}"
-msgstr ""
+#~ msgid "{n} in {phrase}"
+#~ msgstr ""
 
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "{n} more formats"
@@ -1616,8 +1624,8 @@ msgid "{pages} in {dur} · {sessions}"
 msgstr ""
 
 #: src/components/stats/habits/charts.tsx
-msgid "{pages} in {len}"
-msgstr ""
+#~ msgid "{pages} in {len}"
+#~ msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
 msgid "{pages} pages in {dur}"
@@ -1692,11 +1700,15 @@ msgid "{pph} p/h"
 msgstr "{pph} p/h"
 
 #: src/components/stats/habits/charts.tsx
-msgid "{ppm} pages a minute"
-msgstr ""
+#~ msgid "{ppm} pages a minute"
+#~ msgstr ""
 
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "{ppm} pages a minute · {pct} of the time"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "{ppm} pages a minute, {pages} in {len}"
 msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
@@ -1789,7 +1801,11 @@ msgid "{recent} pages a minute over the last 7 reading days, {all} across {range
 msgstr ""
 
 #: src/components/stats/taste/charts.tsx
-msgid "{rest, plural, one {{names} and # more} other {{names} and # more}}"
+#~ msgid "{rest, plural, one {{names} and # more} other {{names} and # more}}"
+#~ msgstr ""
+
+#: src/components/stats/taste/charts.tsx
+msgid "{rest, plural, one {{st}: {names} and # more} other {{st}: {names} and # more}}"
 msgstr ""
 
 #: src/components/stats/habits/HabitsPage.tsx
@@ -2228,9 +2244,12 @@ msgstr ""
 msgid "7 days"
 msgstr "7 jours"
 
-#: src/components/stats/habits/charts.tsx
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "7-day mean"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "7-day mean {m}"
 msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
@@ -3518,6 +3537,7 @@ msgid "By format:"
 msgstr ""
 
 #: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "by reading time"
 msgstr ""
 
@@ -5914,6 +5934,10 @@ msgstr ""
 msgid "Importing…"
 msgstr "Importation…"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "in {rangePhrase}"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "In KOReader: main menu -> TomeSync -> \"Test connection\" to confirm the plugin can reach your Tome server."
 msgstr "Dans KOReader : menu principal -> TomeSync -> « Tester la connexion » pour vérifier que le module peut joindre votre serveur Tome."
@@ -6699,6 +6723,10 @@ msgstr "Minutes par semaine"
 msgid "Minutes read per day"
 msgstr "Minutes de lecture par jour"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "missed yesterday"
+msgstr ""
+
 #: src/components/MetadataManager.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Missing"
@@ -6773,6 +6801,10 @@ msgstr "Mois le plus actif"
 #: src/components/stats/widgets/library.tsx
 #~ msgid "Most Active Month"
 #~ msgstr "Mois le plus actif"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "most books finished"
+msgstr ""
 
 #: src/components/stats/taste/TastePage.tsx
 msgid "Most highlighted"
@@ -7045,6 +7077,10 @@ msgstr ""
 #: src/components/stats/widgets/habits.tsx
 msgid "No books currently in progress."
 msgstr "Aucun livre en cours de lecture."
+
+#: src/components/stats/overview/Overview.tsx
+msgid "no books finished"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "No books found. Upload the book first, then fulfill."
@@ -7364,6 +7400,10 @@ msgstr ""
 msgid "No reading in the last 12 months."
 msgstr ""
 
+#: src/components/stats/habits/charts.tsx
+msgid "no reading in the last 7 days"
+msgstr ""
+
 #: src/components/stats/habits/HabitsPage.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "No reading in this range yet."
@@ -7401,9 +7441,18 @@ msgstr "Aucune lecture ce mois-ci pour le moment."
 msgid "No reading time in Tome"
 msgstr ""
 
+#: src/components/stats/overview/Overview.tsx
+#~ msgid "no reading yesterday or today"
+#~ msgstr ""
+
 #: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "no reading yet"
 msgstr "aucune lecture pour le moment"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "No reading yet"
+msgstr ""
 
 #: src/components/stats/overview/Overview.tsx
 msgid "No reading yet."
@@ -7916,6 +7965,10 @@ msgstr ""
 msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes. Separately, Tome checks upgrades.bndct.dev once a day for a newer version; only the version number is sent."
 msgstr "Une fois par mois, Tome peut envoyer un petit rapport anonyme : version, plateforme, comptages par tranches et fonctionnalités utilisées. Jamais de titre, de nom ni de nom d’hôte. Désactivé sans votre accord. Par ailleurs, Tome vérifie une fois par jour sur upgrades.bndct.dev si une nouvelle version existe ; seul le numéro de version est envoyé."
 
+#: src/components/stats/overview/Overview.tsx
+msgid "one day starts it"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 #~ msgid "One series front and center — you pick which"
 #~ msgstr "Une série mise à l’honneur — à vous de choisir laquelle"
@@ -8065,6 +8118,10 @@ msgstr ""
 #: src/components/CoverPickerModal.tsx
 #~ msgid "or use a custom source"
 #~ msgstr "ou utiliser une source personnalisée"
+
+#: src/components/stats/sessions/SessionsPage.tsx
+msgid "Order"
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive"
@@ -8766,6 +8823,10 @@ msgstr ""
 msgid "Rated {day}"
 msgstr ""
 
+#: src/components/stats/taste/charts.tsx
+msgid "Rated {day} · mean of the last five {m}"
+msgstr ""
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "rated {rating}"
 msgstr "noté {rating}"
@@ -8913,6 +8974,10 @@ msgstr "Lire sur le web"
 #: src/pages/SettingsPage.tsx
 msgid "Read the QR code an offline KOReader device shows under TomeSync > Show sync code"
 msgstr "Lire le code QR affiché par un appareil KOReader hors ligne dans TomeSync > Afficher le code de synchronisation"
+
+#: src/components/stats/overview/Overview.tsx
+#~ msgid "read today to start one"
+#~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Read-only"
@@ -9560,6 +9625,10 @@ msgstr "Rôle"
 #: src/pages/AdminPage.tsx
 msgid "Roles guide"
 msgstr "Guide des rôles"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "running"
+msgstr ""
 
 #: src/components/stats/RangeControl.tsx
 msgid "Sa"
@@ -11394,7 +11463,6 @@ msgid "Toggle RTL (manga) mode"
 msgstr "Activer ou désactiver le mode RTL (manga)"
 
 #: src/components/stats/SessionLog.tsx
-#: src/components/stats/sessions/SessionsPage.tsx
 msgid "Toggle sort order"
 msgstr "Inverser l’ordre de tri"
 
