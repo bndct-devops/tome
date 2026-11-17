@@ -7004,6 +7004,10 @@ msgstr "Suivant"
 msgid "Next book"
 msgstr "Livre suivant"
 
+#: src/components/home/HomeTab.tsx
+msgid "Next in {series}"
+msgstr ""
+
 #: src/components/stats/RangeControl.tsx
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Next month"
@@ -11984,6 +11988,14 @@ msgstr ""
 #: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Volume {v}"
+msgstr ""
+
+#: src/components/home/HomeTab.tsx
+msgid "Volume {v} · {series}"
+msgstr ""
+
+#: src/components/home/HomeTab.tsx
+msgid "Volume {v} · next in {series}"
 msgstr ""
 
 #: src/components/home/FocusMode.tsx

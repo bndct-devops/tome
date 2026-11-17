@@ -7023,6 +7023,10 @@ msgstr "Next"
 msgid "Next book"
 msgstr "Next book"
 
+#: src/components/home/HomeTab.tsx
+msgid "Next in {series}"
+msgstr "Next in {series}"
+
 #: src/components/stats/RangeControl.tsx
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Next month"
@@ -12025,6 +12029,14 @@ msgstr "Volume {n}, not in the library"
 #: src/pages/BookDetailPage.tsx
 msgid "Volume {v}"
 msgstr "Volume {v}"
+
+#: src/components/home/HomeTab.tsx
+msgid "Volume {v} · {series}"
+msgstr "Volume {v} · {series}"
+
+#: src/components/home/HomeTab.tsx
+msgid "Volume {v} · next in {series}"
+msgstr "Volume {v} · next in {series}"
 
 #: src/components/home/FocusMode.tsx
 #~ msgid "Volume <0>{v}</0>"
