@@ -296,6 +296,11 @@ msgstr "{0, plural, one {{dur} sur # jour} other {{dur} sur # jours}}"
 msgid "{0, plural, one {{fin} finished · # book read} other {{fin} finished · # books read}}"
 msgstr "{0, plural, one {{fin} terminés · # livre lu} other {{fin} terminés · # livres lus}}"
 
+#. placeholder {0}: ws.books_counted
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{0, plural, one {{n} words in # finished book} other {{n} words in # finished books}}"
+msgstr ""
+
 #. placeholder {0}: dayEntries.length
 #: src/components/stats/widgets/habits.tsx
 msgid "{0, plural, one {# active day in this window} other {# active days in this window}}"
@@ -362,13 +367,12 @@ msgstr ""
 msgid "{0, plural, one {# book, none estimated yet.} other {# books, none estimated yet.}}"
 msgstr "{0, plural, one {# livre, aucun encore estimé.} other {# livres, aucun encore estimé.}}"
 
-#. placeholder {0}: cat.book_count
 #. placeholder {0}: data.books
 #. placeholder {0}: data.totals.books
+#. placeholder {0}: l.books
 #: src/components/stats/BacklogEstimate.tsx
 #: src/components/stats/library/Languages.tsx
 #: src/components/stats/library/Sections.tsx
-#: src/components/stats/overview/Overview.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# book} other {# books}}"
@@ -666,6 +670,11 @@ msgstr "{0, plural, one {+# de plus} other {+# de plus}}"
 #: src/components/stats/widgets/habits.tsx
 msgid "{0, plural, one {~# day remaining} other {~# days remaining}}"
 msgstr "{0, plural, one {~# jour restant} other {~# jours restants}}"
+
+#. placeholder {0}: Math.round(lt.seconds / 86400)
+#: src/components/stats/overview/Overview.tsx
+msgid "{0, plural, one {about # day around the clock} other {about # days around the clock}}"
+msgstr ""
 
 #. placeholder {0}: group.files.length
 #: src/pages/BinderyPage.tsx
@@ -1461,6 +1470,10 @@ msgstr ""
 msgid "{n} %"
 msgstr ""
 
+#: src/components/stats/overview/Overview.tsx
+msgid "{n} a reading day"
+msgstr ""
+
 #: src/components/stats/taste/charts.tsx
 msgid "{n} books"
 msgstr ""
@@ -1594,6 +1607,10 @@ msgstr ""
 msgid "{nOpen, plural, one {# in progress} other {# in progress}}"
 msgstr ""
 
+#: src/components/stats/library/LibraryPage.tsx
+#~ msgid "{of} · {pct}% finished"
+#~ msgstr ""
+
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "{ok} of {total} approved"
 msgstr "{ok} approuvés sur {total}"
@@ -1637,6 +1654,10 @@ msgstr ""
 
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "{pct} % slower lately"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{pct}% finished"
 msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
@@ -1894,6 +1915,7 @@ msgstr ""
 #~ msgstr ""
 
 #: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "{started, plural, one {of # book started} other {of # books started}}"
 msgstr ""
 
@@ -2426,6 +2448,7 @@ msgstr "Actions"
 msgid "Active"
 msgstr "Actif"
 
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/insights.tsx
 msgid "Active days"
 msgstr "Jours actifs"
@@ -2731,13 +2754,14 @@ msgid "all time"
 msgstr ""
 
 #: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
 #: src/pages/StatsPage.tsx
 msgid "All time"
 msgstr ""
 
 #: src/components/stats/overview/Overview.tsx
-msgid "all time; the month within the last 12"
-msgstr ""
+#~ msgid "all time; the month within the last 12"
+#~ msgstr ""
 
 #: src/components/MetadataManager.tsx
 msgid "All types"
@@ -2751,6 +2775,10 @@ msgstr ""
 #: src/pages/SettingsPage.tsx
 msgid "All users"
 msgstr "Tous les utilisateurs"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "All your reading"
+msgstr ""
 
 #: src/pages/StatsPage.tsx
 #~ msgid "All your reading goals — rings fill as you read, managed in place"
@@ -3125,6 +3153,10 @@ msgstr ""
 #: src/components/stats/overview/Overview.tsx
 msgid "avg {avg}"
 msgstr "moyenne {avg}"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "avg {avg} a reading day"
+msgstr ""
 
 #: src/components/stats/overview/charts.tsx
 #~ msgid "avg {avgLabel}"
@@ -3537,7 +3569,6 @@ msgid "By format:"
 msgstr ""
 
 #: src/components/stats/library/LibraryPage.tsx
-#: src/components/stats/overview/Overview.tsx
 msgid "by reading time"
 msgstr ""
 
@@ -4303,6 +4334,10 @@ msgstr "jours à ~{mpd} min par jour ({win} derniers jours)"
 
 #: src/components/stats/library/Sections.tsx
 msgid "Days from the first reading day to the finish"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "days with any reading"
 msgstr ""
 
 #: src/components/LibraryHealth.tsx
@@ -6793,7 +6828,11 @@ msgstr ""
 msgid "Morning vs evening reader?"
 msgstr "Plutôt lecture du matin ou du soir ?"
 
-#: src/components/stats/overview/Overview.tsx
+#. Before a month and a duration at the top of a chart
+#: src/components/stats/overview/charts.tsx
+msgid "most active month"
+msgstr ""
+
 #: src/components/stats/widgets/library.tsx
 msgid "Most active month"
 msgstr "Mois le plus actif"
@@ -6803,8 +6842,8 @@ msgstr "Mois le plus actif"
 #~ msgstr "Mois le plus actif"
 
 #: src/components/stats/overview/Overview.tsx
-msgid "most books finished"
-msgstr ""
+#~ msgid "most books finished"
+#~ msgstr ""
 
 #: src/components/stats/taste/TastePage.tsx
 msgid "Most highlighted"
@@ -7083,8 +7122,8 @@ msgid "No books currently in progress."
 msgstr "Aucun livre en cours de lecture."
 
 #: src/components/stats/overview/Overview.tsx
-msgid "no books finished"
-msgstr ""
+#~ msgid "no books finished"
+#~ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "No books found. Upload the book first, then fulfill."
@@ -7218,6 +7257,10 @@ msgstr ""
 
 #: src/components/stats/library/Sections.tsx
 msgid "No finished books with reading days yet."
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "No finished books with word counts yet."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -7840,6 +7883,7 @@ msgid "Nothing shared yet. Use the share icon on a shelf, a series page, or a bo
 msgstr "Aucun partage pour le moment. Utilisez l’icône de partage d’une étagère, d’une page de série ou d’une page de livre."
 
 #: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "nothing started yet"
 msgstr ""
 
@@ -11535,7 +11579,6 @@ msgstr "Livres classés par temps de lecture"
 #~ msgid "Top Books by Reading Time"
 #~ msgstr "Livres classés par temps de lecture"
 
-#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/library.tsx
 msgid "Top genre"
 msgstr "Genre préféré"
@@ -11579,6 +11622,10 @@ msgstr "Temps total de lecture et session moyenne"
 #: src/components/stats/LibraryGrowthChart.tsx
 msgid "Total: {total}"
 msgstr "Total : {total}"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "Totals"
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Translations are community-maintained. Anything not yet translated is shown in English."
@@ -12292,7 +12339,6 @@ msgstr "Défi annuel"
 #~ msgstr "Défi annuel"
 
 #: src/components/stats/boards/BoardsView.tsx
-#: src/components/stats/overview/Overview.tsx
 msgid "Year in review"
 msgstr "Bilan annuel"
 
