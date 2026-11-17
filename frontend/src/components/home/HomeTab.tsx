@@ -36,13 +36,14 @@ interface FocusBook {
   synced: boolean
   last_sync: string | null
 }
-interface FocusUpcoming { book_id: number; title: string; series_index: number | null; has_cover: boolean }
+interface FocusUpcoming { book_id: number; title: string; series_index: number | null; has_cover: boolean; description: string | null }
+interface FocusReading { book_id: number; title: string; author: string | null; has_cover: boolean; progress: number }
 interface FocusData {
   ready: boolean
   book: FocusBook | null
   upcoming?: FocusUpcoming[]
   ahead_count: number
-  reading: { book_id: number; title: string; author: string | null; has_cover: boolean; progress: number }[]
+  reading: FocusReading[]
   reading_total?: number
 }
 interface HomeStats {
@@ -149,13 +150,14 @@ function monthKey(): string {
 // ── Pieces ──────────────────────────────────────────────────────────────────
 
 /** 6px bar on the accent track with the percentage in bold beside it. */
-function ProgressBar({ pct, className }: { pct: number; className?: string }) {
+function ProgressBar({ pct, className, steady }: { pct: number; className?: string; steady?: boolean }) {
   return (
     <div className={cn('flex items-center gap-3', className)}>
       <div className="h-[6px] flex-1 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
         <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
       </div>
-      <span className="text-[17px] font-bold tabular-nums text-foreground">{Math.round(pct)}%</span>
+      {/* steady: the number keeps a minimum width, so "2%" and "64%" leave tracks of one length */}
+      <span className={cn('text-[17px] font-bold tabular-nums text-foreground', steady && 'min-w-[3.2ch] text-right')}>{Math.round(pct)}%</span>
     </div>
   )
 }
@@ -173,6 +175,25 @@ function PeekButton({ onClick }: { onClick: () => void }) {
     >
       <Eye className="w-3.5 h-3.5" />
     </button>
+  )
+}
+
+/** A shelf book with room to spare: the cover, and beside it, centred on it,
+ *  the title (up to two lines) linking to the book and what follows it. */
+function ShelfCard({ cover, bookId, title, children }: { cover: ReactNode; bookId: number; title: string; children: ReactNode }) {
+  return (
+    <div className="flex min-w-0 items-center gap-5">
+      <div className="w-[104px] shrink-0">{cover}</div>
+      <div className="min-w-0 flex-1">
+        <Link
+          to={`/books/${bookId}`}
+          className="font-display text-[18px] lg:text-[20px] leading-[1.15] font-bold text-foreground line-clamp-2 hover:underline decoration-2 underline-offset-4"
+        >
+          {title}
+        </Link>
+        {children}
+      </div>
+    </div>
   )
 }
 
@@ -341,6 +362,72 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
   // The hero is not repeated as the first cover of the row.
   const others = (focus?.reading ?? []).filter(r => r.book_id !== b?.book_id)
 
+  const ups = b ? (focus?.upcoming ?? []).slice(0, 5) : []
+  // One or two books across both shelves show as cards; the "+N" tile only
+  // exists with a full shelf, so it never meets a card.
+  const cards = others.length + ups.length <= 2 && more <= 0
+  const upLabel = (() => { const n = focus?.ahead_count ?? 0; return <Trans>Up next · {n} ahead</Trans> })()
+
+  // The cover of an Also reading book: a click puts it in the hero, the corner
+  // button opens the quick look. Dimmed until hovered among the covers only.
+  const readingCover = (r: FocusReading, dim: boolean) => {
+    const title = r.title
+    return (
+      <TiltCover className="relative group/cover">
+        <button
+          type="button"
+          onClick={() => switchTo(r.book_id)}
+          aria-label={t`Show ${title} here`}
+          title={t`Show ${title} here`}
+          className={cn('relative block w-full aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', dim && 'opacity-80 hover:opacity-100')}
+        >
+          <CoverImage src={r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
+        </button>
+        <PeekButton onClick={() => setPeek(r.book_id)} />
+      </TiltCover>
+    )
+  }
+
+  // The cover of an Up next volume opens its quick look.
+  const upCover = (u: FocusUpcoming, dim: boolean) => {
+    const title = u.title
+    return (
+      <button
+        type="button"
+        onClick={() => setPeek(u.book_id)}
+        className="block w-full text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[8px]"
+        aria-label={t`Quick look: ${title}`}
+        title={t`Quick look`}
+      >
+        <div className={cn('relative aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition-opacity', dim && 'opacity-80 group-hover:opacity-100')}>
+          <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
+        </div>
+      </button>
+    )
+  }
+
+  const readingCard = (r: FocusReading) => (
+    <ShelfCard key={r.book_id} cover={readingCover(r, false)} bookId={r.book_id} title={r.title}>
+      {r.author && <div className="mt-1 truncate text-[15px] leading-[1.4] text-muted-foreground">{r.author}</div>}
+      <ProgressBar pct={r.progress} className="mt-3 h-5" steady />
+    </ShelfCard>
+  )
+
+  const upCard = (u: FocusUpcoming, i: number) => {
+    const series = b?.series ?? ''
+    const v = u.series_index != null ? fmtIndex(u.series_index) : null
+    const where = i === 0
+      ? (v != null ? <Trans>Volume {v} · next in {series}</Trans> : <Trans>Next in {series}</Trans>)
+      : (v != null ? <Trans>Volume {v} · {series}</Trans> : series)
+    const blurb = u.description ? plainText(u.description) : ''
+    return (
+      <ShelfCard key={u.book_id} cover={<TiltCover>{upCover(u, false)}</TiltCover>} bookId={u.book_id} title={u.title}>
+        <div className="mt-1 truncate text-[15px] leading-[1.4] text-muted-foreground">{where}</div>
+        {blurb && <p className="mt-3 hidden text-[14px] leading-5 text-muted-foreground lg:line-clamp-2">{blurb}</p>}
+      </ShelfCard>
+    )
+  }
+
   return (
     <PageBody width="wide">
       <div className="flex flex-col gap-5">
@@ -406,79 +493,79 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
         </section>
       )}
 
-      {/* ── Also reading and Up next, side by side: the other books in progress,
-          and the volumes after the hero in its series. The hero stays short so
-          the stat strip is on the first screen. ────────────────────────────── */}
-      {focus && (others.length > 0 || (focus.upcoming?.length ?? 0) > 0) && (
-        <section className="flex flex-col gap-8 lg:flex-row lg:items-start">
-          {others.length > 0 && (
-            <div className="min-w-0 flex-1">
-
-          <Eyebrow className="mb-2"><Trans>Also reading</Trans></Eyebrow>
-          <HScrollRow className="gap-4 px-2 pt-3 pb-2" wrapClassName="-mx-2 -mt-3" controlsTop="top-[84px]">
-            {others.map(r => {
-              const title = r.title
-              return (
-                <div key={r.book_id} className="shrink-0 w-[104px]">
-                  <TiltCover className="relative group/cover">
-                    <button
-                      type="button"
-                      onClick={() => switchTo(r.book_id)}
-                      aria-label={t`Show ${title} here`}
-                      title={t`Show ${title} here`}
-                      className="relative block w-full aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring opacity-80 hover:opacity-100"
-                    >
-                      <CoverImage src={r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
-                    </button>
-                    <PeekButton onClick={() => setPeek(r.book_id)} />
-                  </TiltCover>
-                  <div className="mt-2 h-[3px] rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
-                    <div className="h-full bg-primary" style={{ width: `${Math.min(100, r.progress)}%` }} />
-                  </div>
-                  <Link to={`/books/${r.book_id}`} className="mt-1.5 block text-[13px] truncate text-muted-foreground hover:text-primary transition-colors">{r.title}</Link>
-                </div>
-              )
-            })}
-            {more > 0 && (
-              <button type="button" onClick={() => navigate('/?tab=books&reading_status=reading')} className="shrink-0 w-[104px] text-left group">
-                <div className="aspect-[2/3] rounded-[8px] bg-secondary grid place-items-center text-[15px] font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
-                  +{more}
-                </div>
-                <div className="mt-[17px] text-[13px] text-muted-foreground"><Trans>See all</Trans></div>
-              </button>
-            )}
-          </HScrollRow>
-            </div>
-          )}
-          {(focus.upcoming?.length ?? 0) > 0 && b && (
-            <div className={cn('shrink-0', others.length > 0 && 'lg:border-l lg:border-border/70 lg:pl-8')}>
-              <Eyebrow className="mb-2">
-                {(() => { const n = focus.ahead_count; return <Trans>Up next · {n} ahead</Trans> })()}
-              </Eyebrow>
-              <div className="flex gap-4 pb-2">
-                {focus.upcoming!.slice(0, 5).map(u => { const title = u.title; return (
-                  <div key={u.book_id} className="shrink-0 w-[104px]">
-                    <button
-                      type="button"
-                      onClick={() => setPeek(u.book_id)}
-                      className="block w-full text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[8px]"
-                      aria-label={t`Quick look: ${title}`}
-                      title={t`Quick look`}
-                    >
-                      <div className="relative aspect-[2/3] rounded-[8px] overflow-hidden bg-muted opacity-80 group-hover:opacity-100 transition-opacity">
-                        <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
-                      </div>
-                    </button>
-                    <Link to={`/books/${u.book_id}`} className="mt-[17px] block text-[13px] text-muted-foreground truncate hover:text-primary transition-colors">
-                      {u.series_index != null ? (() => { const v = fmtIndex(u.series_index); return <Trans>Volume {v}</Trans> })() : u.title}
-                    </Link>
-                  </div>
-                ) })}
+      {/* ── Also reading and Up next: the other books in progress, and the
+          volumes after the hero in its series, always one row on desktop. One or
+          two books in all show as cards in two equal halves; from three on, the
+          covers with captions, both shelves packed from the left. The hero stays
+          short so the stat strip is on the first screen. ──────────────────── */}
+      {focus && (others.length > 0 || ups.length > 0) && (cards ? (
+        <section className="grid grid-cols-1 gap-8 lg:grid-cols-2">
+          {others.length > 0 && ups.length > 0 ? (
+            <>
+              <div className="min-w-0">
+                <Eyebrow className="mb-2"><Trans>Also reading</Trans></Eyebrow>
+                {readingCard(others[0])}
+              </div>
+              <div className="min-w-0 lg:border-l lg:border-border/70 lg:pl-8">
+                <Eyebrow className="mb-2">{upLabel}</Eyebrow>
+                {upCard(ups[0], 0)}
+              </div>
+            </>
+          ) : (
+            // One shelf: its label spans the row, its one or two cards sit in the halves.
+            <div className="min-w-0 lg:col-span-2">
+              <Eyebrow className="mb-2">{others.length > 0 ? <Trans>Also reading</Trans> : upLabel}</Eyebrow>
+              <div className="grid grid-cols-1 gap-x-8 gap-y-5 lg:grid-cols-2">
+                {others.length > 0 ? others.map(readingCard) : ups.map(upCard)}
               </div>
             </div>
           )}
         </section>
-      )}
+      ) : (
+        <section className="flex flex-col gap-8 lg:flex-row lg:items-start">
+          {others.length > 0 && (
+            // Packed from the left: as wide as its covers, and it shrinks and
+            // scrolls sideways when the row does not fit; Up next keeps its width.
+            <div className="min-w-0">
+              <Eyebrow className="mb-2"><Trans>Also reading</Trans></Eyebrow>
+              <HScrollRow className="gap-4 px-2 pt-3 pb-2" wrapClassName="-mx-2 -mt-3" controlsTop="top-[84px]">
+                {others.map(r => (
+                  <div key={r.book_id} className="shrink-0 w-[104px]">
+                    {readingCover(r, true)}
+                    <div className="mt-2 h-[3px] rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
+                      <div className="h-full bg-primary" style={{ width: `${Math.min(100, r.progress)}%` }} />
+                    </div>
+                    <Link to={`/books/${r.book_id}`} className="mt-1.5 block text-[13px] truncate text-muted-foreground hover:text-primary transition-colors">{r.title}</Link>
+                  </div>
+                ))}
+                {more > 0 && (
+                  <button type="button" onClick={() => navigate('/?tab=books&reading_status=reading')} className="shrink-0 w-[104px] text-left group">
+                    <div className="aspect-[2/3] rounded-[8px] bg-secondary grid place-items-center text-[15px] font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
+                      +{more}
+                    </div>
+                    <div className="mt-[17px] text-[13px] text-muted-foreground"><Trans>See all</Trans></div>
+                  </button>
+                )}
+              </HScrollRow>
+            </div>
+          )}
+          {ups.length > 0 && (
+            <div className={cn('shrink-0', others.length > 0 && 'lg:border-l lg:border-border/70 lg:pl-8')}>
+              <Eyebrow className="mb-2">{upLabel}</Eyebrow>
+              <div className="flex gap-4 pb-2">
+                {ups.map(u => (
+                  <div key={u.book_id} className="shrink-0 w-[104px]">
+                    {upCover(u, true)}
+                    <Link to={`/books/${u.book_id}`} className="mt-[17px] block text-[13px] text-muted-foreground truncate hover:text-primary transition-colors">
+                      {u.series_index != null ? (() => { const v = fmtIndex(u.series_index); return <Trans>Volume {v}</Trans> })() : u.title}
+                    </Link>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+      ))}
 
       {/* ── The numbers ──────────────────────────────────────────────────── */}
       <div className="flex flex-col gap-5">
