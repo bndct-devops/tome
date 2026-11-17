@@ -21,7 +21,7 @@ import { Cover, Heading, Ph, Track } from '@/components/stats/kit/Kit'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
 import { tipAttrs } from '@/components/stats/kit/tip'
-import { DESKTOP_MIN, HAIR, LEVELS, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
+import { DESKTOP_MIN, HAIR, LEVELS, dec1, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
 import { useStatsGet } from '@/components/stats/kit/useStatsGet'
 import { OVER_TIME_H, OverTime, TimeVsRating } from './charts'
 import { lowestFour, shelfOrder, wholeStarMedians, type Ratings } from './model'
@@ -47,7 +47,7 @@ const PH = {
 
 const ratingWord = (r: number) => plural(r, { one: '# star', other: '# stars' })
 /** A one-decimal figure counted up in tenths ("4.3"). */
-const tenths = (n: number) => (n / 10).toFixed(1)
+const tenths = (n: number) => dec1(n / 10)
 const ratedOn = (iso: string | null) => { if (!iso) return undefined; const d = fmtDay(iso.slice(0, 10)); return t`Rated ${d}` }
 /** A row that is one link: the title takes the accent and the cover lifts on hover, as the Overview's rows. */
 const LINK_ROW = 'group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'

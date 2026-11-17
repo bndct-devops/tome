@@ -16,7 +16,7 @@ import { Cover, Heading, Ph } from '@/components/stats/kit/Kit'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, rangeSig, stagger, useEntry, type Entry } from '@/components/stats/kit/motion'
 import { tipAttrs, useTips } from '@/components/stats/kit/tip'
-import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
+import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, dec1, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
 import { rangeQuery, useStatsGet } from '@/components/stats/kit/useStatsGet'
 import { hourModel, readingDayOf } from '@/components/stats/overview/model'
 import { ChartEmpty, Lengths, Months, Pace, Rhythm, Timeline } from './charts'
@@ -167,7 +167,7 @@ function LastDays({ habits, width, phone }: { habits: HabitsResponse | null; wid
 
 // ── Sessions: three figures ───────────────────────────────────────────────────
 
-const tenths = (n: number) => (n / 10).toFixed(1)
+const tenths = (n: number) => dec1(n / 10)
 
 function Sessions({ stats, habits, desktop, allTime, dim, sig }: { stats: StatsResponse | null; habits: HabitsResponse | null; desktop: boolean; allTime: boolean; dim: string; sig: string | null }) {
   const [e, enter] = useSection('habits/sessions', sig)
@@ -298,7 +298,7 @@ function FormatLine({ stats, desktop }: { stats: StatsResponse | null; desktop: 
     return n > 0 ? t`${n} %` : t`<1 %`
   }
   const tipOf = (f: FormatShare) => {
-    const ppm = f.ppm.toFixed(1)
+    const ppm = dec1(f.ppm)
     const pct = share(f)
     const sessions = plural(f.sessions, { one: '# session', other: '# sessions' })
     const pages = plural(f.pages, { one: '# page', other: '# pages' })
@@ -310,7 +310,7 @@ function FormatLine({ stats, desktop }: { stats: StatsResponse | null; desktop: 
     if (rest.length === 1) return tipOf(rest[0])
     if (!rest.length) return null
     const n = rest.length
-    const list = rest.map((f) => `${f.format} ${f.ppm.toFixed(1)} · ${share(f)}`).join(', ')
+    const list = rest.map((f) => `${f.format} ${dec1(f.ppm)} · ${share(f)}`).join(', ')
     return { title: t`${n} more formats`, value: list, note: t`pages a minute · share of the time` }
   })
   // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
@@ -328,7 +328,7 @@ function FormatLine({ stats, desktop }: { stats: StatsResponse | null; desktop: 
           <span key={f.format}>
             {i > 0 && <span className="px-1.5 opacity-60">·</span>}
             <span data-tip-i={i} className={cn('rounded-sm data-[hot]:text-foreground', K.fade)} style={stagger(i, fs.length)}>
-              {f.format} <span className={fig}>{f.ppm.toFixed(1)}</span> <Trans>pg/min</Trans>, <span className={fig}>{share(f)}</span>
+              {f.format} <span className={fig}>{dec1(f.ppm)}</span> <Trans>pg/min</Trans>, <span className={fig}>{share(f)}</span>
             </span>
           </span>
         ))}
@@ -365,11 +365,14 @@ function PaceSection({ stats, width, desktop, rangeWords, dim, sig }: { stats: S
   if (!p) lead = <Ph on>{PH.pace}</Ph>
   else if (p.dots.length === 0) lead = t`No pages read in this range yet.`
   else {
-    const recent = p.recent.toFixed(1)
-    const all = p.all.toFixed(1)
+    // The trend compares the figures as printed (one decimal), shown in the app's language.
+    const recentS = p.recent.toFixed(1)
+    const allS = p.all.toFixed(1)
+    const recent = dec1(Number(recentS))
+    const all = dec1(Number(allS))
     // The trend is the change between the two figures as printed, so it cannot disagree with
     // them; a short "(up 27 %)" after the recent figure, the comparison spelled out in its tip.
-    const ch = p.dots.length > 7 ? paceChange(recent, all) : null
+    const ch = p.dots.length > 7 ? paceChange(recentS, allS) : null
     const pct = Math.abs(ch ?? 0)
     let tip: { 'data-tip': string } | null = null
     if (ch != null) {

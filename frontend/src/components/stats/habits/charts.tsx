@@ -10,6 +10,7 @@ import { t, plural } from '@lingui/core/macro'
 import { formatDuration } from '@/lib/utils'
 import { K, stagger } from '@/components/stats/kit/motion'
 import { useTips } from '@/components/stats/kit/tip'
+import { dec1, num } from '@/components/stats/kit/tokens'
 import { HEAT_GAP, heatRadius, type HourGrid } from '@/components/stats/overview/model'
 import {
   TL_PITCH, TL_PITCH_PHONE, TL_TRACK, TL_TRACK_PHONE, TL_ROWS, MONTH_ROW,
@@ -313,7 +314,7 @@ export function Lengths({ W, H, counts, loading }: { W: number; H: number; count
           <g key={i} className="k-col">
             <rect className="k-hit" data-tip-i={i} x={Math.round(slot * i)} y={0} width={Math.round(slot)} height={base} rx={4} />
             {h > 0 && <path className={`${K.grow} k-bar k-nohit`} style={stagger(i, counts.length)} d={roundedTop(x, base - h, bw, h, Math.min(3, h))} fill="var(--chart-accent)" />}
-            <text className={K.fade} style={late(i, counts.length)} x={x + bw / 2} y={base - h - 5} textAnchor="middle" fill="var(--foreground)" fontWeight={500}>{n.toLocaleString()}</text>
+            <text className={K.fade} style={late(i, counts.length)} x={x + bw / 2} y={base - h - 5} textAnchor="middle" fill="var(--foreground)" fontWeight={500}>{num(n)}</text>
             <text x={x + bw / 2} y={H - 4} textAnchor="middle">{labels[i]}</text>
           </g>
         )
@@ -334,10 +335,10 @@ export function Pace({ W, H, dots, nDays, ticks, loading }: { W: number; H: numb
     const d = dots[i % Math.max(1, n)]
     if (!d) return null
     if (i < n) {
-      const mean = d.mean.toFixed(1)
+      const mean = dec1(d.mean)
       return { title: fmtLong(d.date), value: t`${mean} pages a minute`, note: t`7-day mean` }
     }
-    const ppm = d.ppm.toFixed(1)
+    const ppm = dec1(d.ppm)
     const pages = plural(d.pages, { one: '# page', other: '# pages' })
     const len = dur(d.seconds)
     return { title: fmtLong(d.date), value: t`${ppm} pages a minute`, note: t`${pages} in ${len}` }
@@ -440,7 +441,7 @@ export function Months({ W, months, phone, loading }: { W: number; months: Month
   const xs = months.map((_, i) => Math.round(labelW + slot * i + (slot - bw) / 2))
   const row = (key: 'hours' | 'books', base: number) => {
     const val = (m: Month) => (key === 'hours' ? m.seconds : m.books)
-    const lab = (m: Month) => (key === 'hours' ? formatDuration(m.seconds) : m.books.toLocaleString())
+    const lab = (m: Month) => (key === 'hours' ? formatDuration(m.seconds) : num(m.books))
     const max = Math.max(1, ...months.map(val))
     const fill = key === 'hours' ? 'var(--chart-accent)' : 'var(--success)'
     const rowLabel = rowLabels[key === 'hours' ? 0 : 1]

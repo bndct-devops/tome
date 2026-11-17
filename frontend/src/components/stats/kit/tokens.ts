@@ -1,6 +1,7 @@
 // Shared look of the designed Stats pages: tokens, formatting and the width hook.
 // Components are in Kit.tsx (kept apart so fast refresh sees a component-only file).
 import { useLayoutEffect, useRef, useState, type CSSProperties } from 'react'
+import { i18n } from '@lingui/core'
 
 /** Container width from which a designed page uses its desktop layout. */
 export const DESKTOP_MIN = 896
@@ -28,7 +29,23 @@ export const LEVELS = {
 
 /** Medium date with the year ("Nov 7, 2026") of a YYYY-MM-DD day. */
 export const fmtDay = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-export const num = (n: number) => n.toLocaleString()
+// Numbers follow the app's language, the locale Lingui formats a plural's "#" with,
+// so a figure, its count-up, its tip and the "# books" beside it all read alike
+// ("22,479" in English whatever the browser's own locale; "22 479" in French).
+const fmts = new Map<string, Intl.NumberFormat>()
+const fmtFor = (digits: number) => {
+  const key = `${i18n.locale}|${digits}`
+  let f = fmts.get(key)
+  if (!f) {
+    f = new Intl.NumberFormat(i18n.locale || undefined, { minimumFractionDigits: digits, maximumFractionDigits: digits })
+    fmts.set(key, f)
+  }
+  return f
+}
+/** A whole number with the app language's grouping ("22,479"). */
+export const num = (n: number) => fmtFor(0).format(n)
+/** One decimal in the app language ("4.3"; "4,3" in French). */
+export const dec1 = (n: number) => fmtFor(1).format(n)
 
 /** Measures its element's width before the first paint (layout effect), so charts draw once at their final size. */
 export function useWidth<T extends HTMLElement>() {
