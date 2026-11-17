@@ -28,6 +28,12 @@ import { bestDay, busiestMonth, dayDiff, emptyYear, heroBars, hourHeatHeight, ho
 
 
 const HERO_CHART_H = 180
+// The desktop hero's figures as one row: every cell spans the row's four lines
+// (caption, figure, foot, second foot) on a shared subgrid, baseline-aligned, so the
+// 40 px figures sit on the 60 px total's baseline and each foot line is one line
+// across the row. Without subgrid baselines a browser still lines the rows up by top.
+const FIG_ROW = 'grid grid-cols-[342px_repeat(4,minmax(0,1fr))] grid-rows-[repeat(4,auto)]'
+const FIG_ROW_CELL = 'row-span-4 grid grid-rows-subgrid items-baseline'
 const COVER_SHELF_H = 120
 const COVER_SHELF_W = 80 // 2:3 at 120 high
 const SHELF_GAP = 12
@@ -176,7 +182,7 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
     else { streakLine = t`no reading yet`; streakLine2 = t`one day starts it` }
   }
 
-  const figs: { label: ReactNode; value: ReactNode; unit?: ReactNode; foot: ReactNode; tone?: string; ph: string; phFoot: string }[] = [
+  const figs: { label: ReactNode; value: ReactNode; unit?: ReactNode; foot: ReactNode; foot2?: ReactNode; tone?: string; ph: string; phFoot: string; phFoot2?: string }[] = [
     { label: <Trans>Sessions</Trans>, value: h ? <CountUp entry={e} value={h.total_sessions} format={num} /> : '', foot: h ? (() => { const avg = formatDuration(h.avg_session_seconds); return t`avg ${avg}` })() : '', ph: PH.sessions, phFoot: PH.sessionsFoot },
     {
       label: <Trans>Pages</Trans>,
@@ -195,8 +201,9 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
       label: <Trans>Streak</Trans>,
       value: h ? <CountUp entry={e} value={h.streaks.current_days} format={num} /> : '',
       unit: h ? plural(h.streaks.current_days, { one: 'day', other: 'days' }) : null,
-      foot: h ? <><span className="block truncate">{streakLine}</span><span className="block truncate">{streakLine2}</span></> : '',
-      tone: 'text-primary', ph: PH.streak, phFoot: PH.streakFoot,
+      foot: h ? <span className="block truncate">{streakLine}</span> : '',
+      foot2: h ? <span className="block truncate">{streakLine2}</span> : '',
+      tone: 'text-primary', ph: PH.streak, phFoot: PH.streakFoot, phFoot2: PH.streakFoot2,
     },
   ]
 
@@ -206,7 +213,7 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
       data-box={`hero-fig-${i}`}
       className={cn(
         'min-w-0',
-        desktop ? cn('self-stretch border-l pl-3.5', HAIR) : cn('py-4', i % 2 === 0 ? 'pr-3' : cn('border-l pl-4', HAIR), i < 2 ? cn('border-b', HAIR) : 'pb-0'),
+        desktop ? cn(FIG_ROW_CELL, 'border-l pl-3.5', HAIR) : cn('py-4', i % 2 === 0 ? 'pr-3' : cn('border-l pl-4', HAIR), i < 2 ? cn('border-b', HAIR) : 'pb-0'),
       )}
     >
       <div className="text-[14px] text-muted-foreground">{f.label}</div>
@@ -214,10 +221,8 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
         <Ph on={loading}>{loading ? f.ph : f.value}</Ph>
         {f.unit && <span className="ml-1.5 font-sans text-[16px] font-semibold tracking-normal">{f.unit}</span>}
       </div>
-      <div className="mt-1.5 text-[13px] leading-[1.4] text-muted-foreground">
-        {loading ? <Ph on>{f.phFoot}</Ph> : f.foot}
-        {loading && i === 3 && <><br /><Ph on>{PH.streakFoot2}</Ph></>}
-      </div>
+      <div className="mt-1.5 text-[13px] leading-[1.4] text-muted-foreground">{loading ? <Ph on>{f.phFoot}</Ph> : f.foot}</div>
+      {f.phFoot2 && <div className="text-[13px] leading-[1.4] text-muted-foreground">{loading ? <Ph on>{f.phFoot2}</Ph> : f.foot2}</div>}
     </div>
   ))
 
@@ -239,8 +244,8 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
 
   return (
     <section ref={e.ref} data-box="hero" className={cn(desktop ? cn('border-b pb-10', HAIR) : 'flex flex-col', dim)}>
-      <div className={desktop ? 'grid grid-cols-[342px_repeat(4,minmax(0,1fr))] items-start' : 'contents'}>
-        <div data-box="hero-total" className={cn('min-w-0', desktop ? 'pr-5' : 'order-0')}>
+      <div className={desktop ? FIG_ROW : 'contents'}>
+        <div data-box="hero-total" className={cn('min-w-0', desktop ? cn(FIG_ROW_CELL, 'pr-5') : 'order-0')}>
           <div className="text-[14px] text-muted-foreground"><Trans>Reading time</Trans></div>
           <div className={cn('mt-2.5 font-display font-bold tabular-nums text-foreground', desktop ? 'text-[60px]' : 'text-[48px]', 'leading-none')}>
             <Ph on={loading}>{totalLabel}</Ph>
