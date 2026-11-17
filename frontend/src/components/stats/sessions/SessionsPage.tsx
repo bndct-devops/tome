@@ -17,10 +17,12 @@ import type { SessionEntry, SessionsPage as SessionsAnswer } from '@/components/
 import { Cover, Ph } from '@/components/stats/kit/Kit'
 import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
 import { DESKTOP_MIN, DIM, HAIR, UNDIM, num, useWidth } from '@/components/stats/kit/tokens'
+import { ChoiceMenu } from '@/components/stats/kit/Menu'
 import { dropStatsCache } from '@/components/stats/kit/useStatsGet'
 import { sourceLabel, useSessionActions, type SessionActions } from './actions'
 import { SessionTools, TrimPanel } from './SessionTools'
 import { PAGE, groupByDay, rememberShape, rememberedShape, type Filter, type Sort } from './model'
+import { tipAttrs } from '@/components/stats/kit/tip'
 
 /* eslint-disable lingui/no-unlocalized-strings -- placeholder text: drawn as blocks
    while loading and never read; it only gives each line its loaded width. Grid
@@ -155,15 +157,20 @@ export function SessionsPage() {
                 )
               })}
             </div>
-            <button
-              type="button"
-              onClick={() => setSort(sort === 'recent' ? 'longest' : 'recent')}
-              className={cn('inline-flex h-[30px] items-center gap-1.5 whitespace-nowrap rounded-full px-2 text-[13px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', desktop && 'ml-auto')}
-              title={t`Toggle sort order`}
-            >
-              <ArrowUpDown className="h-3.5 w-3.5" />
-              {sort === 'recent' ? t`Newest first` : t`Longest first`}
-            </button>
+            {/* The order as the app's choice menu (kit/Menu.tsx), as the Library's sort pill. */}
+            <div className={cn(desktop && 'ml-auto')}>
+              <ChoiceMenu
+                value={sort}
+                options={[{ id: 'recent', label: t`Newest first` }, { id: 'longest', label: t`Longest first` }]}
+                onPick={(id) => setSort(id as typeof sort)}
+                label={t`Order`}
+                align="end"
+                className="inline-flex h-[30px] items-center gap-1.5 whitespace-nowrap rounded-full px-2 text-[13px] text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-expanded:bg-secondary aria-expanded:text-foreground"
+              >
+                <ArrowUpDown className="h-3.5 w-3.5" aria-hidden="true" />
+                {sort === 'recent' ? t`Newest first` : t`Longest first`}
+              </ChoiceMenu>
+            </div>
           </div>
 
           <div data-box="sessions-log" className={cn('mt-6', pending ? DIM : UNDIM)}>
@@ -270,14 +277,14 @@ function Row({ s, i, desktop, a, withDate = false }: { s: SessionEntry; i: numbe
     <div className={cn('border-b', HAIR, ROW_HOVER, motion.className)} style={motion.style}>
       {desktop ? (
         <div data-box={`srow-${i}`} className={cn('grid h-14 items-center gap-x-4', withDate ? COLS_LONGEST : COLS)}>
-          <span className="whitespace-nowrap text-[14px] tabular-nums text-muted-foreground" title={withDate ? timeOf(s.started_at) : undefined}>{when}</span>
+          <span className="whitespace-nowrap text-[14px] tabular-nums text-muted-foreground" {...(withDate ? tipAttrs({ title: timeOf(s.started_at) }) : {})}>{when}</span>
           <span className="flex min-w-0 items-center gap-3">
             {cover}
             <span className="truncate text-[15px] font-medium text-foreground">{title}</span>
           </span>
           <span className="inline-flex items-center gap-1.5 whitespace-nowrap text-[14px] tabular-nums text-foreground">{dur}{warn}</span>
           <span className="truncate text-[14px] text-muted-foreground">{device}</span>
-          <span className="whitespace-nowrap text-[13px] text-muted-foreground/70" title={statusTitle}>{status}</span>
+          <span className="whitespace-nowrap text-[13px] text-muted-foreground/70" {...(statusTitle ? tipAttrs({ title: statusTitle }) : {})}>{status}</span>
           <span className="flex justify-end gap-0.5"><SessionTools s={s} a={a} keepSlot /></span>
         </div>
       ) : (
@@ -288,7 +295,7 @@ function Row({ s, i, desktop, a, withDate = false }: { s: SessionEntry; i: numbe
             <div className="mt-[3px] flex items-center gap-1 truncate whitespace-nowrap text-[12px] tabular-nums text-muted-foreground">
               <span className="truncate">
                 {when} · {dur} · {device}
-                {status && <> · <span className="text-muted-foreground/70" title={statusTitle}>{status}</span></>}
+                {status && <> · <span className="text-muted-foreground/70" {...(statusTitle ? tipAttrs({ title: statusTitle }) : {})}>{status}</span></>}
               </span>
               {warn}
             </div>

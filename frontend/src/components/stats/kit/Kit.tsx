@@ -27,9 +27,9 @@ export function Track({ pct, className, style, tip }: { pct: number; className?:
 }
 
 /** A cover in a fixed 2:3 box, as Home's rows draw them. `id` null draws the empty box. */
-export function Cover({ id, h, title, className }: { id: number | null; h: number; title?: string; className?: string }) {
+export function Cover({ id, h, className }: { id: number | null; h: number; className?: string }) {
   return (
-    <span className={cn('relative block shrink-0 overflow-hidden rounded-[8px] bg-muted', className)} style={{ height: h, width: Math.round((h * 2) / 3) }} title={title}>
+    <span className={cn('relative block shrink-0 overflow-hidden rounded-[8px] bg-muted', className)} style={{ height: h, width: Math.round((h * 2) / 3) }}>
       {id != null && <CoverImage src={coverSrc(id, { w: h > 60 ? 400 : 160 })} alt="" iconClassName="w-5 h-5" />}
     </span>
   )

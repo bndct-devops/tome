@@ -109,7 +109,7 @@ export function Goals({ goals, reload, desktop }: { goals: Goal[] | null; reload
                   <button
                     type="button"
                     onClick={() => setEditing(g)}
-                    title={t`Edit goal`}
+                    {...tipAttrs({ title: t`Edit goal` })}
                     aria-label={t`Edit goal`}
                     className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                   >
@@ -118,7 +118,7 @@ export function Goals({ goals, reload, desktop }: { goals: Goal[] | null; reload
                   <button
                     type="button"
                     onClick={() => deleteGoal(g.id).then(reload).catch(() => {})}
-                    title={t`Delete this goal`}
+                    {...tipAttrs({ title: t`Delete this goal` })}
                     aria-label={t`Delete this goal`}
                     className="inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive"
                   >

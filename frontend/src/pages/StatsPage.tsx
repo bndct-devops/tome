@@ -25,6 +25,7 @@ import { dropStatsCache, statsCacheGet, statsFetch } from '@/components/stats/ki
 import { TipLayer } from '@/components/stats/kit/TipLayer'
 import { finishEntries } from '@/components/stats/kit/motion'
 import { PAGE_W, loadLocalDashboard, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
+import { tipAttrs } from '@/components/stats/kit/tip'
 
 /**
  * Reading Stats. Designed pages (Overview, and the others as they arrive) with a
@@ -305,7 +306,7 @@ export function StatsPage() {
                     href={docsLink(DOCS.stats)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    title={t`What do these mean? Read the stats docs`}
+                    {...tipAttrs({ title: t`What do these mean? Read the stats docs` })}
                     aria-label={t`Stats docs`}
                     className="grid h-8 w-8 place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
                   >
@@ -331,13 +332,13 @@ export function StatsPage() {
                     icon
                     onClick={exportImage}
                     disabled={shotBusy}
-                    title={t`Save this page as an image`}
+                    {...tipAttrs({ title: t`Save this page as an image` })}
                     aria-label={t`Save page as image`}
                   >
                     {shotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageDown className="h-4 w-4" />}
                   </Pill>}
                   <div className="relative">
-                    <Pill variant={menuOpen ? 'secondary' : 'quiet'} icon onClick={() => setMenuOpen((o) => !o)} aria-label={t`More`} aria-expanded={menuOpen} title={t`More`}>
+                    <Pill variant={menuOpen ? 'secondary' : 'quiet'} icon onClick={() => setMenuOpen((o) => !o)} aria-label={t`More`} aria-expanded={menuOpen}>
                       <MoreHorizontal className="h-4 w-4" />
                     </Pill>
                     {menuOpen && (

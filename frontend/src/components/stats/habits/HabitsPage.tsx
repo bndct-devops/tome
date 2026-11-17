@@ -212,7 +212,7 @@ function Sessions({ stats, habits, desktop, allTime, dim, sig }: { stats: StatsR
         <>
           <span className="block truncate">
             {ls.book_id != null ? (
-              <Link to={`/books/${ls.book_id}`} title={ls.title ?? undefined} className="underline-offset-4 transition-colors hover:text-primary hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ls.title}</Link>
+              <Link to={`/books/${ls.book_id}`} {...(ls.title ? tipAttrs({ title: ls.title }) : {})} className="underline-offset-4 transition-colors hover:text-primary hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ls.title}</Link>
             ) : ls.title ?? ' '}
           </span>
           <span className="block">{lsDate}</span>

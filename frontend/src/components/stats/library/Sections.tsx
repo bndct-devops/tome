@@ -13,6 +13,7 @@ import { DIM, HAIR, UNDIM, num } from '@/components/stats/kit/tokens'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
 import { tipAttrs } from '@/components/stats/kit/tip'
+import { ChoiceMenu } from '@/components/stats/kit/Menu'
 import { AddedChart, ChartPlaceholder, SmallBars, type SmallBar } from './charts'
 import { BOOKS_SHOWN, addedModel, fmtMonth, publishedModel, typeColor, type Range } from './model'
 import { Head, Note, RangeChip, Thin } from './parts'
@@ -45,9 +46,10 @@ const BL_ROW_H_PHONE = 54
 const BL_NOTE_H = 160
 
 /**
- * The scope choice in the Backlog heading: a chip over a native select (the
- * phone's own picker, keyboard and screen readers for free). Options come from
- * /stats/backlog-scopes; until they land the chip shows the remembered label.
+ * The scope choice in the Backlog heading: a chip that opens the app's choice menu
+ * (kit/Menu.tsx), Want to read and All unread first, then Libraries and Shelves.
+ * Options come from /stats/backlog-scopes; until they land the chip shows the
+ * remembered label.
  */
 function ScopePicker({ value, label, scopes, onPick }: { value: string; label: string | null; scopes: BacklogScope[] | null; onPick: (id: string, label: string | null) => void }) {
   const fixed: Record<string, string> = { want: t`Want to read`, unread: t`All unread` }
@@ -56,27 +58,19 @@ function ScopePicker({ value, label, scopes, onPick }: { value: string; label: s
   const text = fixed[value] ?? (current ? current.label : label) ?? t`Library`
   const options = scopes ?? [{ id: value, label: text, group: null }]
   return (
-    <label className="relative inline-flex h-[22px] max-w-[200px] cursor-pointer items-center gap-1 rounded-full bg-secondary pl-2.5 pr-2 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-within:ring-2 focus-within:ring-ring">
+    <ChoiceMenu
+      value={value}
+      options={options.map((s) => ({ id: s.id, label: name(s), group: s.group }))}
+      // Group keys are the API's ('Libraries', 'Shelves'); the headings are translated.
+      groups={[{ key: 'Libraries', label: t`Libraries` }, { key: 'Shelves', label: t`Shelves` }]}
+      onPick={(id) => { const s = options.find((o) => o.id === id); onPick(id, s ? name(s) : null) }}
+      label={t`Backlog of`}
+      align="end"
+      className="inline-flex h-[22px] max-w-[200px] items-center gap-1 rounded-full bg-secondary pl-2.5 pr-2 text-[12px] font-medium text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring aria-expanded:text-foreground"
+    >
       <span className="truncate">{text}</span>
       <ChevronDown className="h-3 w-3 shrink-0" aria-hidden="true" />
-      <select
-        aria-label={t`Backlog of`}
-        value={value}
-        onChange={(ev) => { const s = options.find((o) => o.id === ev.target.value); onPick(ev.target.value, s ? name(s) : null) }}
-        className="absolute inset-0 cursor-pointer appearance-none opacity-0"
-      >
-        {options.filter((s) => !s.group).map((s) => <option key={s.id} value={s.id}>{name(s)}</option>)}
-        {/* eslint-disable-next-line lingui/no-unlocalized-strings -- API group keys */}
-        {(['Libraries', 'Shelves'] as const).map((g) => {
-          const items = options.filter((s) => s.group === g)
-          return items.length > 0 ? (
-            <optgroup key={g} label={g === 'Libraries' ? t`Libraries` : t`Shelves`}>
-              {items.map((s) => <option key={s.id} value={s.id}>{s.label}</option>)}
-            </optgroup>
-          ) : null
-        })}
-      </select>
-    </label>
+    </ChoiceMenu>
   )
 }
 
@@ -244,7 +238,7 @@ function BookLength({ stats, W }: { stats: StatsResponse | null; W: number }) {
       foot = (
         <>
           <div><Trans>Average <b className="font-semibold text-foreground">{avg}</b> words · median {med}</Trans></div>
-          {L.longest && (() => { const title = L.longest.title, w = k(L.longest.words); return <div title={title}><Trans>Longest: {title} ({w})</Trans></div> })()}
+          {L.longest && (() => { const title = L.longest.title, w = k(L.longest.words); return <div {...tipAttrs({ title })}><Trans>Longest: {title} ({w})</Trans></div> })()}
         </>
       )
     }
@@ -322,7 +316,7 @@ function TimeToFinish({ lib, failed, W }: { lib: LibraryResponse | null; failed:
       foot = (
         <>
           <div>{q && s ? <Trans>Quickest <b className="font-semibold text-foreground">{qd}</b> ({qn}), slowest <b className="font-semibold text-foreground">{sd}</b></Trans> : ' '}</div>
-          <div title={title}>{s ? <Trans>Slowest: {title}</Trans> : ' '}</div>
+          <div {...(s ? tipAttrs({ title }) : {})}>{s ? <Trans>Slowest: {title}</Trans> : ' '}</div>
         </>
       )
     }
@@ -449,7 +443,7 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
                 aria-expanded={isOpen}
                 aria-controls={isOpen ? panel : undefined}
                 aria-label={(() => { const title = b.title; return isOpen ? t`Hide the sessions of ${title}` : t`Show the sessions of ${title}` })()}
-                title={isOpen ? t`Hide sessions` : t`Show sessions`}
+                {...tipAttrs({ title: isOpen ? t`Hide sessions` : t`Show sessions` })}
                 className={cn('pointer-events-auto relative grid h-8 w-8 place-items-center rounded-full transition-colors hover:bg-secondary hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', isOpen ? 'bg-secondary text-foreground' : 'text-muted-foreground', !desktop && 'w-7')}
               >
                 <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', isOpen && 'rotate-180')} aria-hidden="true" />
@@ -479,7 +473,7 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
             return b ? (
               <Fragment key={b.book_id}>
                 <div role="row" data-box={box} className={cn(row, 'group relative transition-colors hover:bg-accent/30 [&>[role=cell]]:pointer-events-none', isOpen && 'bg-accent/20')} style={style}>
-                  <Link to={`/books/${b.book_id}`} title={b.title} aria-label={b.title} className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" />
+                  <Link to={`/books/${b.book_id}`} aria-label={b.title} className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" />
                   {cells}
                 </div>
                 {isOpen && <BookSessions id={panel!} bookId={b.book_id} desktop={desktop} />}

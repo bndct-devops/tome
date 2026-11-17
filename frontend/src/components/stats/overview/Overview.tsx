@@ -765,7 +765,7 @@ function Records({ stats, loading, desktop, sig }: { stats: StatsResponse | null
               <Ph on={loading}>{loading ? c.ph : c.value}</Ph>
               {c.unit && <span className="ml-1.5 font-sans text-[16px] font-semibold tracking-normal">{c.unit}</span>}
             </div>
-            <div className={cn('mt-1.5 truncate text-muted-foreground', desktop ? 'text-[14px]' : 'text-[12px]', 'leading-[1.4]', (desktop ? i >= 3 : i === 3) && 'line-clamp-2 h-[2.8em] whitespace-normal')} title={c.sub}>
+            <div className={cn('mt-1.5 truncate text-muted-foreground', desktop ? 'text-[14px]' : 'text-[12px]', 'leading-[1.4]', (desktop ? i >= 3 : i === 3) && 'line-clamp-2 h-[2.8em] whitespace-normal')} {...(i === 0 && r?.longest_session_title ? tipAttrs({ title: c.sub }) : {})}>
               <Ph on={loading}>{loading ? c.phSub : c.sub}</Ph>
             </div>
           </div>
