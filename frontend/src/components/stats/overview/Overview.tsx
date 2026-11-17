@@ -87,7 +87,7 @@ export function Overview({ stats, estimates, pending, days, custom, requested, o
     <div ref={ref} style={LEVELS} className={cn('flex flex-col', desktop ? 'gap-[52px]' : 'gap-10')} aria-busy={loading || pending}>
       {width > 0 && (
         <>
-          <Hero stats={stats} desktop={desktop} width={width} loading={loading} neverRead={neverRead} prevPhrase={prevPhrase} days={days} custom={custom} dim={dim} sig={sig} />
+          <Hero stats={stats} desktop={desktop} width={width} loading={loading} neverRead={neverRead} prevPhrase={prevPhrase} rangePhrase={rangePhrase} days={days} custom={custom} dim={dim} sig={sig} />
           {yearBand && <YearBand stats={stats} desktop={desktop} allTime={requested.days === 0} dim={dim} sig={sig} />}
           <Goals goals={goals} reload={reloadGoals} desktop={desktop} />
           <ReadingNow stats={stats} estimates={estimates} desktop={desktop} loading={loading} sig={once} onRefresh={onRefresh} />
@@ -107,13 +107,14 @@ export function Overview({ stats, estimates, pending, days, custom, requested, o
 
 // ── Hero: reading time, four figures, the chart ───────────────────────────────
 
-function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, custom, dim, sig }: {
+function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhrase, days, custom, dim, sig }: {
   stats: StatsResponse | null
   desktop: boolean
   width: number
   loading: boolean
   neverRead: boolean
   prevPhrase: string
+  rangePhrase: string
   days: number
   custom: CustomRange | null
   dim: string
@@ -130,7 +131,8 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, cus
 
   let delta: ReactNode = ' '
   if (loading) delta = <Ph on>{PH.delta}</Ph>
-  else if (pc && !neverRead) {
+  else if (neverRead) delta = t`No reading yet`
+  else if (pc) {
     const prev = formatDuration(pc.previous_seconds)
     const pct = pc.pct_change == null ? null : Math.round(Math.abs(pc.pct_change))
     const up = (pc.pct_change ?? 0) > 0
@@ -156,10 +158,23 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, cus
     delta = plural(active, { one: '# reading day in all', other: '# reading days in all' })
   }
 
-  const prev = (n: number | undefined, phrase: string) => (n == null ? ' ' : t`${n} in ${phrase}`)
+  const prev = (n: number, phrase: string) => { const c = num(n); return t`${c} in ${phrase}` }
   const longest = h ? h.streaks.longest_days : 0
   const streakStart = h?.streaks.current_start ? fmtDay(h.streaks.current_start) : null
   const longestLine = h && h.streaks.current_days > 0 && h.streaks.current_days >= longest ? t`your longest` : plural(longest, { one: 'longest # day', other: 'longest # days' })
+  // The first foot line is never left blank. The server keeps a streak while its last
+  // day is today or yesterday (reading days roll over at 04:00), so 0 means yesterday
+  // was missed (and today not read yet). It does not say when the last streak ended,
+  // and the heatmap's days count differently (short web sessions, imported history),
+  // so no date is guessed. Short enough for the phone's narrow cell; each line truncates
+  // rather than wrap, so a longer translation cannot add a third line.
+  let streakLine = ''
+  let streakLine2 = longestLine
+  if (h) {
+    if (h.streaks.current_days > 0) streakLine = streakStart ? t`since ${streakStart}` : t`running`
+    else if (longest > 0) streakLine = t`missed yesterday`
+    else { streakLine = t`no reading yet`; streakLine2 = t`one day starts it` }
+  }
 
   const figs: { label: ReactNode; value: ReactNode; unit?: ReactNode; foot: ReactNode; tone?: string; ph: string; phFoot: string }[] = [
     { label: <Trans>Sessions</Trans>, value: h ? <CountUp entry={e} value={h.total_sessions} format={num} /> : '', foot: h ? (() => { const avg = formatDuration(h.avg_session_seconds); return t`avg ${avg}` })() : '', ph: PH.sessions, phFoot: PH.sessionsFoot },
@@ -172,14 +187,15 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, days, cus
     {
       label: <Trans context="reading">Finished</Trans>,
       value: h ? <CountUp entry={e} value={h.books_finished} format={num} /> : '',
-      foot: <span className="whitespace-nowrap">{pc ? prev(pc.previous_books_finished, prevPhrase) : ' '}</span>,
+      // All time has no previous window (and older servers send no previous count): the range then.
+      foot: <span className="whitespace-nowrap">{pc && pc.previous_books_finished != null ? prev(pc.previous_books_finished, prevPhrase) : t`in ${rangePhrase}`}</span>,
       tone: 'text-success', ph: PH.finished, phFoot: PH.finishedFoot,
     },
     {
       label: <Trans>Streak</Trans>,
       value: h ? <CountUp entry={e} value={h.streaks.current_days} format={num} /> : '',
       unit: h ? plural(h.streaks.current_days, { one: 'day', other: 'days' }) : null,
-      foot: h ? <>{streakStart ? t`since ${streakStart}` : ' '}<br />{longestLine}</> : '',
+      foot: h ? <><span className="block truncate">{streakLine}</span><span className="block truncate">{streakLine2}</span></> : '',
       tone: 'text-primary', ph: PH.streak, phFoot: PH.streakFoot,
     },
   ]
@@ -255,19 +271,23 @@ function YearBand({ stats, desktop, allTime, dim, sig }: { stats: StatsResponse 
   const cat = ys?.top_genre && stats ? stats.by_category.find((c) => c.category === ys.top_genre) : undefined
   const month = useMemo(() => (stats ? busiestMonth(stats.daily) : null), [stats])
   const monthName = month ? new Date(month.month + '-01T00:00:00').toLocaleDateString(undefined, { month: 'long' }) : null
-  const monthOk = !!month && !!ys?.most_active_month && monthName === ys.most_active_month
+  // The server names the month in English (strftime %B), an older server's fallback in
+  // the browser's language: the busiest month here is the server's if either name matches.
+  const monthEn = month ? new Date(month.month + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long' }) : null
+  const monthOk = !!month && !!ys?.most_active_month && (monthName === ys.most_active_month || monthEn === ys.most_active_month)
   const year = month?.month.slice(0, 4) ?? ''
   const cells: { label: ReactNode; value: ReactNode; foot: ReactNode; ph: string; phFoot: string }[] = [
     {
       label: <Trans>Top genre</Trans>,
       value: ys?.top_genre ?? '—',
-      foot: cat ? <><CountUp entry={e} value={cat.seconds} format={formatDuration} /> · {plural(cat.book_count, { one: '# book', other: '# books' })}</> : ' ',
+      // The top genre is the one most finished books have; without finished books there is none.
+      foot: cat ? <><CountUp entry={e} value={cat.seconds} format={formatDuration} /> · {plural(cat.book_count, { one: '# book', other: '# books' })}</> : ys?.top_genre ? t`most books finished` : t`no books finished`,
       ph: PH.genre, phFoot: PH.genreFoot,
     },
     {
       label: <Trans>Most active month</Trans>,
       value: ys?.most_active_month ?? '—',
-      foot: monthOk && month ? <><CountUp entry={e} value={month.seconds} format={formatDuration} />{', '}{year}</> : ' ',
+      foot: monthOk && month ? <><CountUp entry={e} value={month.seconds} format={formatDuration} />{', '}{year}</> : ys?.most_active_month ? t`by reading time` : t`no reading`,
       ph: PH.monthLong, phFoot: PH.monthFoot,
     },
   ]
