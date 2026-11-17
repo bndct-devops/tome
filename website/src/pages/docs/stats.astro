@@ -143,12 +143,11 @@ import { withBase } from '../../lib/path'
     count for the previous period) and your current streak (since when, and whether it is your
     longest). Under them, the reading time as bars: one per day for ranges up to 31 days, one
     per week above that, with the running week lighter, your average marked and your best day of
-    the range noted in the corner.
+    the range noted in the corner. At <strong>1y</strong> and <strong>All</strong> the corner also
+    names your most active month of the twelve the chart shows, with its reading time.
   </p>
   <p>
-    At <strong>1y</strong> and <strong>All</strong>, a <strong>Year in review</strong> band under the
-    figures adds your top genre and most active month. If you have <strong>reading goals</strong>,
-    they follow: each with its progress and pace, editable in place, with <strong>New goal</strong>
+    If you have <strong>reading goals</strong>, they follow: each with its progress and pace, editable in place, with <strong>New goal</strong>
     in the heading (without goals, a quiet line at the end of the page sets one up).
   </p>
   <p>
@@ -169,8 +168,11 @@ import { withBase } from '../../lib/path'
     <li><strong>When you read</strong> — your reading by hour and weekday, with the peak in words.</li>
     <li><strong>The year</strong> — a 365-day grid of daily reading time. Its five shades are cut at
       your own quantiles, and the legend prints where each step starts.</li>
-    <li><strong>Records</strong> — all time: longest session, biggest reading day, most pages in a
-      day, longest daily streak and longest weekly streak.</li>
+    <li><strong>All time</strong> — the end of the page is your lifetime: first the totals (reading
+      time with the average per reading day, sessions with their average length, pages, books
+      finished out of those you started, and active days, the days with any reading), then the
+      records: longest session, biggest reading day, most pages in a day, longest daily streak and
+      longest weekly streak.</li>
   </ul>
   <Callout variant="tip" title="Shelving a book you've set aside">
     Every book has reading-status pills — <strong>Unread / Reading / Read</strong>, plus a fourth
@@ -201,7 +203,9 @@ import { withBase } from '../../lib/path'
       chart, one line gives each format's pages a minute and its share of the time once you read
       in more than one format.</li>
     <li><strong>Reading speed</strong> — all time: your words per minute (word count over the time
-      actually recorded) with your fastest and slowest books.</li>
+      actually recorded, from finished books with a word count and at least five minutes of
+      reading) with your fastest and slowest books. A second line adds up the words in every
+      finished book that has a word count.</li>
     <li><strong>The last 12 months</strong> — reading hours and books finished per month, as two
       aligned rows.</li>
     <li><strong>Reading character</strong> — your reading personality as an archetype plus the trait
@@ -212,7 +216,9 @@ import { withBase } from '../../lib/path'
   <h2>Library</h2>
   <p>The "what is on my shelves, and what have I made of it?" page. Mostly all time.</p>
   <ul>
-    <li><strong>Your library</strong> — books owned, read, in progress and wanted.</li>
+    <li><strong>Your library</strong> — books owned, read, in progress and wanted. Under In
+      progress: how many books you have started (marked reading or read) and the share of them
+      you have finished.</li>
     <li><strong>Series</strong> — the series you've started, how far you are, and the next volume:
       the volume after the highest one you've read or are reading, and whether it is on your
       shelf. Finished series collapse to a row of covers.</li>
