@@ -46,6 +46,9 @@ const fmtFor = (digits: number) => {
 export const num = (n: number) => fmtFor(0).format(n)
 /** One decimal in the app language ("4.3"; "4,3" in French). */
 export const dec1 = (n: number) => fmtFor(1).format(n)
+/** A large count in words from a million on ("6.6 million"; "6,6 millions" in French), else as num(). */
+export const big = (n: number) =>
+  n < 1_000_000 ? num(n) : new Intl.NumberFormat(i18n.locale || undefined, { notation: 'compact', compactDisplay: 'long', maximumFractionDigits: 1 }).format(n)
 
 /** Measures its element's width before the first paint (layout effect), so charts draw once at their final size. */
 export function useWidth<T extends HTMLElement>() {

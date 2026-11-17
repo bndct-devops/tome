@@ -16,7 +16,7 @@ import { Cover, Heading, Ph } from '@/components/stats/kit/Kit'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, rangeSig, stagger, useEntry, type Entry } from '@/components/stats/kit/motion'
 import { tipAttrs, useTips } from '@/components/stats/kit/tip'
-import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, dec1, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
+import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, big, dec1, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
 import { rangeQuery, useStatsGet } from '@/components/stats/kit/useStatsGet'
 import { hourModel, readingDayOf } from '@/components/stats/overview/model'
 import { ChartEmpty, Lengths, Months, Pace, Rhythm, Timeline } from './charts'
@@ -39,7 +39,7 @@ const PH = {
   when: 'Mostly between 01:00 and 02:00, most on Mondays.',
   fig: '00m', figFoot: '000 sessions', perDay: '0.0', perDayFoot: 'on 00 of 00 days', longest: '0h 00m', title: 'He Who Fights with Monsters', date: 'Sep 20, 2026',
   sittings: '000 sittings', pace: '0.0 pages a minute over the last 7 reading days, 0.0 across the 90 days.', formats: 'By format: EPUB 0.0 pg/min, 00 % · CBZ 00.0 pg/min, 00 %',
-  wpm: '000', wpmFoot: 'across 00 books', wpmUnit: 'words a minute', book: 'Sentenced to Be a Hero', bookV: '000 wpm',
+  wpm: '000', wpmFoot: 'across 00 books', words: '6.6 million words in 58 finished books', wpmUnit: 'words a minute', book: 'Sentenced to Be a Hero', bookV: '000 wpm',
   arch: 'Night-Owl Constant Reader', archSum: 'Consistent · night owl · fast-paced.', pole: 'Short reads',
 }
 /* eslint-enable lingui/no-unlocalized-strings */
@@ -450,6 +450,7 @@ function WpmRow({ b, first, style }: { b: WpmBook | null; first: boolean; style?
 function Speed({ stats, desktop, sig }: { stats: StatsResponse | null; desktop: boolean; sig: string | null }) {
   const [e, enter] = useSection('habits/speed', sig)
   const w = stats?.wpm
+  const ws = stats?.words
   const none = !!w && w.books_counted === 0
   const blank = Array.from({ length: WPM_ROWS }, () => null)
   const fast: (WpmBook | null)[] = w ? w.books.slice(0, WPM_ROWS) : blank
@@ -474,6 +475,12 @@ function Speed({ stats, desktop, sig }: { stats: StatsResponse | null; desktop: 
         </div>
         <div className="mt-1.5 text-[14px] leading-[1.4] text-muted-foreground">
           {w ? (none ? t`No timed reading with word counts yet.` : plural(w.books_counted, { one: 'across # book', other: 'across # books' })) : <Ph on>{PH.wpmFoot}</Ph>}
+        </div>
+        {/* Words read: the word counts of every finished book that has one. The pace
+            above counts only those of them with at least five minutes of reading time,
+            so the two book counts differ and each line names its own. */}
+        <div className="truncate text-[14px] leading-[1.4] text-muted-foreground">
+          {ws ? (ws.books_counted === 0 ? t`No finished books with word counts yet.` : (() => { const n = big(ws.total_words); return plural(ws.books_counted, { one: `${n} words in # finished book`, other: `${n} words in # finished books` }) })()) : <Ph on>{PH.words}</Ph>}
         </div>
       </div>
       <div className={cn('mt-6 grid gap-x-6', desktop ? 'grid-cols-2' : 'grid-cols-1 gap-y-5')}>
