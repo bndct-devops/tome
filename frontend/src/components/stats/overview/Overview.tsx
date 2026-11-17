@@ -134,6 +134,7 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
   const totalLabel = h ? <CountUp entry={e} value={h.total_reading_seconds} format={formatDuration} /> : PH.total
 
   let delta: ReactNode = ' '
+  let deltaTail: ReactNode = null
   if (loading) delta = <Ph on>{PH.delta}</Ph>
   else if (neverRead) delta = t`No reading yet`
   else if (pc) {
@@ -141,8 +142,10 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
     const pct = pc.pct_change == null ? null : Math.round(Math.abs(pc.pct_change))
     const up = (pc.pct_change ?? 0) > 0
     const down = (pc.pct_change ?? 0) < 0
-    const tail = desktop ? <> · <span className="whitespace-nowrap font-medium text-foreground">{prev}</span></> : null
-    if (pc.pct_change == null) delta = <><Trans>Nothing in {prevPhrase}</Trans>{tail}</>
+    // The previous total goes in its own piece so it is the first thing dropped when
+    // the line does not fit its cell (see the line's markup below).
+    deltaTail = desktop ? <span className="whitespace-nowrap font-medium text-foreground">{prev}</span> : null
+    if (pc.pct_change == null) delta = <><Trans>Nothing in {prevPhrase}</Trans></>
     else if (up || down) {
       delta = (
         <>
@@ -153,10 +156,9 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
             <b className="font-semibold">{pct}%</b>
           </span>{' '}
           {up ? <Trans>more than {prevPhrase}</Trans> : <Trans>less than {prevPhrase}</Trans>}
-          {tail}
         </>
       )
-    } else delta = <><Trans>The same as {prevPhrase}</Trans>{tail}</>
+    } else delta = <><Trans>The same as {prevPhrase}</Trans></>
   } else if (days === 0 && stats) {
     const active = stats.lifetime.active_days
     delta = plural(active, { one: '# reading day in all', other: '# reading days in all' })
@@ -248,7 +250,13 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
           <div className={cn('mt-2.5 font-display font-bold tabular-nums text-foreground', desktop ? 'text-[60px]' : 'text-[48px]', 'leading-none')}>
             <Ph on={loading}>{totalLabel}</Ph>
           </div>
-          <div className={cn('mt-3 text-[14px] leading-[1.4] text-muted-foreground', desktop ? 'whitespace-nowrap' : 'min-h-[39px]')}>{delta}</div>
+          {/* One line on desktop that never leaves its cell: the lead truncates with an
+              ellipsis, and the previous total wraps onto a second, clipped line when
+              there is no room for it, so it is dropped first. Two lines at most on the phone. */}
+          <div className={cn('mt-3 text-[14px] leading-[1.4] text-muted-foreground', desktop ? 'flex h-[1.4em] flex-wrap overflow-hidden' : 'line-clamp-2 min-h-[39px]')}>
+            <span className={desktop ? 'min-w-0 max-w-full truncate' : undefined}>{delta}</span>
+            {deltaTail && <span className="flex-none whitespace-pre">{' · '}{deltaTail}</span>}
+          </div>
         </div>
         {desktop ? figures : null}
       </div>
