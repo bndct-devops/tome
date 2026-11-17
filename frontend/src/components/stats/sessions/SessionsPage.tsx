@@ -134,7 +134,7 @@ export function SessionsPage() {
             <Trans><span className="font-medium text-foreground">Imported</span>: from KOReader&apos;s synced reading history. Delete only: KOReader already caps idle time, so there is nothing to trim.</Trans>{' '}
             <Trans><span className="font-medium text-foreground">Not counted</span>: a live device session whose sitting is also described by imported history. Listed for completeness, excluded from the totals so nothing is counted twice.</Trans>
           </p>
-          <div data-box="sessions-chips" className={cn('mt-5 flex items-center', desktop ? 'gap-1.5' : 'flex-wrap gap-1')}>
+          <div data-box="sessions-chips" data-stats-controls="" className={cn('mt-5 flex items-center', desktop ? 'gap-1.5' : 'flex-wrap gap-1')}>
             <div role="radiogroup" aria-label={t`Which sessions`} className={cn('flex items-center', desktop ? 'gap-1.5' : 'gap-1')}>
               {chips.map((ch) => {
                 const on = ch.id === filter

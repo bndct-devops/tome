@@ -9,6 +9,8 @@ import { createPortal } from 'react-dom'
 import { GUIDE, MARK, setTipLayer, tipFor, type Tip, type TipRect } from './tip'
 
 const GAP = 8
+// The marks' chart: its gaps keep the tip.
+const CHART = '[data-tips], .k-bars'
 const EDGE = 8
 
 export function TipLayer() {
@@ -31,7 +33,53 @@ export function TipLayer() {
       release()
       tip.style.visibility = 'hidden'
     }
-    const place = (t: Tip, r: TipRect, announce: boolean) => {
+    // A horizontal row (a bar row, a track): the tip goes beside the row's content,
+    // to the right of the bar's end and its value label (and those of the rows it
+    // spans), so it covers neither that row nor its neighbours; with no room there,
+    // left of the whole set; for a track (its label sits at its end) and when neither
+    // side has room, below the row at the bar's end, above when the window ends.
+    // Null for anything else (columns, cells, covers: above the mark).
+    const rowPlace = (el: Element, w: number, h: number, vw: number, vh: number) => {
+      const track = el.classList.contains('k-track')
+      const group = track ? el : el.closest('.k-col') ?? el
+      const g = group.getBoundingClientRect()
+      if (!(g.width > g.height * 3 && g.height <= 48)) return null
+      // Where a row's content (bar, value label) ends; the hit area and screen-reader text do not count.
+      const endOf = (row: Element) => {
+        let e = -Infinity
+        for (const n of Array.from(row.querySelectorAll('*'))) {
+          if (n.childElementCount || n.classList.contains('sr-only') || n.classList.contains('k-hit')) continue
+          const b = n.getBoundingClientRect()
+          if (b.width >= 1 && b.height >= 1) e = Math.max(e, b.right)
+        }
+        return e
+      }
+      let end = endOf(group)
+      if (!Number.isFinite(end)) end = g.left + g.width / 2
+      const clampX = (x: number) => Math.min(Math.max(EDGE, x), vw - w - EDGE)
+      if (!track) {
+        // The tip is taller than a row: it also clears the content of the rows it spans.
+        // Tried centred on the row, then hanging down from it, then standing up on it.
+        const set = group.closest('.k-bars')
+        const rows = set ? Array.from(set.querySelectorAll(MARK)).map((m) => m.closest('.k-col') ?? m) : []
+        const fitY = (y: number) => Math.min(Math.max(EDGE, y), vh - h - EDGE)
+        for (const y of [fitY(g.top + g.height / 2 - h / 2), fitY(g.top), fitY(g.bottom - h)]) {
+          let x = end
+          for (const row of rows) {
+            const b = row.getBoundingClientRect()
+            if (row !== group && b.bottom > y && b.top < y + h) x = Math.max(x, endOf(row))
+          }
+          if (x + 12 + w <= vw - EDGE) return { x: x + 12, y }
+        }
+        // No room on the right (a set at the window's edge): left of the whole set.
+        const left = (set ?? group).getBoundingClientRect().left - 12 - w
+        if (left >= EDGE) return { x: left, y: fitY(g.top + g.height / 2 - h / 2) }
+      }
+      let y = g.bottom + GAP
+      if (y + h > vh - EDGE) y = Math.max(EDGE, g.top - h - GAP)
+      return { x: clampX(end - 16), y }
+    }
+    const place = (t: Tip, r: TipRect, announce: boolean, el?: Element) => {
       titleEl.textContent = t.title
       valueEl.textContent = t.value ?? ''
       noteEl.textContent = t.note ?? ''
@@ -39,9 +87,11 @@ export function TipLayer() {
       noteEl.style.display = t.note ? '' : 'none'
       const w = tip.offsetWidth, h = tip.offsetHeight
       const vw = document.documentElement.clientWidth, vh = window.innerHeight
+      const row = el && !t.anchor ? rowPlace(el, w, h, vw, vh) : null
       let y = r.top - h - GAP
       if (y < EDGE) y = Math.min(r.bottom + GAP, vh - h - EDGE)
-      const x = Math.min(Math.max(EDGE, (r.left + r.right) / 2 - w / 2), vw - w - EDGE)
+      let x = Math.min(Math.max(EDGE, (r.left + r.right) / 2 - w / 2), vw - w - EDGE)
+      if (row) { x = row.x; y = row.y }
       tip.style.left = `${Math.round(x)}px`
       tip.style.top = `${Math.round(y)}px`
       tip.style.visibility = 'visible'
@@ -55,7 +105,7 @@ export function TipLayer() {
       release()
       hot = el
       el.setAttribute('data-hot', '')
-      place(t, (t.anchor ?? el).getBoundingClientRect(), announce)
+      place(t, (t.anchor ?? el).getBoundingClientRect(), announce, el)
     }
     setTipLayer({
       showAt: (t, r, onHide, announce = false) => {
@@ -73,6 +123,9 @@ export function TipLayer() {
       const m = markAt(e.target)
       if (m) show(m)
       else if (owner && e.target instanceof Element && e.target.closest(GUIDE)) return
+      // The gaps between a chart's marks (heat cells, bar rows) keep the tip: it goes
+      // when the pointer leaves the chart, not at every 2 px gap (no flicker).
+      else if (hot && e.target instanceof Node && hot.closest(CHART)?.contains(e.target)) return
       else if (hot || owner) {
         // A mark reached with the keyboard stays until focus leaves its chart.
         const f = document.activeElement
@@ -127,7 +180,13 @@ export function TipLayer() {
     document.addEventListener('keydown', onKey)
     window.addEventListener('scroll', onScroll, { capture: true, passive: true })
     window.addEventListener('blur', hide)
+    // A resize moves the marks under a tip placed for the old layout.
+    window.addEventListener('resize', hide)
+    // The pointer left the window (no pointerover follows): nothing lingers.
+    const onLeaveDoc = (e: PointerEvent) => { if (e.pointerType !== 'touch') hide() }
+    document.documentElement.addEventListener('pointerleave', onLeaveDoc)
     return () => {
+      document.documentElement.removeEventListener('pointerleave', onLeaveDoc)
       hide()
       setTipLayer(null)
       document.removeEventListener('pointerover', onOver)
@@ -138,6 +197,7 @@ export function TipLayer() {
       document.removeEventListener('keydown', onKey)
       window.removeEventListener('scroll', onScroll, { capture: true })
       window.removeEventListener('blur', hide)
+      window.removeEventListener('resize', hide)
     }
   }, [])
 

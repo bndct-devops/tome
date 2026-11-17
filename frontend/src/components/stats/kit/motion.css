@@ -67,8 +67,9 @@
    column: hit rect + bar, or a whole stack). The column wash stays, quieter.
    Opacity only, from the data-hot attribute: nothing re-renders, nothing moves. */
 .k-bar { transition: opacity 120ms var(--k-ease); }
-.k-bars:has([data-hot]) .k-bar { opacity: 0.6; }
-.k-bars .k-bar[data-hot], .k-bars .k-col:has([data-hot]) .k-bar { opacity: 1; }
+.k-bars:has([data-hot]:not(button)) .k-bar { opacity: 0.6; } /* a tip on a button in the set (a goal's edit) is no bar */
+.k-bars .k-bar[data-hot], .k-bars .k-col:has([data-hot]) .k-bar,
+.k-bars .k-col[data-hot] .k-bar { opacity: 1; } /* an HTML row that is itself the mark (Taste's distribution) */
 .k-bars .k-hit[data-hot] { fill: color-mix(in oklch, var(--muted-foreground) 8%, transparent); }
 
 /* Heat cells and dots: a foreground outline. */
@@ -91,3 +92,10 @@
 [data-guide-host]:focus { outline: none; }
 [data-guide-host]:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: 4px; }
 [data-guide-host] [data-dot][data-hot] { fill-opacity: 1; }
+
+/* Charts, their value labels, hover rows, tracks and the tab and chip controls do
+   not select text on a click, a double click or a drag; reading text (sentences,
+   titles in tables, the hero figures) stays selectable. Charts show the default
+   cursor (no text cursor over a label); only what acts shows a pointer. */
+.k-bars, .k-track, [data-tips], [data-guide-host], [data-stats-controls] { -webkit-user-select: none; user-select: none; }
+[data-tips], [data-guide-host], .k-bars, .k-track { cursor: default; }

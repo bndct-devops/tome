@@ -315,7 +315,7 @@ export function StatsPage() {
                 </span>
               }
               actions={
-                <div className="flex max-w-[calc(100vw-2.5rem)] flex-wrap items-center gap-1">
+                <div className="flex max-w-[calc(100vw-2.5rem)] flex-wrap items-center gap-1" data-stats-controls="">
                   {!rangeless && !allTime && (
                     <RangeControl
                       days={days}
@@ -371,7 +371,7 @@ export function StatsPage() {
             )}
           </div>
 
-          <div className="flex min-w-0 items-center gap-1 overflow-x-auto max-sm:-ml-5 max-sm:pl-5 max-sm:-mr-5 max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] [scrollbar-width:none]" role="tablist" aria-label={t`Stats pages`}>
+          <div className="flex min-w-0 items-center gap-1 overflow-x-auto max-sm:-ml-5 max-sm:pl-5 max-sm:-mr-5 max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] [scrollbar-width:none]" role="tablist" aria-label={t`Stats pages`} data-stats-controls="">
             {tabs.map((p) => (
               <button
                 key={p.id}
