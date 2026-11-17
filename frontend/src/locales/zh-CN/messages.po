@@ -2263,11 +2263,19 @@ msgid "Assign type to new books"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
-msgid "At least {filterMinWords} words"
+#~ msgid "At least {filterMinWords} words"
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "At least {minWords} words"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
-msgid "At most {filterMaxWords} words"
+#~ msgid "At most {filterMaxWords} words"
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "At most {maxWords} words"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -2712,7 +2720,11 @@ msgid "Books without a series"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
-msgid "Books without a word count are excluded when a length filter is set."
+#~ msgid "Books without a word count are excluded when a length filter is set."
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Books without a word count are hidden."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -5650,6 +5662,10 @@ msgid "Matching {matchingAll}/{total}…"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
+msgid "Max words"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
 msgid "Maximum words"
 msgstr ""
 
@@ -5689,6 +5705,10 @@ msgstr ""
 #: src/lib/goals.ts
 #: src/pages/BookDetailPage.tsx
 msgid "min"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Min words"
 msgstr ""
 
 #: src/pages/SetupPage.tsx

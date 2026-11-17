@@ -2263,12 +2263,20 @@ msgid "Assign type to new books"
 msgstr "Assign type to new books"
 
 #: src/pages/DashboardPage.tsx
-msgid "At least {filterMinWords} words"
-msgstr "At least {filterMinWords} words"
+#~ msgid "At least {filterMinWords} words"
+#~ msgstr "At least {filterMinWords} words"
 
 #: src/pages/DashboardPage.tsx
-msgid "At most {filterMaxWords} words"
-msgstr "At most {filterMaxWords} words"
+msgid "At least {minWords} words"
+msgstr "At least {minWords} words"
+
+#: src/pages/DashboardPage.tsx
+#~ msgid "At most {filterMaxWords} words"
+#~ msgstr "At most {filterMaxWords} words"
+
+#: src/pages/DashboardPage.tsx
+msgid "At most {maxWords} words"
+msgstr "At most {maxWords} words"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Attach progress synced from a KOReader-compatible app to this book"
@@ -2712,8 +2720,12 @@ msgid "Books without a series"
 msgstr "Books without a series"
 
 #: src/pages/DashboardPage.tsx
-msgid "Books without a word count are excluded when a length filter is set."
-msgstr "Books without a word count are excluded when a length filter is set."
+#~ msgid "Books without a word count are excluded when a length filter is set."
+#~ msgstr "Books without a word count are excluded when a length filter is set."
+
+#: src/pages/DashboardPage.tsx
+msgid "Books without a word count are hidden."
+msgstr "Books without a word count are hidden."
 
 #: src/pages/BookDetailPage.tsx
 msgid "Breadcrumb"
@@ -5650,6 +5662,10 @@ msgid "Matching {matchingAll}/{total}…"
 msgstr "Matching {matchingAll}/{total}…"
 
 #: src/pages/DashboardPage.tsx
+msgid "Max words"
+msgstr "Max words"
+
+#: src/pages/DashboardPage.tsx
 msgid "Maximum words"
 msgstr "Maximum words"
 
@@ -5690,6 +5706,10 @@ msgstr "Metric"
 #: src/pages/BookDetailPage.tsx
 msgid "min"
 msgstr "min"
+
+#: src/pages/DashboardPage.tsx
+msgid "Min words"
+msgstr "Min words"
 
 #: src/pages/SetupPage.tsx
 msgid "Minimum 8 characters"
