@@ -5,7 +5,7 @@
 // Motion and hover come from the kit: each section has an entry (kit/motion.ts:
 // range-bound sections play again for a new range, the rest once a session),
 // figures count up (CountUp), and chart marks, tracks and covers have tips (kit/tip.ts).
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Check } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
@@ -24,7 +24,7 @@ import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, fmtDay, num, useWidth } from '@/
 import { BarsChart, HourHeat, YearGrid } from './charts'
 import { Goals, GoalsStart } from './Goals'
 import { useGoals } from './goalsData'
-import { bestDay, busiestMonth, dayDiff, emptyYear, heroBars, hourHeatHeight, hourModel, readingDayOf, yearHeight, yearModel, yearSummary } from './model'
+import { bestDay, busiestMonth, dayDiff, emptyYear, heroBars, hourHeatHeight, hourModel, readingDayOf, yearHeight, yearModel } from './model'
 
 
 const HERO_CHART_H = 180
@@ -46,9 +46,8 @@ const PH = {
   sessions: '000', sessionsFoot: 'avg 00m', pages: '00,000', pagesFoot: '000 a day',
   finished: '00', finishedFoot: '00 in the previous 90 days', streak: '000', streakFoot: 'since Dec 10, 2025', streakFoot2: 'your longest',
   title: 'He Who Fights with Monsters', author: 'Shirtaloon', pct: '00%', bookLine: 'about 4 days left · last read yesterday',
-  genre: 'Fantasy', genreFoot: '000h 00m · 00 books', monthLong: 'September', monthFoot: '00h 00m of reading, 2026',
   month: 'Nov', shelfNote: '13 books in the last 90 days', dur: '00h 00m', when: 'Mostly between 01:00 and 02:00, most on Mondays.',
-  active: '361 active days in the last 365', session: '0h 0m', day: '0h 00m', pagesDay: '0,000', date: 'Sep 9, 2026', streakSpan: 'Dec 10, 2025 to Nov 15, 2026',
+  active: '361 active days in the last 365', life: '000h 00m', lifeFoot: 'avg 1h 06m a reading day', lifeN: '00,000', lifeNFoot: '000 a reading day', session: '0h 0m', day: '0h 00m', pagesDay: '0,000', date: 'Sep 9, 2026', streakSpan: 'Dec 10, 2025 to Nov 15, 2026',
 }
 /* eslint-enable lingui/no-unlocalized-strings */
 
@@ -67,7 +66,7 @@ export type OverviewProps = {
   onRefresh: () => void
 }
 
-export function Overview({ stats, estimates, pending, days, custom, requested, onAllBooks, onRefresh }: OverviewProps) {
+export function Overview({ stats, estimates, pending, days, custom, onAllBooks, onRefresh }: OverviewProps) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const desktop = width >= DESKTOP_MIN
   const loading = !stats
@@ -85,16 +84,12 @@ export function Overview({ stats, estimates, pending, days, custom, requested, o
   const sig = stats ? rangeSig(days, custom) : null
   const once = stats ? ONCE : null
   const { goals, reload: reloadGoals } = useGoals()
-  // The year band follows the range asked for, so it is in place (as a placeholder)
-  // from the click on 1y or All, and the skeleton reserves it exactly.
-  const yearBand = !requested.custom && (requested.days === 365 || requested.days === 0)
 
   return (
     <div ref={ref} style={LEVELS} className={cn('flex flex-col', desktop ? 'gap-[52px]' : 'gap-10')} aria-busy={loading || pending}>
       {width > 0 && (
         <>
           <Hero stats={stats} desktop={desktop} width={width} loading={loading} neverRead={neverRead} prevPhrase={prevPhrase} rangePhrase={rangePhrase} days={days} custom={custom} dim={dim} sig={sig} />
-          {yearBand && <YearBand stats={stats} desktop={desktop} allTime={requested.days === 0} dim={dim} sig={sig} />}
           <Goals goals={goals} reload={reloadGoals} desktop={desktop} />
           <ReadingNow stats={stats} estimates={estimates} desktop={desktop} loading={loading} sig={once} onRefresh={onRefresh} />
           <Finished stats={stats} width={width} desktop={desktop} loading={loading} rangePhrase={rangePhrase} allTime={days === 0 && !custom} dim={dim} sig={sig} />
@@ -103,7 +98,7 @@ export function Overview({ stats, estimates, pending, days, custom, requested, o
             <WhenYouRead stats={stats} loading={loading} width={desktop ? Math.floor((width - 16) / 2) : width} desktop={desktop} dim={dim} sig={sig} />
           </div>
           <TheYear stats={stats} loading={loading} width={width} desktop={desktop} sig={once} />
-          <Records stats={stats} loading={loading} desktop={desktop} sig={once} />
+          <AllTime stats={stats} loading={loading} desktop={desktop} sig={once} />
           <GoalsStart goals={goals} reload={reloadGoals} />
         </>
       )}
@@ -133,6 +128,9 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
   // The best day of the range, as a quiet line in the chart. All time: the all-time
   // record (the chart itself shows only the last 365 days).
   const best = useMemo(() => (stats ? bestDay(stats, days === 0 && !custom) : null), [stats, days, custom])
+  // At 1y and All, the busiest month of the chart's twelve months beside it (the
+  // server's year summary picks it the same way, from the same days).
+  const month = useMemo(() => (stats && !custom && (days === 365 || days === 0) ? busiestMonth(stats.daily) : null), [stats, days, custom])
   const totalLabel = h ? <CountUp entry={e} value={h.total_reading_seconds} format={formatDuration} /> : PH.total
 
   let delta: ReactNode = ' '
@@ -237,7 +235,7 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
           <Link to="/settings/koreader" className="text-[14px] font-medium text-primary hover:underline"><Trans>Download the plugin from Settings</Trans></Link>
         </div>
       ) : (
-        <BarsChart W={width} H={HERO_CHART_H} bars={chart?.bars ?? []} avg={chart?.avg ?? 0} monthStarts={chart?.monthStarts ?? []} nDays={chart?.nDays ?? 1} weekly={chart?.weekly ?? false} best={best} loading={loading} />
+        <BarsChart W={width} H={HERO_CHART_H} bars={chart?.bars ?? []} avg={chart?.avg ?? 0} monthStarts={chart?.monthStarts ?? []} nDays={chart?.nDays ?? 1} weekly={chart?.weekly ?? false} best={best} month={month} loading={loading} />
       )}
     </div>
   )
@@ -256,74 +254,6 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
       </div>
       {chartBox}
       {!desktop && <div className={cn('order-2 mt-5 grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] border-t', HAIR)}>{figures}</div>}
-    </section>
-  )
-}
-
-// ── Year in review: a band under the hero at 1y and All ──────────────────────
-// The old tile's six figures were books finished, hours, top genre, longest
-// streak, sessions and most active month. The hero above already shows four of
-// them (Finished, Reading time, Sessions, and the longest streak under Streak),
-// so the band keeps the two it lacks: top genre and most active month.
-
-function YearBand({ stats, desktop, allTime, dim, sig }: { stats: StatsResponse | null; desktop: boolean; allTime: boolean; dim: string; sig: string | null }) {
-  // Only an answer for a year range carries a summary: while 1y or All is on its
-  // way from a shorter range, the band shows its placeholder (dimmed).
-  const ys = stats ? yearSummary(stats) : null
-  const e = useEntry('overview/year-band', ys ? sig : null)
-  const enter = useCallback((el: Element | null) => e.ref(el), [e])
-  const loading = !ys
-  const cat = ys?.top_genre && stats ? stats.by_category.find((c) => c.category === ys.top_genre) : undefined
-  const month = useMemo(() => (stats ? busiestMonth(stats.daily) : null), [stats])
-  const monthName = month ? new Date(month.month + '-01T00:00:00').toLocaleDateString(undefined, { month: 'long' }) : null
-  // The server names the month in English (strftime %B), an older server's fallback in
-  // the browser's language: the busiest month here is the server's if either name matches.
-  const monthEn = month ? new Date(month.month + '-01T00:00:00').toLocaleDateString('en-US', { month: 'long' }) : null
-  const monthOk = !!month && !!ys?.most_active_month && (monthName === ys.most_active_month || monthEn === ys.most_active_month)
-  const year = month?.month.slice(0, 4) ?? ''
-  const cells: { label: ReactNode; value: ReactNode; foot: ReactNode; ph: string; phFoot: string }[] = [
-    {
-      label: <Trans>Top genre</Trans>,
-      value: ys?.top_genre ?? '—',
-      // The top genre is the one most finished books have; without finished books there is none.
-      foot: cat ? <><CountUp entry={e} value={cat.seconds} format={formatDuration} /> · {plural(cat.book_count, { one: '# book', other: '# books' })}</> : ys?.top_genre ? t`most books finished` : t`no books finished`,
-      ph: PH.genre, phFoot: PH.genreFoot,
-    },
-    {
-      label: <Trans>Most active month</Trans>,
-      value: ys?.most_active_month ?? '—',
-      foot: monthOk && month ? <><CountUp entry={e} value={month.seconds} format={formatDuration} />{', '}{year}</> : ys?.most_active_month ? t`by reading time` : t`no reading`,
-      ph: PH.monthLong, phFoot: PH.monthFoot,
-    },
-  ]
-  const title = (
-    <>
-      <div className={cn('font-display font-bold leading-none text-foreground', desktop ? 'text-[24px]' : 'text-[20px]')}><Trans>Year in review</Trans></div>
-      <div className="mt-2 text-[14px] leading-[1.4] text-muted-foreground">{allTime ? <Trans>all time; the month within the last 12</Trans> : <Trans>the last 12 months</Trans>}</div>
-    </>
-  )
-  const figures = cells.map((c, i) => (
-    <div key={i} data-box={`year-band-${i}`} className={cn('min-w-0', desktop ? cn('self-stretch border-l pl-3.5', HAIR) : cn('pt-4', i === 0 ? 'pr-3' : cn('border-l pl-4', HAIR)))}>
-      <div className="text-[14px] text-muted-foreground">{c.label}</div>
-      <div className={cn('mt-1.5 truncate font-display font-bold leading-none text-foreground', desktop ? 'text-[30px]' : 'text-[26px]')}>
-        <Ph on={loading}>{loading ? c.ph : <span className={cn('inline-block', K.rise)} style={stagger(i, cells.length)}>{c.value}</span>}</Ph>
-      </div>
-      <div className="mt-1.5 truncate text-[13px] leading-[1.4] text-muted-foreground"><Ph on={loading}>{loading ? c.phFoot : c.foot}</Ph></div>
-    </div>
-  ))
-  return (
-    <section ref={enter} data-box="year-band" className={dim}>
-      {desktop ? (
-        <div className="grid grid-cols-[342px_repeat(4,minmax(0,1fr))] items-start">
-          <div className="min-w-0 pr-5 pt-0.5">{title}</div>
-          {figures}
-        </div>
-      ) : (
-        <>
-          {title}
-          <div className={cn('mt-4 grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] border-t', HAIR)}>{figures}</div>
-        </>
-      )}
     </section>
   )
 }
@@ -708,10 +638,82 @@ function TheYear({ stats, loading, width, desktop, sig }: { stats: StatsResponse
   )
 }
 
-// ── Records ───────────────────────────────────────────────────────────────────
+// ── All time: lifetime totals, then the records ──────────────────────────────
+// One lifetime block at the foot of the page under one heading: a row of totals
+// (the longest streak is left to the records below it), then the records. Both
+// rows are five columns on desktop, so their dividers line up, and the totals'
+// cells share one baseline grid (caption, figure, foot), as the hero's do.
 
-function Records({ stats, loading, desktop, sig }: { stats: StatsResponse | null; loading: boolean; desktop: boolean; sig: string | null }) {
-  const e = useEntry('overview/records', sig)
+const SUB = 'mb-3 h-[18px] text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground'
+const LIFE_ROW = 'grid grid-cols-5 grid-rows-[repeat(3,auto)]'
+const LIFE_CELL = 'row-span-3 grid grid-rows-subgrid items-baseline'
+
+function AllTime({ stats, loading, desktop, sig }: { stats: StatsResponse | null; loading: boolean; desktop: boolean; sig: string | null }) {
+  const e = useEntry('overview/alltime', sig)
+  const lt = stats?.lifetime
+  const started = stats?.completion_rate.started ?? 0
+  const perDay = (n: number) => (lt && lt.active_days > 0 ? n / lt.active_days : 0)
+  const life: { label: ReactNode; value: ReactNode; foot: string; tip?: { 'data-tip': string }; ph: string; phFoot: string }[] = [
+    {
+      label: <Trans>Reading time</Trans>,
+      value: lt ? <CountUp entry={e} value={lt.seconds} format={formatDuration} /> : '',
+      foot: lt ? (() => { const avg = formatDuration(Math.round(perDay(lt.seconds))); return t`avg ${avg} a reading day` })() : '',
+      // How long that is around the clock, for a sense of the total.
+      tip: lt && lt.seconds >= 86400 ? tipAttrs({ title: t`All your reading`, value: formatDuration(lt.seconds), note: plural(Math.round(lt.seconds / 86400), { one: 'about # day around the clock', other: 'about # days around the clock' }) }) : undefined,
+      ph: PH.life, phFoot: PH.lifeFoot,
+    },
+    {
+      label: <Trans>Sessions</Trans>,
+      value: lt ? <CountUp entry={e} value={lt.sessions} format={num} /> : '',
+      foot: lt ? (() => { const avg = formatDuration(lt.sessions > 0 ? Math.round(lt.seconds / lt.sessions) : 0); return t`avg ${avg}` })() : '',
+      ph: PH.sessions, phFoot: PH.sessionsFoot,
+    },
+    {
+      label: <Trans>Pages</Trans>,
+      value: lt ? <CountUp entry={e} value={lt.pages} format={num} /> : '',
+      foot: lt ? (() => { const n = num(Math.round(perDay(lt.pages))); return t`${n} a reading day` })() : '',
+      ph: PH.lifeN, phFoot: PH.lifeNFoot,
+    },
+    {
+      label: <Trans context="reading">Finished</Trans>,
+      value: lt ? <CountUp entry={e} value={lt.books_finished} format={num} /> : '',
+      // The server's started count: books marked read or reading now.
+      foot: lt ? (started > 0 ? plural(started, { one: 'of # book started', other: 'of # books started' }) : t`nothing started yet`) : '',
+      ph: PH.finished, phFoot: PH.finishedFoot,
+    },
+    {
+      label: <Trans>Active days</Trans>,
+      value: lt ? <CountUp entry={e} value={lt.active_days} format={num} /> : '',
+      foot: lt ? t`days with any reading` : '',
+      ph: PH.sessions, phFoot: PH.lifeNFoot,
+    },
+  ]
+  const totals = (
+    <div data-box="lifetime" className={cn(desktop ? LIFE_ROW : 'grid grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]')}>
+      {life.map((c, i) => (
+        <div
+          key={i}
+          data-box={`life-${i}`}
+          className={cn(
+            'min-w-0',
+            desktop
+              ? cn(LIFE_CELL, 'px-4 py-0.5', i === 0 && 'pl-0', i === life.length - 1 && 'pr-0', i > 0 && cn('border-l', HAIR))
+              : i === 4
+                ? 'col-span-2 pb-0 pt-4'
+                : cn('py-4', i % 2 === 0 ? 'pr-2.5' : cn('border-l pl-3.5', HAIR), cn('border-b', HAIR), i < 2 && 'pt-0'),
+          )}
+        >
+          <div className={cn('text-muted-foreground', desktop ? 'text-[14px]' : 'text-[13px]')}>{c.label}</div>
+          <div className={cn('mt-1.5 font-display font-bold tabular-nums text-foreground', desktop ? 'text-[30px]' : 'text-[26px]', 'leading-none')}>
+            <Ph on={loading}>{loading ? c.ph : <span {...c.tip}>{c.value}</span>}</Ph>
+          </div>
+          <div className={cn('mt-1.5 truncate text-muted-foreground', desktop ? 'text-[14px]' : 'text-[12px]', 'leading-[1.4]')}>
+            <Ph on={loading}>{loading ? c.phFoot : c.foot}</Ph>
+          </div>
+        </div>
+      ))}
+    </div>
+  )
   const r = stats?.records
   const s = stats?.headline.streaks
   const dash = '—'
@@ -743,9 +745,12 @@ function Records({ stats, loading, desktop, sig }: { stats: StatsResponse | null
     },
   ]
   return (
-    <section ref={e.ref} data-box="records">
-      <Heading note={<Trans>all time</Trans>}><Trans>Records</Trans></Heading>
-      <div className={cn('grid', desktop ? 'grid-cols-5' : 'grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]')}>
+    <section ref={e.ref} data-box="alltime">
+      <Heading><Trans>All time</Trans></Heading>
+      <div className={SUB}><Trans>Totals</Trans></div>
+      {totals}
+      <div className={cn(SUB, desktop ? 'mt-9' : 'mt-8')}><Trans>Records</Trans></div>
+      <div data-box="records" className={cn('grid', desktop ? 'grid-cols-5' : 'grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]')}>
         {cells.map((c, i) => (
           <div
             key={i}

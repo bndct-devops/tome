@@ -159,29 +159,7 @@ export function bestDay(stats: StatsResponse, allTime: boolean): { date: string;
   return best
 }
 
-// ── year in review (band at 1y and All) ──────────────────────────────────────
-export type YearSummary = NonNullable<StatsResponse['year_summary']>
-
-/**
- * The server's year summary; at 1y it can answer 364 days and send none, so it is
- * built from the same answer then, as the old Year in review tile did (top genre
- * by reading time, since finished books carry no category here).
- */
-export function yearSummary(stats: StatsResponse): YearSummary | null {
-  if (stats.year_summary) return stats.year_summary
-  if (stats.range_days < 364) return null
-  const best = busiestMonth(stats.daily)
-  const topCat = [...stats.by_category].sort((a, b) => b.seconds - a.seconds)[0]
-  return {
-    books_finished: stats.headline.books_finished,
-    total_hours: Math.round(stats.headline.total_reading_seconds / 360) / 10,
-    top_genre: topCat?.category ?? null,
-    longest_streak_days: stats.headline.longest_streak_days,
-    total_sessions: stats.headline.total_sessions,
-    most_active_month: best ? new Date(best.month + '-01T00:00:00').toLocaleDateString(undefined, { month: 'long' }) : null,
-  }
-}
-
+// ── the busiest month (a corner note of the hero chart at 1y and All) ───────
 /** The month (YYYY-MM) with the most reading in `daily`, as the server picks it. */
 export function busiestMonth(daily: StatsResponse['daily']): { month: string; seconds: number } | null {
   const months = new Map<string, number>()

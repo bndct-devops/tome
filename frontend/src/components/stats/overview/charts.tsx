@@ -48,8 +48,11 @@ function Placeholder({ W, H, x = 0, y = 0, w, h }: { W: number; H: number; x?: n
 // The average's label sits inside the plot at the right end, above the dashed
 // line, unless a bar would run through it; then it moves to a key above the plot.
 // The range's best day is a quiet line at the top left, above where any bar can
-// reach (the scale tops out 8 % over the tallest bar).
-export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, best, loading }: {
+// reach (the scale tops out 8 % over the tallest bar); at 1y and All the busiest
+// month follows it on the same line, or on a second line when the two do not fit
+// beside the average's key (the plot then starts below both lines). A note that
+// does not fit its line at all is left out.
+export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, best, month, loading }: {
   W: number
   H: number
   bars: Bar[]
@@ -58,6 +61,8 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, best, l
   nDays: number
   weekly: boolean
   best?: { date: string; seconds: number } | null
+  /** The busiest month (YYYY-MM) and its reading time. */
+  month?: { month: string; seconds: number } | null
   loading?: boolean
 }) {
   const padL = 30, padB = 24
@@ -88,12 +93,51 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, best, l
     const rects = bars.map((b, i) => ({ x: Math.round(padL + slot * i + (slot - bw) / 2), yt: Math.round(y(b.seconds)), w: bw }))
     return { plotW, step, top, y, rects }
   }
+  // Is the average's label clear of the bars inside the plot, at its right end?
+  const clear = (l: ReturnType<typeof layout>) => {
+    const ay0 = Math.round(l.y(avg)) + 0.5
+    const box = { x0: W - labW - 2, x1: W, y0: ay0 - 16, y1: ay0 - 2 }
+    return avg > 0 && !l.rects.some((r) => r.x < box.x1 && r.x + r.w > box.x0 && r.yt < box.y1)
+  }
   let padT = 10
   let g = layout(padT)
-  const ay0 = Math.round(g.y(avg)) + 0.5
-  const box = { x0: W - labW - 2, x1: W, y0: ay0 - 16, y1: ay0 - 2 }
-  const inside = avg > 0 && !g.rects.some((r) => r.x < box.x1 && r.x + r.w > box.x0 && r.yt < box.y1)
+  let inside = clear(g)
   if (avg > 0 && !inside) { padT = 24; g = layout(padT) }
+  // The corner notes: "best day Sep 9 · 4h 10m", "most active month March 2026 · 49h 26m".
+  const notes: { word: string; text: string; w: number }[] = []
+  const NOTE_GAP = 22
+  if (best) {
+    const word = t({ message: 'best day', comment: 'Before a date and a duration at the top of a chart' })
+    const text = `${fmtShort(best.date)} · ${formatDuration(best.seconds)}`
+    notes.push({ word, text, w: textW(`${word} ${text}`, 10) })
+  }
+  if (month) {
+    const word = t({ message: 'most active month', comment: 'Before a month and a duration at the top of a chart' })
+    const name = new Date(month.month + '-01T00:00:00').toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+    const text = `${name} · ${formatDuration(month.seconds)}`
+    notes.push({ word, text, w: textW(`${word} ${text}`, 10) })
+  }
+  // The first line ends clear of the key when the key sits above the plot.
+  const lineEnd = () => (avg > 0 && !inside ? W - labW - 34 : W)
+  let lines: (typeof notes)[] = notes.length ? [notes] : []
+  if (notes.length === 2 && padL + notes[0].w + NOTE_GAP + notes[1].w > lineEnd()) {
+    // Two lines: the plot starts below the second, and the label is placed again.
+    lines = [[notes[0]], [notes[1]]]
+    padT = 36
+    g = layout(padT)
+    inside = clear(g)
+  }
+  const placed: { word: string; text: string; x: number; y: number }[] = []
+  lines.forEach((line, li) => {
+    let x = padL
+    // The second line has the plot's top right corner to itself unless the label sits there.
+    const end = li === 0 ? lineEnd() : inside && Math.round(g.y(avg)) - 16 < 30 ? W - labW - 8 : W
+    for (const n of line) {
+      if (x + n.w > end) break
+      placed.push({ word: n.word, text: n.text, x, y: 12 + li * 13 })
+      x += n.w + NOTE_GAP
+    }
+  })
   const { plotW, step, top, y, rects } = g
   const slotW = plotW / Math.max(1, bars.length)
   const gridLines: number[] = []
@@ -137,18 +181,11 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, best, l
           </g>
         )
       })}
-      {best && (() => {
-        const day = fmtShort(best.date), dur = formatDuration(best.seconds)
-        const word = t({ message: 'best day', comment: 'Before a date and a duration at the top of a chart' })
-        // Clear of the average's key at the right edge, or left out when the chart is too narrow for both.
-        const w = textW(`${word} ${day} · ${dur}`, 10)
-        if (padL + w > (inside ? W : W - labW - 34)) return null
-        return (
-          <text className={`${K.fade} k-nohit`} style={AVG_LABEL} x={padL} y={12} fontSize={10}>
-            {word} <tspan fill="var(--foreground)" fontWeight={600}>{day} · {dur}</tspan>
-          </text>
-        )
-      })()}
+      {placed.map((n) => (
+        <text key={n.word} className={`${K.fade} k-nohit`} style={AVG_LABEL} x={n.x} y={n.y} fontSize={10}>
+          {n.word} <tspan fill="var(--foreground)" fontWeight={600}>{n.text}</tspan>
+        </text>
+      ))}
       {avg > 0 && (
         <>
           <line className={`${K.wipe} k-nohit`} x1={padL} x2={W} y1={ay} y2={ay} stroke="var(--foreground)" strokeOpacity={0.55} strokeDasharray="3 3" shapeRendering="crispEdges" />
