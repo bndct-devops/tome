@@ -16,6 +16,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response,
 from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
 from backend.services.ko_hash import ko_partial_md5, record_ko_hash, record_served_artifact
 from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import case
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
@@ -28,6 +29,7 @@ from backend.core.permissions import (
 from backend.models.book import Book, BookFile, BookTag
 from backend.models.user_book_status import UserBookStatus
 from backend.services.audit import audit
+from backend.services.book_filters import apply_word_count_bounds
 from backend.services import cover_thumbs
 from backend.models.library import Library
 from backend.models.user import User
@@ -135,6 +137,8 @@ def _filtered_books_query(
     ownership: Optional[str] = None,
     on_device: Optional[str] = None,
     not_on_device: Optional[str] = None,
+    min_words: Optional[int] = None,
+    max_words: Optional[int] = None,
     with_rating_join: bool = False,
 ):
     """Build the filtered books query shared by the list and ids endpoints.
@@ -250,6 +254,8 @@ def _filtered_books_query(
         elif missing == "any":
             query = query.filter(sa_or_(no_cover, no_description, no_author, no_series_f))
 
+    query = apply_word_count_bounds(query, min_words, max_words)
+
     if content_type:
         query = query.filter(Book.content_type == content_type)
 
@@ -287,6 +293,8 @@ def list_book_ids(
     library_id: Optional[int] = Query(None),
     reading_status: Optional[str] = Query(None),
     min_rating: Optional[int] = Query(None, ge=1, le=5),
+    min_words: Optional[int] = Query(None, ge=0, description="Minimum word count, inclusive"),
+    max_words: Optional[int] = Query(None, ge=0, description="Maximum word count, inclusive"),
     missing: Optional[str] = Query(None),
     content_type: Optional[str] = Query(None),
     added_by: Optional[int] = Query(None),
@@ -307,6 +315,7 @@ def list_book_ids(
         q=q, series=series, no_series=no_series, author=author, tag=tag,
         format=format, language=language, library_id=library_id,
         reading_status=reading_status, min_rating=min_rating, missing=missing,
+        min_words=min_words, max_words=max_words,
         content_type=content_type, added_by=added_by, ownership=ownership,
         on_device=on_device, not_on_device=not_on_device,
     )
@@ -320,7 +329,7 @@ def list_books(
     q: Optional[str] = Query(None, description="Full-text search across title/author/series/tags"),
     skip: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=500),
-    sort: str = Query("title", pattern="^(title|author|year|added_at|status_updated|rating)$"),
+    sort: str = Query("title", pattern="^(title|author|year|added_at|status_updated|rating|word_count)$"),
     order: str = Query("asc", pattern="^(asc|desc)$"),
     min_rating: Optional[int] = Query(None, ge=1, le=5, description="Filter to books the current user rated at least this many stars"),
     series: Optional[str] = Query(None, description="Exact series name filter"),
@@ -331,6 +340,8 @@ def list_books(
     language: Optional[str] = Query(None, description="Language filter — canonical code (en, de, …); matches messy stored variants"),
     library_id: Optional[int] = Query(None, description="Filter to books in this library"),
     reading_status: Optional[str] = Query(None, description="Filter by reading status: unread, reading, read"),
+    min_words: Optional[int] = Query(None, ge=0, description="Minimum word count, inclusive"),
+    max_words: Optional[int] = Query(None, ge=0, description="Maximum word count, inclusive"),
     missing: Optional[str] = Query(None, description="Filter books missing a field: cover, description, author, series, any"),
     content_type: Optional[str] = Query(None, description="Filter by content type: volume, chapter"),
     added_by: Optional[int] = Query(None, description="Filter by uploader user ID (admin only)"),
@@ -346,6 +357,7 @@ def list_books(
         q=q, series=series, no_series=no_series, author=author, tag=tag,
         format=format, language=language, library_id=library_id,
         reading_status=reading_status, min_rating=min_rating, missing=missing,
+        min_words=min_words, max_words=max_words,
         content_type=content_type, added_by=added_by, ownership=ownership,
         on_device=on_device, not_on_device=not_on_device,
         with_rating_join=(sort == "rating"),
@@ -393,8 +405,12 @@ def list_books(
             # flowed into id_sq above.
             query, eff_rating = _join_effective_rating(query)
 
-    # When filtering by a specific series, always sort by series_index
-    if series:
+    if sort == "word_count":
+        length = case((Book.word_count > 0, Book.word_count), else_=None)
+        length_sort = length.asc() if order == "asc" else length.desc()
+        query = query.order_by(length_sort.nullslast(), Book.title.asc(), Book.id.asc())
+    elif series:
+        # Other sorts keep series-index order inside a specific series.
         query = query.order_by(Book.series_index.asc().nullslast(), Book.title.asc())
     elif sort == "rating":
         # Highest-rated first by default; unrated books sort last either way.

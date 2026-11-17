@@ -124,3 +124,26 @@ test.describe('dashboard selection and bulk delete', () => {
     expect(titles.length).toBe(160)
   })
 })
+
+test('length sort and word bounds', async ({ page }) => {
+  seed('lengths')
+  await login(page)
+  await openAllBooks(page)
+
+  const sorted = page.waitForResponse(res => new URL(res.url()).searchParams.get('sort') === 'word_count')
+  await page.getByRole('button', { name: 'Title', exact: true }).click()
+  await page.getByRole('menuitemradio', { name: /^Length/ }).click()
+  expect((await (await sorted).json()).map((b: { title: string }) => b.title))
+    .toEqual(['Short', 'Medium', 'Long', 'Unknown'])
+
+  await page.getByRole('button', { name: /^Filters/ }).click()
+  await page.getByLabel('Minimum words').fill('30000')
+  await page.getByLabel('Minimum words').press('Enter')
+  await expect(page).toHaveURL(/min_words=30000/)
+  await expect(page.getByText('At least 30,000 words', { exact: true })).toBeVisible()
+
+  await page.reload()
+  await expect(page.getByText('At least 30,000 words', { exact: true })).toBeVisible()
+  await page.getByText('At least 30,000 words', { exact: true }).getByRole('button').click()
+  await expect(page).not.toHaveURL(/min_words=/)
+})

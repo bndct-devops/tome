@@ -2262,6 +2262,22 @@ msgstr ""
 msgid "Assign type to new books"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+#~ msgid "At least {filterMinWords} words"
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "At least {minWords} words"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+#~ msgid "At most {filterMaxWords} words"
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "At most {maxWords} words"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Attach progress synced from a KOReader-compatible app to this book"
 msgstr ""
@@ -2701,6 +2717,14 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Books without a series"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+#~ msgid "Books without a word count are excluded when a length filter is set."
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Books without a word count are hidden."
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -5289,6 +5313,10 @@ msgstr ""
 msgid "Left to right"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Length"
+msgstr ""
+
 #: src/components/stats/widgets/habits.tsx
 #: src/components/stats/widgets/overview.tsx
 msgid "Less"
@@ -5633,6 +5661,14 @@ msgstr ""
 msgid "Matching {matchingAll}/{total}…"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Max words"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Maximum words"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Member"
 msgstr ""
@@ -5671,8 +5707,16 @@ msgstr ""
 msgid "min"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Min words"
+msgstr ""
+
 #: src/pages/SetupPage.tsx
 msgid "Minimum 8 characters"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Minimum words"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx

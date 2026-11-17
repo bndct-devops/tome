@@ -2258,6 +2258,22 @@ msgstr "Attribuer les métadonnées des chapitres"
 msgid "Assign type to new books"
 msgstr "Attribuer un type aux nouveaux livres"
 
+#: src/pages/DashboardPage.tsx
+#~ msgid "At least {filterMinWords} words"
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "At least {minWords} words"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+#~ msgid "At most {filterMaxWords} words"
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "At most {maxWords} words"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Attach progress synced from a KOReader-compatible app to this book"
 msgstr "Associer à ce livre la progression synchronisée depuis une application compatible avec KOReader"
@@ -2696,6 +2712,14 @@ msgstr ""
 #: src/pages/DashboardPage.tsx
 msgid "Books without a series"
 msgstr "Livres sans série"
+
+#: src/pages/DashboardPage.tsx
+#~ msgid "Books without a word count are excluded when a length filter is set."
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Books without a word count are hidden."
+msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Breadcrumb"
@@ -5274,6 +5298,10 @@ msgstr "En savoir plus"
 msgid "Left to right"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Length"
+msgstr ""
+
 #: src/components/stats/widgets/habits.tsx
 #: src/components/stats/widgets/overview.tsx
 msgid "Less"
@@ -5615,6 +5643,14 @@ msgstr ""
 msgid "Matching {matchingAll}/{total}…"
 msgstr "Recherche de correspondances {matchingAll}/{total}…"
 
+#: src/pages/DashboardPage.tsx
+msgid "Max words"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Maximum words"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Member"
 msgstr "Membre"
@@ -5653,9 +5689,17 @@ msgstr "Indicateur"
 msgid "min"
 msgstr "min"
 
+#: src/pages/DashboardPage.tsx
+msgid "Min words"
+msgstr ""
+
 #: src/pages/SetupPage.tsx
 msgid "Minimum 8 characters"
 msgstr "8 caractères minimum"
+
+#: src/pages/DashboardPage.tsx
+msgid "Minimum words"
+msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Minutes"

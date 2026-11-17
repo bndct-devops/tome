@@ -5,7 +5,7 @@ so writing from a second process while uvicorn is up is fine). Every scenario
 starts from a clean slate: all book data, libraries and shelves wiped, library
 dir recreated, the `e2e` admin and one member and one guest ensured.
 
-Usage: seed.py <orphans|duplicates|many|race|shelves|reset> [count]
+Usage: seed.py <orphans|duplicates|many|race|shelves|lengths|reset> [count]
 """
 import sys
 from pathlib import Path
@@ -196,6 +196,11 @@ def scenario_shelves(db, admin_id):
     db.add(SavedFilter(name="Seeded Shelf", owner_id=admin_id, params="{}"))
 
 
+def scenario_lengths(db, admin_id):
+    for title, words in (("Short", 20000), ("Medium", 50000), ("Long", 120000), ("Unknown", None)):
+        _add_book(db, admin_id, title, path=f"Lengths/{title}.epub", fmt="epub").word_count = words
+
+
 def main():
     scenario = sys.argv[1] if len(sys.argv) > 1 else "orphans"
     db = SessionLocal()
@@ -211,6 +216,8 @@ def main():
             scenario_many(db, admin_id, int(sys.argv[2]) if len(sys.argv) > 2 else 134)
         elif scenario == "shelves":
             scenario_shelves(db, admin_id)
+        elif scenario == "lengths":
+            scenario_lengths(db, admin_id)
         elif scenario == "reset":
             pass
         else:
