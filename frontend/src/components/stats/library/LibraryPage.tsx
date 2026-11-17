@@ -36,7 +36,7 @@ import { Languages } from './Languages'
 /* eslint-disable lingui/no-unlocalized-strings -- placeholder text: drawn as blocks
    while loading and never read; it only gives each line its loaded width. */
 const PH = {
-  fig: '000', figFoot: '10% of your library', since: 'since Mar 2026', unit: 'books',
+  fig: '000', figFoot: '10% of your library', done2: '97% finished', since: 'since Mar 2026', unit: 'books',
   seriesNote: '3 in progress · 3 complete', series: 'He Who Fights with Monsters', seriesSub: '10 of 12 read', pct: '00%', next: 'Next: Volume 12 · on your shelf', done: '3 complete',
   type: 'Light Novels', v: '000', q: '00 of 00 started', dur: '000h 00m',
   author: 'Christopher Buehlman', authorSub: '9 books read · 10 finished all time', rangeNote: 'by reading time, the last 90 days',
@@ -131,11 +131,19 @@ function Figures({ stats, desktop }: Common) {
   const since = start ? fmtMonth(start) : null
   const started = stats?.completion_rate.started ?? 0
   const labels: ReactNode[] = [<Trans key="l">Library</Trans>, <Trans key="r">Read</Trans>, <Trans key="p">In progress</Trans>, <Trans key="w">Want to read</Trans>]
-  const figs: { value: number; foot: string }[] = tb
+  const figs: { value: number; foot: string; foot2?: string }[] = tb
     ? [
         { value: tb.owned, foot: since ? t`since ${since}` : ' ' },
         { value: tb.read, foot: (() => { const pct = Math.round(tb.pct); return t`${pct}% of your library` })() },
-        { value: tb.reading, foot: started > 0 ? plural(started, { one: 'of # book started', other: 'of # books started' }) : t`nothing started yet` },
+        // The server's completion rate: of the books marked read or reading, the share
+        // marked read. One line on desktop; the phone's narrow cell takes it on a second.
+        (() => {
+          if (started === 0) return { value: tb.reading, foot: t`nothing started yet`, foot2: desktop ? undefined : ' ' }
+          const of = plural(started, { one: 'of # book started', other: 'of # books started' })
+          const pct = Math.round(stats.completion_rate.pct)
+          const done = t`${pct}% finished`
+          return desktop ? { value: tb.reading, foot: `${of} · ${done}` } : { value: tb.reading, foot: of, foot2: done }
+        })(),
         { value: tb.want_to_read, foot: (() => { const n = num(tb.unread); return t`${n} unread in all` })() },
       ]
     : labels.map(() => ({ value: 0, foot: PH.figFoot }))
@@ -160,6 +168,9 @@ function Figures({ stats, desktop }: Common) {
             <div className={cn('mt-2 truncate leading-[1.4] text-muted-foreground', desktop ? 'text-[14px]' : 'text-[13px]')}>
               <Ph on={!tb}>{tb ? f.foot : i === 0 ? PH.since : PH.figFoot}</Ph>
             </div>
+            {!desktop && i === 2 && (
+              <div className="truncate text-[13px] leading-[1.4] text-muted-foreground"><Ph on={!tb}>{tb ? f.foot2 ?? ' ' : PH.done2}</Ph></div>
+            )}
           </div>
         ))}
       </div>
