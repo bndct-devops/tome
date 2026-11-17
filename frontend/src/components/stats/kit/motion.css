@@ -80,3 +80,14 @@
 /* A chart that takes focus (one stop, arrow keys between marks). */
 [data-tips]:focus { outline: none; }
 [data-tips]:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: 4px; }
+
+/* Guide.tsx: the vertical guide of a time-axis chart, its ring on the line, and
+   the plot-wide hit area (vertical drags still scroll the page). */
+.k-guide { stroke: var(--muted-foreground); stroke-opacity: 0.55; stroke-width: 1px; shape-rendering: crispEdges; pointer-events: none; }
+.k-guide-ring { fill: var(--background); stroke: var(--foreground); stroke-width: 2px; pointer-events: none; }
+.k-guide-hit { fill: transparent; }
+/* touch-action only applies to elements with a CSS box: the svg, not its shapes. */
+[data-guide-host] { touch-action: pan-y; }
+[data-guide-host]:focus { outline: none; }
+[data-guide-host]:focus-visible { outline: 2px solid var(--ring); outline-offset: 4px; border-radius: 4px; }
+[data-guide-host] [data-dot][data-hot] { fill-opacity: 1; }

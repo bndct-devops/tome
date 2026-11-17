@@ -9,9 +9,10 @@ import { useNavigate } from 'react-router-dom'
 import { t, plural } from '@lingui/core/macro'
 import { formatDuration } from '@/lib/utils'
 import { K, stagger } from '@/components/stats/kit/motion'
-import { useTips } from '@/components/stats/kit/tip'
-import { fmtDay } from '@/components/stats/kit/tokens'
-import { STAR_PATH, dayNum, hourStep, placeCounts, scatterDots, timeline, type RatedBook, type ScatterDot, type TimeGroup } from './model'
+import { guideHost, useTips } from '@/components/stats/kit/tip'
+import { Guide, type GuideSlot } from '@/components/stats/kit/Guide'
+import { dec1, fmtDay } from '@/components/stats/kit/tokens'
+import { STAR_PATH, dayNum, hourStep, placeCounts, scatterDots, timeline, type RatedBook, type ScatterDot } from './model'
 
 const GRID = 'color-mix(in oklch, var(--border) 70%, transparent)'
 const TICK = 'color-mix(in oklch, var(--muted-foreground) 60%, transparent)'
@@ -130,23 +131,9 @@ const LANE = 30
 export function OverTime({ W, books, loading }: { W: number; books: RatedBook[]; loading: boolean }) {
   const H = OVER_TIME_H
   const padL = 34, padT = 6, padR = 8
-  const shown = useRef<TimeGroup[]>([])
-  const tips = useTips((i) => {
-    const g = shown.current[i]
-    if (!g) return null
-    const day = fmtDay(g.date)
-    const n = g.titles.length
-    if (n === 1) return { title: g.titles[0], value: starsWord(g.rating), note: t`Rated ${day}` }
-    const MAX = 4
-    const names = g.titles.slice(0, MAX).join(', ')
-    const rest = n - MAX
-    const stars = starsWord(g.rating)
-    return { title: t`${n} books at ${stars}`, value: rest > 0 ? plural(rest, { one: `${names} and # more`, other: `${names} and # more` }) : names, note: t`Rated ${day}` }
-  }, { x: 1, y: 1 })
-  const links = useDotLinks((i) => { const g = shown.current[i]; return g && g.ids.length === 1 ? g.ids[0] : null })
+  const navigate = useNavigate()
   if (loading || W <= padL + padR) return <Placeholder W={Math.max(1, W)} H={H} x={padL} y={padT} h={5 * LANE} />
   const { points, groups } = timeline(books)
-  shown.current = groups
   const plotW = W - padL - padR
   const d0 = dayNum(points[0].date) - 3, d1 = dayNum(points[points.length - 1].date) + 3
   const x = (iso: string) => padL + ((dayNum(iso) - d0) / (d1 - d0)) * plotW
@@ -175,9 +162,39 @@ export function OverTime({ W, books, loading }: { W: number; books: RatedBook[];
   const rad = 4
   const placed = groups.map((g) => ({ cx: x(g.date), cy: y(g.rating), n: g.titles.length }))
   const counts = placeCounts(placed, meanPts, rad, { x0: padL, x1: W, y0: 0, y1: padT + 5 * LANE })
+  // Hover anywhere in the plot: a guide snaps to the nearest rating date (kit/Guide.tsx).
+  // A date lists its books by rating (merged dots as before) and the mean of the last
+  // five after that day, where the stepped line stands at that x.
+  const dates = [...new Set(groups.map((g) => g.date))]
+  const slots: (GuideSlot & { ids: number[] })[] = dates.map((date) => {
+    const of = groups.map((g, k) => [g, k] as const).filter(([g]) => g.date === date)
+    const mean = [...points].reverse().find((p) => p.date === date)?.mean ?? null
+    return {
+      x: x(date),
+      dots: of.map(([, k]) => String(k)),
+      lineY: mean != null ? y(mean) : null,
+      ids: of.flatMap(([g]) => g.ids),
+      tip: () => {
+        const day = fmtDay(date)
+        const m = mean != null ? dec1(mean) : null
+        const note = m ? t`Rated ${day} · mean of the last five ${m}` : t`Rated ${day}`
+        const all = of.flatMap(([g]) => g.titles)
+        if (all.length === 1) return { title: all[0], value: starsWord(of[0][0].rating), note }
+        const MAX = 4
+        const parts = of.map(([g]) => {
+          const st = starsWord(g.rating)
+          const names = g.titles.slice(0, MAX).join(', ')
+          const rest = g.titles.length - MAX
+          return rest > 0 ? plural(rest, { one: `${st}: ${names} and # more`, other: `${st}: ${names} and # more` }) : `${st}: ${names}`
+        })
+        const n = all.length
+        return { title: t`${n} books`, value: parts.join('; '), note }
+      },
+    }
+  })
 
   return (
-    <svg {...tips} {...links} className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Ratings over time, one dot per rating, with the mean of the last five`}>
+    <svg {...guideHost} className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Ratings over time, one dot per rating, with the mean of the last five`}>
       {[1, 2, 3, 4, 5].map((r) => {
         const yy = Math.round(y(r)) + 0.5
         return (
@@ -203,8 +220,8 @@ export function OverTime({ W, books, loading }: { W: number; books: RatedBook[];
         return (
           <circle
             key={`${g.date}-${g.rating}`}
-            data-tip-i={i}
-            className={`k-cell ${K.fade} ${g.ids.length === 1 ? 'cursor-pointer' : ''}`}
+            data-dot={i}
+            className={`k-cell k-nohit ${K.fade}`}
             style={stagger(i, groups.length)}
             cx={placed[i].cx.toFixed(1)}
             cy={placed[i].cy.toFixed(1)}
@@ -218,6 +235,7 @@ export function OverTime({ W, books, loading }: { W: number; books: RatedBook[];
       {counts.map((c, i) => c && (
         <text key={i} x={c.x.toFixed(1)} y={c.y.toFixed(1)} className={`${K.fade} k-nohit fill-foreground text-[10px] font-semibold`} style={LATE}>{c.label}</text>
       ))}
+      <Guide x0={padL} x1={W - padR} y0={padT} y1={by} slots={slots} onOpen={(k) => { const ids = slots[k]?.ids ?? []; if (ids.length === 1) navigate(`/books/${ids[0]}`) }} />
     </svg>
   )
 }

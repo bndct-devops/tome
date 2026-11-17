@@ -402,7 +402,7 @@ function PaceSection({ stats, width, desktop, rangeWords, dim, sig }: { stats: S
         {p && p.dots.length === 0 ? (
           <ChartEmpty H={H}>{t`Pace appears once reading days with page turns arrive.`}</ChartEmpty>
         ) : (
-          <Pace W={width} H={H} dots={p?.dots ?? []} nDays={p?.nDays ?? 1} ticks={ticks} loading={!p} />
+          <Pace W={width} H={H} dots={p?.dots ?? []} days={p?.days ?? []} nDays={p?.nDays ?? 1} ticks={ticks} loading={!p} />
         )}
       </div>
       <FormatLine stats={stats} desktop={desktop} />

@@ -41,6 +41,22 @@ export function tipFor(el: Element): Tip | null {
   return i != null && src ? src(Number(i), el) : null
 }
 
+// A tip that is not a mark's: a chart that tracks the pointer itself (Guide.tsx)
+// asks the layer to show text at a place, and is told when the layer hides it
+// (pointer elsewhere, scroll, Escape, focus gone) so it can clear its own marks.
+export type TipRect = { left: number; right: number; top: number; bottom: number }
+type Layer = { showAt: (t: Tip, r: TipRect, onHide: () => void, announce?: boolean) => void; hide: () => void }
+let layer: Layer | null = null
+export function setTipLayer(l: Layer | null) { layer = l }
+export const tipLayer = {
+  showAt: (t: Tip, r: TipRect, onHide: () => void, announce = false) => layer?.showAt(t, r, onHide, announce),
+  hide: () => layer?.hide(),
+}
+/** Spread on the svg that holds a Guide (Guide.tsx): one focus stop. */
+export const guideHost = { tabIndex: 0, 'data-guide-host': '' } as const
+/** Marks the element whose own pointer handling owns the tip (a Guide's surface). */
+export const GUIDE = '[data-guide]'
+
 /** Selector of everything that has a tip. */
 export const MARK = '[data-tip],[data-tip-i]'
 

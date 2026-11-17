@@ -65,6 +65,7 @@ export function timelineRows(days: HabitsResponse['last_14_days']): TlRow[] {
 
 // ── Pace: pages a minute per reading day, a trailing 7-day mean ───────────────
 export type PaceDot = { i: number; date: string; ppm: number; mean: number; pages: number; seconds: number }
+export type PaceDay = { date: string; dot: PaceDot | null; mean: number | null }
 
 /** Dots from daily pages / seconds (days with time but no pages skipped); the line is the
  *  time-weighted mean of the 7 calendar days ending on each dot. */
@@ -82,7 +83,17 @@ export function paceModel(daily: StatsResponse['daily']) {
     return sec > 0 ? arr.reduce((a, p) => a + p.pages, 0) / (sec / 60) : 0
   }
   const recent = dots.slice(-7)
-  return { dots, nDays: daily.length, recent: weighted(recent), all: weighted(dots), recentCount: recent.length }
+  // Every day of the range for the chart's guide: its date, its dot (a reading day)
+  // and the same trailing 7-day mean the line is drawn from (null: no reading in the window).
+  const byDay = new Map(dots.map((p) => [p.i, p]))
+  const days: PaceDay[] = daily.map((d, i) => {
+    const dot = byDay.get(i) ?? null
+    if (dot) return { date: d.date, dot, mean: dot.mean }
+    const win = daily.slice(Math.max(0, i - 6), i + 1).filter((w) => w.pages > 0 && w.seconds > 0)
+    const sec = win.reduce((a, w) => a + w.seconds, 0)
+    return { date: d.date, dot: null, mean: sec > 0 ? win.reduce((a, w) => a + w.pages, 0) / (sec / 60) : null }
+  })
+  return { dots, days, nDays: daily.length, recent: weighted(recent), all: weighted(dots), recentCount: recent.length }
 }
 
 /** Axis ticks of the pace chart: month starts, or for a range with fewer than two

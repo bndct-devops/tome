@@ -9,12 +9,13 @@ import { useNavigate } from 'react-router-dom'
 import { t, plural } from '@lingui/core/macro'
 import { formatDuration } from '@/lib/utils'
 import { K, stagger } from '@/components/stats/kit/motion'
-import { useTips } from '@/components/stats/kit/tip'
+import { guideHost, useTips } from '@/components/stats/kit/tip'
+import { Guide, type GuideSlot } from '@/components/stats/kit/Guide'
 import { dec1, num } from '@/components/stats/kit/tokens'
 import { HEAT_GAP, heatRadius, type HourGrid } from '@/components/stats/overview/model'
 import {
   TL_PITCH, TL_PITCH_PHONE, TL_TRACK, TL_TRACK_PHONE, TL_ROWS, MONTH_ROW,
-  monthsHeight, rhythmGeom, timelineHeight, type PaceDot, type TlBar, type TlRow,
+  monthsHeight, rhythmGeom, timelineHeight, type PaceDay, type PaceDot, type TlBar, type TlRow,
 } from './model'
 
 const LV = ['var(--k-lv0)', 'var(--k-lv1)', 'var(--k-lv2)', 'var(--k-lv3)', 'var(--k-lv4)', 'var(--k-lv5)']
@@ -45,9 +46,6 @@ const late = (i: number, n: number): CSSProperties => {
   const step = n > 1 ? Math.min(24, 200 / (n - 1)) : 0
   return { '--k-d': `${320 + Math.round(i * step)}ms` } as CSSProperties
 }
-
-// Hover band of a hit path drawn as a stroke (the pace line's days).
-const STROKE_HIT = 'data-[hot]:stroke-[color-mix(in_oklch,var(--muted-foreground)_24%,transparent)]'
 
 const roundedTop = (x: number, yt: number, w: number, h: number, r: number) =>
   // eslint-disable-next-line lingui/no-unlocalized-strings -- SVG path
@@ -326,23 +324,10 @@ export function Lengths({ W, H, counts, loading }: { W: number; H: number; count
 }
 
 // ── Pace: a dot per reading day, the trailing 7-day mean as a line ────────────
-export function Pace({ W, H, dots, nDays, ticks, loading }: { W: number; H: number; dots: PaceDot[]; nDays: number; ticks: { index: number; label: string }[]; loading?: boolean }) {
+// Hover anywhere in the plot: a guide snaps to the nearest day (kit/Guide.tsx).
+export function Pace({ W, H, dots, days, nDays, ticks, loading }: { W: number; H: number; dots: PaceDot[]; days: PaceDay[]; nDays: number; ticks: { index: number; label: string }[]; loading?: boolean }) {
   const padL = 28, padB = 22, padT = 8
   const n = dots.length
-  // Marks in DOM order: the line's days (hit bands along it), then the dots on top;
-  // Up/Down moves between a day's dot and its mean.
-  const tips = useTips((i) => {
-    const d = dots[i % Math.max(1, n)]
-    if (!d) return null
-    if (i < n) {
-      const mean = dec1(d.mean)
-      return { title: fmtLong(d.date), value: t`${mean} pages a minute`, note: t`7-day mean` }
-    }
-    const ppm = dec1(d.ppm)
-    const pages = plural(d.pages, { one: '# page', other: '# pages' })
-    const len = dur(d.seconds)
-    return { title: fmtLong(d.date), value: t`${ppm} pages a minute`, note: t`${pages} in ${len}` }
-  }, { x: 1, y: n })
   if (loading) return <Placeholder W={W} H={H} x={padL} y={padT} h={H - padT - padB} />
   const plotW = W - padL, plotH = H - padT - padB
   const top = Math.ceil(Math.max(1, ...dots.map((d) => d.ppm)) + 0.25)
@@ -356,15 +341,21 @@ export function Pace({ W, H, dots, nDays, ticks, loading }: { W: number; H: numb
   const pts: Pt[] = dots.map((d) => [x(d.i), y(d.mean)] as const)
   const xy = (p: Pt) => `${p[0].toFixed(1)},${p[1].toFixed(1)}`
   const path = pts.map((p, k) => `${k ? 'L' : 'M'}${xy(p)}`).join(' ')
-  // Each day's stretch of the line: from halfway to the previous day to halfway to the next.
-  const mid = (a: Pt, b: Pt): Pt => [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2]
-  const band = (k: number) => {
-    const p = pts[k]
-    const a: Pt = k > 0 ? mid(pts[k - 1], p) : [p[0] - 4, p[1]]
-    const b: Pt = k < n - 1 ? mid(p, pts[k + 1]) : [p[0] + 4, p[1]]
-    // eslint-disable-next-line lingui/no-unlocalized-strings -- SVG path
-    return `M${xy(a)} L${xy(p)} L${xy(b)}`
-  }
+  // One guide slot per day of the range. The ring sits on the line only on a reading
+  // day (the line is drawn through those); other days say their 7-day mean in the tip.
+  const slots: GuideSlot[] = days.map((d, i) => ({
+    x: x(i),
+    dots: d.dot ? [String(i)] : [],
+    lineY: d.dot && n > 1 ? y(d.dot.mean) : null,
+    tip: () => {
+      const meanLine = d.mean != null ? (() => { const m = dec1(d.mean); return t`7-day mean ${m}` })() : t`no reading in the last 7 days`
+      if (!d.dot) return { title: fmtLong(d.date), value: t`No reading`, note: meanLine }
+      const ppm = dec1(d.dot.ppm)
+      const pages = plural(d.dot.pages, { one: '# page', other: '# pages' })
+      const len = dur(d.dot.seconds)
+      return { title: fmtLong(d.date), value: t`${ppm} pages a minute, ${pages} in ${len}`, note: meanLine }
+    },
+  }))
   // Tick labels kept apart and inside the chart: one too close to the last shown is left out.
   let lastEnd = -Infinity
   const shown = ticks.filter((m) => {
@@ -375,7 +366,7 @@ export function Pace({ W, H, dots, nDays, ticks, loading }: { W: number; H: numb
     return true
   })
   return (
-    <svg {...tips} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Pages per minute per reading day`}>
+    <svg {...guideHost} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Pages per minute per reading day`}>
       {lines.map((v) => {
         const yy = Math.round(y(v)) + 0.5
         return (
@@ -393,12 +384,10 @@ export function Pace({ W, H, dots, nDays, ticks, loading }: { W: number; H: numb
       })}
       {shown.map((m) => <text key={m.index} x={Math.round(x(m.index)) + 4.5} y={H - 5}>{m.label}</text>)}
       {n > 1 && <path className={`${K.draw} k-nohit`} pathLength={1} d={path} fill="none" stroke="var(--chart-accent)" strokeWidth={2} strokeLinejoin="round" strokeLinecap="round" />}
-      {n > 1 && dots.map((d, k) => (
-        <path key={d.i} className={STROKE_HIT} data-tip-i={k} d={band(k)} fill="none" stroke="transparent" strokeWidth={10} strokeLinejoin="round" strokeLinecap="round" />
-      ))}
       {dots.map((d, k) => (
-        <circle key={d.i} className={`k-cell ${K.fade}`} style={stagger(k, n)} data-tip-i={n + k} cx={x(d.i)} cy={y(d.ppm)} r={3} fill="var(--chart-accent)" fillOpacity={0.5} stroke="transparent" strokeWidth={6} />
+        <circle key={d.i} className={`k-cell k-nohit ${K.fade}`} style={stagger(k, n)} data-dot={d.i} cx={x(d.i)} cy={y(d.ppm)} r={3} fill="var(--chart-accent)" fillOpacity={0.5} stroke="transparent" strokeWidth={6} />
       ))}
+      <Guide x0={padL} x1={W} y0={padT} y1={by} slots={slots} />
     </svg>
   )
 }

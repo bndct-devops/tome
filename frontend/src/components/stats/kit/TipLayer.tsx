@@ -6,7 +6,7 @@
 // inside the window. Look: the app's popover (InfoHint, the old ChartTooltip).
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
-import { MARK, tipFor } from './tip'
+import { GUIDE, MARK, setTipLayer, tipFor, type Tip, type TipRect } from './tip'
 
 const GAP = 8
 const EDGE = 8
@@ -21,45 +21,62 @@ export function TipLayer() {
     const [titleEl, valueEl, noteEl] = Array.from(tip.children) as HTMLElement[]
     let hot: Element | null = null
     let down: { x: number; y: number; t: number } | null = null
+    // The Guide that owns the tip now, told when it goes.
+    let owner: (() => void) | null = null
+    const release = () => { const o = owner; owner = null; o?.() }
 
     const hide = () => {
       if (hot) hot.removeAttribute('data-hot')
       hot = null
+      release()
       tip.style.visibility = 'hidden'
+    }
+    const place = (t: Tip, r: TipRect, announce: boolean) => {
+      titleEl.textContent = t.title
+      valueEl.textContent = t.value ?? ''
+      noteEl.textContent = t.note ?? ''
+      valueEl.style.display = t.value ? '' : 'none'
+      noteEl.style.display = t.note ? '' : 'none'
+      const w = tip.offsetWidth, h = tip.offsetHeight
+      const vw = document.documentElement.clientWidth, vh = window.innerHeight
+      let y = r.top - h - GAP
+      if (y < EDGE) y = Math.min(r.bottom + GAP, vh - h - EDGE)
+      const x = Math.min(Math.max(EDGE, (r.left + r.right) / 2 - w / 2), vw - w - EDGE)
+      tip.style.left = `${Math.round(x)}px`
+      tip.style.top = `${Math.round(y)}px`
+      tip.style.visibility = 'visible'
+      if (announce) say.textContent = [t.title, t.value, t.note].filter(Boolean).join(', ')
     }
     const show = (el: Element, announce = false) => {
       if (el === hot) return
       const t = tipFor(el)
       if (!t) return hide()
       if (hot) hot.removeAttribute('data-hot')
+      release()
       hot = el
       el.setAttribute('data-hot', '')
-      titleEl.textContent = t.title
-      valueEl.textContent = t.value ?? ''
-      noteEl.textContent = t.note ?? ''
-      valueEl.style.display = t.value ? '' : 'none'
-      noteEl.style.display = t.note ? '' : 'none'
-      const r = (t.anchor ?? el).getBoundingClientRect()
-      const w = tip.offsetWidth, h = tip.offsetHeight
-      const vw = document.documentElement.clientWidth, vh = window.innerHeight
-      let y = r.top - h - GAP
-      if (y < EDGE) y = Math.min(r.bottom + GAP, vh - h - EDGE)
-      const x = Math.min(Math.max(EDGE, r.left + r.width / 2 - w / 2), vw - w - EDGE)
-      tip.style.left = `${Math.round(x)}px`
-      tip.style.top = `${Math.round(y)}px`
-      tip.style.visibility = 'visible'
-      if (announce) say.textContent = [t.title, t.value, t.note].filter(Boolean).join(', ')
+      place(t, (t.anchor ?? el).getBoundingClientRect(), announce)
     }
+    setTipLayer({
+      showAt: (t, r, onHide, announce = false) => {
+        if (hot) { hot.removeAttribute('data-hot'); hot = null }
+        if (owner !== onHide) release()
+        owner = onHide
+        place(t, r, announce)
+      },
+      hide,
+    })
     const markAt = (target: EventTarget | null) => (target instanceof Element ? target.closest(MARK) : null)
 
     const onOver = (e: PointerEvent) => {
       if (e.pointerType === 'touch') return
       const m = markAt(e.target)
       if (m) show(m)
-      else if (hot) {
+      else if (owner && e.target instanceof Element && e.target.closest(GUIDE)) return
+      else if (hot || owner) {
         // A mark reached with the keyboard stays until focus leaves its chart.
         const f = document.activeElement
-        if (!(f && f !== document.body && f.matches(':focus-visible') && f.contains(hot))) hide()
+        if (!(f && f !== document.body && f.matches(':focus-visible') && hot && f.contains(hot))) hide()
       }
     }
     const onDown = (e: PointerEvent) => { down = { x: e.clientX, y: e.clientY, t: e.timeStamp } }
@@ -68,6 +85,7 @@ export function TipLayer() {
       const tap = Math.hypot(e.clientX - down.x, e.clientY - down.y) < 10 && e.timeStamp - down.t < 600
       down = null
       if (!tap) return
+      if (e.target instanceof Element && e.target.closest(GUIDE)) return // the Guide handles its own taps
       const m = markAt(e.target)
       if (m && m !== hot) show(m)
       else hide()
@@ -99,7 +117,7 @@ export function TipLayer() {
       e.preventDefault()
       show(marks[next], true)
     }
-    const onScroll = () => { if (hot) hide() }
+    const onScroll = () => { if (hot || owner) hide() }
 
     document.addEventListener('pointerover', onOver, { passive: true })
     document.addEventListener('pointerdown', onDown, { passive: true })
@@ -111,6 +129,7 @@ export function TipLayer() {
     window.addEventListener('blur', hide)
     return () => {
       hide()
+      setTipLayer(null)
       document.removeEventListener('pointerover', onOver)
       document.removeEventListener('pointerdown', onDown)
       document.removeEventListener('pointerup', onUp)
