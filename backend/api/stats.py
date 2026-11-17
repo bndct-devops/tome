@@ -1086,7 +1086,7 @@ def get_stats(
 # saved shelf can carry. Anything else in a shelf's params (sort, view) is ignored.
 _SHELF_FILTER_KEYS = {
     "q", "series", "author", "tag", "format", "language", "library_id",
-    "reading_status", "min_rating", "missing", "content_type", "added_by", "ownership",
+    "reading_status", "min_rating", "min_words", "max_words", "missing", "content_type", "added_by", "ownership",
     "on_device", "not_on_device",
 }
 

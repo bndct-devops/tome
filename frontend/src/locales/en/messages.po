@@ -2262,6 +2262,14 @@ msgstr "Assign chapter metadata"
 msgid "Assign type to new books"
 msgstr "Assign type to new books"
 
+#: src/pages/DashboardPage.tsx
+msgid "At least {filterMinWords} words"
+msgstr "At least {filterMinWords} words"
+
+#: src/pages/DashboardPage.tsx
+msgid "At most {filterMaxWords} words"
+msgstr "At most {filterMaxWords} words"
+
 #: src/pages/BookDetailPage.tsx
 msgid "Attach progress synced from a KOReader-compatible app to this book"
 msgstr "Attach progress synced from a KOReader-compatible app to this book"
@@ -2702,6 +2710,10 @@ msgstr "Books with series metadata show up here, grouped by series."
 #: src/pages/DashboardPage.tsx
 msgid "Books without a series"
 msgstr "Books without a series"
+
+#: src/pages/DashboardPage.tsx
+msgid "Books without a word count are excluded when a length filter is set."
+msgstr "Books without a word count are excluded when a length filter is set."
 
 #: src/pages/BookDetailPage.tsx
 msgid "Breadcrumb"
@@ -5289,6 +5301,10 @@ msgstr "Learn more"
 msgid "Left to right"
 msgstr "Left to right"
 
+#: src/pages/DashboardPage.tsx
+msgid "Length"
+msgstr "Length"
+
 #: src/components/stats/widgets/habits.tsx
 #: src/components/stats/widgets/overview.tsx
 msgid "Less"
@@ -5633,6 +5649,10 @@ msgstr "Matches \"{name}\" already in your library. Name, author, type and libra
 msgid "Matching {matchingAll}/{total}…"
 msgstr "Matching {matchingAll}/{total}…"
 
+#: src/pages/DashboardPage.tsx
+msgid "Maximum words"
+msgstr "Maximum words"
+
 #: src/pages/AdminPage.tsx
 msgid "Member"
 msgstr "Member"
@@ -5674,6 +5694,10 @@ msgstr "min"
 #: src/pages/SetupPage.tsx
 msgid "Minimum 8 characters"
 msgstr "Minimum 8 characters"
+
+#: src/pages/DashboardPage.tsx
+msgid "Minimum words"
+msgstr "Minimum words"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Minutes"
