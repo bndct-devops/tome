@@ -217,6 +217,7 @@ export function RatingTrend({ trend }: { trend: Ratings['trend'] }) {
   const tickLabel = (day: number) => {
     const iso = dayIso(day)
     if (span <= 400) return formatDate(iso)
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- ISO suffix
     const d = new Date(iso + 'T00:00:00')
     return `${d.toLocaleDateString(undefined, { month: 'short' })} '${String(d.getFullYear()).slice(-2)}`
   }

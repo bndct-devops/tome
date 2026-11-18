@@ -104,11 +104,9 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
   }
   // On a book's own page the book column would repeat one title on every row.
   const showBook = bookId == null
-  /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
   const cols = showBook
     ? 'sm:grid-cols-[minmax(0,1.4fr)_150px_96px_minmax(0,1fr)_72px]'
     : 'sm:grid-cols-[170px_110px_minmax(0,1fr)_72px]'
-  /* eslint-enable lingui/no-unlocalized-strings */
   const when = (s: SessionEntry) =>
     s.started_at ? new Date(s.started_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : '-'
   const dur = (s: SessionEntry) => (s.duration_seconds != null ? formatDuration(s.duration_seconds) : '-')
