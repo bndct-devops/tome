@@ -3361,6 +3361,10 @@ msgid "Boards"
 msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
+msgid "Boards are the customisable grid from earlier versions: the default boards and your own, each one editable."
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Boards are your own layouts from the previous Stats page. They keep working as before."
 msgstr ""
 
@@ -4123,6 +4127,10 @@ msgstr "Impossible de charger les statistiques."
 #: src/components/stats/TimelineRibbon.tsx
 msgid "Couldn't load the timeline."
 msgstr "Impossible de charger la chronologie."
+
+#: src/pages/SettingsPage.tsx
+msgid "Couldn’t save. Try again."
+msgstr ""
 
 #: src/components/stats/sessions/SessionsPage.tsx
 #: src/components/WordCount.tsx
@@ -10490,6 +10498,10 @@ msgstr ""
 msgid "Show another highlight"
 msgstr "Afficher un autre surlignage"
 
+#: src/pages/SettingsPage.tsx
+msgid "Show Boards"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Show details"
 msgstr "Afficher les détails"
@@ -10836,6 +10848,7 @@ msgstr "Crée un nouveau dossier"
 #~ msgstr "crée un nouveau dossier ; le modèle doit se terminer par {ext}"
 
 #: src/components/Sidebar.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Stats"
 msgstr "Statistiques"
@@ -11164,6 +11177,10 @@ msgstr "La bibliothèque propre au type de livre est toujours ajoutée automatiq
 
 #~ msgid "The camera is not available here. Browsers only allow it on HTTPS or localhost. Take a photo of the code and pick it below instead."
 #~ msgstr "The camera is not available here. Browsers only allow it on HTTPS or localhost. Take a photo of the code and pick it below instead."
+
+#: src/pages/SettingsPage.tsx
+msgid "The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way."
+msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "the device"

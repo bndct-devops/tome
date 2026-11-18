@@ -3367,6 +3367,10 @@ msgid "Boards"
 msgstr "Boards"
 
 #: src/components/stats/boards/BoardsView.tsx
+msgid "Boards are the customisable grid from earlier versions: the default boards and your own, each one editable."
+msgstr "Boards are the customisable grid from earlier versions: the default boards and your own, each one editable."
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Boards are your own layouts from the previous Stats page. They keep working as before."
 msgstr "Boards are your own layouts from the previous Stats page. They keep working as before."
 
@@ -4129,6 +4133,10 @@ msgstr "Couldn’t load stats."
 #: src/components/stats/TimelineRibbon.tsx
 msgid "Couldn't load the timeline."
 msgstr "Couldn't load the timeline."
+
+#: src/pages/SettingsPage.tsx
+msgid "Couldn’t save. Try again."
+msgstr "Couldn’t save. Try again."
 
 #: src/components/stats/sessions/SessionsPage.tsx
 #: src/components/WordCount.tsx
@@ -10525,6 +10533,10 @@ msgstr "Show all highlights"
 msgid "Show another highlight"
 msgstr "Show another highlight"
 
+#: src/pages/SettingsPage.tsx
+msgid "Show Boards"
+msgstr "Show Boards"
+
 #: src/pages/BookDetailPage.tsx
 msgid "Show details"
 msgstr "Show details"
@@ -10872,6 +10884,7 @@ msgstr "Starts a new folder"
 #~ msgstr "starts a new folder; the template must end with {ext}"
 
 #: src/components/Sidebar.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Stats"
 msgstr "Stats"
@@ -11201,6 +11214,10 @@ msgstr "The book type's own library is always added automatically."
 #: src/components/ScanSyncCodeModal.tsx
 #~ msgid "The camera is not available here. Browsers only allow it on HTTPS or localhost. Take a photo of the code and pick it below instead."
 #~ msgstr "The camera is not available here. Browsers only allow it on HTTPS or localhost. Take a photo of the code and pick it below instead."
+
+#: src/pages/SettingsPage.tsx
+msgid "The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way."
+msgstr "The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way."
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "the device"

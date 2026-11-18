@@ -3367,6 +3367,10 @@ msgid "Boards"
 msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
+msgid "Boards are the customisable grid from earlier versions: the default boards and your own, each one editable."
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Boards are your own layouts from the previous Stats page. They keep working as before."
 msgstr ""
 
@@ -4128,6 +4132,10 @@ msgstr ""
 
 #: src/components/stats/TimelineRibbon.tsx
 msgid "Couldn't load the timeline."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Couldn’t save. Try again."
 msgstr ""
 
 #: src/components/stats/sessions/SessionsPage.tsx
@@ -10525,6 +10533,10 @@ msgstr ""
 msgid "Show another highlight"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Show Boards"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Show details"
 msgstr ""
@@ -10872,6 +10884,7 @@ msgstr ""
 #~ msgstr ""
 
 #: src/components/Sidebar.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Stats"
 msgstr ""
@@ -11201,6 +11214,10 @@ msgstr ""
 #: src/components/ScanSyncCodeModal.tsx
 #~ msgid "The camera is not available here. Browsers only allow it on HTTPS or localhost. Take a photo of the code and pick it below instead."
 #~ msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way."
+msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "the device"
