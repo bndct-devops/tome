@@ -44,6 +44,7 @@ GUEST_PASSWORD = "e2e-password-1"
 def reset(db) -> int:
     for table in (
         "share_links",
+        "user_dashboards",
         "book_library",
         "library_users",
         "libraries",

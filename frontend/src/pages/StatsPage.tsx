@@ -10,7 +10,7 @@ import { BookAnimation } from '@/components/BookAnimation'
 import { DOCS, docsLink } from '@/lib/docs'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { customBoardIds } from '@/lib/statsBoards'
+import { boardsTabVisible, customBoardIds, readShowBoards } from '@/lib/statsBoards'
 import type { CompletionEstimate, StatsResponse } from '@/components/stats/shared'
 import { RangeControl } from '@/components/stats/RangeControl'
 import { fmtDay, type CustomRange } from '@/components/stats/range'
@@ -24,7 +24,7 @@ import type { StatsTab } from '@/components/stats/kit/page'
 import { dropStatsCache, statsCacheGet, statsFetch } from '@/components/stats/kit/useStatsGet'
 import { TipLayer } from '@/components/stats/kit/TipLayer'
 import { finishEntries } from '@/components/stats/kit/motion'
-import { PAGE_W, loadLocalDashboard, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
+import { PAGE_W, loadBoardsOn, loadLocalDashboard, saveBoardsOn, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
 import { tipAttrs } from '@/components/stats/kit/tip'
 
 /**
@@ -164,11 +164,17 @@ export function StatsPage() {
     return { data: local, shown: customBoardIds(local?.tabs) }
   })
   const [dashReady, setDashReady] = useState(false)
+  // The "Show Boards" switch (Settings › Appearance): this browser's last known
+  // state first, then the server's, from the same answer as the boards.
+  const [boardsOn, setBoardsOn] = useState(loadBoardsOn)
   useEffect(() => {
     api
       .get<{ data: Persisted | null }>('/stats/dashboard')
       .then((res) => {
         const p = res.data
+        const on = readShowBoards(p)
+        setBoardsOn(on)
+        saveBoardsOn(on)
         const local = loadLocalDashboard()
         if (p && Array.isArray(p.tabs) && p.tabs.length > 0 && (p.savedAt ?? 0) >= (local?.savedAt ?? 0)) {
           setDash({ data: p, shown: customBoardIds(p.tabs) })
@@ -177,8 +183,14 @@ export function StatsPage() {
       .catch(() => {})
       .finally(() => setDashReady(true))
   }, [])
-  const boardsShown = dash.shown.length > 0
+  const boardsShown = boardsTabVisible(boardsOn, dash.shown)
   const shownTab: TabId = tab === 'boards' && !boardsShown ? 'overview' : tab
+  // A remembered Boards tab that is gone (switch turned off, nothing customised)
+  // is drawn as the Overview from the first frame; once the server has answered,
+  // the remembered tab becomes the Overview too, so it cannot come back later.
+  useEffect(() => {
+    if (dashReady && tab === 'boards' && !boardsShown) setTab('overview')
+  }, [dashReady, tab, boardsShown])
   const [renameFirst, setRenameFirst] = useState<string | null>(null)
   const onDashboardChange = useCallback((next: Persisted, shown: string[]) => setDash({ data: next, shown }), [])
 
@@ -195,6 +207,7 @@ export function StatsPage() {
       pad: base?.pad ?? 'lot',
       days,
       savedAt: Date.now(),
+      ...(boardsOn ? { showBoards: true } : {}),
     }
     saveLocalDashboard(next)
     api.put('/stats/dashboard', { data: next }).catch(() => {})
@@ -202,7 +215,7 @@ export function StatsPage() {
     setBoard(id)
     setRenameFirst(id)
     setTab('boards')
-  }, [dash, days])
+  }, [dash, days, boardsOn])
 
   // ── Image export of what is on screen ────────────────────────────────────────
   const contentRef = useRef<HTMLDivElement>(null)
@@ -271,13 +284,14 @@ export function StatsPage() {
   } else if (!data) {
     content = <Spinner />
   } else if (shownTab === 'boards') {
-    content = dashReady && dash.data ? (
+    content = dashReady && (dash.data || boardsOn) ? (
       <Suspense fallback={<Spinner />}>
         <BoardsView
           stats={data}
           estimates={estimates}
-          dashboard={dash.data}
+          dashboard={dash.data ?? { tabs: [], activeTabId: '', pad: 'lot', days }}
           shownIds={dash.shown}
+          showAll={boardsOn}
           activeBoardId={board}
           onActiveBoard={setBoard}
           onDashboardChange={onDashboardChange}

@@ -107,6 +107,38 @@ export function customBoardIds(boards: readonly SavedBoard[] | null | undefined)
   return boards.filter((b) => b && typeof b === 'object' && !isShippedDefault(b)).map((b) => String(b.id))
 }
 
+// ── The "Show Boards" switch (Settings › Appearance) ──────────────────────────
+// Stored as `showBoards: true` in the saved dashboard blob, the one per-user
+// store the Stats page already reads; absent means off. Only the switch writes
+// it (and edits under Boards carry it along). The classification above never
+// looks at it: it reads the boards only.
+
+/** Whether the saved blob has the switch on. Anything but `true` is off. */
+export function readShowBoards(blob: unknown): boolean {
+  return !!blob && typeof blob === 'object' && (blob as { showBoards?: unknown }).showBoards === true
+}
+
+/**
+ * The blob with the switch set, every other key kept as it was. Off removes the
+ * key, so on and off again leaves the blob as it started.
+ */
+export function withShowBoards(blob: unknown, on: boolean): Record<string, unknown> {
+  const base: Record<string, unknown> = blob && typeof blob === 'object' && !Array.isArray(blob) ? { ...(blob as Record<string, unknown>) } : {}
+  if (on) base.showBoards = true
+  else delete base.showBoards
+  return base
+}
+
+/** The Boards tab exists when the switch is on or at least one saved board is the reader's own. */
+export function boardsTabVisible(showBoards: boolean, customIds: readonly string[]): boolean {
+  return showBoards || customIds.length > 0
+}
+
+/** The boards the Boards tab lists: every board with the switch on, otherwise the shown (customised) ones. */
+export function listedBoards<B extends { id: string }>(boards: readonly B[], shownIds: readonly string[], showBoards: boolean): B[] {
+  return showBoards ? [...boards] : boards.filter((b) => shownIds.includes(b.id))
+}
+
 // ── Fingerprints ──────────────────────────────────────────────────────────────
 // Every distinct default board shipped on main since the dashboard landed, from
 // `node --experimental-strip-types scripts/stats-default-boards.mjs --ts`

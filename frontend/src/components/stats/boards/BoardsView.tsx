@@ -13,6 +13,7 @@ import { ModalShell } from '@/components/ModalShell'
 import { Plus, RotateCcw, X, Sparkles, SlidersHorizontal, Pencil, Check, GripVertical, Clock, Activity, BookCheck, Flame, FileText, Target, Gauge, Search, Copy, Loader2, CloudOff, Download, Upload, Star, TrendingUp, ScatterChart as ScatterIcon, Trophy, Globe, Library as LibraryIcon, Clock3, Infinity as InfinityIcon, Type, Ruler, Repeat, type LucideIcon } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
+import { customBoardIds, listedBoards } from '@/lib/statsBoards'
 import { Trans } from '@lingui/react/macro'
 import { t, msg, plural } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
@@ -1701,6 +1702,12 @@ export type BoardsViewProps = {
   dashboard: Persisted
   /** The boards listed here: saved boards that differ from a shipped default. */
   shownIds: string[]
+  /**
+   * The "Show Boards" switch is on: every board is listed, the shipped defaults
+   * included (built from the code, and not written until an edit), as the grid
+   * was before the designed pages.
+   */
+  showAll: boolean
   activeBoardId: string | null
   onActiveBoard: (id: string) => void
   /** Called on every edit with the whole new blob and the ids now listed. */
@@ -1717,12 +1724,22 @@ export type BoardsViewProps = {
  * pages: board tabs, edit mode, drag and resize, the tile gallery, import and
  * export. Only an edit made here writes the saved blob; switching boards does not.
  */
-export default function BoardsView({ stats, estimates, dashboard, shownIds, activeBoardId, onActiveBoard, onDashboardChange, days, renameFirst, boardRef }: BoardsViewProps) {
+// A default board missing from the saved set (never saved, or saved before it
+// shipped) is added after the saved ones, as the grid did before the designed pages.
+function withMissingDefaults(tabs: TabState[]): TabState[] {
+  const have = new Set(tabs.map((x) => x.id))
+  return [...tabs, ...TAB_DEFS.filter((d) => !have.has(d.id)).map(buildTab)]
+}
+
+export default function BoardsView({ stats, estimates, dashboard, shownIds, showAll, activeBoardId, onActiveBoard, onDashboardChange, days, renameFirst, boardRef }: BoardsViewProps) {
   const [editMode, setEditMode] = useState(false)
   const [pad, setPadState] = useState<PadWidth>(dashboard.pad ?? 'lot')
   const [addOpen, setAddOpen] = useState(false)
   const [goals, setGoals] = useState<Goal[] | null>(null)
-  const [tabs, setTabsState] = useState<TabState[]>(() => sanitizePersisted(dashboard)?.tabs ?? [])
+  const [tabs, setTabsState] = useState<TabState[]>(() => {
+    const saved = sanitizePersisted(dashboard)?.tabs ?? []
+    return showAll ? withMissingDefaults(saved) : saved
+  })
   const [shown, setShown] = useState<string[]>(shownIds)
   // Bumped by every edit; the save effect below runs on it and nothing else.
   const [editTick, setEditTick] = useState(0)
@@ -1734,7 +1751,7 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, acti
     setPadState(p)
     setEditTick((n) => n + 1)
   }, [])
-  const visibleTabs = useMemo(() => tabs.filter((x) => shown.includes(x.id)), [tabs, shown])
+  const visibleTabs = useMemo(() => listedBoards(tabs, shown, showAll), [tabs, shown, showAll])
   const active = visibleTabs.find((x) => x.id === activeBoardId) ?? visibleTabs[0]
   const activeTabId = active?.id ?? ''
   const setActiveTabId = onActiveBoard
@@ -1802,10 +1819,12 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, acti
   const latest = useRef<Persisted | null>(null)
   useEffect(() => {
     if (editTick === 0) return
-    const state: Persisted = { tabs, activeTabId: activeTabId || dashboard.activeTabId, pad, days, savedAt: Date.now() }
+    const state: Persisted = { tabs, activeTabId: activeTabId || dashboard.activeTabId, pad, days, savedAt: Date.now(), ...(showAll ? { showBoards: true } : {}) }
     latest.current = state
     saveLocalDashboard(state)
-    onDashboardChange(state, shown)
+    // With every board listed, a default edited here becomes one of the reader's
+    // own, so it stays under Boards once the switch is off again.
+    onDashboardChange(state, showAll ? [...new Set([...shown, ...customBoardIds(tabs)])] : shown)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {
       saveTimer.current = null
@@ -2179,7 +2198,9 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, acti
       </div>
 
       <p className="-mt-2 text-[14px] text-muted-foreground">
-        <Trans>Boards are your own layouts from the previous Stats page. They keep working as before.</Trans>
+        {showAll
+          ? <Trans>Boards are the customisable grid from earlier versions: the default boards and your own, each one editable.</Trans>
+          : <Trans>Boards are your own layouts from the previous Stats page. They keep working as before.</Trans>}
       </p>
 
       {/* one-time hint that the page is editable: a quiet line, not a banner */}

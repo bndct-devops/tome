@@ -34,7 +34,9 @@ export const LS_KEY = 'tome_stats_lab_v2'
 // The saved blob. Its shape is unchanged since the dashboard shipped: older
 // clients still read `activeTabId` (a board id) and `days` (the range preset).
 // Only edits made under Boards write it.
-export type Persisted = { tabs: TabState[]; activeTabId: string; pad: PadWidth; days: number; savedAt?: number }
+// `showBoards` is the Settings switch that lists every board under a Boards tab
+// (see lib/statsBoards); older clients ignore it.
+export type Persisted = { tabs: TabState[]; activeTabId: string; pad: PadWidth; days: number; savedAt?: number; showBoards?: boolean }
 
 /** The local copy of the saved boards, shape-checked only (no widget catalog here). */
 export function loadLocalDashboard(): Persisted | null {
@@ -45,6 +47,27 @@ export function loadLocalDashboard(): Persisted | null {
     return p && Array.isArray(p.tabs) && p.tabs.length > 0 ? p : null
   } catch {
     return null
+  }
+}
+
+// This browser's last known state of the "Show Boards" switch, so the Boards tab
+// is there on the first frame; the server's blob is the truth and replaces it.
+const BOARDS_ON_KEY = 'tome_stats_boards_on'
+
+export function loadBoardsOn(): boolean {
+  try {
+    return localStorage.getItem(BOARDS_ON_KEY) === '1'
+  } catch {
+    return false
+  }
+}
+
+export function saveBoardsOn(on: boolean) {
+  try {
+    if (on) localStorage.setItem(BOARDS_ON_KEY, '1')
+    else localStorage.removeItem(BOARDS_ON_KEY)
+  } catch {
+    // storage unavailable - the tab follows the server answer instead
   }
 }
 

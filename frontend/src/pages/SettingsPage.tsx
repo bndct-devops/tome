@@ -1,5 +1,5 @@
 import { TelemetrySettings } from '@/components/TelemetryConsentCard'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
@@ -35,6 +35,8 @@ import { Trans, Plural, useLingui } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import { LOCALES, getActiveLocale, setLocale } from '@/lib/i18n'
+import { readShowBoards, withShowBoards } from '@/lib/statsBoards'
+import { loadBoardsOn, saveBoardsOn } from '@/components/stats/boards/types'
 
 interface ApiKey {
   id: number
@@ -952,7 +954,88 @@ function AppearanceSection() {
             )}
           </div>
 
+          <StatsBoardsSetting />
+
         </PanelSection>
+  )
+}
+
+/**
+ * Stats › Boards for everyone: lists the customisable grid from earlier versions
+ * as a Boards tab, the shipped default boards included. Off by default; boards a
+ * reader has changed show under Boards either way. Kept in the saved dashboard
+ * blob (`showBoards`) so it follows the account; this is the only place that
+ * writes the flag, and it changes nothing else in the blob.
+ */
+function StatsBoardsSetting() {
+  const [on, setOn] = useState(loadBoardsOn)
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  // A flip before the first answer arrives wins over that answer.
+  const touched = useRef(false)
+  useEffect(() => {
+    let alive = true
+    api.get<{ data: unknown }>('/stats/dashboard')
+      .then(r => {
+        if (!alive || touched.current) return
+        const v = readShowBoards(r.data)
+        setOn(v)
+        saveBoardsOn(v)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  async function toggle() {
+    const next = !on
+    touched.current = true
+    setOn(next)
+    setBusy(true)
+    setFailed(false)
+    try {
+      // Written onto the server's current blob, so boards saved from another
+      // browser meanwhile are kept as they are.
+      const r = await api.get<{ data: unknown }>('/stats/dashboard')
+      await api.put('/stats/dashboard', { data: withShowBoards(r.data, next) })
+      saveBoardsOn(next)
+    } catch {
+      setOn(!next)
+      setFailed(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-6 pt-5 border-t border-border/70">
+      <p className="text-[13px] text-muted-foreground mb-3"><Trans>Stats</Trans></p>
+      <div className="flex items-center justify-between gap-3 max-w-2xl">
+        <div>
+          <p id="stats-boards-label" className="text-sm text-foreground"><Trans>Show Boards</Trans></p>
+          <p className="text-[13px] text-muted-foreground mt-0.5">
+            <Trans>The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way.</Trans>
+          </p>
+          {failed && <p className="text-[13px] text-destructive mt-1"><Trans>Couldn’t save. Try again.</Trans></p>}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-labelledby="stats-boards-label"
+          disabled={busy}
+          onClick={() => void toggle()}
+          className={cn(
+            'relative w-9 h-5 rounded-full transition-colors shrink-0',
+            on ? 'bg-primary' : 'bg-muted-foreground/30'
+          )}
+        >
+          <span className={cn(
+            'absolute left-0 top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
+            on ? 'translate-x-[18px]' : 'translate-x-0.5'
+          )} />
+        </button>
+      </div>
+    </div>
   )
 }
 
