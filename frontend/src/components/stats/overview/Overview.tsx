@@ -29,11 +29,22 @@ import { bestDay, busiestMonth, dayDiff, emptyYear, heroBars, hourHeatHeight, ho
 
 const HERO_CHART_H = 180
 // The desktop hero's figures as one row: every cell spans the row's four lines
-// (caption, figure, foot, second foot) on a shared subgrid, baseline-aligned, so the
-// 40 px figures sit on the 60 px total's baseline and each foot line is one line
-// across the row. Without subgrid baselines a browser still lines the rows up by top.
+// (caption, figure, foot, second foot) on a shared subgrid, top-aligned. The small
+// cells' figure and foot are pushed down by fixed margins (FIG_SMALL_MT, FOOT_SMALL_MT)
+// so the 40 px figures sit on the 60 px total's baseline and each foot line is one line
+// across the row. Baseline alignment across subgrid items did this in Chromium only:
+// Firefox lines the rows up by top and WebKit offsets the feet and changes the row's
+// height between layouts, so the alignment follows from the box model instead.
 const FIG_ROW = 'grid grid-cols-[342px_repeat(4,minmax(0,1fr))] grid-rows-[repeat(4,auto)]'
-const FIG_ROW_CELL = 'row-span-4 grid grid-rows-subgrid items-baseline'
+const FIG_ROW_CELL = 'row-span-4 grid grid-rows-subgrid items-start'
+// The total's figure is 60 px at line-height 1 after a 10 px margin; a 40 px figure at
+// line-height 1 shares its baseline 27 px below the row's top (the display font's
+// baseline sits 0.85 em into a line-height 1 box: 10 + 0.85 · (60 − 40) ≈ 27). The
+// total's 14 px change line after 12 px and a 13 px foot line (both line-height 1.4)
+// share a baseline when the foot starts 13 px down. The values Chromium's baseline
+// alignment gave, measured.
+const FIG_SMALL_MT = 'mt-[27px]'
+const FOOT_SMALL_MT = 'mt-[13px]'
 const COVER_SHELF_H = 120
 const COVER_SHELF_W = 80 // 2:3 at 120 high
 const SHELF_GAP = 12
@@ -217,11 +228,11 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
       )}
     >
       <div className="text-[14px] text-muted-foreground">{f.label}</div>
-      <div className={cn('mt-1.5 font-display font-bold tabular-nums', desktop ? 'text-[40px]' : 'text-[32px]', 'leading-none', loading ? 'text-foreground' : f.tone ?? 'text-foreground')}>
+      <div className={cn('font-display font-bold tabular-nums', desktop ? cn(FIG_SMALL_MT, 'text-[40px]') : 'mt-1.5 text-[32px]', 'leading-none', loading ? 'text-foreground' : f.tone ?? 'text-foreground')}>
         <Ph on={loading}>{loading ? f.ph : f.value}</Ph>
         {f.unit && <span className="ml-1.5 font-sans text-[16px] font-semibold tracking-normal">{f.unit}</span>}
       </div>
-      <div className="mt-1.5 text-[13px] leading-[1.4] text-muted-foreground">{loading ? <Ph on>{f.phFoot}</Ph> : f.foot}</div>
+      <div className={cn(desktop ? FOOT_SMALL_MT : 'mt-1.5', 'text-[13px] leading-[1.4] text-muted-foreground')}>{loading ? <Ph on>{f.phFoot}</Ph> : f.foot}</div>
       {f.phFoot2 && <div className="text-[13px] leading-[1.4] text-muted-foreground">{loading ? <Ph on>{f.phFoot2}</Ph> : f.foot2}</div>}
     </div>
   ))
