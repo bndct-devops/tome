@@ -5642,7 +5642,7 @@ msgid "On {names}"
 msgstr "En {names}"
 
 #: src/pages/LoginPage.tsx
-msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
+msgid "On a device where you're already signed in, go to <0>Settings → Access → Quick Connect</0> and enter this code."
 msgstr "En un dispositivo en el que ya hayas iniciado sesión, ve a <0>Ajustes → Acceso → Conexión rápida</0> e introduce este código."
 
 #: src/pages/StatsPage.tsx
@@ -6361,12 +6361,12 @@ msgstr "Relecturas"
 msgid "read"
 msgstr "leído"
 
-#: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Read"
 msgstr "Leído"
 
 #: src/components/BookCard.tsx
+#: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgctxt "action"

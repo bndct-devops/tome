@@ -1696,7 +1696,7 @@ msgstr "Accepté : {title}"
 
 #: src/pages/SettingsPage.tsx
 msgid "Access"
-msgstr ""
+msgstr "Accès"
 
 #: src/components/NotificationChannels.tsx
 msgid "Access token (only for protected topics)"
@@ -6676,8 +6676,12 @@ msgid "On {names}"
 msgstr "Sur {names}"
 
 #: src/pages/LoginPage.tsx
-msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
-msgstr "Sur un appareil où vous êtes déjà connecté, allez dans <0>Paramètres → Sécurité → Connexion rapide</0> et saisissez ce code."
+msgid "On a device where you're already signed in, go to <0>Settings → Access → Quick Connect</0> and enter this code."
+msgstr "Sur un appareil où vous êtes déjà connecté, allez dans <0>Paramètres → Accès → Connexion rapide</0> et saisissez ce code."
+
+#: src/pages/LoginPage.tsx
+#~ msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
+#~ msgstr "Sur un appareil où vous êtes déjà connecté, allez dans <0>Paramètres → Sécurité → Connexion rapide</0> et saisissez ce code."
 
 #: src/pages/StatsPage.tsx
 msgid "on board"
@@ -7582,12 +7586,12 @@ msgstr "Relectures"
 msgid "read"
 msgstr "lu"
 
-#: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Read"
 msgstr "Read"
 
 #: src/components/BookCard.tsx
+#: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgctxt "action"
