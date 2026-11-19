@@ -7,6 +7,7 @@
 import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { GUIDE, MARK, setTipLayer, tipFor, type Tip, type TipRect } from './tip'
+import { DESKTOP_MIN } from './tokens'
 
 const GAP = 8
 // The marks' chart: its gaps keep the tip.
@@ -74,6 +75,18 @@ export function TipLayer() {
         // No room on the right (a set at the window's edge): left of the whole set.
         const left = (set ?? group).getBoundingClientRect().left - 12 - w
         if (left >= EDGE) return { x: left, y: fitY(g.top + g.height / 2 - h / 2) }
+      }
+      if (vw < DESKTOP_MIN) {
+        // Narrow window: the row spans the width, so the tip at the bar's end would
+        // lie over the next rows' titles and bars. It goes above the whole row (its
+        // title too), below it when the window ends above, never over the row itself.
+        const set = el.closest('.k-bars')
+        let row: Element = group
+        while (set && row.parentElement && row.parentElement !== set && set.contains(row.parentElement)) row = row.parentElement
+        const r = (set && set.contains(row) && row !== set ? row : group).getBoundingClientRect()
+        let y = r.top - h - GAP
+        if (y < EDGE) y = Math.min(r.bottom + GAP, vh - h - EDGE)
+        return { x: clampX(end - 16), y }
       }
       let y = g.bottom + GAP
       if (y + h > vh - EDGE) y = Math.max(EDGE, g.top - h - GAP)
