@@ -6697,8 +6697,12 @@ msgid "On {names}"
 msgstr ""
 
 #: src/pages/LoginPage.tsx
-msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
+msgid "On a device where you're already signed in, go to <0>Settings → Access → Quick Connect</0> and enter this code."
 msgstr ""
+
+#: src/pages/LoginPage.tsx
+#~ msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
+#~ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "on board"
@@ -7608,12 +7612,12 @@ msgstr ""
 msgid "read"
 msgstr "阅读"
 
-#: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Read"
 msgstr "阅读"
 
 #: src/components/BookCard.tsx
+#: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgctxt "action"

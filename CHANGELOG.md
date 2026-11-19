@@ -23,6 +23,9 @@ All notable changes to Tome are documented here. Format loosely follows
   either way and are hidden once a bound is set. The bounds work with the
   other filters, select-all and saved shelves, including shelves in the
   KOReader plugin and the backlog estimate. Contributed by @cliophate (#313).
+- **Spanish translation.** The web UI is available in Spanish (Settings →
+  Language), with every string translated. Contributed by @PedroFlores199
+  (#314).
 
 ### Security
 - **The web server only serves files from its own interface folder.** A
@@ -107,6 +110,11 @@ All notable changes to Tome are documented here. Format loosely follows
   name.
 
 ### Fixed
+- **The "Read" button in Quick look is a verb in every language.** It shared
+  its text with the "Read" status, so in Spanish it said "Leído" where "Leer"
+  was meant.
+- **The sign-in-with-a-code hint points to the right place.** It sent you to
+  Settings → Security; Quick Connect is under Settings → Access.
 - **The API docs show the real version.** `/api/docs` reported 1.7.0 whatever
   release was running.
 - **Build tooling: minimatch 11 for the lint and build dependencies** that

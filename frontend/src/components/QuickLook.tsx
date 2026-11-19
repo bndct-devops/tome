@@ -109,7 +109,7 @@ export function QuickLook({ bookId, onClose }: { bookId: number; onClose: () => 
           <div className="mt-auto pt-5 flex items-center gap-2">
             <Pill variant="primary" onClick={() => navigate(`/reader/${bookId}`)}>
               <Play className="w-4 h-4 fill-current" />
-              {status?.status === 'read' && pct >= 100 ? <Trans>Read again</Trans> : pct > 0 ? <Trans>Resume</Trans> : <Trans>Read</Trans>}
+              {status?.status === 'read' && pct >= 100 ? <Trans>Read again</Trans> : pct > 0 ? <Trans>Resume</Trans> : <Trans context="action">Read</Trans>}
             </Pill>
             <Pill onClick={() => { onClose(); navigate(`/books/${bookId}`) }}>
               <Trans>Open page</Trans>

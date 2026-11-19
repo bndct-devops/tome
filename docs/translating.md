@@ -38,8 +38,7 @@ Rules of thumb:
 3. Run `npm run i18n:extract` in `frontend/`. This creates
    `src/locales/<code>/messages.po` with every source string and empty
    `msgstr`s.
-4. Translate, then open a pull request. Please mention in the PR whether you
-   are happy to be pinged for future updates to that language.
+4. Translate, then open a pull request.
 
 ## For developers: keeping strings translatable
 
