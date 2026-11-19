@@ -152,7 +152,13 @@ export function TipLayer() {
         if (first) { hot = hot === first ? null : hot; show(first, true) }
       }
     }
-    const onBlur = () => hide()
+    // Only focus leaving the tip's own mark or chart hides it. A tap's compatibility
+    // mousedown moves focus off whatever was tapped before (a tab, a range button)
+    // after the tap has opened a tip, and that blur is not about the tip. A Guide
+    // hides its own tip on its svg's blur.
+    const onBlur = (e: FocusEvent) => {
+      if (hot && e.target instanceof Node && e.target.contains(hot)) hide()
+    }
     const onKey = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { hide(); return }
       const host = document.activeElement
