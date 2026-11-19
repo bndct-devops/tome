@@ -25,6 +25,7 @@ import { useChartColors } from '@/lib/useChartAccent'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { HourDowHeatmap } from '@/components/stats/HourDowHeatmap'
 import { ChartTooltip, type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
+import { dec1 } from '@/components/stats/kit/tokens'
 import { axisDuration, dayIso, evenDateTicks, isoDay, niceDurationTicks } from '@/components/stats/axis'
 import { coverSrc } from '@/lib/covers'
 
@@ -156,7 +157,7 @@ function PaceArea({ days }: { days: PaceDay[] }) {
           axisLine={false}
           tickLine={false}
         />
-        <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} />
+        <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => dec1(v)} />
         <Tooltip
           cursor={cursor}
           wrapperStyle={{ outline: 'none' }}
@@ -188,7 +189,7 @@ export function ReadingPaceChart({ pace }: { pace: StatsResponse['reading_pace']
       <div className="min-h-0 flex-1">
         <PaceArea days={paceByDay(pace)} />
       </div>
-      {(() => { const a = avg.toFixed(1); return <p className="text-[13px] text-muted-foreground text-center shrink-0"><Trans>avg {a} pg/min</Trans></p> })()}
+      {(() => { const a = dec1(avg); return <p className="text-[13px] text-muted-foreground text-center shrink-0"><Trans>avg {a} pg/min</Trans></p> })()}
     </div>
   )
 }
@@ -209,7 +210,7 @@ export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'
         <span className={cn('text-sm font-semibold', trending === 'up' ? 'text-success' : trending === 'down' ? 'text-destructive' : 'text-muted-foreground')}>
           {(() => { const up = pctDiff; const down = Math.abs(pctDiff); return trending === 'up' ? t`Reading speed up ${up}%` : trending === 'down' ? t`Reading speed down ${down}%` : t`Reading speed steady` })()}
         </span>
-        {(() => { const a = secondAvg.toFixed(1); const b = firstAvg.toFixed(1); return <span className="text-[13px] text-muted-foreground ml-1"><Trans>({a} vs {b} pg/min)</Trans></span> })()}
+        {(() => { const a = dec1(secondAvg); const b = dec1(firstAvg); return <span className="text-[13px] text-muted-foreground ml-1"><Trans>({a} vs {b} pg/min)</Trans></span> })()}
       </div>
       <div className="min-h-0 flex-1">
         <PaceArea days={paceByDay(pace)} />

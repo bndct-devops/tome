@@ -18,6 +18,7 @@ import { useChartColors } from '@/lib/useChartAccent'
 import { useEffect, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
+import { num } from '@/components/stats/kit/tokens'
 import { axisDuration, dayIso, evenDateTicks, isoDay, niceDurationTicks } from '@/components/stats/axis'
 import { coverSrc } from '@/lib/covers'
 import { api } from '@/lib/api'
@@ -171,7 +172,7 @@ export function ReadingTimePerDay({ daily, chartType = 'bar' }: { daily: StatsRe
                 <div>{formatDuration(d.seconds)}</div>
                 <div className="text-muted-foreground">
                   {d.sessions} session{d.sessions !== 1 ? 's' : ''}
-                  {d.pages > 0 ? (() => { const pages = d.pages.toLocaleString(); return t` · ${pages} pages` })() : ''}
+                  {d.pages > 0 ? (() => { const pages = num(d.pages); return t` · ${pages} pages` })() : ''}
                 </div>
               </ChartTooltip>
             )

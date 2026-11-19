@@ -7,6 +7,7 @@ import { formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { ChartTooltip, type StatsResponse, type StreakSummary } from '@/components/stats/shared'
+import { num } from '@/components/stats/kit/tokens'
 
 const fmtDay = (d: string | null) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '--'
@@ -18,7 +19,7 @@ export function LifetimeTotals({ data }: { data: StatsResponse['lifetime'] }) {
   if (!data) return <Empty />
   const items: { icon: LucideIcon; label: string; value: string }[] = [
     { icon: Clock, label: t`Total time`, value: formatDuration(data.seconds) },
-    { icon: FileText, label: t`Pages`, value: data.pages.toLocaleString() },
+    { icon: FileText, label: t`Pages`, value: num(data.pages) },
     { icon: BookCheck, label: t`Books finished`, value: String(data.books_finished) },
     { icon: Activity, label: t`Sessions`, value: String(data.sessions) },
     { icon: Calendar, label: t`Active days`, value: String(data.active_days) },
@@ -63,7 +64,7 @@ export function PersonalRecords({ data, streaks }: { data: StatsResponse['record
     ...streakRows,
     { icon: Timer, label: t`Longest session`, value: formatDuration(data.longest_session_seconds), sub: data.longest_session_title },
     { icon: Sun, label: t`Biggest reading day`, value: formatDuration(data.biggest_day_seconds), sub: fmtDay(data.biggest_day_date) },
-    { icon: FileText, label: t`Most pages in a day`, value: data.most_pages_day.toLocaleString(), sub: fmtDay(data.most_pages_date) },
+    { icon: FileText, label: t`Most pages in a day`, value: num(data.most_pages_day), sub: fmtDay(data.most_pages_date) },
   ]
   return (
     <div className="flex flex-col">

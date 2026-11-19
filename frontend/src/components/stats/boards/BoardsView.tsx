@@ -19,6 +19,7 @@ import { t, msg, plural } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
+import { num } from '@/components/stats/kit/tokens'
 import { ReadingDNABody } from '@/components/stats/ReadingDNACard'
 import { TimelineRibbon } from '@/components/stats/TimelineRibbon'
 import { FullBleedTimeline } from '@/components/stats/FullBleedTimeline'
@@ -251,7 +252,7 @@ const WIDGETS: WidgetDef[] = [
     title: msg`Pages turned`,
     icon: FileText,
     size: STAT_SIZE,
-    render: ({ stats }) => <HeadlineStatBody value={stats.headline.pages_turned.toLocaleString()} />,
+    render: ({ stats }) => <HeadlineStatBody value={num(stats.headline.pages_turned)} />,
   },
   {
     id: 'stat-completion',

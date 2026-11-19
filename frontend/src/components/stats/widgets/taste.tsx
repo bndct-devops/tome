@@ -23,6 +23,7 @@ import { dayIso, evenDateTicks, isoDay } from '@/components/stats/axis'
 import { StarRating } from '@/components/StarRating'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
+import { dec1 } from '@/components/stats/kit/tokens'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { coverSrc } from '@/lib/covers'
@@ -88,7 +89,7 @@ export function TasteByGenre({ data }: { data: Ratings['by_category'] }) {
           <div key={d.category}>
             <div className="mb-1 flex items-center justify-between text-[13px]">
               <span className="truncate font-medium text-foreground">{d.category}</span>
-              <span className="text-muted-foreground">{d.avg.toFixed(1)} · {d.count}</span>
+              <span className="text-muted-foreground">{dec1(d.avg)} · {d.count}</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full" style={{ width: `${(d.avg / 5) * 100}%`, backgroundColor: accent }} />
@@ -110,7 +111,7 @@ export function TasteByGenre({ data }: { data: Ratings['by_category'] }) {
           content={({ active, payload }) => {
             if (!active || !payload?.length) return null
             const d = payload[0].payload
-            return <ChartTooltip><div className="font-medium">{d.category}</div><div className="text-muted-foreground">avg {d.avg.toFixed(1)}★ · {d.count} book{d.count !== 1 ? 's' : ''}</div></ChartTooltip>
+            return <ChartTooltip><div className="font-medium">{d.category}</div><div className="text-muted-foreground">avg {dec1(d.avg)}★ · {d.count} book{d.count !== 1 ? 's' : ''}</div></ChartTooltip>
           }}
         />
       </RadarChart>
