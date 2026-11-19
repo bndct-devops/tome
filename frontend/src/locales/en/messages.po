@@ -11216,8 +11216,12 @@ msgstr "The book type's own library is always added automatically."
 #~ msgstr "The camera is not available here. Browsers only allow it on HTTPS or localhost. Take a photo of the code and pick it below instead."
 
 #: src/pages/SettingsPage.tsx
-msgid "The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way."
-msgstr "The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way."
+#~ msgid "The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way."
+#~ msgstr "The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way."
+
+#: src/pages/SettingsPage.tsx
+msgid "The customisable grid from earlier versions, as an extra tab on Stats. Turning it off hides the tab; your boards are kept."
+msgstr "The customisable grid from earlier versions, as an extra tab on Stats. Turning it off hides the tab; your boards are kept."
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "the device"

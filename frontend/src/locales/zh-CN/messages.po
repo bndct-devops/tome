@@ -11216,7 +11216,11 @@ msgstr ""
 #~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way."
+#~ msgid "The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way."
+#~ msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "The customisable grid from earlier versions, as an extra tab on Stats. Turning it off hides the tab; your boards are kept."
 msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
