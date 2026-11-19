@@ -68,7 +68,9 @@
    Opacity only, from the data-hot attribute: nothing re-renders, nothing moves. */
 .k-bar { transition: opacity 120ms var(--k-ease); }
 .k-bars:has([data-hot]:not(button)) .k-bar { opacity: 0.6; } /* a tip on a button in the set (a goal's edit) is no bar */
-.k-bars .k-bar[data-hot], .k-bars .k-col:has([data-hot]) .k-bar,
+/* The hot bar itself (an HTML track) through :has() as well: the dimming rule above
+   counts its :has() argument, so a plain .k-bars .k-bar[data-hot] lost to it. */
+.k-bars:has([data-hot]) .k-bar[data-hot], .k-bars .k-col:has([data-hot]) .k-bar,
 .k-bars .k-col[data-hot] .k-bar { opacity: 1; } /* an HTML row that is itself the mark (Taste's distribution) */
 .k-bars .k-hit[data-hot] { fill: color-mix(in oklch, var(--muted-foreground) 8%, transparent); }
 
