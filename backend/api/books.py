@@ -35,7 +35,7 @@ from backend.models.library import Library
 from backend.models.user import User
 from pydantic import BaseModel as PydanticBaseModel
 from backend.schemas.book import (
-    ApplyMetadataRequest, BookDetailOut, BookOut, BookUpdate,
+    ApplyMetadataRequest, BookDetailOut, BookOut, BookUpdate, BookWithDescriptionOut,
     MetadataCandidateOut, ScanResultOut,
 )
 from backend.services.scanner import import_incoming, scan_library
@@ -349,6 +349,7 @@ def list_books(
     on_device: Optional[str] = Query(None, description="Only books on these KOReader devices of the current user (device names, comma-separated; all must hold the book)"),
     not_on_device: Optional[str] = Query(None, description="Only books on none of these KOReader devices of the current user (device names, comma-separated)"),
     group_by_series: Optional[bool] = Query(None, description="Collapse series into one representative book each, annotated with series_count"),
+    include: Optional[str] = Query(None, description="Extra fields for each book, comma-separated. Supported: description. Unknown names are ignored."),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -493,8 +494,31 @@ def list_books(
             book.series_count = int(series_count)
             book.stack_cover_ids = fan_map.get(book.series or "", [])
             books.append(book)
-        return books
-    return rows
+    else:
+        books = rows
+    if include and "description" in {part.strip() for part in include.split(",")}:
+        return _with_description(books, response)
+    return books
+
+
+def _with_description(books: list[Book], response: Response) -> Response:
+    """The list reply with each book's description added.
+
+    The description is a column of the books rows already loaded, so this adds
+    no queries. Returned as a ready response because response_model would drop
+    the extra field; serialized the same way FastAPI serializes the default
+    reply, with the headers already set on it.
+    """
+    from pydantic import TypeAdapter
+    body = TypeAdapter(list[BookWithDescriptionOut]).dump_json(
+        [BookWithDescriptionOut.model_validate(b) for b in books]
+    )
+    reply = Response(content=body, media_type="application/json")
+    reply.headers.raw.extend(
+        (k, v) for k, v in response.headers.raw
+        if k not in (b"content-length", b"content-type")
+    )
+    return reply
 
 
 # ── Facets (for filter dropdowns) ────────────────────────────────────────────

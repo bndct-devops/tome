@@ -26,6 +26,10 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Spanish translation.** The web UI is available in Spanish (Settings →
   Language), with every string translated. Contributed by @PedroFlores199
   (#314).
+- **Descriptions in the book list, on request.** `GET /api/books` accepts
+  `include=description` to add each book's description to the list items, so
+  a client that keeps an offline copy of the library needs no request per
+  book. Without it the reply is unchanged.
 
 ### Security
 - **The web server only serves files from its own interface folder.** A
