@@ -4,7 +4,7 @@
 // Motion and hover come from the kit: each section has an entry (kit/motion.ts:
 // range-bound sections play again for a new range, the rest once a session),
 // figures count up (CountUp), chart marks and rows have tips (kit/tip.ts).
-import { useCallback, useMemo, type CSSProperties, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
@@ -56,6 +56,11 @@ export function HabitsPage({ stats, pending, days, custom, requested }: Designed
   // both stay dimmed until both have answered for it.
   const bothDim = pending || habitsQ.pending ? DIM : UNDIM
   const allTime = days === 0 && !custom
+  // Whether the phone's Slowest list was there last time (null: a first visit). Not
+  // known, the skeleton leaves it out and the sections under Reading speed wait for
+  // the answer, so nothing drawn moves when it lands.
+  const [slowMem] = useState(rememberedSlow)
+  const holdSpeed = !desktop && !stats && slowMem === null
 
   // What the entries key on: the range an answer is for (sections that follow it), or once.
   const sig = stats ? rangeSig(days, custom) : null
@@ -99,16 +104,16 @@ export function HabitsPage({ stats, pending, days, custom, requested }: Designed
           {desktop ? (
             <div data-box="row-b" className="grid items-start" style={cols}>
               <PaceSection stats={stats} width={left} desktop rangeWords={rangeWords} dim={statsDim} sig={sig} />
-              <Speed stats={stats} desktop sig={once} />
+              <Speed stats={stats} desktop sig={once} slowMem={slowMem} />
             </div>
           ) : (
             <>
               <PaceSection stats={stats} width={width} desktop={false} rangeWords={rangeWords} dim={statsDim} sig={sig} />
-              <Speed stats={stats} desktop={false} sig={once} />
+              <Speed stats={stats} desktop={false} sig={once} slowMem={slowMem} />
             </>
           )}
-          <MonthsSection stats={stats} width={width} phone={!desktop} sig={once} />
-          <Character stats={stats} desktop={desktop} sig={once} />
+          {!holdSpeed && <MonthsSection stats={stats} width={width} phone={!desktop} sig={once} />}
+          {!holdSpeed && <Character stats={stats} desktop={desktop} sig={once} />}
         </>
       )}
     </div>
@@ -220,7 +225,7 @@ function Sessions({ stats, habits, desktop, allTime, dim, sig }: { stats: StatsR
       ) : (
         <>
           <span className="block"><Trans>No sittings in this range.</Trans></span>
-          <span className="block"> </span>
+          <span className="block">{'\u00a0'}</span>
         </>
       ),
       ph: PH.longest,
@@ -447,14 +452,32 @@ function WpmRow({ b, first, style }: { b: WpmBook | null; first: boolean; style?
   )
 }
 
-function Speed({ stats, desktop, sig }: { stats: StatsResponse | null; desktop: boolean; sig: string | null }) {
+const SLOW_KEY = 'tome_stats_habits_slow'
+function rememberedSlow(): boolean | null {
+  try {
+    const v = localStorage.getItem(SLOW_KEY)
+    return v === '1' ? true : v === '0' ? false : null
+  } catch {
+    return null
+  }
+}
+
+function Speed({ stats, desktop, sig, slowMem }: { stats: StatsResponse | null; desktop: boolean; sig: string | null; slowMem: boolean | null }) {
   const [e, enter] = useSection('habits/speed', sig)
   const w = stats?.wpm
   const ws = stats?.words
   const none = !!w && w.books_counted === 0
   const blank = Array.from({ length: WPM_ROWS }, () => null)
   const fast: (WpmBook | null)[] = w ? w.books.slice(0, WPM_ROWS) : blank
-  const slow: (WpmBook | null)[] = w ? (w.books.length > 6 ? w.books.slice(-WPM_ROWS).reverse() : []) : blank
+  const slow: (WpmBook | null)[] = w ? (w.books.length > 6 ? w.books.slice(-WPM_ROWS).reverse() : []) : desktop || slowMem ? blank : []
+  useEffect(() => {
+    if (!w) return
+    try {
+      localStorage.setItem(SLOW_KEY, w.books.length > 6 ? '1' : '0')
+    } catch {
+      // storage unavailable: the phone's skeleton leaves the list out
+    }
+  }, [w])
   const list = (title: ReactNode, rows: (WpmBook | null)[], key: string, from: number) => (
     <div data-box={`speed-${key}`} className="min-w-0">
       <div className="mb-2.5 h-[18px] text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">{title}</div>
@@ -567,8 +590,8 @@ function Character({ stats, desktop, sig }: { stats: StatsResponse | null; deskt
                     </>
                   ) : (
                     <>
-                      <Ph on={loading}>{loading ? PH.pole : ' '}</Ph>
-                      <Ph on={loading}>{loading ? PH.pole : ' '}</Ph>
+                      <Ph on={loading}>{loading ? PH.pole : '\u00a0'}</Ph>
+                      <Ph on={loading}>{loading ? PH.pole : '\u00a0'}</Ph>
                     </>
                   )}
                 </div>

@@ -417,8 +417,8 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
   return (
     <section ref={e.ref} id="stats-all-books" data-box="books" className={cn('scroll-mt-6', dim)}>
       <Head note={note} stack={!desktop}><Trans>All books by reading time</Trans></Head>
-      {stats && n === 0 ? (
-        <Note h={rowH}>{t`No reading in ${rangePhrase}.`}</Note>
+      {(stats ? n === 0 : rows === 0) ? (
+        <Note h={rowH}>{stats && t`No reading in ${rangePhrase}.`}</Note>
       ) : (
         <div role="table" aria-label={t`All books by reading time`}>
           <div role="row" className={cn('grid h-[28px] items-center pb-1.5', cols)}>

@@ -28,7 +28,7 @@ import { K, ONCE, rangeSig, stagger, useEntry } from '@/components/stats/kit/mot
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, num, useWidth } from '@/components/stats/kit/tokens'
 import { useStatsGet } from '@/components/stats/kit/useStatsGet'
-import { AUTHORS_MAX, AUTHORS_MAX_PHONE, BACKLOG_DEFAULT_ROWS, BOOKS_SHOWN, DEFAULT_SCOPE, SERIES_MAX, fmtMonth, langModel, libraryStart, rememberScope, rememberShape, rememberedScope, rememberedShape, seriesModel, typeRows, type Range, type Series, type Shape, type TypeRow } from './model'
+import { AUTHORS_MAX, AUTHORS_MAX_PHONE, BACKLOG_DEFAULT_ROWS, BOOKS_SHOWN, DEFAULT_SCOPE, SERIES_MAX, fmtMonth, langModel, libraryStart, rememberScope, rememberShape, rememberedScope, rememberedShape, seriesModel, shapeKnown, typeRows, type Range, type Series, type Shape, type TypeRow } from './model'
 import { Head, Note, RangeChip, Thin } from './parts'
 import { AddedSection, AllBooks, Backlog, ChartsRow } from './Sections'
 import { Languages } from './Languages'
@@ -58,6 +58,14 @@ export function LibraryPage({ stats, pending, days, custom }: DesignedPageProps)
   const backlog = useStatsGet<BacklogSummary>(`/stats/backlog?scope=${encodeURIComponent(scopeId)}&tz_offset=${tz}`)
   const pickScope = (id: string, label: string | null) => { setScope({ id, label }); rememberScope(id, label) }
   const shape = useMemo(rememberedShape, [])
+  // A first visit (no shape remembered in this browser): the sections sized by the
+  // stats answer are not drawn as a skeleton, so the page draws its figures and the
+  // rest when that answer lands; the backlog (its own answer) and what follows it
+  // wait for the backlog's answer when this scope's rows are not known. Nothing that
+  // is drawn moves. With the shape remembered, the whole skeleton is drawn.
+  const [known] = useState(shapeKnown)
+  const holdStats = !known && !stats
+  const holdBacklog = holdStats || (shape.backlogs[scopeId] === undefined && backlog.data == null && !backlog.failed)
 
   useEffect(() => {
     if (!stats) return
@@ -92,6 +100,7 @@ export function LibraryPage({ stats, pending, days, custom }: DesignedPageProps)
       {width > 0 && (
         <>
           <Figures {...common} />
+          {!holdStats && <>
           <SeriesSection {...common} />
           {desktop ? (
             <>
@@ -106,6 +115,8 @@ export function LibraryPage({ stats, pending, days, custom }: DesignedPageProps)
               <Languages stats={stats} desktop={desktop} rows={shape.langs} />
             </>
           )}
+          </>}
+          {!holdBacklog && <>
           <Backlog
             data={backlog.data} failed={backlog.failed} pending={backlog.pending} desktop={desktop}
             rows={shape.backlogs[scopeId] ?? BACKLOG_DEFAULT_ROWS}
@@ -114,6 +125,7 @@ export function LibraryPage({ stats, pending, days, custom }: DesignedPageProps)
           <ChartsRow stats={stats} lib={lib.data} libFailed={lib.failed} desktop={desktop} width={width} />
           <AddedSection stats={stats} desktop={desktop} width={width} />
           <AllBooks stats={stats} desktop={desktop} rows={shape.books} more={shape.booksMore} range={range} dim={dim} />
+          </>}
         </>
       )}
     </div>
@@ -138,7 +150,7 @@ function Figures({ stats, desktop }: Common) {
         // The server's completion rate: of the books marked read or reading, the share
         // marked read. One line on desktop; the phone's narrow cell takes it on a second.
         (() => {
-          if (started === 0) return { value: tb.reading, foot: t`nothing started yet`, foot2: desktop ? undefined : ' ' }
+          if (started === 0) return { value: tb.reading, foot: t`nothing started yet`, foot2: desktop ? undefined : '\u00a0' }
           const of = plural(started, { one: 'of # book started', other: 'of # books started' })
           const pct = Math.round(stats.completion_rate.pct)
           const done = t`${pct}% finished`
@@ -169,7 +181,7 @@ function Figures({ stats, desktop }: Common) {
               <Ph on={!tb}>{tb ? f.foot : i === 0 ? PH.since : PH.figFoot}</Ph>
             </div>
             {!desktop && i === 2 && (
-              <div className="truncate text-[13px] leading-[1.4] text-muted-foreground"><Ph on={!tb}>{tb ? f.foot2 ?? ' ' : PH.done2}</Ph></div>
+              <div className="truncate text-[13px] leading-[1.4] text-muted-foreground"><Ph on={!tb}>{tb ? f.foot2 ?? '\u00a0' : PH.done2}</Ph></div>
             )}
           </div>
         ))}
@@ -305,7 +317,8 @@ function SeriesSection({ stats, desktop, width, shape }: Common) {
               {open.map(card)}
             </div>
           )}
-          {model && open.length === 0 && <Note h={cardH}><Trans>Every series you started is complete.</Trans></Note>}
+          {/* The skeleton keeps the line's place too when the last answer had no series in progress. */}
+          {open.length === 0 && <Note h={cardH}>{model && <Trans>Every series you started is complete.</Trans>}</Note>}
           {showDone && (
             <div data-box="series-done" className={cn('mt-5 border-t pt-4', HAIR, desktop ? 'flex items-center gap-4' : 'block')}>
               <span className={cn('whitespace-nowrap text-[14px] text-muted-foreground', !desktop && 'mb-2.5 block')}><Ph on={!done}>{doneLabel}</Ph></span>
@@ -447,8 +460,8 @@ function Authors({ stats, desktop, shape, range, dim }: Common & { range: Range;
   return (
     <section ref={e.ref} data-box="authors" className={dim}>
       <Head note={note} stack={!desktop}><Trans>Authors</Trans></Head>
-      {stats && list.length === 0 ? (
-        <Note h={AUTHOR_ROW_H}>{t`No reading in ${rangePhrase}.`}</Note>
+      {list.length === 0 ? (
+        <Note h={AUTHOR_ROW_H}>{stats && t`No reading in ${rangePhrase}.`}</Note>
       ) : (
         <div data-box="author-rows" className={cn('k-bars grid', desktop ? 'grid-cols-2 gap-x-12' : 'grid-cols-1')}>
           {list.map((a, i) => {

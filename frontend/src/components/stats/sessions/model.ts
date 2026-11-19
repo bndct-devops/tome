@@ -39,6 +39,14 @@ export function rememberedShape(): number[] {
   }
   return FALLBACK
 }
+/** Whether this browser has a remembered shape (false on a first visit). */
+export function shapeKnown(): boolean {
+  try {
+    return localStorage.getItem(SHAPE_KEY) != null
+  } catch {
+    return false
+  }
+}
 export function rememberShape(groups: { rows: unknown[] }[]) {
   try {
     localStorage.setItem(SHAPE_KEY, JSON.stringify(groups.map((g) => g.rows.length)))

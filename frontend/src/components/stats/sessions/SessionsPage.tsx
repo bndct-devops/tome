@@ -21,7 +21,7 @@ import { ChoiceMenu } from '@/components/stats/kit/Menu'
 import { dropStatsCache } from '@/components/stats/kit/useStatsGet'
 import { sourceLabel, useSessionActions, type SessionActions } from './actions'
 import { SessionTools, TrimPanel } from './SessionTools'
-import { PAGE, groupByDay, rememberShape, rememberedShape, type Filter, type Sort } from './model'
+import { PAGE, groupByDay, rememberShape, rememberedShape, shapeKnown, type Filter, type Sort } from './model'
 import { tipAttrs } from '@/components/stats/kit/tip'
 
 /* eslint-disable lingui/no-unlocalized-strings -- placeholder text: drawn as blocks
@@ -52,7 +52,13 @@ export function SessionsPage() {
   const [more, setMore] = useState(false)
   const key = `${filter}|${sort}`
   const seq = useRef(0)
-  const shape = useMemo(() => rememberedShape(), [])
+  // A first visit (no shape remembered in this browser): the days' grouping is not
+  // known, so the skeleton draws only the first day's heading and first row (where
+  // any answer puts them) and no "Show more"; the rest is drawn when the page lands.
+  const [known] = useState(shapeKnown)
+  const shape = useMemo(() => (known ? rememberedShape() : [1]), [known])
+  // "Show more" is there when the last first page was full.
+  const moreLikely = known && shape.reduce((a, n) => a + n, 0) >= PAGE
 
   // First page of the current filter and sort; the previous list stays (dimmed) until it lands.
   useEffect(() => {
@@ -191,7 +197,7 @@ export function SessionsPage() {
             )}
           </div>
 
-          {(loading || remaining > 0) && (
+          {((loading && moreLikely) || remaining > 0) && (
             <div data-box="sessions-more" className="mt-5 flex justify-center">
               {loading ? (
                 <span className="inline-flex h-9 items-center rounded-full bg-secondary px-4 text-[14px]"><Ph on>{PH.more}</Ph></span>
@@ -311,6 +317,8 @@ function Row({ s, i, desktop, a, withDate = false }: { s: SessionEntry; i: numbe
 /** The first page before it arrives, in the shape the last one had. */
 function Skeleton({ shape, desktop }: { shape: number[]; desktop: boolean }) {
   let k = 0
+  // No sessions last time: the place of the line that says so.
+  if (!shape.length) return <div className="h-[88px]" />
   return (
     <div className="flex flex-col gap-7">
       {shape.map((n, gi) => (

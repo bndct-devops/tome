@@ -14,6 +14,14 @@ export function rememberedGoalCount(): number {
     return 0
   }
 }
+/** Whether this browser has had an answer before (false on a first visit: the count is not known). */
+export function goalCountKnown(): boolean {
+  try {
+    return localStorage.getItem(COUNT_KEY) != null
+  } catch {
+    return false
+  }
+}
 function rememberCount(n: number) {
   try {
     localStorage.setItem(COUNT_KEY, String(Math.min(MAX_REMEMBERED, n)))

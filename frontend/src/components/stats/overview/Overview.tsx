@@ -23,7 +23,7 @@ import { tipAttrs } from '@/components/stats/kit/tip'
 import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
 import { BarsChart, HourHeat, YearGrid } from './charts'
 import { Goals, GoalsStart } from './Goals'
-import { useGoals } from './goalsData'
+import { goalCountKnown, useGoals } from './goalsData'
 import { bestDay, busiestMonth, dayDiff, emptyYear, heroBars, hourHeatHeight, hourModel, readingDayOf, yearHeight, yearModel } from './model'
 
 
@@ -95,22 +95,35 @@ export function Overview({ stats, estimates, pending, days, custom, onAllBooks, 
   const sig = stats ? rangeSig(days, custom) : null
   const once = stats ? ONCE : null
   const { goals, reload: reloadGoals } = useGoals()
+  // A first visit (nothing remembered in this browser): sections whose size is not
+  // known yet are not drawn as a skeleton, and nothing under them is drawn either
+  // until the answer that sizes them lands, so what is drawn never moves. Whether
+  // there are goals (their own quick request) decides everything under the hero;
+  // on the phone, the number of books in progress (the cards stack) decides what
+  // comes after Reading now. With the shape remembered, the whole skeleton is drawn.
+  const [goalsKnown] = useState(goalCountKnown)
+  const [nowKnown] = useState(nowCountKnown)
+  const holdGoals = !goals && !goalsKnown
+  const holdNow = !stats && !desktop && !nowKnown
+  const topKey = custom ? null : String(days)
 
   return (
     <div ref={ref} style={LEVELS} className={cn('flex flex-col', desktop ? 'gap-[52px]' : 'gap-10')} aria-busy={loading || pending}>
       {width > 0 && (
         <>
           <Hero stats={stats} desktop={desktop} width={width} loading={loading} neverRead={neverRead} prevPhrase={prevPhrase} rangePhrase={rangePhrase} days={days} custom={custom} dim={dim} sig={sig} />
-          <Goals goals={goals} reload={reloadGoals} desktop={desktop} />
-          <ReadingNow stats={stats} estimates={estimates} desktop={desktop} loading={loading} sig={once} onRefresh={onRefresh} />
+          {!holdGoals && <Goals goals={goals} reload={reloadGoals} desktop={desktop} />}
+          {!holdGoals && <ReadingNow stats={stats} estimates={estimates} desktop={desktop} loading={loading} sig={once} onRefresh={onRefresh} />}
+          {!holdGoals && !holdNow && <>
           <Finished stats={stats} width={width} desktop={desktop} loading={loading} rangePhrase={rangePhrase} allTime={days === 0 && !custom} dim={dim} sig={sig} />
           <div className={cn(desktop ? 'grid grid-cols-2 gap-4' : 'flex flex-col gap-10')}>
-            <TopBooks stats={stats} loading={loading} desktop={desktop} rangePhrase={rangePhrase} allTime={days === 0 && !custom} onAllBooks={onAllBooks} dim={dim} sig={sig} />
+            <TopBooks stats={stats} loading={loading} desktop={desktop} rangeKey={topKey} rangePhrase={rangePhrase} allTime={days === 0 && !custom} onAllBooks={onAllBooks} dim={dim} sig={sig} />
             <WhenYouRead stats={stats} loading={loading} width={desktop ? Math.floor((width - 16) / 2) : width} desktop={desktop} dim={dim} sig={sig} />
           </div>
           <TheYear stats={stats} loading={loading} width={width} desktop={desktop} sig={once} />
           <AllTime stats={stats} loading={loading} desktop={desktop} sig={once} />
           <GoalsStart goals={goals} reload={reloadGoals} />
+          </>}
         </>
       )}
     </div>
@@ -280,12 +293,26 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
 // ── Reading now ───────────────────────────────────────────────────────────────
 
 const NOW_COUNT_KEY = 'tome_stats_now_count'
-function rememberedNowCount(): number {
+function nowCountKnown(): boolean {
   try {
-    const n = Number(localStorage.getItem(NOW_COUNT_KEY) ?? '2')
-    return Number.isInteger(n) && n >= 0 && n <= 3 ? n : 2
+    return localStorage.getItem(NOW_COUNT_KEY) != null
   } catch {
-    return 2
+    return false
+  }
+}
+/**
+ * Cards the skeleton draws: as many as the last answer had. Not known (a first
+ * visit): none on desktop, where the row is one height whatever the count but the
+ * cards' widths follow it; one on the phone, where the first card stands where
+ * any count puts it (what comes after waits for the answer, see Overview).
+ */
+function rememberedNowCount(desktop: boolean): number {
+  try {
+    const raw = localStorage.getItem(NOW_COUNT_KEY)
+    const n = Number(raw)
+    return raw != null && Number.isInteger(n) && n >= 0 && n <= 3 ? n : desktop ? 0 : 1
+  } catch {
+    return desktop ? 0 : 1
   }
 }
 function rememberNowCount(n: number) {
@@ -315,7 +342,8 @@ function ReadingNow({ stats, estimates, desktop, loading, sig, onRefresh }: { st
   const all = stats ? stats.books_in_progress.filter((b) => !marked.has(b.book_id)) : []
   // The skeleton reserves as many cards as the last answer had (remembered per
   // browser), so a reader with one or three books in progress sees no shift.
-  const books = stats ? all.slice(0, 3) : Array.from({ length: rememberedNowCount() }, () => null)
+  const [skeletonCount] = useState(() => rememberedNowCount(desktop))
+  const books = stats ? all.slice(0, 3) : Array.from({ length: skeletonCount }, () => null)
   useEffect(() => {
     if (stats) rememberNowCount(Math.min(3, stats.books_in_progress.length))
   }, [stats])
@@ -518,10 +546,36 @@ function Finished({ stats, width, desktop, loading, rangePhrase, allTime, dim, s
 
 // ── Where the time went ───────────────────────────────────────────────────────
 
-function TopBooks({ stats, loading, desktop, rangePhrase, allTime, onAllBooks, dim, sig }: { stats: StatsResponse | null; loading: boolean; desktop: boolean; rangePhrase: string; allTime: boolean; onAllBooks: () => void; dim: string; sig: string | null }) {
+const TOP_ROWS_KEY = 'tome_stats_top_rows'
+function topRowsMemory(): Record<string, number> {
+  try {
+    const v = JSON.parse(localStorage.getItem(TOP_ROWS_KEY) ?? '{}')
+    return v && typeof v === 'object' ? v : {}
+  } catch {
+    return {}
+  }
+}
+function rememberedTopRows(rangeKey: string | null): number {
+  const n = rangeKey ? topRowsMemory()[rangeKey] : undefined
+  return Number.isInteger(n) && n! >= 0 && n! <= TOP_ROWS ? n! : TOP_ROWS
+}
+function rememberTopRows(rangeKey: string, n: number) {
+  try {
+    localStorage.setItem(TOP_ROWS_KEY, JSON.stringify({ ...topRowsMemory(), [rangeKey]: n }))
+  } catch {
+    // storage unavailable: the skeleton keeps drawing every row
+  }
+}
+
+function TopBooks({ stats, loading, desktop, rangeKey, rangePhrase, allTime, onAllBooks, dim, sig }: { stats: StatsResponse | null; loading: boolean; desktop: boolean; rangeKey: string | null; rangePhrase: string; allTime: boolean; onAllBooks: () => void; dim: string; sig: string | null }) {
   const e = useEntry('overview/top', sig)
   const total = stats?.headline.total_reading_seconds ?? 0
-  const rows = stats ? stats.top_books.slice(0, TOP_ROWS) : Array.from({ length: TOP_ROWS }, () => null)
+  // The skeleton draws as many rows as this range had last time (the box keeps its
+  // height either way), so a short range does not draw rows that then go.
+  const rows = stats ? stats.top_books.slice(0, TOP_ROWS) : Array.from({ length: rememberedTopRows(rangeKey) }, () => null)
+  useEffect(() => {
+    if (stats && !loading && rangeKey) rememberTopRows(rangeKey, Math.min(TOP_ROWS, stats.top_books.length))
+  }, [stats, loading, rangeKey])
   const max = Math.max(1, ...(stats?.top_books.slice(0, 1).map((b) => b.seconds) ?? [1]))
   const covers = useMemo(() => new Map((stats?.per_book_time ?? []).map((b) => [b.book_id, b.has_cover])), [stats])
   return (

@@ -140,6 +140,14 @@ export function rememberedShape(): Shape {
     return DEFAULT_SHAPE
   }
 }
+/** Whether this browser has a remembered shape (false on a first visit). */
+export function shapeKnown(): boolean {
+  try {
+    return localStorage.getItem(SHAPE_KEY) != null
+  } catch {
+    return false
+  }
+}
 export function rememberShape(part: Partial<Shape>) {
   try {
     const was = rememberedShape()
