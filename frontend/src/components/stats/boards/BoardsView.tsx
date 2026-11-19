@@ -13,7 +13,7 @@ import { ModalShell } from '@/components/ModalShell'
 import { Plus, RotateCcw, X, Sparkles, SlidersHorizontal, Pencil, Check, GripVertical, Clock, Activity, BookCheck, Flame, FileText, Target, Gauge, Search, Copy, Loader2, CloudOff, Download, Upload, Star, TrendingUp, ScatterChart as ScatterIcon, Trophy, Globe, Library as LibraryIcon, Clock3, Infinity as InfinityIcon, Type, Ruler, Repeat, type LucideIcon } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { api } from '@/lib/api'
-import { customBoardIds, listedBoards } from '@/lib/statsBoards'
+import { customBoardIds, listedBoards, type ShowBoards } from '@/lib/statsBoards'
 import { Trans } from '@lingui/react/macro'
 import { t, msg, plural } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
@@ -1703,11 +1703,11 @@ export type BoardsViewProps = {
   /** The boards listed here: saved boards that differ from a shipped default. */
   shownIds: string[]
   /**
-   * The "Show Boards" switch is on: every board is listed, the shipped defaults
-   * included (built from the code, and not written until an edit), as the grid
-   * was before the designed pages.
+   * The "Show Boards" switch as stored. Set on, every board is listed, the
+   * shipped defaults included (built from the code, and not written until an
+   * edit), as the grid was before the designed pages. Edits keep it as it is.
    */
-  showAll: boolean
+  showBoards: ShowBoards
   activeBoardId: string | null
   onActiveBoard: (id: string) => void
   /** Called on every edit with the whole new blob and the ids now listed. */
@@ -1731,7 +1731,8 @@ function withMissingDefaults(tabs: TabState[]): TabState[] {
   return [...tabs, ...TAB_DEFS.filter((d) => !have.has(d.id)).map(buildTab)]
 }
 
-export default function BoardsView({ stats, estimates, dashboard, shownIds, showAll, activeBoardId, onActiveBoard, onDashboardChange, days, renameFirst, boardRef }: BoardsViewProps) {
+export default function BoardsView({ stats, estimates, dashboard, shownIds, showBoards, activeBoardId, onActiveBoard, onDashboardChange, days, renameFirst, boardRef }: BoardsViewProps) {
+  const showAll = showBoards === true
   const [editMode, setEditMode] = useState(false)
   const [pad, setPadState] = useState<PadWidth>(dashboard.pad ?? 'lot')
   const [addOpen, setAddOpen] = useState(false)
@@ -1751,7 +1752,7 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
     setPadState(p)
     setEditTick((n) => n + 1)
   }, [])
-  const visibleTabs = useMemo(() => listedBoards(tabs, shown, showAll), [tabs, shown, showAll])
+  const visibleTabs = useMemo(() => listedBoards(tabs, shown, showBoards), [tabs, shown, showBoards])
   const active = visibleTabs.find((x) => x.id === activeBoardId) ?? visibleTabs[0]
   const activeTabId = active?.id ?? ''
   const setActiveTabId = onActiveBoard
@@ -1819,11 +1820,11 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
   const latest = useRef<Persisted | null>(null)
   useEffect(() => {
     if (editTick === 0) return
-    const state: Persisted = { tabs, activeTabId: activeTabId || dashboard.activeTabId, pad, days, savedAt: Date.now(), ...(showAll ? { showBoards: true } : {}) }
+    const state: Persisted = { tabs, activeTabId: activeTabId || dashboard.activeTabId, pad, days, savedAt: Date.now(), ...(showBoards !== null ? { showBoards } : {}) }
     latest.current = state
     saveLocalDashboard(state)
     // With every board listed, a default edited here becomes one of the reader's
-    // own, so it stays under Boards once the switch is off again.
+    // own, and is counted as one.
     onDashboardChange(state, showAll ? [...new Set([...shown, ...customBoardIds(tabs)])] : shown)
     if (saveTimer.current) clearTimeout(saveTimer.current)
     saveTimer.current = setTimeout(() => {

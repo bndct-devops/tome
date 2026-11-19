@@ -35,8 +35,8 @@ import { Trans, Plural, useLingui } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import { LOCALES, getActiveLocale, setLocale } from '@/lib/i18n'
-import { readShowBoards, withShowBoards } from '@/lib/statsBoards'
-import { loadBoardsOn, saveBoardsOn } from '@/components/stats/boards/types'
+import { boardsTabVisible, customBoardIds, readShowBoards, withShowBoards } from '@/lib/statsBoards'
+import { loadBoardsFlag, loadLocalDashboard, saveBoardsFlag } from '@/components/stats/boards/types'
 
 interface ApiKey {
   id: number
@@ -961,14 +961,16 @@ function AppearanceSection() {
 }
 
 /**
- * Stats › Boards for everyone: lists the customisable grid from earlier versions
- * as a Boards tab, the shipped default boards included. Off by default; boards a
- * reader has changed show under Boards either way. Kept in the saved dashboard
- * blob (`showBoards`) so it follows the account; this is the only place that
- * writes the flag, and it changes nothing else in the blob.
+ * Stats › Boards: on, the customisable grid from earlier versions is a Boards
+ * tab listing every board, the shipped defaults included; off, there is no
+ * Boards tab and the saved boards are kept. Never set, it shows on exactly when
+ * a board is the reader's own (the tab is there then), so it reads as the page
+ * does. Kept in the saved dashboard blob (`showBoards`) so it follows the
+ * account; this is the only place that writes the flag, it always writes an
+ * explicit true or false, and it changes nothing else in the blob.
  */
 function StatsBoardsSetting() {
-  const [on, setOn] = useState(loadBoardsOn)
+  const [on, setOn] = useState(() => boardsTabVisible(loadBoardsFlag(), customBoardIds(loadLocalDashboard()?.tabs)))
   const [busy, setBusy] = useState(false)
   const [failed, setFailed] = useState(false)
   // A flip before the first answer arrives wins over that answer.
@@ -978,9 +980,11 @@ function StatsBoardsSetting() {
     api.get<{ data: unknown }>('/stats/dashboard')
       .then(r => {
         if (!alive || touched.current) return
-        const v = readShowBoards(r.data)
-        setOn(v)
-        saveBoardsOn(v)
+        const flag = readShowBoards(r.data)
+        const saved = (r.data as { tabs?: unknown } | null)?.tabs
+        const tabs = Array.isArray(saved) && saved.length > 0 ? saved : loadLocalDashboard()?.tabs
+        setOn(boardsTabVisible(flag, customBoardIds(tabs)))
+        saveBoardsFlag(flag)
       })
       .catch(() => {})
     return () => { alive = false }
@@ -997,7 +1001,7 @@ function StatsBoardsSetting() {
       // browser meanwhile are kept as they are.
       const r = await api.get<{ data: unknown }>('/stats/dashboard')
       await api.put('/stats/dashboard', { data: withShowBoards(r.data, next) })
-      saveBoardsOn(next)
+      saveBoardsFlag(next)
     } catch {
       setOn(!next)
       setFailed(true)
@@ -1013,7 +1017,7 @@ function StatsBoardsSetting() {
         <div>
           <p id="stats-boards-label" className="text-sm text-foreground"><Trans>Show Boards</Trans></p>
           <p className="text-[13px] text-muted-foreground mt-0.5">
-            <Trans>The customisable grid from earlier versions, as an extra tab on Stats. Boards you have changed are there either way.</Trans>
+            <Trans>The customisable grid from earlier versions, as an extra tab on Stats. Turning it off hides the tab; your boards are kept.</Trans>
           </p>
           {failed && <p className="text-[13px] text-destructive mt-1"><Trans>Couldn’t save. Try again.</Trans></p>}
         </div>

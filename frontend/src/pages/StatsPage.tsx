@@ -24,7 +24,7 @@ import type { StatsTab } from '@/components/stats/kit/page'
 import { dropStatsCache, statsCacheGet, statsFetch } from '@/components/stats/kit/useStatsGet'
 import { TipLayer } from '@/components/stats/kit/TipLayer'
 import { finishEntries } from '@/components/stats/kit/motion'
-import { PAGE_W, loadBoardsOn, loadLocalDashboard, saveBoardsOn, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
+import { PAGE_W, loadBoardsFlag, loadLocalDashboard, saveBoardsFlag, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
 import { tipAttrs } from '@/components/stats/kit/tip'
 
 /**
@@ -165,16 +165,17 @@ export function StatsPage() {
   })
   const [dashReady, setDashReady] = useState(false)
   // The "Show Boards" switch (Settings › Appearance): this browser's last known
-  // state first, then the server's, from the same answer as the boards.
-  const [boardsOn, setBoardsOn] = useState(loadBoardsOn)
+  // state first (set on, set off or never set), then the server's, from the same
+  // answer as the boards.
+  const [boardsFlag, setBoardsFlag] = useState(loadBoardsFlag)
   useEffect(() => {
     api
       .get<{ data: Persisted | null }>('/stats/dashboard')
       .then((res) => {
         const p = res.data
-        const on = readShowBoards(p)
-        setBoardsOn(on)
-        saveBoardsOn(on)
+        const flag = readShowBoards(p)
+        setBoardsFlag(flag)
+        saveBoardsFlag(flag)
         const local = loadLocalDashboard()
         if (p && Array.isArray(p.tabs) && p.tabs.length > 0 && (p.savedAt ?? 0) >= (local?.savedAt ?? 0)) {
           setDash({ data: p, shown: customBoardIds(p.tabs) })
@@ -183,9 +184,9 @@ export function StatsPage() {
       .catch(() => {})
       .finally(() => setDashReady(true))
   }, [])
-  const boardsShown = boardsTabVisible(boardsOn, dash.shown)
+  const boardsShown = boardsTabVisible(boardsFlag, dash.shown)
   const shownTab: TabId = tab === 'boards' && !boardsShown ? 'overview' : tab
-  // A remembered Boards tab that is gone (switch turned off, nothing customised)
+  // A remembered Boards tab that is gone (switch set off, or never set and nothing customised)
   // is drawn as the Overview from the first frame; once the server has answered,
   // the remembered tab becomes the Overview too, so it cannot come back later.
   useEffect(() => {
@@ -207,7 +208,7 @@ export function StatsPage() {
       pad: base?.pad ?? 'lot',
       days,
       savedAt: Date.now(),
-      ...(boardsOn ? { showBoards: true } : {}),
+      ...(boardsFlag !== null ? { showBoards: boardsFlag } : {}),
     }
     saveLocalDashboard(next)
     api.put('/stats/dashboard', { data: next }).catch(() => {})
@@ -215,7 +216,7 @@ export function StatsPage() {
     setBoard(id)
     setRenameFirst(id)
     setTab('boards')
-  }, [dash, days, boardsOn])
+  }, [dash, days, boardsFlag])
 
   // ── Image export of what is on screen ────────────────────────────────────────
   const contentRef = useRef<HTMLDivElement>(null)
@@ -284,14 +285,14 @@ export function StatsPage() {
   } else if (!data) {
     content = <Spinner />
   } else if (shownTab === 'boards') {
-    content = dashReady && (dash.data || boardsOn) ? (
+    content = dashReady && (dash.data || boardsFlag === true) ? (
       <Suspense fallback={<Spinner />}>
         <BoardsView
           stats={data}
           estimates={estimates}
           dashboard={dash.data ?? { tabs: [], activeTabId: '', pad: 'lot', days }}
           shownIds={dash.shown}
-          showAll={boardsOn}
+          showBoards={boardsFlag}
           activeBoardId={board}
           onActiveBoard={setBoard}
           onDashboardChange={onDashboardChange}
@@ -351,7 +352,8 @@ export function StatsPage() {
                   >
                     {shotBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <ImageDown className="h-4 w-4" />}
                   </Pill>}
-                  <div className="relative">
+                  {/* Its one entry makes a board; with Show Boards set off there is no Boards tab to put one in. */}
+                  {boardsFlag !== false && <div className="relative">
                     <Pill variant={menuOpen ? 'secondary' : 'quiet'} icon onClick={() => setMenuOpen((o) => !o)} aria-label={t`More`} aria-expanded={menuOpen}>
                       <MoreHorizontal className="h-4 w-4" />
                     </Pill>
@@ -373,7 +375,7 @@ export function StatsPage() {
                         </div>
                       </>
                     )}
-                  </div>
+                  </div>}
                 </div>
               }
             />

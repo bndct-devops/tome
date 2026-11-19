@@ -134,41 +134,67 @@ test('normalisation reads only the boxes and settings', () => {
 
 // ── The "Show Boards" switch ──────────────────────────────────────────────────
 
-test('Boards tab: switch off follows the customised boards, switch on always shows it', () => {
-  assert.equal(boardsTabVisible(false, []), false)
-  assert.equal(boardsTabVisible(false, ['tab--abc']), true)
+test('Boards tab: never set follows the customised boards, set on always shows it, set off never does', () => {
+  // Never set (null): exactly as before the switch.
+  assert.equal(boardsTabVisible(null, []), false)
+  assert.equal(boardsTabVisible(null, ['tab--abc']), true)
+  // Set on.
   assert.equal(boardsTabVisible(true, []), true)
   assert.equal(boardsTabVisible(true, ['tab--abc']), true)
+  // Set off: hidden even with boards of the reader's own.
+  assert.equal(boardsTabVisible(false, []), false)
+  assert.equal(boardsTabVisible(false, ['tab--abc']), false)
+  assert.equal(boardsTabVisible(false, ['overview', 'habits', 'library']), false)
 })
 
-test('listing: switch off lists the shown boards in saved order, switch on lists every board', () => {
+test('listing: set on lists every board; never set or set off lists the shown boards in saved order', () => {
   const boards = [{ id: 'overview' }, { id: 'tab--abc' }, { id: 'habits' }, { id: 'tab--def' }]
-  assert.deepEqual(listedBoards(boards, ['tab--def', 'tab--abc'], false).map((b) => b.id), ['tab--abc', 'tab--def'])
-  assert.deepEqual(listedBoards(boards, [], false), [])
+  for (const flag of [null, false] as const) {
+    assert.deepEqual(listedBoards(boards, ['tab--def', 'tab--abc'], flag).map((b) => b.id), ['tab--abc', 'tab--def'], String(flag))
+    assert.deepEqual(listedBoards(boards, [], flag), [], String(flag))
+  }
   assert.deepEqual(listedBoards(boards, ['tab--abc'], true).map((b) => b.id), ['overview', 'tab--abc', 'habits', 'tab--def'])
+  assert.deepEqual(listedBoards(boards, [], true).map((b) => b.id), ['overview', 'tab--abc', 'habits', 'tab--def'])
   assert.deepEqual(listedBoards([], [], true), [])
 })
 
-test('the switch is read as on only when the blob says true', () => {
+test('the switch is read as set only when the blob holds a boolean', () => {
   assert.equal(readShowBoards({ showBoards: true }), true)
-  for (const blob of [null, undefined, {}, { showBoards: false }, { showBoards: 'true' }, { showBoards: 1 }, [], 'x']) {
-    assert.equal(readShowBoards(blob), false, JSON.stringify(blob))
+  assert.equal(readShowBoards({ showBoards: false }), false)
+  assert.equal(readShowBoards({ showBoards: false, tabs: [] }), false)
+  for (const blob of [null, undefined, {}, { showBoards: 'true' }, { showBoards: 1 }, { showBoards: 0 }, { showBoards: null }, [], 'x']) {
+    assert.equal(readShowBoards(blob), null, JSON.stringify(blob))
   }
 })
 
-test('setting the switch changes only that key; on then off gives the blob back unchanged', () => {
+test('setting the switch changes only that key, always to an explicit value', () => {
   const blob = { tabs: [saved(OVERVIEW_NOW)], activeTabId: 'overview', pad: 'lot', days: 30, savedAt: 1700000000000 }
   const before = JSON.stringify(blob)
-  const on = withShowBoards(blob, true)
-  assert.equal(on.showBoards, true)
-  assert.equal(JSON.stringify(blob), before, 'the input is not mutated')
-  const { showBoards: _drop, ...rest } = on
-  void _drop
-  assert.equal(JSON.stringify(rest), before)
-  assert.equal(JSON.stringify(withShowBoards(on, false)), before)
+  for (const value of [true, false]) {
+    const set = withShowBoards(blob, value)
+    assert.equal(set.showBoards, value)
+    assert.equal(JSON.stringify(blob), before, 'the input is not mutated')
+    const { showBoards: _drop, ...rest } = set
+    void _drop
+    assert.equal(JSON.stringify(rest), before)
+  }
+  // Off then on: the boards are exactly as they were.
+  const back = withShowBoards(withShowBoards(blob, false), true)
+  assert.deepEqual(back, { ...blob, showBoards: true })
   // No saved blob yet (a new account): the flag alone.
   assert.deepEqual(withShowBoards(null, true), { showBoards: true })
-  assert.deepEqual(withShowBoards(null, false), {})
+  assert.deepEqual(withShowBoards(null, false), { showBoards: false })
+})
+
+test('a blob holding only the flag has no saved boards', () => {
+  for (const value of [true, false]) {
+    const only = withShowBoards(null, value) as { tabs?: SavedBoard[] }
+    assert.deepEqual(customBoardIds(only.tabs), [])
+    // The checks the Stats page and older clients make before using a saved blob.
+    assert.equal(Array.isArray(only.tabs) && only.tabs.length > 0, false)
+  }
+  // Set off, then on again with nothing saved: every board listed is a default built from the code.
+  assert.equal(boardsTabVisible(readShowBoards(withShowBoards(withShowBoards(null, false), true)), []), true)
 })
 
 test('the classification ignores the switch', () => {

@@ -4,6 +4,7 @@
 // BoardsView, loaded on demand.
 import type { Layout } from 'react-grid-layout'
 import type { ChartKind } from '@/components/stats/widgets/overview'
+import type { ShowBoards } from '@/lib/statsBoards'
 
 // Per-tile settings: chart style, timeframe and (for the Custom Stat tile) the
 // metric. days = 0 follows the page range; days = N shows the last N days of the
@@ -34,8 +35,8 @@ export const LS_KEY = 'tome_stats_lab_v2'
 // The saved blob. Its shape is unchanged since the dashboard shipped: older
 // clients still read `activeTabId` (a board id) and `days` (the range preset).
 // Only edits made under Boards write it.
-// `showBoards` is the Settings switch that lists every board under a Boards tab
-// (see lib/statsBoards); older clients ignore it.
+// `showBoards` is the Settings switch for the Boards tab (absent, on or off; see
+// lib/statsBoards); older clients ignore it.
 export type Persisted = { tabs: TabState[]; activeTabId: string; pad: PadWidth; days: number; savedAt?: number; showBoards?: boolean }
 
 /** The local copy of the saved boards, shape-checked only (no widget catalog here). */
@@ -51,21 +52,24 @@ export function loadLocalDashboard(): Persisted | null {
 }
 
 // This browser's last known state of the "Show Boards" switch, so the Boards tab
-// is there on the first frame; the server's blob is the truth and replaces it.
+// is right on the first frame; the server's blob is the truth and replaces it.
+// '1' set on, '0' set off, absent never set (what earlier builds left for off,
+// which then meant the same as never set).
 const BOARDS_ON_KEY = 'tome_stats_boards_on'
 
-export function loadBoardsOn(): boolean {
+export function loadBoardsFlag(): ShowBoards {
   try {
-    return localStorage.getItem(BOARDS_ON_KEY) === '1'
+    const v = localStorage.getItem(BOARDS_ON_KEY)
+    return v === '1' ? true : v === '0' ? false : null
   } catch {
-    return false
+    return null
   }
 }
 
-export function saveBoardsOn(on: boolean) {
+export function saveBoardsFlag(flag: ShowBoards) {
   try {
-    if (on) localStorage.setItem(BOARDS_ON_KEY, '1')
-    else localStorage.removeItem(BOARDS_ON_KEY)
+    if (flag === null) localStorage.removeItem(BOARDS_ON_KEY)
+    else localStorage.setItem(BOARDS_ON_KEY, flag ? '1' : '0')
   } catch {
     // storage unavailable - the tab follows the server answer instead
   }
