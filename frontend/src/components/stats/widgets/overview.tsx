@@ -12,7 +12,7 @@ import {
   YAxis,
   Tooltip,
 } from 'recharts'
-import { FileText } from 'lucide-react'
+import { Check, FileText } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
 import { useEffect, useRef, useState } from 'react'
@@ -20,6 +20,8 @@ import { createPortal } from 'react-dom'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
 import { axisDuration, dayIso, evenDateTicks, isoDay, niceDurationTicks } from '@/components/stats/axis'
 import { coverSrc } from '@/lib/covers'
+import { api } from '@/lib/api'
+import { useToast } from '@/contexts/ToastContext'
 
 // Chart style a configurable widget can render as (per-tile setting in the Lab).
 export type ChartKind = 'bar' | 'line' | 'area'
@@ -47,8 +49,37 @@ export function HeadlineStatBody({ value, unit, sub }: { value: string; unit?: s
   )
 }
 
-export function CurrentlyReading({ books }: { books: StatsResponse['books_in_progress'] }) {
+// At or above this the book is as good as finished (devices round the last
+// page differently); the row offers "Mark as read" instead of guessing.
+const FINISHED_PCT = 99
+
+export function CurrentlyReading({ books: allBooks }: { books: StatsResponse['books_in_progress'] }) {
   const { accent } = useChartColors()
+  const { toast } = useToast()
+  // Marked read from this widget: gone from the list until the stats reload.
+  const [marked, setMarked] = useState<Set<number>>(() => new Set())
+  const [marking, setMarking] = useState<number | null>(null)
+  // Books that show 0% go last (a sliver under 0.5% reads as 0% too); the
+  // rest keep the server's order.
+  const books = allBooks
+    .filter(b => !marked.has(b.book_id))
+    .map((b, i) => ({ b, i, untouched: !(Math.round(b.progress) > 0) }))
+    .sort((x, y) => Number(x.untouched) - Number(y.untouched) || x.i - y.i)
+    .map(x => x.b)
+
+  async function markRead(bookId: number, title: string) {
+    setMarking(bookId)
+    try {
+      await api.put(`/books/${bookId}/status`, { status: 'read' })
+      setMarked(prev => new Set(prev).add(bookId))
+      toast.success(t`Marked as read: ${title}`)
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : t`Failed to update status`)
+    } finally {
+      setMarking(null)
+    }
+  }
+
   if (books.length === 0) {
     return (
       <div className="flex flex-col gap-1 py-2">
@@ -63,7 +94,8 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
   return (
     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
       {books.map((b) => (
-        <a key={b.book_id} href={`/books/${b.book_id}`} className="group flex items-center gap-2.5 rounded-lg px-2 py-0.5 transition-colors hover:bg-accent/30">
+        <div key={b.book_id} className="flex min-w-0 items-center gap-1">
+        <a href={`/books/${b.book_id}`} className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-0.5 transition-colors hover:bg-accent/30">
           <div className="h-9 w-6 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center">
             {b.has_cover ? (
               <img src={coverSrc(b.book_id, { w: 160 })} alt="" className="h-full w-full object-cover" />
@@ -87,6 +119,19 @@ export function CurrentlyReading({ books }: { books: StatsResponse['books_in_pro
             </div>
           </div>
         </a>
+        {b.progress >= FINISHED_PCT && (
+          <button
+            type="button"
+            onClick={() => markRead(b.book_id, b.title)}
+            disabled={marking === b.book_id}
+            title={t`Mark as read`}
+            className="inline-flex h-7 shrink-0 items-center gap-1 rounded-full bg-secondary px-2.5 text-[12px] font-medium text-foreground transition-colors hover:bg-surface-hover disabled:opacity-50"
+          >
+            <Check className="h-3.5 w-3.5" />
+            <Trans>Mark as read</Trans>
+          </button>
+        )}
+        </div>
       ))}
     </div>
   )

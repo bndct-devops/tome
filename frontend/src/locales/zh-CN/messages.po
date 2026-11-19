@@ -334,6 +334,11 @@ msgstr ""
 msgid "{0, plural, one {# book tracked} other {# books tracked}}"
 msgstr ""
 
+#. placeholder {0}: res.skipped
+#: src/pages/DashboardPage.tsx
+msgid "{0, plural, one {# book was left as it is because you did not upload it} other {# books were left as they are because you did not upload them}}"
+msgstr ""
+
 #. placeholder {0}: data.books
 #: src/components/stats/BacklogEstimate.tsx
 msgid "{0, plural, one {# book, none estimated yet.} other {# books, none estimated yet.}}"
@@ -672,7 +677,7 @@ msgstr ""
 msgid "{0, plural, one {Suggested match:} other {Suggested matches:}}"
 msgstr ""
 
-#. placeholder {0}: selected.size
+#. placeholder {0}: res.updated
 #: src/pages/DashboardPage.tsx
 msgid "{0, plural, one {Updated metadata for # book} other {Updated metadata for # books}}"
 msgstr ""
@@ -741,7 +746,11 @@ msgid "{bt}: {st} to {en} ({dur})"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
-msgid "{clearResult} covers deleted."
+#~ msgid "{clearResult} covers deleted."
+#~ msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "{clearResult} thumbnails deleted."
 msgstr ""
 
 #: src/pages/HighlightsPage.tsx
@@ -1113,12 +1122,18 @@ msgstr ""
 #~ msgstr ""
 
 #: src/components/MetadataManager.tsx
-msgid "{n, plural, one {This upload satisfies # wish. Review it in Admin > Wishlist.} other {This upload satisfies # wishes. Review them in Admin > Wishlist.}}"
-msgstr ""
+#~ msgid "{n, plural, one {This upload satisfies # wish. Review it in Admin > Wishlist.} other {This upload satisfies # wishes. Review them in Admin > Wishlist.}}"
+#~ msgstr ""
 
 #: src/components/AppShell.tsx
 #: src/pages/DashboardPage.tsx
-msgid "{n, plural, one {This upload satisfies # wish. Review it in Admin > Wishlist} other {This upload satisfies # wishes. Review them in Admin > Wishlist}}"
+#~ msgid "{n, plural, one {This upload satisfies # wish. Review it in Admin > Wishlist} other {This upload satisfies # wishes. Review them in Admin > Wishlist}}"
+#~ msgstr ""
+
+#: src/components/AppShell.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/DashboardPage.tsx
+msgid "{n, plural, one {This upload satisfies # wish.} other {This upload satisfies # wishes.}}"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -1430,6 +1445,14 @@ msgstr ""
 msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "{unloaded, plural, one {# selected book is not loaded yet. Scroll down to load it, or select fewer, to send.} other {# selected books are not loaded yet. Scroll down to load them, or select fewer, to send.}}"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "{updatedText}. {skippedText}."
+msgstr ""
+
 #: src/components/stats/widgets/library.tsx
 msgid "{v}m"
 msgstr ""
@@ -1477,6 +1500,10 @@ msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "+{gain}% today"
+msgstr ""
+
+#: src/components/stats/BacklogEstimate.tsx
+msgid "<0>{d}</0> at your pace"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -1540,7 +1567,15 @@ msgid "~{w} weeks"
 msgstr ""
 
 #: src/lib/backlog.ts
+msgid "~{y} years"
+msgstr ""
+
+#: src/lib/backlog.ts
 msgid "~1 day"
+msgstr ""
+
+#: src/lib/backlog.ts
+msgid "~1 year"
 msgstr ""
 
 #: src/pages/HighlightsPage.tsx
@@ -1697,8 +1732,12 @@ msgstr ""
 #~ msgstr ""
 
 #: src/pages/BinderyPage.tsx
-msgid "Accept every recently imported book"
+msgid "Accept every book waiting for review"
 msgstr ""
+
+#: src/pages/BinderyPage.tsx
+#~ msgid "Accept every recently imported book"
+#~ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Accept failed"
@@ -1706,6 +1745,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Accepted: {title}"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Access"
 msgstr ""
 
 #: src/components/NotificationChannels.tsx
@@ -1951,7 +1994,11 @@ msgid "All actions"
 msgstr ""
 
 #: src/components/CommandPalette.tsx
+#: src/components/KeyboardShortcutsModal.tsx
+#: src/components/Sidebar.tsx
 #: src/components/stats/GoalWidget.tsx
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "All books"
 msgstr ""
@@ -2069,6 +2116,10 @@ msgstr ""
 msgid "Also reading"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Also revoke my API tokens, plugin keys and OPDS PINs"
+msgstr ""
+
 #: src/components/CrossPointImport.tsx
 msgid "Also written"
 msgstr ""
@@ -2099,8 +2150,8 @@ msgid "Any scripts or tools using it will stop working immediately."
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "API keys"
-msgstr ""
+#~ msgid "API keys"
+#~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 #~ msgid "API Keys"
@@ -2115,8 +2166,8 @@ msgstr ""
 #~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "App-specific PINs"
-msgstr ""
+#~ msgid "App-specific PINs"
+#~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Appearance"
@@ -2257,6 +2308,10 @@ msgstr ""
 msgid "Arcs"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "are shorter passwords for e-readers."
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Are you getting faster?"
 msgstr ""
@@ -2279,6 +2334,22 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Assign type to new books"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+#~ msgid "At least {filterMinWords} words"
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "At least {minWords} words"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+#~ msgid "At most {filterMaxWords} words"
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "At most {maxWords} words"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -2451,8 +2522,8 @@ msgid "Backlog · {scope}"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "Backup"
-msgstr ""
+#~ msgid "Backup"
+#~ msgstr ""
 
 #: src/components/InstanceBackup.tsx
 msgid "Backup failed"
@@ -2735,6 +2806,14 @@ msgstr ""
 msgid "Books without a series"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+#~ msgid "Books without a word count are excluded when a length filter is set."
+#~ msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Books without a word count are hidden."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Breadcrumb"
 msgstr ""
@@ -2956,12 +3035,16 @@ msgid "Clearing…"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
+msgid "Click \"Download plugin ZIP\" above. A plugin key is automatically created and baked into the plugin, so there is nothing to configure by hand."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
 #~ msgid "Click \"Download plugin ZIP\" above. An API key is automatically created and baked into the plugin — no manual configuration needed."
 #~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "Click \"Download plugin ZIP\" above. An API key is automatically created and baked into the plugin, so there is nothing to configure by hand."
-msgstr ""
+#~ msgid "Click \"Download plugin ZIP\" above. An API key is automatically created and baked into the plugin, so there is nothing to configure by hand."
+#~ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Click for details"
@@ -3549,7 +3632,11 @@ msgid "Delete {name}"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
-msgid "Delete all {count} cached cover files ({mb} MB). Covers will be re-extracted on next access."
+#~ msgid "Delete all {count} cached cover files ({mb} MB). Covers will be re-extracted on next access."
+#~ msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Delete all {count} cover thumbnails ({mb} MB). They are made again from the stored covers when next shown. The covers themselves are kept."
 msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
@@ -3705,6 +3792,10 @@ msgstr ""
 msgid "Devices"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Devices and scripts that use them stop working until you set them up again."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Directories"
 msgstr ""
@@ -3771,7 +3862,11 @@ msgstr ""
 #~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "Download a JSON snapshot of <0>your personal data</0>: reading status, every reading session, sync positions, shelves, and your local preferences. Book files themselves are not included, since Tome only references them on disk. API tokens and KOReader keys are also excluded so the file isn't a credential."
+#~ msgid "Download a JSON snapshot of <0>your personal data</0>: reading status, every reading session, sync positions, shelves, and your local preferences. Book files themselves are not included, since Tome only references them on disk. API tokens and KOReader keys are also excluded so the file isn't a credential."
+#~ msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Download a JSON snapshot of <0>your personal data</0>: reading status, every reading session, sync positions, shelves, and your local preferences. Book files themselves are not included, since Tome only references them on disk. API tokens and plugin keys are also excluded so the file isn't a credential."
 msgstr ""
 
 #: src/pages/HighlightsPage.tsx
@@ -3917,6 +4012,10 @@ msgstr ""
 
 #: src/components/DeviceInventoryList.tsx
 msgid "Each device sends the list of Tome books on it when it syncs. Books show an \"On ...\" pill, and the library can be filtered by device. Forget a device you no longer use; one still in use sends its list again on its next sync."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Each download creates a plugin key; manage them under"
 msgstr ""
 
 #: src/components/stats/SessionLog.tsx
@@ -4099,6 +4198,10 @@ msgstr ""
 msgid "Everything is counted"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Everything that can sign in to your account besides your password: devices, the KOReader plugin, OPDS readers, KOReader's progress sync and scripts."
+msgstr ""
+
 #: src/components/InstanceBackup.tsx
 #~ msgid "Everything Tome knows in one archive: the database (all users, statuses, sessions, highlights, settings) plus the cover cache. Book files are not included — they live on disk and belong to your own backups. Restoring stages the archive and applies it at the next server restart; the current database is kept alongside as a safety copy."
 #~ msgstr ""
@@ -4173,13 +4276,16 @@ msgid "Expires in {timeLeft}"
 msgstr ""
 
 #: src/pages/HighlightsPage.tsx
-#: src/pages/SettingsPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Export"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Export {label}"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Export catalogue"
 msgstr ""
 
 #: src/pages/HighlightsPage.tsx
@@ -4408,6 +4514,10 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Failed to update sharing"
+msgstr ""
+
+#: src/components/stats/widgets/overview.tsx
+msgid "Failed to update status"
 msgstr ""
 
 #: src/components/CoverPickerModal.tsx
@@ -4834,6 +4944,10 @@ msgstr ""
 msgid "Hardcover sync is disabled on this server."
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Hardcover sync is turned off on this server."
+msgstr ""
+
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
 msgid "Has cover"
@@ -5251,6 +5365,14 @@ msgid "Keyboard shortcuts (?)"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
+#~ msgid "Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used are removed at the next download."
+#~ msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used for a week are removed at the next download."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
 msgid "Kindle users"
 msgstr ""
 
@@ -5335,6 +5457,10 @@ msgid "Last seen"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
+msgid "Last seen: {when}"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
 msgid "Last sync: {d}"
 msgstr ""
 
@@ -5384,6 +5510,10 @@ msgstr ""
 msgid "Left unlinked"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Length"
+msgstr ""
+
 #: src/components/stats/widgets/habits.tsx
 #: src/components/stats/widgets/overview.tsx
 msgid "Less"
@@ -5406,11 +5536,8 @@ msgid "Libraries applied to {n} files"
 msgstr ""
 
 #: src/components/home/HomeTab.tsx
-#: src/components/KeyboardShortcutsModal.tsx
 #: src/components/MetadataManager.tsx
-#: src/components/Sidebar.tsx
 #: src/pages/AdminPage.tsx
-#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Library"
@@ -5425,8 +5552,8 @@ msgstr ""
 #~ msgstr ""
 
 #: src/pages/AdminPage.tsx
-#~ msgid "Library health"
-#~ msgstr ""
+msgid "Library health"
+msgstr ""
 
 #: src/components/LibraryHealth.tsx
 #~ msgid "Library Health"
@@ -5695,6 +5822,10 @@ msgstr ""
 msgid "Mark all read"
 msgstr ""
 
+#: src/components/stats/widgets/overview.tsx
+msgid "Mark as read"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Mark complete"
 msgstr ""
@@ -5705,6 +5836,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Marked as read"
+msgstr ""
+
+#: src/components/stats/widgets/overview.tsx
+msgid "Marked as read: {title}"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -5755,6 +5890,14 @@ msgstr ""
 msgid "Matching {matchingAll}/{total}…"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Max words"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Maximum words"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Member"
 msgstr ""
@@ -5793,8 +5936,16 @@ msgstr ""
 msgid "min"
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Min words"
+msgstr ""
+
 #: src/pages/SetupPage.tsx
 msgid "Minimum 8 characters"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Minimum words"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -5850,6 +6001,10 @@ msgstr ""
 
 #: src/components/SendButton.tsx
 msgid "More send options"
+msgstr ""
+
+#: src/lib/backlog.ts
+msgid "more than 10 years"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -6105,8 +6260,8 @@ msgid "No activity"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "No API keys. Download the plugin to auto-create one."
-msgstr ""
+#~ msgid "No API keys. Download the plugin to auto-create one."
+#~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "No API tokens yet. Create one to use Scribe or scripts against Tome."
@@ -6219,7 +6374,11 @@ msgid "No devices configured"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "No devices connected yet. Use \"Connect a phone\" above to sign the Tome app in."
+#~ msgid "No devices connected yet. Use \"Connect a phone\" above to sign the Tome app in."
+#~ msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "No devices connected yet. Use \"Connect a phone\" under Quick Connect to sign the Tome app in."
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -6324,6 +6483,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "No PINs yet. Generate one to use with OPDS clients."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "No plugin keys. Download the plugin to create one."
 msgstr ""
 
 #: src/components/PositionHistoryModal.tsx
@@ -6436,8 +6599,8 @@ msgstr ""
 
 #: src/components/stats/BacklogEstimate.tsx
 #: src/lib/backlog.ts
-msgid "no recent reading, so no day estimate"
-msgstr ""
+#~ msgid "no recent reading, so no day estimate"
+#~ msgstr ""
 
 #: src/components/MetadataFetchModal.tsx
 #~ msgid "No results — but some sources were unavailable (see below); retrying may help."
@@ -6579,7 +6742,6 @@ msgid "No word counts yet."
 msgstr ""
 
 #: src/components/MetadataManager.tsx
-#: src/pages/DashboardPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "None"
 msgstr ""
@@ -6602,6 +6764,11 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Not enough reading history yet."
+msgstr ""
+
+#: src/components/stats/BacklogEstimate.tsx
+#: src/lib/backlog.ts
+msgid "not enough recent reading for a day estimate"
 msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
@@ -6650,6 +6817,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "not read"
+msgstr ""
+
+#: src/components/NotificationChannels.tsx
+msgid "Not sent: this is not a public internet address. An admin can allow this host."
 msgstr ""
 
 #: src/components/home/FocusMode.tsx
@@ -6741,6 +6912,10 @@ msgstr ""
 msgid "Nothing to remove."
 msgstr ""
 
+#: src/pages/DashboardPage.tsx
+msgid "Nothing was changed. You can only edit books you uploaded."
+msgstr ""
+
 #: src/components/NotificationBell.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Notifications"
@@ -6799,8 +6974,12 @@ msgid "On {names}"
 msgstr ""
 
 #: src/pages/LoginPage.tsx
-msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
+msgid "On a device where you're already signed in, go to <0>Settings → Access → Quick Connect</0> and enter this code."
 msgstr ""
+
+#: src/pages/LoginPage.tsx
+#~ msgid "On a device where you're already signed in, go to <0>Settings → Security → Quick Connect</0> and enter this code."
+#~ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "on board"
@@ -6808,6 +6987,15 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "On board"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "on hold"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
+msgid "On hold"
 msgstr ""
 
 #: src/lib/goals.ts
@@ -6892,6 +7080,10 @@ msgstr ""
 #~ msgid "OPDS Catalog"
 #~ msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "OPDS PINs"
+msgstr ""
+
 #: src/components/ShareLinksOverview.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -6942,6 +7134,12 @@ msgstr ""
 #: src/pages/HardcoverPage.tsx
 #~ msgid "Open Settings"
 #~ msgstr ""
+
+#: src/components/AppShell.tsx
+#: src/components/MetadataManager.tsx
+#: src/pages/DashboardPage.tsx
+msgid "Open Wishlist"
+msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Opened {a} for the first time."
@@ -7210,6 +7408,10 @@ msgstr ""
 #~ msgid "Peak hour: <0>{peak}:00–{peakEnd}:00</0> · {dur} total"
 #~ msgstr ""
 
+#: src/pages/AdminPage.tsx
+msgid "People"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Per-file details"
 msgstr ""
@@ -7304,6 +7506,10 @@ msgstr ""
 
 #: src/components/WishlistModal.tsx
 msgid "Please pick a result or use the manual form."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Plugin keys"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -7519,6 +7725,10 @@ msgid "Push your ratings and reading progress to your Hardcover profile; nothing
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+msgid "Put on hold, kept your progress"
+msgstr ""
+
+#: src/pages/BookDetailPage.tsx
 msgid "Queue this book up next"
 msgstr ""
 
@@ -7703,13 +7913,13 @@ msgstr ""
 msgid "read"
 msgstr "阅读"
 
-#: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Read"
 msgstr "阅读"
 
 #: src/components/BookCard.tsx
+#: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgctxt "action"
@@ -8025,8 +8235,8 @@ msgstr ""
 #~ msgstr ""
 
 #: src/pages/BinderyPage.tsx
-msgid "Recently imported"
-msgstr ""
+#~ msgid "Recently imported"
+#~ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 #~ msgid "Recently Imported"
@@ -8071,6 +8281,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Rejecting…"
+msgstr ""
+
+#: src/components/RouteErrorBoundary.tsx
+msgid "Reload"
 msgstr ""
 
 #: src/components/UploadModal.tsx
@@ -8205,6 +8419,10 @@ msgstr ""
 
 #: src/components/NotificationChannels.tsx
 msgid "request failed"
+msgstr ""
+
+#: src/pages/AdminPage.tsx
+msgid "Requests"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -8996,6 +9214,10 @@ msgstr ""
 #~ msgid "Set the following environment variables to enable Send to Device:"
 #~ msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Set the sync password"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Set these environment variables to enable Send to device."
 msgstr ""
@@ -9011,7 +9233,7 @@ msgstr ""
 msgid "Settings"
 msgstr ""
 
-#: src/components/SettingsNav.tsx
+#: src/pages/SettingsPage.tsx
 msgid "Settings sections"
 msgstr ""
 
@@ -9094,13 +9316,13 @@ msgid "Shared shelf"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
-msgid "shelved"
-msgstr ""
+#~ msgid "shelved"
+#~ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
-msgid "Shelved"
-msgstr ""
+#~ msgid "Shelved"
+#~ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 #~ msgid "Shelved — kept your progress"
@@ -9111,8 +9333,8 @@ msgstr ""
 #~ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
-msgid "Shelved, kept your progress"
-msgstr ""
+#~ msgid "Shelved, kept your progress"
+#~ msgstr ""
 
 #: src/components/Sidebar.tsx
 #: src/pages/StatsPage.tsx
@@ -9564,6 +9786,10 @@ msgid "Sync now"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
+msgid "Sync password"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
 msgid "Sync reading position between KOReader and Tome."
 msgstr ""
 
@@ -9655,6 +9881,7 @@ msgstr ""
 msgid "Syntax"
 msgstr ""
 
+#: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "System"
 msgstr ""
@@ -9781,6 +10008,10 @@ msgstr ""
 #~ msgid "The device clock is off by {offsetMinutes} min; times were corrected."
 #~ msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "The password KOReader's progress sync (KOSync) signs in with. It is separate from your Tome password."
+msgstr ""
+
 #: src/components/CrossPointImport.tsx
 msgid "The report holds book titles from your file. Copy it to the Tome developers if something looks wrong."
 msgstr ""
@@ -9790,8 +10021,8 @@ msgid "The sender address. Required when there is no user; otherwise the user is
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "the sync password set above"
-msgstr ""
+#~ msgid "the sync password set above"
+#~ msgstr ""
 
 #: src/components/stats/SessionLog.tsx
 msgid "The triangle marks an implausibly long session. Scissors shorten a session, the bin deletes it."
@@ -9858,6 +10089,10 @@ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "This month, read days filled"
+msgstr ""
+
+#: src/components/RouteErrorBoundary.tsx
+msgid "This page could not be shown"
 msgstr ""
 
 #: src/components/ConnectPhoneModal.tsx
@@ -10061,6 +10296,10 @@ msgstr ""
 msgid "Tome has no file for this book. It was added from your reader's sync so the reading has a place. If you add the book to your library, use Link KOReader sync on its page to move the reading there."
 msgstr ""
 
+#: src/components/RouteErrorBoundary.tsx
+msgid "Tome may have been updated since this tab was opened. Reloading usually fixes it."
+msgstr ""
+
 #: src/components/ConnectPhoneModal.tsx
 msgid "Tome Reader is in free beta for iPhone until 31 December 2026."
 msgstr ""
@@ -10076,6 +10315,10 @@ msgstr ""
 #: src/pages/SettingsPage.tsx
 #~ msgid "TomeSync Plugin"
 #~ msgstr ""
+
+#: src/pages/LoginPage.tsx
+msgid "Too many failed attempts. Wait a moment and try again."
+msgstr ""
 
 #: src/components/WordCount.tsx
 msgid "Took {dur}"
@@ -10207,6 +10450,14 @@ msgstr ""
 
 #: src/components/InstanceBackup.tsx
 msgid "Type RESTORE to confirm"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Type: All"
+msgstr ""
+
+#: src/pages/DashboardPage.tsx
+msgid "Type: Chapters"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -10520,6 +10771,10 @@ msgstr ""
 
 #: src/pages/LoginPage.tsx
 msgid "Waiting for authorization…"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Waiting for review"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -10897,6 +11152,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Your server admin sets these environment variables. TOME_SMTP_HOST is required. User and password are optional; set both when the mail server needs a login. Without a user, TOME_SMTP_FROM is required as the sender address."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "your sync password, set under Access"
 msgstr ""
 
 #: src/pages/LoginPage.tsx

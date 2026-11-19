@@ -906,7 +906,7 @@ def mark_token_expired(db: Session, user: User) -> None:
         title="Hardcover token expired",
         body="Hardcover API tokens reset every January 1. Re-link your account "
              "in Settings to resume syncing ratings and progress.",
-        link="/settings",
+        link="/settings#hardcover",
     ))
     db.commit()
 

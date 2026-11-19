@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.security import (
     get_current_user,
+    get_current_user_no_api_token,
     hash_password,
     verify_password,
 )
@@ -71,13 +72,18 @@ def setup(body: SetupRequest, db: Session = Depends(get_db)):
 @router.post("/login", response_model=TokenResponse)
 def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
     """Login with username or email + password. Returns a JWT."""
+    from backend.core import login_throttle
+
     ip = request.client.host if request.client else None
+    throttle_key = login_throttle.throttle.key(body.username, login_throttle.client_ip(request))
+    login_throttle.check(throttle_key)  # 429 before any password check
     user = (
         db.query(User)
         .filter((User.username == body.username) | (User.email == body.username))
         .first()
     )
     if not user or not verify_password(body.password, user.hashed_password):
+        login_throttle.throttle.failure(throttle_key)
         audit(db, "auth.login_failed",
               username=body.username, ip=ip,
               details={"reason": "invalid credentials"})
@@ -85,6 +91,7 @@ def login(body: LoginRequest, request: Request, db: Session = Depends(get_db)):
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid credentials",
         )
+    login_throttle.throttle.success(throttle_key)
     if not user.is_active:
         audit(db, "auth.login_failed",
               user_id=user.id, username=user.username, ip=ip,
@@ -160,6 +167,43 @@ def update_profile(
 class ChangePasswordRequest(PydanticBaseModel):
     current_password: str
     new_password: str
+    # Opt-in: also revoke API tokens, plugin keys, OPDS PINs and the KOSync key.
+    revoke_credentials: bool = False
+
+
+def _revoke_credentials(db: Session, user: User) -> dict[str, int]:
+    """Revoke every credential that is not the password or a sign-in: API
+    tokens (marked revoked, they stay listed), KOReader plugin keys and OPDS
+    PINs (deleted), and the linked KOSync key (blanked, so the sync history
+    stays and Settings can link it again). The caller commits."""
+    from datetime import datetime
+    from backend.models.api_token import ApiToken
+    from backend.models.kosync import KOSyncUser
+    from backend.models.opds_pin import OpdsPin
+    from backend.models.tome_sync import ApiKey
+
+    api_tokens = (
+        db.query(ApiToken)
+        .filter(ApiToken.user_id == user.id, ApiToken.revoked_at.is_(None))
+        .update({ApiToken.revoked_at: datetime.utcnow()}, synchronize_session=False)
+    )
+    plugin_keys = (
+        db.query(ApiKey).filter(ApiKey.user_id == user.id).delete(synchronize_session=False)
+    )
+    opds_pins = (
+        db.query(OpdsPin).filter(OpdsPin.user_id == user.id).delete(synchronize_session=False)
+    )
+    kosync_keys = (
+        db.query(KOSyncUser)
+        .filter(KOSyncUser.user_id == user.id, KOSyncUser.userkey != "")
+        .update({KOSyncUser.userkey: ""}, synchronize_session=False)
+    )
+    return {
+        "api_tokens_revoked": api_tokens,
+        "plugin_keys_revoked": plugin_keys,
+        "opds_pins_revoked": opds_pins,
+        "kosync_keys_revoked": kosync_keys,
+    }
 
 
 @router.put("/me/password", status_code=204)
@@ -178,9 +222,12 @@ def change_password(
     # Logins do not expire, so a new password signs out every other browser
     # and app. The one changing it stays signed in.
     revoked = revoke_all(db, current_user.id, keep_id=getattr(request.state, "device_id", None))
+    details: dict = {"devices_revoked": revoked} if revoked else {}
+    if body.revoke_credentials:
+        details.update(_revoke_credentials(db, current_user))
     db.commit()
     audit(db, "auth.password_changed", user_id=current_user.id, username=current_user.username,
-          details={"devices_revoked": revoked} if revoked else None)
+          details=details or None)
     return Response(status_code=204)
 
 
@@ -251,7 +298,7 @@ def my_kosync_status(
 def register_kosync(
     body: dict,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_no_api_token),
 ):
     """Register or re-link a KOSync user from the web UI."""
     import hashlib

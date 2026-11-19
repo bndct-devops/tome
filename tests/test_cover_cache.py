@@ -85,3 +85,31 @@ def test_broken_cover_falls_back_to_original(client, make_book, data_dir):
     r = client.get(f"/api/books/{book.id}/cover?w=400")
     assert r.status_code == 200
     assert r.content == b"not an image"
+
+
+def test_clear_cover_cache_keeps_the_covers(client, make_book, data_dir, db):
+    """The admin "Clear cover cache" action removes only the thumbnails.
+
+    data/covers holds the only copy of every cover (extracted, fetched or
+    uploaded); nothing re-extracts them, so deleting it lost them for good."""
+    from backend.models.audit_log import AuditLog
+
+    (settings.covers_dir / "uploaded.jpg").write_bytes(_jpeg(1200, 1800))
+    book = make_book(title="Uploaded", cover_path="uploaded.jpg")
+    assert client.get(f"/api/books/{book.id}/cover?w=400").status_code == 200
+    assert any(settings.cover_thumbs_dir.iterdir())
+
+    stats = client.get("/api/admin/stats").json()
+    assert stats["cover_thumbs_count"] == 1
+
+    r = client.delete("/api/admin/covers-cache")
+    assert r.status_code == 200
+    assert r.json() == {"deleted": 1}
+
+    assert (settings.covers_dir / "uploaded.jpg").exists()
+    assert not any(settings.cover_thumbs_dir.iterdir())
+    assert client.get(f"/api/books/{book.id}/cover").status_code == 200
+    # The thumbnail is made again on the next request.
+    again = client.get(f"/api/books/{book.id}/cover?w=400")
+    assert again.headers["content-type"] == "image/webp"
+    assert db.query(AuditLog).filter(AuditLog.action == "admin.cover_thumbs_cleared").count() == 1

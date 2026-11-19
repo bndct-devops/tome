@@ -82,6 +82,8 @@ export function LoginPage() {
       setPassword('')
       setError(status === 401
         ? t`Wrong username or password.`
+        : status === 429
+        ? t`Too many failed attempts. Wait a moment and try again.`
         : err instanceof Error ? err.message : t`Login failed`)
     } finally {
       setLoading(false)
@@ -216,7 +218,7 @@ export function LoginPage() {
 
               <div className="text-[14px] text-muted-foreground leading-relaxed">
                 <p className="text-[15px] font-medium text-foreground mb-1"><Trans>How to authorize</Trans></p>
-                <p><Trans>On a device where you're already signed in, go to <span className="font-medium text-foreground">Settings &rarr; Security &rarr; Quick Connect</span> and enter this code.</Trans></p>
+                <p><Trans>On a device where you're already signed in, go to <span className="font-medium text-foreground">Settings &rarr; Access &rarr; Quick Connect</span> and enter this code.</Trans></p>
               </div>
 
               <div className="flex items-center gap-2 text-[14px] text-muted-foreground">

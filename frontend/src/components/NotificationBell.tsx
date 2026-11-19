@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
 import { AnimatePresence, m } from 'motion/react'
-import { Bell, Check, BookOpen, Target, Timer } from 'lucide-react'
+import { Bell, BellOff, Check, BookOpen, Target, Timer } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useEscape } from '@/components/ModalShell'
@@ -183,9 +183,11 @@ export function NotificationBell() {
                     'mt-0.5 flex items-center justify-center w-9 h-9 rounded-full shrink-0',
                     n.kind === 'wish_fulfilled' || n.kind === 'goal_reached'
                       ? 'bg-success/15 text-success'
-                      : 'bg-secondary text-muted-foreground'
+                      : n.kind === 'channel_blocked'
+                        ? 'bg-destructive/15 text-destructive'
+                        : 'bg-secondary text-muted-foreground'
                   )}>
-                    {n.kind === 'goal_reached' ? <Target className="w-4 h-4" /> : n.kind === 'session_suspect' ? <Timer className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
+                    {n.kind === 'goal_reached' ? <Target className="w-4 h-4" /> : n.kind === 'channel_blocked' ? <BellOff className="w-4 h-4" /> : n.kind === 'session_suspect' ? <Timer className="w-4 h-4" /> : <BookOpen className="w-4 h-4" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className={cn(

@@ -97,7 +97,7 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
   }
 
   const selectedFile = singleBook?.files.find(f => f.id === selectedFileId)
-  const goSettings = () => { onClose(); navigate('/settings') }
+  const goSettings = () => { onClose(); navigate('/settings/send-to-device') }
   const blocked = !loading && (smtpConfigured === false || devices.length === 0)
 
   const footer = loading ? (

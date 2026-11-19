@@ -46,7 +46,7 @@ Install with `./skills/scribe/install.sh`. Full setup and usage in [docs/scribe.
 
 ## OPDS PINs
 
-OPDS PINs are short app-specific passwords for authenticating OPDS clients (KOReader, Panels, Chunky, etc.). Typing a full password on an e-ink keyboard is painful -- a 6-character PIN is much easier.
+OPDS PINs are short app-specific passwords for authenticating OPDS clients (KOReader, Panels, Chunky, etc.). Typing a full password on an e-ink keyboard is painful -- a 10-character PIN of lowercase letters and digits is much easier.
 
 To set one up:
 

@@ -6,8 +6,13 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from pathlib import Path
 
+from backend import __version__
+
 from backend.core.database import engine, Base, init_fts, backfill_fts
 from backend.core.config import settings
+from backend.core.logging_setup import configure_logging
+
+configure_logging(settings.log_level)
 from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
 
 logger = logging.getLogger(__name__)
@@ -233,6 +238,9 @@ async def lifespan(app: FastAPI):
         conn.execute(text("DELETE FROM api_keys WHERE key_hash IS NULL OR key_hash = ''"))
         conn.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS ix_api_keys_key_hash ON api_keys (key_hash)"))
         conn.commit()
+        # OPDS PIN previews used to keep 3 characters of the PIN in clear;
+        # keep 1. The PINs themselves are untouched and keep working.
+        _shorten_opds_pin_previews(conn)
         # Add scope column to api_tokens
         at_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(api_tokens)")).fetchall()}
         if "scope" not in at_cols:
@@ -486,6 +494,19 @@ async def lifespan(app: FastAPI):
                 pass
 
 
+def _shorten_opds_pin_previews(conn) -> None:
+    """Cut stored OPDS PIN previews ("abc...") down to one character ("a...").
+    Idempotent; no-op when the table does not exist yet."""
+    from sqlalchemy import text
+    if not conn.execute(text("PRAGMA table_info(opds_pins)")).fetchall():
+        return
+    conn.execute(text(
+        "UPDATE opds_pins SET pin_preview = substr(pin_preview, 1, 1) || '...' "
+        "WHERE length(pin_preview) > 4"
+    ))
+    conn.commit()
+
+
 async def _auto_import_loop() -> None:
     """Background task: periodically import files from the bindery into the library."""
     while True:
@@ -542,6 +563,36 @@ async def _release_check_loop() -> None:
             logger.exception("Unhandled error in release-check loop")
 
 
+# Auto-import skips files modified this recently: a file copied into the
+# Bindery (often over a network share) shows up at full name before its last
+# byte lands, and hashing + moving it then would import a broken book.
+AUTO_IMPORT_SETTLE_SECONDS = 30
+_AUTO_IMPORT_SUPPORTED = {".epub", ".pdf", ".cbz", ".cbr", ".mobi"}
+
+
+def _bindery_files_to_import(incoming: Path, now: float | None = None) -> list[Path]:
+    """Supported, non-hidden files in the Bindery that have stopped changing."""
+    import time
+    now = time.time() if now is None else now
+    found: list[Path] = []
+    for p in sorted(incoming.rglob("*")):
+        try:
+            if not p.is_file():
+                continue
+            rel = p.relative_to(incoming)
+            if any(part.startswith(".") for part in rel.parts):
+                continue
+            if p.suffix.lower() not in _AUTO_IMPORT_SUPPORTED:
+                continue
+            if now - p.stat().st_mtime < AUTO_IMPORT_SETTLE_SECONDS:
+                logger.debug("Auto-import: %s changed recently, trying next scan", p.name)
+                continue
+        except OSError:
+            continue  # vanished or unreadable mid-scan; a later scan sees it
+        found.append(p)
+    return found
+
+
 async def _run_auto_import() -> None:
     """Scan the incoming directory and auto-import any new supported files.
 
@@ -559,23 +610,11 @@ async def _run_auto_import() -> None:
     from backend.services.audit import audit
     from backend.services.book_types import assign_book_to_type_library
 
-    SUPPORTED = {".epub", ".pdf", ".cbz", ".cbr", ".mobi"}
-
     incoming = settings.incoming_dir
     if not incoming.exists():
         return
 
-    # Collect supported, non-hidden files
-    files_to_import: list[Path] = []
-    for p in incoming.rglob("*"):
-        if not p.is_file():
-            continue
-        rel = p.relative_to(incoming)
-        if any(part.startswith(".") for part in rel.parts):
-            continue
-        if p.suffix.lower() in SUPPORTED:
-            files_to_import.append(p)
-
+    files_to_import = _bindery_files_to_import(incoming)
     if not files_to_import:
         return
 
@@ -947,7 +986,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     app = FastAPI(
         title="Tome",
         description="Self-hosted ebook library",
-        version="1.7.0",
+        version=__version__,
         lifespan=lifespan,
         docs_url="/api/docs",
         redoc_url="/api/redoc",
@@ -982,6 +1021,15 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
         https_only=_session_secure,
         max_age=600,
     )
+
+    # Refuse request bodies over TOME_MAX_UPLOAD_MB before they reach the disk.
+    from backend.core.request_limits import BodySizeLimitMiddleware
+    app.add_middleware(BodySizeLimitMiddleware)
+
+    # nosniff / same-origin referrer / SAMEORIGIN framing on every response.
+    # Added last, so it is the outermost layer and also covers the 413 above.
+    from backend.core.headers import SecurityHeadersMiddleware
+    app.add_middleware(SecurityHeadersMiddleware)
 
     # API routes
     app.include_router(health.router, prefix="/api")
@@ -1030,6 +1078,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
         from starlette.responses import FileResponse as _FileResponse
 
         index_html = frontend_dist / "index.html"
+        _dist_root = frontend_dist.resolve()
 
         # Built files under /assets carry a content hash in their name, so a
         # browser may keep them for good. index.html, the service worker and
@@ -1065,14 +1114,29 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
                 return super().matches(scope)
 
         async def spa_fallback(full_path: str):
-            # Serve the actual file if it exists, otherwise index.html
-            file = frontend_dist / full_path
-            if full_path and file.is_file():
-                if file.suffix in (".html", ".webmanifest") or file.name in ("sw.js", "registerSW.js") or file.name.startswith("workbox-"):
+            # Serve the actual file if it exists, otherwise index.html. The
+            # path comes from the URL, so it is resolved and must stay inside
+            # the frontend folder: "../" segments (plain or percent-encoded)
+            # would otherwise reach any file the server can read.
+            file = (frontend_dist / full_path).resolve()
+            if full_path and file.is_relative_to(_dist_root) and file.is_file():
+                if file.suffix == ".html":
+                    return _FileResponse(str(file), headers=_page_headers(file))
+                if file.suffix == ".webmanifest" or file.name in ("sw.js", "registerSW.js") or file.name.startswith("workbox-"):
                     return _FileResponse(str(file), headers=_no_cache)
                 # Fonts, icons, the reader's foliate files: unhashed names
                 return _FileResponse(str(file), headers={"Cache-Control": "public, max-age=86400"})
-            return _FileResponse(str(index_html), headers=_no_cache)
+            return _FileResponse(str(index_html), headers=_page_headers(index_html))
+
+        from backend.core.headers import csp_enabled, csp_for_file
+
+        def _page_headers(file: Path) -> dict[str, str]:
+            # The policy keeps script inside a book from running (see
+            # backend/core/headers.py). The switch is read per request.
+            headers = dict(_no_cache)
+            if csp_enabled(settings.content_security_policy):
+                headers["Content-Security-Policy"] = csp_for_file(file)
+            return headers
 
         app.router.add_api_route(
             "/{full_path:path}", spa_fallback, methods=["GET"], route_class_override=_SpaRoute,

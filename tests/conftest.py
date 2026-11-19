@@ -5,6 +5,19 @@ The `get_db` dependency is overridden on the FastAPI app so the TestClient
 always talks to the same in-memory database as the fixtures.
 """
 import os
+import tempfile
+
+# The app's startup (schema changes, seeding, background threads) runs for
+# every TestClient, against the folders in the settings. Point them at a
+# throwaway directory BEFORE any backend import, so a test run never reads or
+# writes the developer's real ./data, ./library or ./bindery, and ignore the
+# developer's .env so local tokens and switches cannot leak into the tests.
+_TEST_ROOT = tempfile.mkdtemp(prefix="tome-tests-")
+for _name in ("DATA", "LIBRARY", "INCOMING"):
+    _dir = os.path.join(_TEST_ROOT, _name.lower())
+    os.makedirs(_dir, exist_ok=True)
+    os.environ[f"TOME_{_name}_DIR"] = _dir
+os.environ["TOME_ENV_FILE"] = os.path.join(_TEST_ROOT, "no.env")
 
 # Scans run serially in tests: worker processes wouldn't see monkeypatched
 # extraction, and in-process keeps tests fast and deterministic.
@@ -55,6 +68,15 @@ from backend.models.reading_goal import ReadingGoal  # noqa: F401 — registers 
 @pytest.fixture(scope="module")
 def anyio_backend():
     return "asyncio"
+
+
+@pytest.fixture(autouse=True, scope="function")
+def _reset_login_throttle():
+    """Failed logins in one test must not make a later test back off."""
+    from backend.core.login_throttle import throttle
+    throttle.reset()
+    yield
+    throttle.reset()
 
 
 @pytest.fixture(autouse=True, scope="function")

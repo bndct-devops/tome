@@ -77,7 +77,7 @@ def validate_backup(path: Path) -> dict:
             if manifest.get("app") != "tome":
                 raise ValueError("Not a Tome backup (manifest mismatch)")
             with tempfile.TemporaryDirectory(prefix="tome-restore-check-") as td:
-                tar.extract(_MEMBER_DB, td)
+                tar.extract(_MEMBER_DB, td, filter="data")
                 db_file = Path(td) / _MEMBER_DB
                 con = sqlite3.connect(str(db_file))
                 try:
@@ -116,7 +116,7 @@ def apply_staged_restore_if_present(data_dir: Path, db_path: Path, covers_dir: P
             shutil.copy2(db_path, db_path.with_name(f"{db_path.name}.pre-restore-{ts}"))
         with tarfile.open(staged, "r:gz") as tar:
             with tempfile.TemporaryDirectory(prefix="tome-restore-") as td:
-                tar.extract(_MEMBER_DB, td)
+                tar.extract(_MEMBER_DB, td, filter="data")
                 # Replace the DB and drop stale WAL/SHM sidecars from the old one.
                 shutil.move(str(Path(td) / _MEMBER_DB), str(db_path))
             for suffix in ("-wal", "-shm"):
@@ -129,7 +129,13 @@ def apply_staged_restore_if_present(data_dir: Path, db_path: Path, covers_dir: P
                 covers_dir.mkdir(parents=True, exist_ok=True)
                 for m in cover_members:
                     m.name = m.name[len(_MEMBER_COVERS) + 1:]
-                    tar.extract(m, covers_dir)
+                    # The "data" filter refuses absolute names, ".." and
+                    # links that would land outside covers_dir; such a
+                    # member is skipped (the database is already in place).
+                    try:
+                        tar.extract(m, covers_dir, filter="data")
+                    except tarfile.FilterError:
+                        log.warning("Restore: skipped unsafe cover entry %r", m.name)
         staged.unlink(missing_ok=True)
         # Leave a marker for the app to audit-log once the DB is up — this
         # runs before any engine exists, so it cannot write the entry itself.

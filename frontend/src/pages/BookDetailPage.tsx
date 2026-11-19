@@ -6,7 +6,7 @@ import {
   Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2, Eye,
   ExternalLink,
 } from 'lucide-react'
-import { useAuth, isMember } from '@/contexts/AuthContext'
+import { useAuth, isAdmin, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
@@ -189,7 +189,16 @@ async function downloadFile(book: BookDetail, f: BookFile) {
   URL.revokeObjectURL(url)
 }
 
+// Keyed on the book id: moving to the previous/next volume mounts a fresh page,
+// so no state from the old book survives and a slow or failed request for the
+// old book can no longer land on the new one (its setState hits an unmounted
+// component and is dropped).
 export function BookDetailPage() {
+  const { id } = useParams<{ id: string }>()
+  return <BookDetailView key={id} />
+}
+
+function BookDetailView() {
   const { t, i18n } = useLingui()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -262,8 +271,11 @@ export function BookDetailPage() {
   } | null>(null)
 
   const isDirty = editing && book != null && JSON.stringify(draft) !== JSON.stringify(book)
-  const canEdit = isMember(user)
-  const canDelete = isMember(user)
+  // Same rule as the server: an admin changes any book, a member only the
+  // books they uploaded. Libraries and sharing stay open to every member.
+  const member = isMember(user)
+  const canEdit = isAdmin(user) || (member && book != null && user != null && book.added_by === user.id)
+  const canDelete = canEdit
 
   useEffect(() => {
     if (!isDirty) return
@@ -455,7 +467,7 @@ export function BookDetailPage() {
     unread: t`Marked unread, reading progress cleared`,
     reading: t`Marked as reading`,
     read: t`Marked as read`,
-    shelved: t`Shelved, kept your progress`,
+    shelved: t`Put on hold, kept your progress`,
     want_to_read: t`Added to Want to Read`,
   }
 
@@ -671,14 +683,14 @@ export function BookDetailPage() {
     { id: 'reading', label: t`Reading` },
     { id: 'read', label: t`Read` },
     { id: 'want_to_read', label: t`Want to read`, title: t`Queue this book up next` },
-    { id: 'shelved', label: t`Shelved`, title: t`Set aside, keeps your progress` },
+    { id: 'shelved', label: t`On hold`, title: t`Set aside, keeps your progress` },
   ]
 
   // ── Header line: where you are, previous/next volume, the page's actions ────
 
   const crumbs = (
     <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground" aria-label={t`Breadcrumb`}>
-      <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>Library</Trans></Link>
+      <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>All books</Trans></Link>
       {book.series && seriesHref ? (
         <>
           <span aria-hidden>/</span>
@@ -726,7 +738,7 @@ export function BookDetailPage() {
         {deleting ? t`Deleting…` : t`Delete`}
       </Pill>
     </div>
-  ) : (canEdit || canDelete) ? (
+  ) : member ? (
     <div className="-mr-2 flex flex-wrap items-center justify-end gap-0.5">
       {canEdit && (
         <Pill variant="quiet" onClick={startEdit} aria-label={t`Edit`}>
@@ -739,7 +751,7 @@ export function BookDetailPage() {
         </Pill>
       )}
       {/* A book without a file is a personal reading record: it never goes into a library. */}
-      {canEdit && book.status !== 'no_file' && libraries.some(l => l.can_edit) && (
+      {member && book.status !== 'no_file' && libraries.some(l => l.can_edit) && (
         <div className="relative" ref={libMenuRef}>
           <Pill variant="quiet" onClick={() => setLibMenuOpen(o => !o)} aria-expanded={libMenuOpen} aria-label={t`Libraries`}
             className={cn(libMenuOpen && 'bg-secondary text-foreground')}>
@@ -784,7 +796,7 @@ export function BookDetailPage() {
           )}
         </div>
       )}
-      {canEdit && book.status !== 'no_file' && (
+      {member && book.status !== 'no_file' && (
         <Pill variant="quiet" onClick={() => setShowShare(true)} title={t`Share this book as a public page with its metadata only`} aria-label={t`Share`}>
           <Share2 className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Share</Trans></span>
         </Pill>

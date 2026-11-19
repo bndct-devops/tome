@@ -16,9 +16,10 @@ Per book, in order of preference:
                   type). The UI says "not estimated" rather than inventing one.
 
 "Days" = total minutes / the user's average minutes per calendar day over the
-last 30 days (90 when the last month is empty, so a short break doesn't blank
-the forecast). ``None`` when neither window has any reading — a rate of zero
-isn't a forecast.
+last 30 days (90 when the last month is below the minimum, so a short break
+doesn't blank the forecast). ``None`` when neither window reaches
+``MIN_MINUTES_PER_DAY``: a near-zero rate is not a forecast, it divides a
+backlog into centuries.
 """
 from __future__ import annotations
 
@@ -38,6 +39,8 @@ DEFAULT_WPM = 250
 WPM_MIN_SECONDS = 300
 PACE_WINDOW_DAYS = 30
 PACE_FALLBACK_WINDOW_DAYS = 90
+# Below this average there is no day estimate (30 minutes in a month).
+MIN_MINUTES_PER_DAY = 1.0
 # A type average needs at least this many finished books before it's quoted.
 TYPE_AVG_MIN_BOOKS = 2
 
@@ -99,7 +102,7 @@ def compute_pace(db: Session, user_id: int, tz_offset: int = 0, tz_name: str | N
     for window in (PACE_WINDOW_DAYS, PACE_FALLBACK_WINDOW_DAYS):
         cutoff = datetime.utcnow() - timedelta(days=window)
         recent_secs, _, _ = rr.totals(db, user_id, tzm, covered, cutoff, None)
-        if recent_secs > 0:
+        if recent_secs / 60 / window >= MIN_MINUTES_PER_DAY:
             minutes_per_day = round(recent_secs / 60 / window, 1)
             break
 

@@ -12,6 +12,7 @@ from pydantic import BaseModel, field_serializer
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
+from backend.core.permissions import is_admin
 from backend.core.security import get_current_user
 from backend.models.notification import Notification, NotificationChannel
 from backend.models.user import User
@@ -102,11 +103,16 @@ class ChannelOut(BaseModel):
     url: str
     has_token: bool
     enabled: bool
+    # A non-admin's channel whose address the send-time check refuses.
+    blocked: bool = False
 
 
-def _channel_out(c: NotificationChannel) -> ChannelOut:
+def _channel_out(c: NotificationChannel, user: User) -> ChannelOut:
+    from backend.services.outbound_notifications import channel_blocked
+
+    blocked = not is_admin(user) and channel_blocked(c.url)
     return ChannelOut(id=c.id, kind=c.kind, url=c.url,
-                      has_token=bool(c.token), enabled=c.enabled)
+                      has_token=bool(c.token), enabled=c.enabled, blocked=blocked)
 
 
 @router.get("/notification-channels", response_model=list[ChannelOut])
@@ -120,7 +126,7 @@ def list_channels(
         .order_by(NotificationChannel.id)
         .all()
     )
-    return [_channel_out(c) for c in rows]
+    return [_channel_out(c, current_user) for c in rows]
 
 
 @router.post("/notification-channels", response_model=ChannelOut, status_code=201)
@@ -134,6 +140,18 @@ def create_channel(
     url = body.url.strip()
     if not (url.startswith("http://") or url.startswith("https://")):
         raise HTTPException(status_code=422, detail="url must be http(s)")
+    if not is_admin(current_user):
+        # The server fetches this URL; only an admin may point it at the
+        # local network (see services/outbound_notifications.py).
+        from backend.services.outbound_notifications import NOT_PUBLIC_DETAIL, check_channel_url
+        from backend.services.safe_fetch import UnsafeURLError
+        try:
+            check_channel_url(url)
+        except UnsafeURLError:
+            raise HTTPException(
+                status_code=422,
+                detail=NOT_PUBLIC_DETAIL,
+            )
     c = NotificationChannel(user_id=current_user.id, kind=body.kind,
                             url=url, token=(body.token or None))
     db.add(c)
@@ -142,7 +160,7 @@ def create_channel(
     audit(db, "notify_channel.created", user_id=current_user.id, username=current_user.username,
           resource_type="notification_channel", resource_id=c.id,
           details={"kind": c.kind, "url": c.url})  # never the token
-    return _channel_out(c)
+    return _channel_out(c, current_user)
 
 
 @router.delete("/notification-channels/{channel_id}")
@@ -174,7 +192,7 @@ def toggle_channel(
     c.enabled = not c.enabled
     db.commit()
     db.refresh(c)
-    return _channel_out(c)
+    return _channel_out(c, current_user)
 
 
 @router.post("/notification-channels/{channel_id}/test")
@@ -190,13 +208,22 @@ def test_channel(
     c = db.get(NotificationChannel, channel_id)
     if not c or c.user_id != current_user.id:
         raise HTTPException(status_code=404, detail="Channel not found")
+    admin = is_admin(current_user)
     try:
         deliver(c.kind, c.url, c.token, {
             "kind": "test",
             "title": "Tome test notification",
             "body": "Your channel is wired up correctly.",
             "link": "/",
-        })
+        }, restricted=not admin)
     except Exception as exc:  # noqa: BLE001 — surfaced to the user, not hidden
+        if not admin:
+            from backend.services.outbound_notifications import NOT_PUBLIC_DETAIL, channel_blocked
+            if channel_blocked(c.url):
+                # Their own address and our rule: nothing learned from it.
+                return {"ok": False, "error": NOT_PUBLIC_DETAIL}
+            # The upstream error text would tell a member what answers on
+            # the server's network; they get the outcome only.
+            return {"ok": False, "error": "The notification could not be delivered."}
         return {"ok": False, "error": str(exc)[:300]}
     return {"ok": True}

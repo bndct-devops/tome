@@ -11,7 +11,7 @@ from backend import __version__
 from backend.core.database import get_db
 from backend.core.ratings import validate_rating
 from backend.core.security import get_current_user
-from backend.core.permissions import require_role
+from backend.core.permissions import require_role, visible_book_or_404
 from backend.services.hardcover_sync import nudge as hardcover_nudge
 from backend.services.book_progress import (
     upsert_position, clear_position, restart_reading, reset_hardcover_read_state,
@@ -42,6 +42,11 @@ class StatusIn(BaseModel):
     status: str
     progress_pct: Optional[float] = None
     cfi: Optional[str] = None
+    # Set by the web reader on its automatic saves. Under it a finished book
+    # stays finished (the same sticky rule device position sync uses): status,
+    # finished_at and progress_pct are kept, only the position moves. Without
+    # it (book page, API clients) a non-"read" status un-finishes as before.
+    autosave: bool = False
 
 
 class RatingIn(BaseModel):
@@ -67,6 +72,7 @@ def get_book_status(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    visible_book_or_404(db, current_user, book_id)
     row = db.query(UserBookStatus).filter_by(user_id=current_user.id, book_id=book_id).first()
     if not row:
         return StatusOut(book_id=book_id, status="unread", progress_pct=None, cfi=None, updated_at=None)
@@ -86,9 +92,7 @@ def set_book_rating(
     so rating a book you've never opened just creates an 'unread' row.
     """
     validate_rating(body.rating)
-    from backend.models.book import Book
-    if not db.get(Book, book_id):
-        raise HTTPException(404, "Book not found")
+    visible_book_or_404(db, current_user, book_id)
 
     raw = body.model_dump(exclude_unset=True)
     row = db.query(UserBookStatus).filter_by(user_id=current_user.id, book_id=book_id).first()
@@ -118,14 +122,25 @@ def set_book_status(
 ):
     if body.status not in ("unread", "reading", "read", "shelved", "want_to_read"):
         raise HTTPException(400, "status must be unread, reading, read, shelved, or want_to_read")
-    from backend.models.book import Book
-    book = db.get(Book, book_id)
-    if not book:
-        raise HTTPException(404, "Book not found")
+    book = visible_book_or_404(db, current_user, book_id)
     row = db.query(UserBookStatus).filter_by(user_id=current_user.id, book_id=book_id).first()
+    if body.status == "reading" and body.progress_pct is not None and body.progress_pct >= 0.99:
+        # The same finish rule the device paths use (book_progress): a
+        # position at 99% or more is a finished book. Without it a client
+        # that only reports positions (the iPhone app, API scripts) left the
+        # book "reading" at 100% for good.
+        body.status = "read"
+        body.progress_pct = 1.0
     # Only overwrite progress_pct/cfi when explicitly sent (not just defaulting to None)
     raw = body.model_dump(exclude_unset=True)
-    if row:
+    if row and body.autosave and row.status == "read" and body.status != "read":
+        # Reader autosave on a finished book: sticky, like the device path
+        # (book_progress.apply_progress_to_status). A late or re-read page
+        # save never un-finishes the book; only the resume position follows.
+        if 'cfi' in raw and body.cfi is not None:
+            row.cfi = body.cfi
+        row.updated_at = datetime.utcnow()
+    elif row:
         was_read = row.status == "read"
         # finished_at marks the transition into "read" (updated_at is useless as
         # a finish date — it moves on every rating/CFI write) and clears when
@@ -307,6 +322,7 @@ def get_book_kosync_progress(
 ):
     from backend.models.kosync import KOSyncUser, KOSyncProgress, KOSyncDocumentMap
 
+    visible_book_or_404(db, current_user, book_id)
     kosync_user = db.query(KOSyncUser).filter(KOSyncUser.username == current_user.username).first()
     if not kosync_user:
         return KOSyncStatusOut(linked=False)
@@ -379,17 +395,13 @@ def link_kosync_document(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    from backend.models.book import Book
     from backend.models.kosync import KOSyncUser, KOSyncProgress, KOSyncDocumentMap
 
-    from backend.core.permissions import user_can_see_book
     from backend.services.kosync_stats import attach_sessions, has_sessions_for
 
-    book = db.get(Book, book_id)
     # The user's progress and sessions end up on this book, so it has to be
     # one they can see (same answer as a missing book).
-    if not book or not user_can_see_book(db, current_user, book):
-        raise HTTPException(404, "Book not found")
+    book = visible_book_or_404(db, current_user, book_id)
 
     kosync_user = db.query(KOSyncUser).filter(KOSyncUser.username == current_user.username).first()
     if not kosync_user:
@@ -435,6 +447,8 @@ def link_kosync_document(
     from backend.services.kosync_books import hand_over, remember_document
     leftover = hand_over(db, current_user, previous_book_id, book_id)
     remember_document(db, current_user.id, body.document)
+    from backend.api.kosync import clear_pending_links
+    clear_pending_links(db, current_user.id, book_id)
 
     # Shared sticky-completion rule — same semantics as a KOSync push landing
     # on an already-linked book (position-sync: tracks the report, downward
@@ -740,10 +754,58 @@ def delete_user(
     if not user:
         raise HTTPException(404, "User not found")
     _guard_last_admin(db, user, demote=True, deactivate=True)
-    audit(db, "users.deleted", user_id=admin.id, username=admin.username,
-          resource_type="user", resource_id=user.id, resource_title=user.username)
+    from backend.models.book import Book
+    from backend.models.library import Library, SavedFilter
+
+    username = user.username
+    # Three references to users have no delete rule; everything else cascades
+    # or is set to NULL by the database.
+    #
+    # Uploads stay and pass to the admin doing the delete. An upload in no
+    # library is private to its uploader today; with an admin as uploader it
+    # would become shared (book_visibility_filter), so those books first go
+    # into a new private library owned by that admin. An admin's unfiled
+    # uploads are already shared and stay that way.
+    deleted_is_admin = user.is_admin or user.role == "admin"
+    unfiled = [] if deleted_is_admin else (
+        db.query(Book)
+        .filter(Book.added_by == user.id, ~Book.libraries.any())
+        .all()
+    )
+    holding_lib_id: int | None = None
+    if unfiled:
+        holding = Library(name=f"Uploads from {username}", icon="Archive",
+                          is_public=False, owner_id=admin.id)
+        db.add(holding)
+        db.flush()
+        holding.books.extend(unfiled)
+        db.flush()
+        holding_lib_id = holding.id
+    books_reassigned = (
+        db.query(Book).filter(Book.added_by == user.id)
+        .update({Book.added_by: admin.id}, synchronize_session=False)
+    )
+    # Libraries keep their visibility and assigned users; the admin owns them.
+    libraries_reassigned = (
+        db.query(Library).filter(Library.owner_id == user.id)
+        .update({Library.owner_id: admin.id}, synchronize_session=False)
+    )
+    # Shelves are personal; their share links go with them (FK cascade).
+    shelves_deleted = (
+        db.query(SavedFilter).filter(SavedFilter.owner_id == user.id)
+        .delete(synchronize_session=False)
+    )
     db.delete(user)
     db.commit()
+    # Audit only once the delete is committed.
+    audit(db, "users.deleted", user_id=admin.id, username=admin.username,
+          resource_type="user", resource_id=user_id, resource_title=username,
+          details={
+              "books_reassigned": books_reassigned,
+              "libraries_reassigned": libraries_reassigned,
+              "shelves_deleted": shelves_deleted,
+              "unfiled_books_filed_into_library_id": holding_lib_id,
+          })
 
 
 @router.put("/users/{user_id}/permissions", response_model=UserOut)
@@ -997,6 +1059,8 @@ def get_admin_stats(
     covers_size_mb = round(
         sum(os.path.getsize(os.path.join(covers_dir, f)) for f in os.listdir(covers_dir) if os.path.isfile(os.path.join(covers_dir, f))) / 1024 / 1024, 2
     ) if os.path.exists(covers_dir) else 0
+    thumbs = _cover_thumb_files(settings.cover_thumbs_dir)
+    cover_thumbs_size_mb = round(sum(f.stat().st_size for f in thumbs) / 1024 / 1024, 2)
     import sys
     return {
         "book_count": book_count,
@@ -1004,6 +1068,8 @@ def get_admin_stats(
         "db_size_mb": db_size_mb,
         "covers_count": covers_count,
         "covers_size_mb": covers_size_mb,
+        "cover_thumbs_count": len(thumbs),
+        "cover_thumbs_size_mb": cover_thumbs_size_mb,
         "library_dir": str(settings.library_dir),
         "data_dir": str(settings.data_dir),
         "incoming_dir": str(settings.incoming_dir),
@@ -1012,20 +1078,29 @@ def get_admin_stats(
     }
 
 
+def _cover_thumb_files(thumbs_dir) -> list:
+    """Files in the cover thumbnail cache (data/cover_thumbs)."""
+    if not thumbs_dir.is_dir():
+        return []
+    return [f for f in thumbs_dir.iterdir() if f.is_file()]
+
+
 @router.delete("/admin/covers-cache")
 def clear_covers_cache(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
+    """Delete the cover thumbnails; they are made again on the next request.
+
+    Only data/cover_thumbs is touched. data/covers holds the only copy of
+    every cover (extracted, fetched or uploaded) and nothing re-extracts
+    them, so it is never cleared here."""
     require_role(current_user, "admin")
-    import shutil, os
     from backend.core.config import settings
-    covers_dir = os.path.join(settings.data_dir, "covers")
     deleted = 0
-    if os.path.exists(covers_dir):
-        for f in os.listdir(covers_dir):
-            fp = os.path.join(covers_dir, f)
-            if os.path.isfile(fp):
-                os.remove(fp)
-                deleted += 1
+    for f in _cover_thumb_files(settings.cover_thumbs_dir):
+        f.unlink(missing_ok=True)
+        deleted += 1
+    audit(db, "admin.cover_thumbs_cleared", user_id=current_user.id,
+          username=current_user.username, details={"deleted": deleted})
     return {"deleted": deleted}

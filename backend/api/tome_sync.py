@@ -10,13 +10,14 @@ import logging
 import zipfile
 from datetime import datetime, timedelta
 from typing import Optional
+from urllib.parse import urlsplit
 
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel as PydanticBaseModel, field_validator
-from sqlalchemy import func
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session, joinedload
 
 from backend.core.config import settings
@@ -24,7 +25,7 @@ from backend.core.database import get_db
 from backend.core.urls import public_base_url
 from backend.core.permissions import book_visibility_filter, user_can_see_book
 from backend.core.ratings import validate_rating
-from backend.core.security import get_current_user
+from backend.core.security import get_current_user, get_current_user_no_api_token
 from backend.models.user import User
 from backend.models.book import Book, BookFile, BookTag
 from backend.models.library import Library, SavedFilter
@@ -121,8 +122,23 @@ logger = logging.getLogger(__name__)
 # /tome-sync/device-books on launch, resume, WiFi up, Sync now and a few
 # seconds after the book map changes; the server replaces the device's list,
 # so deletes drop out on the next push. Powers "On <device>" in web and app.
-TOMESYNC_PLUGIN_BUILD = 52
-TOMESYNC_PLUGIN_SEMVER = "1.19.2"
+# BUILD 54 (53 is taken by the unmerged feat/ai-provider branch): reading
+# status from Tome (issue #296). The plugin asks POST
+# /tome-sync/statuses for the status of the books on the device (same
+# book id + partial-MD5 gate as the metadata sync) and writes it into
+# KOReader's own book status (sidecar summary.status), so a book finished on
+# one device shows as finished on the others. On by default
+# (tomesync_status_sync); runs after launch, on wake, when WiFi connects and
+# from "Sync now". A per-file baseline of the last Tome status means only a
+# CHANGE in Tome is applied, so a mark set by hand on the device stays.
+# BUILD 55: review fixes. A book Tome does not have is looked up again only
+# after 5 minutes or a WiFi reconnect (was every page turn, each a blocking
+# request); the self-update sends the main server address (server_url) so an
+# update fetched over the fallback address does not bake that one in; the
+# self-update checks its file writes (write, close, read-back) before the
+# swap. Baked config values are escaped for Lua.
+TOMESYNC_PLUGIN_BUILD = 55
+TOMESYNC_PLUGIN_SEMVER = "1.20.1"
 TOMESYNC_PLUGIN_VERSION = str(TOMESYNC_PLUGIN_BUILD)
 
 
@@ -143,6 +159,8 @@ def _get_api_key_user(
     user = db.get(User, api_key.user_id)
     if not user or not user.is_active:
         raise HTTPException(status_code=401, detail="User not found or inactive")
+    from backend.core.security import refuse_if_password_change_pending
+    refuse_if_password_change_pending(user)
     # Update last_used_at
     api_key.last_used_at = datetime.utcnow()
     db.commit()
@@ -419,6 +437,26 @@ def resolve_book(
     raise HTTPException(status_code=404, detail="No matching book found")
 
 
+def _visible_book(db: Session, user: User, book_id: int) -> Book:
+    """The active book, or 404 when it is missing, removed or hidden from this
+    user. A device gets the same answer for a hidden book as for a deleted
+    one, which it already handles."""
+    book = db.get(Book, book_id)
+    if not book or book.status != "active" or not user_can_see_book(db, user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book
+
+
+def _syncable_book(db: Session, user: User, book_id: int) -> Book:
+    """Like ``_visible_book``, for the routes that sync reading: those also
+    take a book record without a file that this user's reader created (see
+    ``_is_syncable``)."""
+    book = db.get(Book, book_id)
+    if not _is_syncable(book, user) or not user_can_see_book(db, user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+    return book
+
+
 # ── Position endpoints ────────────────────────────────────────────────────────
 
 @router.get("/tome-sync/position/{book_id}")
@@ -427,9 +465,7 @@ def get_position(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    book = db.get(Book, book_id)
-    if not _is_syncable(book, user):
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _syncable_book(db, user, book_id)
 
     pos = _get_position(db, user.id, book_id)
 
@@ -486,9 +522,7 @@ def put_position(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    book = db.get(Book, book_id)
-    if not _is_syncable(book, user):
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _syncable_book(db, user, book_id)
 
     # Clamp percentage to 0-1 range
     pct = max(0.0, min(1.0, body.percentage))
@@ -524,9 +558,7 @@ def get_rating(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    book = db.get(Book, book_id)
-    if not _is_syncable(book, user):
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _syncable_book(db, user, book_id)
 
     row = (
         db.query(UserBookStatus)
@@ -555,9 +587,7 @@ def put_rating(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    book = db.get(Book, book_id)
-    if not _is_syncable(book, user):
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _syncable_book(db, user, book_id)
     validate_rating(body.rating)
 
     row = (
@@ -601,9 +631,7 @@ def post_session(
     db: Session = Depends(get_db),
     user: User = Depends(_get_api_key_user),
 ):
-    book = db.get(Book, body.book_id)
-    if not _is_syncable(book, user):
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _syncable_book(db, user, body.book_id)
 
     # Dedup: if same session_uuid already stored, return it
     if body.session_uuid:
@@ -928,9 +956,7 @@ def sync_annotations(
     Deletes drop the row and write a tombstone, unless a newer live edit exists.
     The response (alive set + tombstones) is what the device applies locally.
     """
-    book = db.get(Book, book_id)
-    if not _is_syncable(book, user):
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = _syncable_book(db, user, book_id)
 
     alive, tombs = _annotation_state(db, user.id, book_id)
     created = updated = deleted = skipped = 0
@@ -1025,6 +1051,7 @@ def get_annotations_plugin(
 ):
     """Full annotation state (alive + tombstones) for this user+book — what the
     plugin pulls and merges on book open."""
+    _visible_book(db, user, book_id)
     return _annotation_response(db, user.id, book_id, offset=_clock_offset_seconds(device_time))
 
 
@@ -1444,6 +1471,72 @@ def device_metadata_sync(
     return {"books": out, "unchanged": unchanged, "rejected": rejected}
 
 
+class StatusSyncItem(PydanticBaseModel):
+    book_id: int
+    ko_md5: str
+
+
+class StatusSyncRequest(PydanticBaseModel):
+    items: list[StatusSyncItem] = []
+
+    # KOReader's Lua rapidjson encodes an empty table as a JSON object.
+    @field_validator("items", mode="before")
+    @classmethod
+    def _coerce_empty_object(cls, v):
+        return [] if isinstance(v, dict) and not v else v
+
+
+@router.post("/tome-sync/statuses")
+def device_status_sync(
+    body: StatusSyncRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(_get_api_key_user),
+):
+    """The user's reading status for books the plugin holds on the device
+    (Tome -> KOReader, issue #296).
+
+    Same gate as the metadata sync above: a (book id, partial-MD5) pair is
+    only answered when Tome has that exact hash on record for that exact book
+    and the user can see the book, so the plugin never marks the wrong file
+    finished. Everything else is listed under ``rejected``.
+
+    ``status`` is one of ``unread`` / ``reading`` / ``read``. A book with no
+    status row, or one queued as ``want_to_read``, is ``unread``: the device
+    has no equivalent of a queue.
+    """
+    from backend.models.ko_stats import KoHash
+
+    items = body.items[:METADATA_SYNC_MAX_ITEMS]
+    ids = {i.book_id for i in items}
+    if not ids:
+        return {"statuses": [], "rejected": []}
+
+    visible = {
+        r[0]
+        for r in db.query(Book.id)
+        .filter(Book.id.in_(ids), Book.status == "active", book_visibility_filter(db, user))
+        .all()
+    }
+    known = {
+        (bid, md5)
+        for bid, md5 in db.query(KoHash.book_id, KoHash.ko_partial_md5)
+        .filter(KoHash.book_id.in_(ids))
+        .all()
+    }
+    smap = _status_map(db, user.id, list(visible))
+
+    out: list[dict] = []
+    rejected: list[dict] = []
+    for item in items:
+        pair = {"book_id": item.book_id, "ko_md5": item.ko_md5}
+        if item.book_id not in visible or (item.book_id, item.ko_md5) not in known:
+            rejected.append(pair)
+            continue
+        status = smap.get(item.book_id)
+        out.append({**pair, "status": status if status in ("reading", "read") else "unread"})
+    return {"statuses": out, "rejected": rejected}
+
+
 class SweepBody(PydanticBaseModel):
     status: Optional[str] = None       # reading | read (sidecar summary.status)
     rating: Optional[float] = None     # 0.5–5.0 half-star steps
@@ -1711,7 +1804,7 @@ class CreateKeyRequest(PydanticBaseModel):
 def create_api_key(
     body: CreateKeyRequest,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_no_api_token),
 ):
     key_value = ApiKey.generate()
     api_key = ApiKey(
@@ -1792,24 +1885,59 @@ def _baked_server_url(request: Request, explicit: str | None) -> str:
     return public_base_url(request, explicit)
 
 
+# Label of a key minted by a plugin download ("Plugin download 2026-11-13").
+# Before the date was added, download keys were labelled "KOReader Plugin".
+PLUGIN_DOWNLOAD_LABEL = "Plugin download"
+_LEGACY_DOWNLOAD_LABEL = "KOReader Plugin"
+# A download key no device has used after this long counts as abandoned.
+UNUSED_DOWNLOAD_KEY_TTL = timedelta(days=7)
+
+
+def _prune_unused_download_keys(db: Session, user_id: int, now: datetime) -> int:
+    """Delete this user's plugin-download keys that were never used and are
+    older than ``UNUSED_DOWNLOAD_KEY_TTL``. A key that has been used is never
+    touched, and neither are keys made another way (paired devices, "New key").
+    Returns how many were deleted; the caller commits."""
+    cutoff = now - UNUSED_DOWNLOAD_KEY_TTL
+    stale = (
+        db.query(ApiKey)
+        .filter(
+            ApiKey.user_id == user_id,
+            ApiKey.last_used_at.is_(None),
+            ApiKey.created_at < cutoff,
+            or_(
+                ApiKey.label == _LEGACY_DOWNLOAD_LABEL,
+                ApiKey.label.like(f"{PLUGIN_DOWNLOAD_LABEL} %"),
+            ),
+        )
+        .all()
+    )
+    for k in stale:
+        db.delete(k)
+    return len(stale)
+
+
 @router.get("/plugin/koreader")
 def download_plugin(
     request: Request,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user_no_api_token),
     server_url: str | None = None,
 ):
     """Generate and download a pre-configured tomesync.koplugin ZIP."""
     # Always mint a fresh key for this download. Plaintext is never stored
     # (only its sha256 hash), so we can't recover a previously-issued plaintext.
-    # Existing installs keep working — they have their own plaintext that still
-    # hashes to a row in api_keys. Users can revoke unused rows in Settings.
+    # Existing installs keep working - they have their own plaintext that still
+    # hashes to a row in api_keys. Earlier download keys that no device ever
+    # used are pruned here, so repeated downloads do not pile up keys.
+    now = datetime.utcnow()
+    _prune_unused_download_keys(db, current_user.id, now)
     api_key_value = ApiKey.generate()
     db.add(ApiKey(
         user_id=current_user.id,
         key_hash=ApiKey.hash_key(api_key_value),
         key_prefix=api_key_value[:11],
-        label="KOReader Plugin",
+        label=f"{PLUGIN_DOWNLOAD_LABEL} {now.date().isoformat()}",
     ))
     db.commit()
 
@@ -1835,6 +1963,42 @@ def download_plugin(
 
 # ── Plugin self-update (impl only) ────────────────────────────────────────────
 
+def _plugin_sent_url(value: str | None) -> str | None:
+    """The server address an updating plugin reports as its own, or None.
+
+    Accepted only as a plain http(s) origin with an optional path: no
+    credentials, query, fragment, whitespace, quotes or backslashes. Anything
+    else is ignored, so a bad value can never end up as the device's server.
+    """
+    if not value or len(value) > 2048:
+        return None
+    if any(ord(c) <= 0x20 or ord(c) == 0x7F or c in '"\'\\<>' for c in value):
+        return None
+    try:
+        parts = urlsplit(value)
+        parts.port  # raises on a malformed port
+    except ValueError:
+        return None
+    if parts.scheme not in ("http", "https") or not parts.hostname:
+        return None
+    if parts.username or parts.password or parts.query or parts.fragment:
+        return None
+    return value.rstrip("/")
+
+
+def _update_server_url(request: Request, sent: str | None) -> str:
+    """Origin baked into a self-updated impl.
+
+    ``TOME_PUBLIC_URL`` still wins when set. Otherwise the address the plugin
+    reports as its main server is kept, so an update fetched over a fallback
+    (LAN) address does not make that address the device's new default. Old
+    plugins send nothing and keep the request-origin behaviour.
+    """
+    if settings.public_url:
+        return settings.public_url.rstrip("/")
+    return _plugin_sent_url(sent) or public_base_url(request, None)
+
+
 @router.get("/plugin/main-impl.lua")
 def download_main_impl(
     request: Request,
@@ -1851,7 +2015,7 @@ def download_main_impl(
     auth = request.headers.get("authorization", "")
     api_key_value = auth.removeprefix("Bearer ").strip()
 
-    server_url = _baked_server_url(request, server_url)
+    server_url = _update_server_url(request, server_url)
 
     return StreamingResponse(
         io.BytesIO(_main_impl_lua(server_url, api_key_value, current_user.username).encode()),
@@ -1987,6 +2151,28 @@ return plugin
 '''
 
 
+def _lua_string(value: str) -> str:
+    """Render ``value`` as a quoted Lua string literal that always compiles.
+
+    Baked config (server URL, API key, username) goes into the impl source, so
+    a quote, backslash or newline in any of them would otherwise produce a
+    plugin that does not load. Backslash and double quote are escaped, every
+    other byte below 0x20 (and DEL) becomes a decimal ``\\ddd`` escape, which
+    Lua 5.1 and LuaJIT both read. Other characters pass through unchanged.
+    """
+    out = []
+    for ch in value:
+        if ch == "\\":
+            out.append("\\\\")
+        elif ch == '"':
+            out.append('\\"')
+        elif ord(ch) < 0x20 or ord(ch) == 0x7F:
+            out.append("\\%03d" % ord(ch))
+        else:
+            out.append(ch)
+    return '"' + "".join(out) + '"'
+
+
 def _main_impl_lua(server_url: str, api_key: str, username: str) -> str:
     return f'''--[[
 TomeSync KOReader Plugin — implementation (replaced in place by self-update).
@@ -2047,9 +2233,9 @@ end
 -- ── Config (defaults baked in at download time) ─────────────────────────────
 
 -- Defaults baked in at download time; overridable in Settings > Server.
-local DEFAULT_SERVER_URL = "{server_url}"
-local DEFAULT_API_KEY    = "{api_key}"
-local DEFAULT_USERNAME   = "{username}"
+local DEFAULT_SERVER_URL = {_lua_string(server_url)}
+local DEFAULT_API_KEY    = {_lua_string(api_key)}
+local DEFAULT_USERNAME   = {_lua_string(username)}
 
 local function liveSetting(key, default)
     local v = G_reader_settings:readSetting(key)
@@ -2187,6 +2373,11 @@ local sweep_running = false
 local meta_sync_running = false
 local meta_sync_launched = false
 local meta_last_auto = 0     -- os.time() of the last automatic run (debounce)
+-- Status sync (build 54): same latches as the metadata sync, its own setting.
+local status_sync_running = false
+local status_sync_launched = false
+local status_sync_unsupported = false   -- server answered 404/405: stop asking
+local status_last_auto = 0
 -- Device inventory (build 50): one launch push per process, one pending
 -- debounced push shared by every TomeSync instance (file manager + reader).
 local inventory_launched = false
@@ -2511,9 +2702,14 @@ local function readWhole(path)
     local d = f:read("*a"); f:close(); return d
 end
 
+-- Writes data and reads it back. False when the write, the close (where a
+-- full disk usually shows) or the read-back fails, or the bytes differ.
 local function writeWhole(path, data)
     local f = io.open(path, "wb"); if not f then return false end
-    f:write(data); f:close(); return true
+    local wok = f:write(data)
+    local cok = f:close()
+    if not wok or not cok then return false end
+    return readWhole(path) == data
 end
 
 -- Raw (non-JSON) authenticated GET, used to fetch the new impl text.
@@ -2605,6 +2801,9 @@ function TomeSync:init()
     -- Metadata sync ledger: device path -> what we last wrote (see the
     -- "Metadata sync" section). Pruned with book_map.
     self.meta_ledger = self.state:readSetting("tomesync_meta_ledger") or {{}}
+    -- Status sync baseline: device path -> file hash + the Tome status last
+    -- seen for it (see the "Status sync" section). Pruned with book_map.
+    self.status_base = self.state:readSetting("tomesync_status_base") or {{}}
     self:_pruneState()
     self:onDispatcherRegisterActions()
     self.ui.menu:registerToMainMenu(self)
@@ -2654,6 +2853,11 @@ function TomeSync:init()
         meta_sync_launched = true
         UIManager:scheduleIn(20, function() pcall(function() self:_syncMetadata(false) end) end)
     end
+
+    if not status_sync_launched and self.enabled then
+        status_sync_launched = true
+        UIManager:scheduleIn(25, function() pcall(function() self:_syncStatuses(false) end) end)
+    end
 end
 
 -- The data tables that live in the dedicated state file (tomesync_update and
@@ -2663,7 +2867,7 @@ local STATE_KEYS = {{
     "tomesync_book_map", "tomesync_pending_sessions", "tomesync_adopt_pending",
     "tomesync_repair_map", "tomesync_annot_baseline", "tomesync_rating_baseline",
     "tomesync_pending_ratings", "tomesync_meta_ledger",
-    "tomesync_pending_positions", "tomesync_scan_mark",
+    "tomesync_pending_positions", "tomesync_scan_mark", "tomesync_status_base",
 }}
 
 function TomeSync:_saveState(key, value)
@@ -2759,9 +2963,16 @@ function TomeSync:_pruneState()
             changed = true
         end
     end
+    for path in pairs(self.status_base) do
+        if lfs.attributes(path, "mode") ~= "file" then
+            self.status_base[path] = nil
+            changed = true
+        end
+    end
     if changed then
         self.state:saveSetting("tomesync_book_map", self.book_map)
         self.state:saveSetting("tomesync_meta_ledger", self.meta_ledger)
+        self.state:saveSetting("tomesync_status_base", self.status_base)
         self.state:saveSetting("tomesync_annot_baseline", self.annot_baseline)
         self.state:saveSetting("tomesync_rating_baseline", self.rating_baseline)
         self.state:saveSetting("tomesync_repair_map", self.repair_map)
@@ -2894,6 +3105,8 @@ function TomeSync:onPageUpdate(pageno)
     -- (issue #249).
     if not self.book_id then
         if not self._reader_ready then return end
+        local doc = self.ui and self.ui.document
+        if doc and self:_resolveMissFresh(doc.file) then return end
         self:_tryResolve()
         if self.book_id then
             self:_initSession()
@@ -3022,6 +3235,10 @@ function TomeSync:onResume()
     -- Device inventory catches deletes made while the device slept (or in the
     -- file manager); runs for the file manager instance too, no book needed.
     if self.enabled then self:_scheduleDeviceBooks() end
+    -- Statuses changed from another device while this one slept (issue #296).
+    if self.enabled then
+        UIManager:scheduleIn(8, function() pcall(function() self:_syncStatuses(false) end) end)
+    end
     if not self.enabled or not self.book_id then return end
 
     -- Start a fresh session (lid open = new session)
@@ -3045,6 +3262,7 @@ end
 -- is chunk-local, so clearing it here unblocks every TomeSync instance at once.
 function TomeSync:onNetworkConnected()
     resetBackoff()
+    self._resolve_miss = nil  -- a book Tome did not know is asked about again
     -- No book_id guard: pending sessions/ratings and the history import are
     -- device-level, and WiFi often comes up in the file manager (morning
     -- catch-up) before any book is opened.
@@ -3063,6 +3281,7 @@ function TomeSync:onNetworkConnected()
     if G_reader_settings:isTrue("tomesync_meta_sync") then
         UIManager:scheduleIn(6, function() pcall(function() self:_syncMetadata(false) end) end)
     end
+    UIManager:scheduleIn(8, function() pcall(function() self:_syncStatuses(false) end) end)
 end
 
 -- ── KOReader statistics.sqlite3 import (reading-history backfill) ────────────
@@ -3844,6 +4063,18 @@ end
 
 -- ── Helpers ──────────────────────────────────────────────────────────────────
 
+-- A book Tome does not have is asked about again only after this long (or
+-- when WiFi reconnects); the lookup blocks the UI thread, so asking on every
+-- page turn made each turn wait on the server.
+local RESOLVE_RETRY = 300
+
+-- True while the server's last answer for this file was "not found".
+function TomeSync:_resolveMissFresh(file)
+    local miss = self._resolve_miss
+    return miss ~= nil and miss.file == file
+        and (os.time() - miss.at) < RESOLVE_RETRY
+end
+
 function TomeSync:_tryResolve()
     local doc = self.ui and self.ui.document
     if not doc then return end
@@ -3867,8 +4098,14 @@ function TomeSync:_tryResolve()
         self.book_map[doc.file] = self.book_id
         self:_saveState("tomesync_book_map", self.book_map)
         logger.info("TomeSync: resolved to book_id", self.book_id)
+        self._resolve_miss = nil
     else
         logger.dbg("TomeSync: could not resolve", filename)
+        -- Only a real answer counts as a miss; offline / back-off / no
+        -- answer is already throttled by the network layer.
+        if rok and type(rcode) == "number" then
+            self._resolve_miss = {{ file = doc.file, at = os.time() }}
+        end
     end
 end
 
@@ -4064,8 +4301,8 @@ end
 --   only device changed  -> push device → Tome
 --   only Tome changed     -> write Tome → device sidecar
 --   both changed (tie)    -> Tome wins (single source of truth)
--- `summary.status` (reading/complete/abandoned) is left untouched — reading
--- status already syncs via TomeSyncPosition.
+-- `summary.status` (reading/complete/abandoned) is left untouched here — the
+-- status sync (build 54, "Status sync" section) owns it.
 --
 -- Half-stars (build 31): Tome ratings can be 4.5 etc.; KOReader's sidecar is
 -- whole-star, so a pulled half-star is rounded to the NEAREST star for the
@@ -6204,6 +6441,255 @@ function TomeSync:_syncMetadataImpl(interactive)
     hashStep()
 end
 
+-- ── Status sync (Tome -> device, issue #296) ─────────────────────────────────
+-- Tome's per-user reading status, written into KOReader's own book status
+-- (sidecar `summary.status`) for the books on this device, so the file
+-- browser and the Book status screen agree with Tome. One direction only:
+-- device -> Tome status still travels through the position sync (99% =
+-- read), the hold menu of the device browser and "Sync closed books".
+--
+-- `status_base[path]` = {{ id, md5, size, mtime, remote }}: the file's hash
+-- (cached, so a steady-state run hashes nothing) and the Tome status seen at
+-- the last run. The rule, in statusTarget():
+--   * Tome unchanged since the last run -> nothing is written. A status set
+--     by hand on the device therefore stays until Tome changes.
+--   * first run for a file              -> only fills in: read marks it
+--     finished, reading marks a never-opened book as reading, unread writes
+--     nothing.
+--   * Tome changed                      -> the device follows: read ->
+--     finished, reading -> reading (also from finished: a re-read), unread
+--     -> a finished book goes back to reading (an opened book has no
+--     "unread" on the device; a never-opened one is already unread).
+--   * "On hold" (abandoned) has no Tome equivalent and is never touched;
+--     a Tome change made meanwhile is applied once the book is off hold.
+-- The server only answers for a (book id, partial-MD5) pair it has on
+-- record, exactly like the metadata sync.
+local STATUS_CHUNK = 100     -- the server's per-request cap
+
+local function statusSyncOn()
+    return G_reader_settings:nilOrTrue("tomesync_status_sync")
+end
+
+-- remote: Tome status now; base: Tome status at the last run (nil = first
+-- run); device: nil (never opened) | "reading" | "complete" | "abandoned".
+-- Returns the summary.status to write, or nil to leave the device alone.
+local function statusTarget(remote, base, device)
+    if device == "abandoned" then return nil end
+    if base ~= nil and remote == base then return nil end
+    if remote == "read" then
+        return device ~= "complete" and "complete" or nil
+    end
+    if remote == "reading" then
+        if base == nil then
+            return device == nil and "reading" or nil
+        end
+        return device ~= "reading" and "reading" or nil
+    end
+    -- unread
+    if base ~= nil and device == "complete" then return "reading" end
+    return nil
+end
+
+-- The status KOReader shows for a closed book. A sidecar without a status
+-- reads as "reading", which is how KOReader itself treats an opened book.
+function TomeSync:_deviceStatus(path)
+    local DocSettings = require("docsettings")
+    if not DocSettings:hasSidecarFile(path) then return nil end
+    local summary = DocSettings:open(path):readSetting("summary")
+    local st = type(summary) == "table" and summary.status or nil
+    if st == "complete" or st == "abandoned" then return st end
+    return "reading"
+end
+
+-- Same write KOReader's own "mark as finished" does (filemanagerutil
+-- .saveSummary): creates the sidecar for a never-opened book.
+function TomeSync:_writeDeviceStatus(path, status)
+    local DocSettings = require("docsettings")
+    local ds = DocSettings:open(path)
+    local summary = ds:readSetting("summary")
+    if type(summary) ~= "table" then summary = {{}} end
+    summary.status = status
+    summary.modified = os.date("%Y-%m-%d")
+    ds:saveSetting("summary", summary)
+    ds:flush()
+    -- The file browser paints from this cache; absent on older KOReader,
+    -- which re-reads the sidecar instead.
+    local okb, BookList = pcall(require, "ui/widget/booklist")
+    if okb and type(BookList) == "table" and BookList.setBookInfoCacheProperty then
+        BookList.setBookInfoCacheProperty(path, "status", status)
+    end
+end
+
+-- force: "Sync now" and the settings toggle skip the two-minute debounce.
+-- Never interactive: no dialogs, one short notice when something changed.
+function TomeSync:_syncStatuses(force)
+    if not statusSyncOn() or status_sync_unsupported then return end
+    if status_sync_running then return end
+    if not force then
+        if os.time() - status_last_auto < 120 then return end
+    end
+    if not NetworkMgr:isConnected() then return end
+    status_last_auto = os.time()
+    self:_syncStatusesImpl()
+end
+
+function TomeSync:_syncStatusesImpl()
+    -- The open book is left for the next run: the reader holds its sidecar
+    -- in memory and would write the old status back on close.
+    local open_file = self.ui and self.ui.document and self.ui.document.file
+    local candidates = {{}}
+    for path, id in pairs(self.book_map) do
+        if type(id) == "number" and path ~= open_file then
+            local attr = lfs.attributes(path)
+            if attr and attr.mode == "file" then
+                table.insert(candidates, {{ path = path, id = id,
+                                           size = attr.size, mtime = attr.modification }})
+            end
+        end
+    end
+    if #candidates == 0 then return end
+    table.sort(candidates, function(a, b) return a.path < b.path end)
+
+    status_sync_running = true
+    local TICK = 0.05
+    local changed, dirty = 0, false
+
+    local function finish()
+        status_sync_running = false
+        if dirty then self:_saveState("tomesync_status_base", self.status_base) end
+        if changed > 0 then
+            local fc = self.ui and self.ui.file_chooser
+            if fc and fc.refreshPath then pcall(fc.refreshPath, fc) end
+            UIManager:show(Notification:new{{
+                text = string.format("TomeSync: reading status updated for %d book(s)", changed),
+                timeout = 3,
+            }})
+        end
+    end
+
+    -- Apply one answer: bookkeeping at once, sidecar writes one per tick.
+    local function applyBatch(by_key, resp, on_done)
+        local function each(list, fn)
+            if type(list) ~= "table" then return end
+            for _, e in ipairs(list) do
+                if type(e) == "table" and e.book_id ~= nil and type(e.ko_md5) == "string" then
+                    local cs = by_key[tostring(e.book_id) .. "|" .. e.ko_md5]
+                    if cs then for _, c in ipairs(cs) do fn(c, e) end end
+                end
+            end
+        end
+        -- Not vouched for (any more): forget what Tome said, write nothing.
+        each(resp.rejected, function(c)
+            local b = self.status_base[c.path]
+            if b and b.remote ~= nil then b.remote = nil; dirty = true end
+        end)
+        local work = {{}}
+        each(resp.statuses, function(c, e)
+            local remote = e.status
+            if remote ~= "unread" and remote ~= "reading" and remote ~= "read" then return end
+            local b = self.status_base[c.path]
+            if b and b.remote ~= remote then
+                table.insert(work, {{ c = c, remote = remote }})
+            end
+        end)
+        local i = 0
+        local function step()
+            i = i + 1
+            local w = work[i]
+            if not w then on_done() return end
+            local b = self.status_base[w.c.path]
+            local held = false
+            local ok, err = pcall(function()
+                local device = self:_deviceStatus(w.c.path)
+                -- "On hold": nothing is written and the baseline stays, so
+                -- the change is still pending when the book comes off hold.
+                if device == "abandoned" then held = true return end
+                local target = statusTarget(w.remote, b.remote, device)
+                if target then
+                    self:_writeDeviceStatus(w.c.path, target)
+                    changed = changed + 1
+                end
+            end)
+            if held then
+                -- leave the baseline alone
+            elseif ok then
+                b.remote = w.remote
+                dirty = true
+            else
+                -- Baseline not moved, so the next run tries this book again.
+                logger.warn("TomeSync: status apply failed for", w.c.path, err)
+            end
+            UIManager:scheduleIn(TICK, step)
+        end
+        step()
+    end
+
+    -- Hash one candidate per tick (cached after the first run), then ask the
+    -- server about each full batch and apply it before going on.
+    local idx = 0
+    local items, by_key, batch_n = {{}}, {{}}, 0
+    local hashStep
+    local function sendBatch()
+        local sent_items, sent_keys = items, by_key
+        items, by_key, batch_n = {{}}, {{}}, 0
+        local ok, resp, code = pcall(apiRequest, "POST", "/tome-sync/statuses", {{ items = sent_items }})
+        if not ok or type(resp) ~= "table" or type(code) ~= "number" or code >= 300 then
+            if code == 404 or code == 405 then
+                -- Tome older than this plugin build: quiet until the next launch.
+                status_sync_unsupported = true
+            end
+            finish()
+            return
+        end
+        applyBatch(sent_keys, resp, function() UIManager:scheduleIn(TICK, hashStep) end)
+    end
+    hashStep = function()
+        idx = idx + 1
+        local c = candidates[idx]
+        if not c then
+            if batch_n > 0 then sendBatch() else finish() end
+            return
+        end
+        local b = self.status_base[c.path]
+        local md5
+        if b and b.md5 and b.size == c.size and b.mtime == c.mtime then
+            md5 = b.md5
+        else
+            local led = self.meta_ledger[c.path]
+            if led and led.md5 and led.size == c.size and led.mtime == c.mtime then
+                md5 = led.md5
+            else
+                local hok, h = pcall(util.partialMD5, c.path)
+                md5 = (hok and type(h) == "string") and h or nil
+            end
+        end
+        if md5 then
+            -- A different file or a different book under this path starts
+            -- over: the old baseline says nothing about it.
+            if not (b and b.id == c.id and b.md5 == md5) then
+                b = {{ id = c.id, md5 = md5 }}
+                self.status_base[c.path] = b
+                dirty = true
+            end
+            if b.size ~= c.size or b.mtime ~= c.mtime then
+                b.size, b.mtime = c.size, c.mtime
+                dirty = true
+            end
+            table.insert(items, {{ book_id = c.id, ko_md5 = md5 }})
+            local key = tostring(c.id) .. "|" .. md5
+            by_key[key] = by_key[key] or {{}}
+            table.insert(by_key[key], c)
+            batch_n = batch_n + 1
+        end
+        if batch_n >= STATUS_CHUNK then
+            sendBatch()
+        else
+            UIManager:scheduleIn(TICK, hashStep)
+        end
+    end
+    hashStep()
+end
+
 -- ── Self-update ──────────────────────────────────────────────────────────────
 
 -- on_result(avail) where avail is a {{build, semver}} table if newer, false if
@@ -6227,7 +6713,9 @@ function TomeSync:checkForUpdate(on_result)
 end
 
 function TomeSync:installUpdate(new_build)
-    local body, code = fetchText("/plugin/main-impl.lua")
+    -- Send the main server address so the server bakes that back in, not
+    -- whichever address (e.g. a LAN fallback) this request happened to use.
+    local body, code = fetchText("/plugin/main-impl.lua?server_url=" .. urlEncode(primaryURL()))
     if not body then
         UIManager:show(InfoMessage:new{{
             text = "Download failed (" .. tostring(code) .. ").\\nNothing changed.",
@@ -6250,6 +6738,7 @@ function TomeSync:installUpdate(new_build)
         return
     end
     if not writeWhole(IMPL_PATH .. ".new", body) then
+        os.remove(IMPL_PATH .. ".new")
         UIManager:show(InfoMessage:new{{ text = "Could not write update.", timeout = 5 }})
         return
     end
@@ -6722,6 +7211,25 @@ function TomeSync:_menuItems()
             if on then self:_syncMetadata(true) end
         end,
     }})
+    table.insert(settings_items, {{
+        text         = "Apply Tome reading status to this device",
+        help_text    = "Mark the books on this device as finished or reading "
+                       .. "when their status changes in Tome, for example "
+                       .. "after you finished a book on another device. Only a "
+                       .. "change in Tome is applied, so a status you set here "
+                       .. "by hand stays until then. Books \\"On hold\\" are left "
+                       .. "alone. Runs after launch, on wake, when WiFi connects "
+                       .. "and with \\"Sync now\\"; the book that is open is "
+                       .. "updated after you close it.",
+        checked_func = function() return G_reader_settings:nilOrTrue("tomesync_status_sync") end,
+        callback     = function()
+            local on = not G_reader_settings:nilOrTrue("tomesync_status_sync")
+            G_reader_settings:saveSetting("tomesync_status_sync", on)
+            if on then
+                whenConnected(function() pcall(function() self:_syncStatuses(true) end) end)
+            end
+        end,
+    }})
     -- Idle cap: how long a single page may count before the rest of the gap is
     -- treated as the device sitting awake unread (fell asleep, cover open).
     local function idleCapItems()
@@ -6878,6 +7386,7 @@ function TomeSync:_menuItems()
                     self:_flushPendingSessions()
                     self:_flushPendingRatings()
                     self:_pushDeviceBooks(true)
+                    pcall(function() self:_syncStatuses(true) end)
                     local pending = #self.pending_sessions
                     local msg
                     if self.book_id then

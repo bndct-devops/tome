@@ -1,7 +1,7 @@
 // The shared frame of the Settings and Admin pages: one header, a left
 // section nav (a pill row on phones) and the content column. Both pages use
 // these pieces so they read as one app even though they stay two pages.
-import { useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react'
+import { Fragment, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
@@ -22,7 +22,16 @@ const readSlot = () => slotEl
 export interface SectionNavItem {
   id: string
   label: string
+  /** Small label above the first item of a run with this group. */
+  group?: string
 }
+
+/** Each item with whether a group label goes above it. */
+function withGroupStarts(items: SectionNavItem[]) {
+  return items.map((s, i) => ({ s, groupStart: s.group != null && s.group !== items[i - 1]?.group }))
+}
+
+const GROUP_LABEL = 'px-3 pt-1 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80'
 
 /** Text field and select look for these pages. Width classes go next to it. */
 // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
@@ -36,8 +45,9 @@ export const TABLE_HEAD = 'text-[12px] font-bold uppercase tracking-[0.1em] text
 
 /**
  * Left section nav at desktop width, a sideways pill row on phones. Items are
- * links when `hrefFor` is given (Settings jumps to anchors), buttons
- * otherwise (Admin switches panels).
+ * links when `hrefFor` is given (each section has its own address), buttons
+ * otherwise. Items with a `group` get a small group label above each run
+ * (a thin divider between runs in the phone pill row).
  */
 export function SectionNav({ items, active, onSelect, label, hrefFor, placement = 'column' }: {
   items: SectionNavItem[]
@@ -80,35 +90,50 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
     <>
       {placement === 'sidebar' ? (slot && createPortal(
         <nav aria-label={label} className="flex flex-col gap-0.5">
-          {items.map(s => item(s, cn(
-            'flex items-center h-9 px-3 rounded-lg text-[14px] text-left transition-colors',
-            s.id === active
-              ? 'bg-primary/10 text-foreground font-medium'
-              : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
-          )))}
+          {withGroupStarts(items).map(({ s, groupStart }, i) => (
+            <Fragment key={s.id}>
+              {groupStart && <div className={cn(GROUP_LABEL, i > 0 && 'mt-4')}>{s.group}</div>}
+              {item(s, cn(
+                'flex items-center h-9 px-3 rounded-lg text-[14px] text-left transition-colors',
+                s.id === active
+                  ? 'bg-primary/10 text-foreground font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
+              ))}
+            </Fragment>
+          ))}
         </nav>,
         slot,
       )) : (
       <nav aria-label={label} className="hidden lg:block sticky top-6 self-start">
         <div className="flex flex-col gap-0.5">
-          {items.map(s => item(s, cn(
-            'flex items-center h-9 px-3 rounded-lg text-[14px] text-left transition-colors',
-            s.id === active
-              ? 'bg-primary/10 text-foreground font-medium'
-              : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
-          )))}
+          {withGroupStarts(items).map(({ s, groupStart }, i) => (
+            <Fragment key={s.id}>
+              {groupStart && <div className={cn(GROUP_LABEL, i > 0 && 'mt-4')}>{s.group}</div>}
+              {item(s, cn(
+                'flex items-center h-9 px-3 rounded-lg text-[14px] text-left transition-colors',
+                s.id === active
+                  ? 'bg-primary/10 text-foreground font-medium'
+                  : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
+              ))}
+            </Fragment>
+          ))}
         </div>
       </nav>
       )}
 
       <nav aria-label={label} className="lg:hidden sticky top-0 z-10 -mx-5 sm:-mx-6 bg-background" data-section-pills>
         <div ref={pillRow} className="relative flex gap-1.5 overflow-x-auto px-5 sm:px-6 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {items.map(s => item(s, cn(
-            'shrink-0 whitespace-nowrap inline-flex items-center h-8 px-3.5 rounded-full text-[13px] transition-colors',
-            s.id === active
-              ? 'bg-primary/10 text-foreground font-medium'
-              : 'bg-secondary text-muted-foreground hover:text-foreground',
-          )))}
+          {withGroupStarts(items).map(({ s, groupStart }, i) => (
+            <Fragment key={s.id}>
+              {groupStart && i > 0 && <span aria-hidden className="shrink-0 self-center w-px h-4 mx-1 bg-border" />}
+              {item(s, cn(
+                'shrink-0 whitespace-nowrap inline-flex items-center h-8 px-3.5 rounded-full text-[13px] transition-colors',
+                s.id === active
+                  ? 'bg-primary/10 text-foreground font-medium'
+                  : 'bg-secondary text-muted-foreground hover:text-foreground',
+              ))}
+            </Fragment>
+          ))}
         </div>
       </nav>
     </>
@@ -127,7 +152,7 @@ export function SectionLayout({ title, eyebrow, nav, sidebar = false, wide = fal
   children: ReactNode
 }) {
   return (
-    <PageBody width={sidebar && !wide ? 'reading' : 'wide'} className={sidebar && !wide ? 'lg:max-w-[920px]' : undefined}>
+    <PageBody width={sidebar && !wide ? 'reading' : 'wide'} columnClassName={sidebar && !wide ? 'lg:max-w-[840px]' : undefined}>
       <PageHeader eyebrow={eyebrow} title={title} />
       <div className={cn('grid grid-cols-[minmax(0,1fr)] gap-4', !sidebar && 'lg:gap-10 lg:grid-cols-[220px_minmax(0,1fr)]')}>
         {nav}

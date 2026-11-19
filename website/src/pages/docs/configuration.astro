@@ -35,8 +35,9 @@ import { withBase } from '../../lib/path'
       <tr><td><code>TOME_AUTO_IMPORT</code></td><td><code>false</code></td><td>Auto-ingest from Bindery</td></tr>
       <tr><td><code>TOME_AUTO_IMPORT_INTERVAL</code></td><td><code>300</code></td><td>Seconds between scans</td></tr>
       <tr><td><code>TOME_SCAN_WORKERS</code></td><td><code>1</code></td><td>Parallel scan worker processes (1 = serial)</td></tr>
+      <tr><td><code>TOME_LOG_LEVEL</code></td><td><code>INFO</code></td><td>Level of Tome's own log lines: <code>DEBUG</code>, <code>INFO</code>, <code>WARNING</code> or <code>ERROR</code></td></tr>
       <tr><td><code>TOME_JWT_ALGORITHM</code></td><td><code>HS256</code></td><td>JWT algorithm</td></tr>
-      <tr><td><code>TOME_JWT_EXPIRE_MINUTES</code></td><td><code>10080</code></td><td>Lifetime of admin impersonation tokens (7 days); sign-ins do not expire</td></tr>
+      <tr><td><code>TOME_JWT_EXPIRE_MINUTES</code></td><td><code>60</code></td><td>Lifetime of admin impersonation tokens (1 hour); sign-ins do not expire</td></tr>
       <tr><td><code>TOME_WEB_SESSION_IDLE_DAYS</code></td><td><code>90</code></td><td>Sign out a browser not used for this many days (0 = never; the app is not affected)</td></tr>
       <tr><td><code>TOME_SMTP_HOST</code></td><td>—</td><td>SMTP server (enables Send to Device)</td></tr>
       <tr><td><code>TOME_SMTP_PORT</code></td><td><code>587</code></td><td>SMTP port</td></tr>
@@ -49,6 +50,9 @@ import { withBase } from '../../lib/path'
       <tr><td><code>TOME_UPDATE_CHECK</code></td><td><code>true</code></td><td>Admin "update available" indicator in Settings → About. Once a day Tome asks <code>upgrades.bndct.dev</code> for the latest release, sending only the version number. Set <code>false</code> for air-gapped installs; the post-upgrade "What's new" panel is local and unaffected</td></tr>
       <tr><td><code>TOME_UPDATE_CHECK_URL</code></td><td><code>https://upgrades.bndct.dev/latest.json</code></td><td>Where the update check asks. Forks and test instances point this elsewhere</td></tr>
       <tr><td><code>TOME_OUTBOUND_NOTIFY</code></td><td><code>true</code></td><td>Kill switch for per-user outbound notification channels (ntfy / Gotify / webhook). Nothing is ever sent unless a user configures a channel</td></tr>
+      <tr><td><code>TOME_WEBHOOK_ALLOWED_HOSTS</code></td><td>—</td><td>Comma-separated host names or IPs (e.g. <code>ntfy.lan,192.168.1.20</code>) that members' notification channels may reach. Admins' channels may point anywhere; everyone else's must resolve to public internet addresses unless the host is listed here</td></tr>
+      <tr><td><code>TOME_MAX_UPLOAD_MB</code></td><td><code>4096</code></td><td>Largest upload the server accepts, in MB; a bigger book upload is refused with 413 before it is written to disk. <code>0</code> = no limit. Backup restores are not limited</td></tr>
+      <tr><td><code>TOME_CONTENT_SECURITY_POLICY</code></td><td><code>on</code></td><td>Send a Content-Security-Policy with the web interface, which stops script inside a book from running in the reader. <code>off</code> drops the header (only if a proxy or setup of yours breaks with it)</td></tr>
       <tr><td><code>TOME_ALLOW_INFILE_BAKE</code></td><td><code>true</code></td><td>Hard off-switch for the admin "Bake to File" action that rewrites library files with Tome's metadata</td></tr>
       <tr><td><code>TOME_WISHLIST_ENABLED</code></td><td><code>true</code></td><td>Kill switch for the <a href={withBase("/docs/wishlist")}>Wishlist</a></td></tr>
       <tr><td><code>TOME_SEND_TO_KOREADER</code></td><td><code>false</code></td><td>Enable the <a href={withBase("/docs/koreader#send-to-koreader")}>Send to KOReader</a> inbox (beta) — queue books to the device, no email</td></tr>

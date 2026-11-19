@@ -22,7 +22,11 @@ FILE_SECRETS = (
 
 
 class Settings(BaseSettings):
-    model_config = SettingsConfigDict(env_prefix="TOME_", env_file=".env", extra="ignore")
+    # TOME_ENV_FILE names another file to read instead of ./.env; the tests
+    # point it at a file that does not exist so a developer's .env is ignored.
+    model_config = SettingsConfigDict(
+        env_prefix="TOME_", env_file=os.environ.get("TOME_ENV_FILE", ".env"), extra="ignore",
+    )
 
     secret_key: str | None = None
     data_dir: Path = Path("./data")
@@ -31,6 +35,9 @@ class Settings(BaseSettings):
     # incoming_dir: the Bindery — files here await triage before entering the library
     incoming_dir: Path = Path("./bindery")
     port: int = 8080
+    # Level for Tome's own log lines (env TOME_LOG_LEVEL): DEBUG, INFO,
+    # WARNING or ERROR. Libraries stay at WARNING whatever this says.
+    log_level: str = "INFO"
     hardcover_token: str | None = None
     # Canonical public origin (env TOME_PUBLIC_URL), e.g. "https://tome.example.org".
     # When set, it is baked verbatim into the KOReader plugin's SERVER_URL — the
@@ -58,6 +65,11 @@ class Settings(BaseSettings):
     # notifications out to each user's configured ntfy/Gotify/webhook
     # channels. Off = the kill-switch; per-user channels also toggle.
     outbound_notify: bool = True
+    # Hosts a non-admin's notification channel may reach although they are not
+    # public internet addresses (env TOME_WEBHOOK_ALLOWED_HOSTS, comma-separated
+    # host names or IPs, e.g. "ntfy.lan,192.168.1.20"). Admins' channels may
+    # point anywhere; everyone else's must resolve to public addresses.
+    webhook_allowed_hosts: str = ""
 
     # Update check (env TOME_UPDATE_CHECK): once a day Tome asks update_check_url
     # for the latest release, sending only the version number, so admins see
@@ -72,6 +84,13 @@ class Settings(BaseSettings):
     # 2.x release (frontend/dist-classic in the Docker image). The AI features
     # have no surface in classic; it is a visual hatch, not a second product.
     ui: str = "new"
+    # Content-Security-Policy on the web UI's pages (env
+    # TOME_CONTENT_SECURITY_POLICY). On by default: it stops script inside a
+    # book from running in the reader. "off" drops the header.
+    content_security_policy: str = "on"
+    # Largest request body the API accepts, in MB (env TOME_MAX_UPLOAD_MB);
+    # bigger book uploads get 413. 0 = no limit. A backup restore is exempt.
+    max_upload_mb: int = 4096
 
     # Opt-in telemetry (env TOME_TELEMETRY): false pins the monthly report off
     # and hides the question entirely. True only means the admin may be asked;
@@ -135,7 +154,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     # Only tokens without a device row (admin impersonation) expire; every
     # login is a revocable device login without expiry (see ClientDevice).
-    jwt_expire_minutes: int = 60 * 24 * 7  # 7 days
+    # An impersonation token cannot be revoked, so it lives one hour.
+    jwt_expire_minutes: int = 60
     # A browser sign-in unused this many days is signed out (and dropped from
     # Connected devices). 0 = never. The Tome app is not affected.
     web_session_idle_days: int = 90          # env TOME_WEB_SESSION_IDLE_DAYS
@@ -171,6 +191,12 @@ class Settings(BaseSettings):
     smtp_user_file: Path | None = None
     smtp_password_file: Path | None = None
     oidc_client_secret_file: Path | None = None
+
+    @field_validator("log_level", mode="before")
+    @classmethod
+    def _known_log_level(cls, v):
+        name = str(v or "").strip().upper()
+        return name if name in ("DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL") else "INFO"
 
     @field_validator(*(f"{name}_file" for name in FILE_SECRETS), mode="before")
     @classmethod

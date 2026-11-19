@@ -28,7 +28,18 @@ jobs:
           cache: pip
 
       - name: Install dependencies
-        run: pip install '.[dev]'
+        run: pip install -r requirements-dev.lock && pip install --no-deps .
+
+      # A release tag must name the version in pyproject.toml: the image, the
+      # health endpoint and the What's New panel all report that number.
+      - name: Tag matches the package version
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          declared=$(python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
+          if [ "v$declared" != "$GITHUB_REF_NAME" ]; then
+            echo "Tag $GITHUB_REF_NAME does not match the pyproject.toml version $declared"
+            exit 1
+          fi
 
       # The KOReader plugin tests run its Lua under luajit and skip without it.
       - name: Install luajit
@@ -51,7 +62,7 @@ jobs:
           cache: pip
 
       - name: Install backend dependencies
-        run: pip install '.[dev]'
+        run: pip install -r requirements-dev.lock && pip install --no-deps .
 
       - name: Set up Node
         uses: actions/setup-node@v4

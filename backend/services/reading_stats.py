@@ -25,6 +25,22 @@ from backend.services.reading_day import DayCtx
 _PACED_SECONDS = case((ReadingSession.pages_turned > 0, ReadingSession.duration_seconds), else_=0)
 
 
+def finished_date_expr():
+    """SQL expression for the date a book was finished.
+
+    finished_at is stamped on the transition into "read". updated_at moves on
+    every rating, review or position write, so it is only a fallback for
+    legacy read rows from before the finished_at column (NULL there). Use
+    together with ``UserBookStatus.status == "read"``.
+    """
+    return func.coalesce(UserBookStatus.finished_at, UserBookStatus.updated_at)
+
+
+def finished_date(row) -> Optional[datetime]:
+    """Python twin of finished_date_expr() for a loaded status row."""
+    return row.finished_at or row.updated_at
+
+
 # Days of recent reading the finish-date estimate averages over.
 FINISH_RATE_WINDOW_DAYS = 14
 
@@ -471,7 +487,7 @@ def compute_book_reading_stats(
     # CFI writes, so it only serves as a legacy fallback for pre-column rows.
     finished_at: Optional[str] = None
     if status_row and status_row.status == "read":
-        ts = status_row.finished_at or status_row.updated_at
+        ts = finished_date(status_row)
         if ts:
             finished_at = ts.isoformat() + "Z"
 

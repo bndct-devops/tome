@@ -145,6 +145,7 @@ def patched_client(db: Session, admin_user: tuple[User, str]):
             mock_settings.incoming_dir = incoming_dir
             mock_settings.covers_dir = tmpdir_path / "covers"
             mock_settings.covers_dir.mkdir()
+            mock_settings.max_upload_mb = 4096
 
             with TestClient(app, raise_server_exceptions=True) as c:
                 c.headers["Authorization"] = f"Bearer {token}"

@@ -139,8 +139,107 @@ All notable changes to Tome are documented here. Format loosely follows
   the morning after still moves the line on, and going back to an earlier
   chapter never pulls it down. Positions synced before the file was linked
   to a book count once it is.
+- **KOReader shows the reading status from Tome.** A book you finish on one
+  device, or mark read in the web UI or the app, now shows as finished in
+  KOReader's file browser and Book status screen on your other devices. The
+  plugin applies it shortly after launch, when the device wakes, when WiFi
+  connects and with "Sync now". Only a change in Tome is applied, so a status
+  set by hand on the device stays until then; books "On hold" and the book
+  that is open are left alone. On by default, with a switch in the plugin's
+  settings ("Apply Tome reading status to this device"). Plugin build 54
+  (1.20.0); the rules are in the KOReader plugin docs under "Reading status on
+  the device". (#296)
+- **Sort and filter the library by length.** The sort menu has a new "Length"
+  option, shortest first; pick it again to reverse. Filters has a Length row
+  with a minimum and maximum word count. Books without a word count sort last
+  either way and are hidden once a bound is set. The bounds work with the
+  other filters, select-all and saved shelves, including shelves in the
+  KOReader plugin and the backlog estimate. Contributed by @cliophate (#313).
+- **Spanish translation.** The web UI is available in Spanish (Settings →
+  Language), with every string translated. Contributed by @PedroFlores199
+  (#314).
+
+### Security
+- **The web server only serves files from its own interface folder.** A
+  crafted path could make it return a file from outside that folder. Updating
+  is recommended.
+- **Members only reach books they can see, and only change books they
+  uploaded.** The bulk edit, metadata, cover, Bindery, export and KOReader
+  plugin routes now follow the same two rules as the rest of Tome. On a book
+  someone else uploaded, the book page no longer offers Edit, Fetch metadata,
+  the cover picker or Delete to a member, and a bulk edit says how many books
+  it left alone.
+- **Script inside a book no longer runs in the web reader.** The web
+  interface now sends a Content-Security-Policy that blocks it, while the
+  book's own styles, fonts and images still load. Set
+  `TOME_CONTENT_SECURITY_POLICY=off` only if a proxy or setup of yours breaks
+  with it.
+- **Members' notification channels can no longer reach your local network.** A
+  channel that does not belong to an admin must now be a public internet
+  address, checked when it is saved and again on every send. No channel
+  follows redirects, and a member's Test button no longer shows the server's
+  error text. To let members use a local ntfy or Gotify, list its host in
+  `TOME_WEBHOOK_ALLOWED_HOSTS`. A channel that is no longer sent is marked in
+  Settings with the reason, its owner gets one notice in the bell, and the
+  form now says why a new channel was refused.
+- **An account with a temporary password can only change it.** Until the new
+  password is set, the account is refused everywhere else, including API
+  tokens, OPDS, KOSync and the KOReader plugin. Before, only the web interface
+  enforced the forced change.
+- **Uploads have a size limit, and two uploads with the same file name no
+  longer collide.** `TOME_MAX_UPLOAD_MB` (default 4096, 0 = no limit) refuses
+  bigger uploads before they reach the disk. Every response now also carries
+  basic security headers. Cover fetching connects only to the address it
+  checked, and the Bindery and backup restore check paths more strictly.
+- **The web reader no longer puts your sign-in in page URLs.** Comic pages now
+  load with a 12-hour pass that opens only that book, and EPUB and PDF books
+  send the sign-in as a header, so it no longer shows up in proxy logs or
+  browser history. Apps that still pass a sign-in in the URL keep working.
+- **Repeated wrong passwords now slow down.** After five wrong passwords in a
+  row for one account from one address, the web login, OPDS and KOSync make
+  you wait, starting at a second and growing to a minute. A correct sign-in
+  resets it, and other users behind the same reverse proxy are not affected.
+- **New OPDS PINs are longer.** PINs now have 10 characters instead of 6, and
+  the list shows only their first character. Existing PINs keep working.
+- **API tokens can no longer create other credentials.** Creating API tokens,
+  plugin keys, OPDS PINs, Quick Connect codes and the KOSync link, and
+  downloading the KOReader plugin, now require a normal sign-in. Scripts that
+  use a token to manage books are unaffected, and so is the plugin's
+  self-update.
 
 ### Changed
+- **Tome's own log lines now reach the container log.** Informational
+  messages (auto-import, Hardcover sync, restore) were dropped before, and
+  warnings came without a time or level. Every line now has both. Set
+  `TOME_LOG_LEVEL` to `DEBUG`, `WARNING` or `ERROR` to change how much is
+  logged (default `INFO`).
+- **Changing your password can revoke your tokens, keys and PINs.** A new
+  checkbox in Settings also revokes your API tokens, KOReader plugin keys,
+  OPDS PINs and KOSync link, so the devices that use them need to be set up
+  again.
+- **Admin impersonation now lasts one hour instead of seven days.** When it
+  runs out, the browser returns to the admin's own session instead of the
+  login page.
+- **Admin sections have their own address and are grouped.** Refreshing keeps
+  the open section, the back button steps between sections, and the navigation
+  is sorted under People, Library, System and Requests. The upload message
+  about matching wishes now has a button that opens the Wishlist.
+- **Each Settings section is its own page.** Settings no longer loads
+  everything at once: a section loads its data when you open it, and old links
+  still land on the right section. "Export" is now "Export catalogue" and the
+  personal backup is "Download my data".
+- **Everything that can sign in to your account is under Settings > Access.**
+  Quick Connect, connected devices, plugin keys, OPDS PINs, the sync password
+  and API tokens sit together, each with a line on what it is for. The
+  KOReader plugin's "API keys" are now called "Plugin keys".
+- **Downloading the KOReader plugin no longer piles up keys.** Each download
+  removes your earlier download keys that no device ever used and that are
+  over a week old, and the new key is labelled with the date. Keys a device
+  has used are never removed.
+- **Clearer names in the sidebar and on the book page.** The full book list is
+  now "All books", and the reading status "Shelved" now shows as "On hold".
+  When the sidebar is collapsed, hovering or tabbing to an icon shows its
+  name.
 - Pages per minute on a book's page is now worked out only from sittings
   that counted page turns. Reading time from a source that reports none
   (the web reader, a CrossInk reader) no longer makes the pace look slower.
@@ -154,6 +253,16 @@ All notable changes to Tome are documented here. Format loosely follows
   metadata.
 
 ### Fixed
+- **The "Read" button in Quick look is a verb in every language.** It shared
+  its text with the "Read" status, so in Spanish it said "Leído" where "Leer"
+  was meant.
+- **The sign-in-with-a-code hint points to the right place.** It sent you to
+  Settings → Security; Quick Connect is under Settings → Access.
+- **The API docs show the real version.** `/api/docs` reported 1.7.0 whatever
+  release was running.
+- **Build tooling: minimatch 11 for the lint and build dependencies** that
+  pulled a 10.x with a known denial-of-service pattern. Development
+  dependencies only; nothing in the image changes.
 - **The progress line on books with KOReader page-stats.** A sitting the
   plugin recorded reaches Tome twice, as a live session with its position and
   as page-stats without one. Where both covered the same minutes the line
@@ -166,6 +275,107 @@ All notable changes to Tome are documented here. Format loosely follows
 - **The arm64 image builds again.** The two frontend build stages run on the
   build host instead of under emulation; the 3.0.0 image build had crashed
   there while compiling the classic bundle.
+- **The web reader no longer un-marks a book you just finished.** A page save
+  from the last few seconds could land after the reader marked the book read,
+  clearing the finish date. Opening a finished comic or PDF also reset its
+  progress and the position synced to your device. Reader saves now leave a
+  finished book finished, as KOReader sync already did. "Reading again" on the
+  book page still starts the book over.
+- **Leaving the web reader right after turning a page no longer loses your
+  place.** The last position is now sent when you close the reader or the tab,
+  or switch away from the app, instead of being dropped.
+- **Opening a book in the web reader for a few seconds no longer counts as a
+  streak day.** Web reader visits shorter than a minute stay in your history
+  but no longer start or extend a streak, so Home, Stats and the Calendar
+  agree. Short sessions from KOReader devices still count.
+- **Going to the next or previous volume no longer shows the previous book's
+  highlights, stats or estimate.** The book page now loads each volume from
+  scratch, so a slow or failed request for the old volume can no longer
+  overwrite the new one.
+- **Deleting a user who uploaded books works again.** It used to fail with a
+  server error while the audit log already recorded the deletion. Their books
+  and libraries now pass to the admin who deleted them, their shelves are
+  removed, and uploads that were private to them are kept private in a new
+  "Uploads from" library named after them.
+- **"Clear cover cache" no longer deletes your covers.** It removed every
+  stored cover, including fetched and uploaded ones, and nothing brought them
+  back. It now clears only the resized thumbnails, which are made again when
+  next shown.
+- **Auto-import waits for files to finish copying.** A book dropped into the
+  Bindery is left alone until it has not changed for 30 seconds, so a
+  half-copied file is no longer imported.
+- **Books finished are counted on the day you finished them.** Stats, Home,
+  reading goals, the monthly chart and words-by-year used the last time a
+  book's status changed, so rating or reviewing an old book counted it as
+  finished that day and could complete a goal. They now use the finish date,
+  the same one the Calendar and Hardcover already used.
+- **The time-left estimate no longer shows figures like "~2153 months".**
+  After a reading break the average daily reading time is close to zero, and
+  dividing by it gave absurd numbers. Under one minute a day there is no day
+  estimate, longer estimates are shown in years, and anything past ten years
+  reads "more than 10 years".
+- **Monthly stats charts no longer repeat or skip a month.** The month axes
+  stepped back 30 days at a time, so viewed on the 31st one month appeared
+  twice, February was missing, and library growth miscounted. They now step
+  real calendar months.
+- **KOSync no longer attaches another file's progress to a book you downloaded
+  over OPDS.** A download used to leave a link with no expiry that the next
+  unknown file could claim, so a sideloaded book's progress (and finish) could
+  land on it. The link now goes away once the book is matched and expires
+  after 15 minutes.
+- **A TomeSync self-update no longer changes the plugin's server address to a
+  home network address.** Updating while the fallback address was in use made
+  that address the plugin's default, so the device stopped syncing away from
+  home. The plugin now tells the server its main address and keeps it
+  (TomeSync 1.20.1).
+- **Reading a book that is not in Tome no longer slows down page turns in
+  KOReader.** The plugin asked the server about the book on every page turn;
+  it now asks again only after five minutes or when WiFi reconnects
+  (TomeSync 1.20.1).
+- **Usernames and server addresses with quotes or backslashes no longer break
+  the TomeSync plugin.** These values are now escaped when the plugin is
+  generated, and a self-update that cannot write its files (for example on a
+  full disk) stops instead of installing a broken copy (TomeSync 1.20.1).
+- **The Bindery no longer reloads after every message.** Each notification
+  re-ran its three list requests, and a failed load kept reloading itself.
+- **A page that fails to load now offers a Reload button instead of a blank
+  screen.** After an update, an open tab reloads once on its own when a page's
+  script is no longer there.
+- **Home no longer asks for followed series when release detection is off.**
+  The server now tells the app whether the feature is on, so the request that
+  always failed is gone.
+- **Book covers in the Library grid are real links, and pages can be zoomed.**
+  Covers can be opened in a new tab, middle-clicked and reached with Tab.
+  Pinch zoom works again; the comic reader keeps its own zoom.
+- **Add shelf saves every active filter, and the Type filter is part of the
+  link.** A shelf made from "Author X + Reading" now keeps the status, rating,
+  missing-data, ownership and uploader filters. Chapters/All is in the address
+  and shows as a chip.
+- **Bulk Send no longer sends fewer books than are selected.** When Select all
+  reaches past the loaded books, Send waits and its tooltip says how many
+  books are not loaded yet.
+- **A book saved at 100% is marked as read on every path.** KOReader sync
+  already finished a book at 99%; a position saved through the web API (the
+  iPhone app, scripts) left it "reading" at 100% for good. For books already
+  in that state, Currently reading on the Stats page now offers Mark as read,
+  and books at 0% are listed last.
+- **The Calendar no longer shows 0 pages and 0 p/h for days without page
+  data.** Web reader sessions have no page count, so pages and speed are left
+  out on those days.
+- **Connected devices can be told apart on a phone.** Each device shows its
+  system and when it was last seen under its name, with the delete button at
+  the row's edge.
+- **Page titles stay in one place when moving between pages.** Admin,
+  Settings, Wishlist and Highlights now line up with Home, Library and Stats
+  instead of starting further to the right.
+- **The series page's reading stats no longer repeat the percentage.** The
+  header right above already shows it.
+- **Stats tiles show when they scroll and shrink when empty.** A list cut at
+  the tile edge now has an edge line, and tiles with only a "nothing yet"
+  message take one row instead of a full chart's height.
+- **The Bindery lists each file once.** Files in a series group appear only
+  there, and a volume chip opens that file on its own. "Recently imported" is
+  now called "Waiting for review".
 
 ## [3.0.0] - 2026-11-08 - "Rebind"
 

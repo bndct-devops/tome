@@ -288,3 +288,57 @@ def test_manual_link_endpoint_applies_shared_rule(db, client, admin_user, make_b
     assert ubs.status == "reading" and ubs.progress_pct == 0.96
     m = db.query(KOSyncDocumentMap).filter_by(tome_user_id=user.id, document=MD5).one()
     assert m.book_id == book.id
+
+
+# ── Pending OPDS links must not outlive their book's real mapping (D3) ────────
+
+OTHER = "0123456789abcdef0123456789abcdef"  # a sideloaded file Tome never saw
+
+
+def test_hash_link_clears_pending_link_for_that_book(db, client, admin_user, make_book):
+    # Downloaded over OPDS, then mapped exactly by hash. The leftover pending
+    # link used to wait for the next unknown file and attach its progress here.
+    user, _ = admin_user
+    book = make_book(title="Lantern Harbour")
+    db.add(KoHash(book_id=book.id, ko_partial_md5=MD5, kind="baked"))
+    db.add(OPDSPendingLink(user_id=user.id, book_id=book.id))
+    acc = _kosync_account(db, user)
+    db.flush()
+
+    _put_progress(client, acc, MD5, 0.30)
+    assert db.query(OPDSPendingLink).count() == 0
+
+    _put_progress(client, acc, OTHER, 0.995)
+    assert db.query(KOSyncDocumentMap).filter_by(document=OTHER).count() == 0
+    ubs = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+    assert ubs.status == "reading" and ubs.progress_pct == 0.30
+
+
+def test_stale_pending_link_is_never_claimed(db, client, admin_user, make_book):
+    user, _ = admin_user
+    book = make_book(title="Old Download")
+    db.add(OPDSPendingLink(user_id=user.id, book_id=book.id,
+                           created_at=datetime.utcnow() - timedelta(days=3)))
+    acc = _kosync_account(db, user)
+    db.flush()
+
+    r = _put_progress(client, acc, OTHER, 0.995)
+    assert r.status_code == 200
+    assert db.query(KOSyncDocumentMap).count() == 0
+    assert db.query(UserBookStatus).filter_by(book_id=book.id).count() == 0
+    assert db.query(OPDSPendingLink).count() == 0  # expired row cleaned up
+
+
+def test_manual_link_clears_pending_link(db, client, admin_user, make_book):
+    user, _ = admin_user
+    book = make_book(title="Hand Linked")
+    acc = _kosync_account(db, user)
+    db.flush()
+    db.add(OPDSPendingLink(user_id=user.id, book_id=book.id))
+    db.add(KOSyncProgress(user_id=acc.id, document=MD5, progress="p",
+                          percentage=0.40, device="Readest", timestamp=int(time.time())))
+    db.commit()
+
+    r = client.post(f"/api/books/{book.id}/link-kosync", json={"document": MD5})
+    assert r.status_code == 200
+    assert db.query(OPDSPendingLink).count() == 0

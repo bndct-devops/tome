@@ -138,6 +138,8 @@ import { withBase } from '../../lib/path'
     in-app notification (wish fulfilled, new volume detected, reading goals) is delivered to
     your enabled channels; each channel has a test button and can be paused, and tokens are
     stored server-side only. Operators can disable the whole feature with <code>TOME_OUTBOUND_NOTIFY=false</code>.
+    A member's channel must be a public internet address (an admin's may be on the local network);
+    to let members use a local ntfy or Gotify, list its host in <code>TOME_WEBHOOK_ALLOWED_HOSTS</code>.
   </p>
 
   <h2>Configuration</h2>

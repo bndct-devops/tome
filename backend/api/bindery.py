@@ -57,7 +57,9 @@ def _safe_resolve(rel_path: str) -> Path:
     """Resolve a relative path inside incoming_dir. Raises 400 on traversal."""
     incoming = settings.incoming_dir.resolve()
     resolved = (incoming / rel_path).resolve()
-    if not str(resolved).startswith(str(incoming)):
+    # is_relative_to, not a string prefix: "/bindery-other" starts with
+    # "/bindery" but is outside it.
+    if not resolved.is_relative_to(incoming):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Invalid path",
@@ -593,9 +595,10 @@ def list_unreviewed(
 ) -> list[dict]:
     """Return all books that were auto-imported and have not yet been reviewed."""
     _require_bindery(current_user)
+    from backend.core.permissions import book_visibility_filter
     books = (
         db.query(Book)
-        .filter(Book.is_reviewed == False)  # noqa: E712
+        .filter(Book.is_reviewed == False, book_visibility_filter(db, current_user))  # noqa: E712
         .order_by(Book.added_at.desc())
         .all()
     )
@@ -622,10 +625,11 @@ def mark_all_reviewed(
 ) -> dict:
     """Mark all unreviewed auto-imported books as reviewed."""
     _require_bindery(current_user)
+    from backend.core.permissions import book_visibility_filter
     updated = (
         db.query(Book)
-        .filter(Book.is_reviewed == False)  # noqa: E712
-        .update({"is_reviewed": True})
+        .filter(Book.is_reviewed == False, book_visibility_filter(db, current_user))  # noqa: E712
+        .update({"is_reviewed": True}, synchronize_session=False)
     )
     db.commit()
     return {"ok": True, "updated": updated}
@@ -639,9 +643,8 @@ def mark_reviewed(
 ) -> dict:
     """Mark a single auto-imported book as reviewed."""
     _require_bindery(current_user)
-    book = db.get(Book, book_id)
-    if not book:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+    from backend.core.permissions import visible_book_or_404
+    book = visible_book_or_404(db, current_user, book_id)
     book.is_reviewed = True
     db.commit()
     return {"ok": True}
@@ -653,27 +656,24 @@ def reject_book(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Reject an auto-imported book: delete its files from disk and remove it from the DB."""
+    """Reject an auto-imported book: delete its files from disk and remove it from the DB.
+
+    Only a book still waiting for review can be rejected here, and only by an
+    admin or the user it was imported for. Everything else is deleted through
+    the normal delete, which this shares its code with (search index, download
+    cache, audit entry).
+    """
     _require_bindery(current_user)
-    book = db.get(Book, book_id)
-    if not book:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Book not found")
+    from backend.core.permissions import editable_book_or_403
+    book = editable_book_or_403(
+        db, current_user, book_id, detail="You can only reject books imported for you",
+    )
+    if book.is_reviewed:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This book is not waiting for review",
+        )
 
-    # Delete files from disk
-    for f in book.files:
-        try:
-            os.remove(f.file_path)
-        except OSError as exc:
-            logger.warning("Could not remove file %s: %s", f.file_path, exc)
-
-    # Delete cover from disk — cover_path is a relative filename inside covers_dir
-    if book.cover_path:
-        cover_full = settings.covers_dir / book.cover_path
-        try:
-            cover_full.unlink()
-        except OSError:
-            pass
-
-    db.delete(book)
-    db.commit()
+    from backend.api.books import _delete_book_record
+    _delete_book_record(book, db, current_user)
     return {"ok": True}

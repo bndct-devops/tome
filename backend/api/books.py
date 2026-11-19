@@ -6,24 +6,30 @@ import re
 import json
 import logging
 import shutil
+import uuid
 from datetime import datetime
 from pathlib import Path
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, Response, UploadFile, File, Form, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, Response, UploadFile, File, Form, status
 from backend.services.safe_fetch import fetch_safe_image, UnsafeURLError
 from backend.services.ko_hash import ko_partial_md5, record_ko_hash, record_served_artifact
 from fastapi.responses import FileResponse, StreamingResponse
+from sqlalchemy import case
 from sqlalchemy.orm import Session
 
 from backend.core.config import settings
 from backend.core.database import get_db
 from backend.core.security import get_current_user
-from backend.core.permissions import require_role, user_can_see_book
+from backend.core.permissions import (
+    require_role, user_can_see_book, book_visibility_filter,
+    visible_book_or_404, editable_book_or_403, editable_books,
+)
 from backend.models.book import BOOK_ACTIVE, BOOK_NO_FILE, READING_STATUSES, Book, BookFile, BookTag
 from backend.models.user_book_status import UserBookStatus
 from backend.services.audit import audit
+from backend.services.book_filters import apply_word_count_bounds
 from backend.services import cover_thumbs
 from backend.models.library import Library
 from backend.models.user import User
@@ -132,6 +138,8 @@ def _filtered_books_query(
     on_device: Optional[str] = None,
     not_on_device: Optional[str] = None,
     include_no_file: bool = False,
+    min_words: Optional[int] = None,
+    max_words: Optional[int] = None,
     with_rating_join: bool = False,
 ):
     """Build the filtered books query shared by the list and ids endpoints.
@@ -281,6 +289,8 @@ def _filtered_books_query(
             # Only matches with include_no_file: active books always have one.
             query = query.filter(Book.status == BOOK_NO_FILE)
 
+    query = apply_word_count_bounds(query, min_words, max_words)
+
     if content_type:
         query = query.filter(Book.content_type == content_type)
 
@@ -320,6 +330,8 @@ def list_book_ids(
     library_id: Optional[int] = Query(None),
     reading_status: Optional[str] = Query(None),
     min_rating: Optional[int] = Query(None, ge=1, le=5),
+    min_words: Optional[int] = Query(None, ge=0, description="Minimum word count, inclusive"),
+    max_words: Optional[int] = Query(None, ge=0, description="Maximum word count, inclusive"),
     missing: Optional[str] = Query(None),
     content_type: Optional[str] = Query(None),
     added_by: Optional[int] = Query(None),
@@ -341,6 +353,7 @@ def list_book_ids(
         q=q, series=series, no_series=no_series, author=author, tag=tag,
         format=format, language=language, library_id=library_id,
         reading_status=reading_status, min_rating=min_rating, missing=missing,
+        min_words=min_words, max_words=max_words,
         content_type=content_type, added_by=added_by, ownership=ownership,
         on_device=on_device, not_on_device=not_on_device,
         include_no_file=include_no_file,
@@ -355,7 +368,7 @@ def list_books(
     q: Optional[str] = Query(None, description="Full-text search across title/author/series/tags"),
     skip: int = Query(0, ge=0),
     limit: int = Query(200, ge=1, le=500),
-    sort: str = Query("title", pattern="^(title|author|year|added_at|status_updated|rating)$"),
+    sort: str = Query("title", pattern="^(title|author|year|added_at|status_updated|rating|word_count)$"),
     order: str = Query("asc", pattern="^(asc|desc)$"),
     min_rating: Optional[int] = Query(None, ge=1, le=5, description="Filter to books the current user rated at least this many stars"),
     series: Optional[str] = Query(None, description="Exact series name filter"),
@@ -366,6 +379,8 @@ def list_books(
     language: Optional[str] = Query(None, description="Language filter — canonical code (en, de, …); matches messy stored variants"),
     library_id: Optional[int] = Query(None, description="Filter to books in this library"),
     reading_status: Optional[str] = Query(None, description="Filter by reading status: unread, reading, read"),
+    min_words: Optional[int] = Query(None, ge=0, description="Minimum word count, inclusive"),
+    max_words: Optional[int] = Query(None, ge=0, description="Maximum word count, inclusive"),
     missing: Optional[str] = Query(None, description="Filter books missing a field: cover, description, author, series, any; 'file' (with include_no_file) = books without a file"),
     content_type: Optional[str] = Query(None, description="Filter by content type: volume, chapter"),
     added_by: Optional[int] = Query(None, description="Filter by uploader user ID (admin only)"),
@@ -382,6 +397,7 @@ def list_books(
         q=q, series=series, no_series=no_series, author=author, tag=tag,
         format=format, language=language, library_id=library_id,
         reading_status=reading_status, min_rating=min_rating, missing=missing,
+        min_words=min_words, max_words=max_words,
         content_type=content_type, added_by=added_by, ownership=ownership,
         on_device=on_device, not_on_device=not_on_device,
         include_no_file=include_no_file,
@@ -436,8 +452,12 @@ def list_books(
             # flowed into id_sq above.
             query, eff_rating = _join_effective_rating(query)
 
-    # When filtering by a specific series, always sort by series_index
-    if series:
+    if sort == "word_count":
+        length = case((Book.word_count > 0, Book.word_count), else_=None)
+        length_sort = length.asc() if order == "asc" else length.desc()
+        query = query.order_by(length_sort.nullslast(), Book.title.asc(), Book.id.asc())
+    elif series:
+        # Other sorts keep series-index order inside a specific series.
         query = query.order_by(Book.series_index.asc().nullslast(), Book.title.asc())
     elif sort == "rating":
         # Highest-rated first by default; unrated books sort last either way.
@@ -746,9 +766,13 @@ def get_series_detail(
 def export_books(
     format: str = Query("json", pattern="^(json|csv)$"),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
-    books = db.query(Book).filter(Book.status == "active").all()
+    books = (
+        db.query(Book)
+        .filter(Book.status == "active", book_visibility_filter(db, current_user))
+        .all()
+    )
     rows = []
     for b in books:
         rows.append({
@@ -1808,7 +1832,8 @@ async def bulk_fetch_candidates(
     if len(body.book_ids) > 100:
         raise HTTPException(status_code=400, detail="Too many books (max 100)")
 
-    books = db.query(Book).filter(Book.id.in_(body.book_ids)).all()
+    # Only books the caller may change: the candidates are fetched to be applied.
+    books, _skipped = editable_books(db, current_user, body.book_ids)
     # Skip chapters — they don't have meaningful metadata on external sources
     books = [b for b in books if b.content_type != "chapter"]
     book_map = {b.id: b for b in books}
@@ -1874,7 +1899,7 @@ async def bulk_fetch_metadata(
     if len(body.book_ids) > 100:
         raise HTTPException(status_code=400, detail="Too many books (max 100)")
 
-    books = db.query(Book).filter(Book.id.in_(body.book_ids)).all()
+    books, skipped_ids = editable_books(db, current_user, body.book_ids)
     # Skip chapters — they don't have meaningful metadata on external sources
     books = [b for b in books if b.content_type != "chapter"]
     updated = 0
@@ -1971,7 +1996,8 @@ def bulk_update_metadata(
         if not bt:
             raise HTTPException(status_code=400, detail="Invalid book_type_id")
 
-    books = db.query(Book).filter(Book.id.in_(body.book_ids)).all()
+    # Same rule as the single-book edit: members change only their own uploads.
+    books, skipped_ids = editable_books(db, current_user, body.book_ids)
     for book in books:
         if body.author is not None:
             book.author = body.author or None
@@ -2001,8 +2027,8 @@ def bulk_update_metadata(
 
     changes = {k: v for k, v in body.model_dump(exclude_unset=True).items() if k != "book_ids"}
     audit(db, "books.bulk_metadata_edited", user_id=current_user.id, username=current_user.username,
-          details={"book_ids": body.book_ids, "count": len(books), "changes": changes})
-    return {"updated": len(books)}
+          details={"book_ids": [b.id for b in books], "count": len(books), "changes": changes})
+    return {"updated": len(books), "skipped": len(skipped_ids)}
 
 
 # ── Update metadata ───────────────────────────────────────────────────────────
@@ -2016,14 +2042,8 @@ def update_book(
 ):
     require_role(current_user, "member")
 
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-
     # Members can only edit their own uploads; admins can edit any book
-    from backend.core.permissions import is_admin as _is_admin
-    if not _is_admin(current_user) and book.added_by != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only edit books you uploaded")
+    book = editable_book_or_403(db, current_user, book_id)
 
     data = body.model_dump(exclude_unset=True)
     tags = data.pop("tags", None)
@@ -2100,9 +2120,7 @@ async def get_cover_candidates(
     current_user: User = Depends(get_current_user),
 ):
     """Fetch cover image candidates from Hardcover, Google Books and OpenLibrary in parallel."""
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = visible_book_or_404(db, current_user, book_id)
 
     import asyncio
     from backend.services.metadata_fetch import _hardcover, _google_books, _open_library, _build_query
@@ -2158,9 +2176,7 @@ async def set_book_cover(
     """Replace a book's cover — accepts either a remote URL or a file upload."""
     require_role(current_user, "member")
 
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = editable_book_or_403(db, current_user, book_id)
 
     if not url and not file:
         raise HTTPException(status_code=400, detail="Provide either url or file")
@@ -2270,6 +2286,30 @@ def _get_comic_pages_zip(file_path: Path) -> list[str]:
     return images
 
 
+@router.post("/{book_id}/reader-token")
+def mint_reader_token(
+    book_id: int,
+    request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """A short-lived token the web reader puts in `?token=` for this book's
+    reader file routes (comic page <img> tags cannot send a header). It opens
+    nothing else, so the login token never has to travel in a URL."""
+    from backend.core.security import READER_TOKEN_HOURS, create_reader_token
+
+    book = db.get(Book, book_id)
+    if not book or not user_can_see_book(db, current_user, book):
+        raise HTTPException(status_code=404, detail="Book not found")
+    token = create_reader_token(
+        current_user.id,
+        book.id,
+        device_id=getattr(request.state, "device_id", None),
+        api_token_id=getattr(request.state, "api_token_id", None),
+    )
+    return {"token": token, "expires_in": READER_TOKEN_HOURS * 3600}
+
+
 @router.get("/{book_id}/pages")
 def get_comic_pages(
     book_id: int,
@@ -2311,14 +2351,17 @@ def get_comic_pages(
 def get_comic_page(
     book_id: int,
     page_index: int,
-    token: str = Query(...),
+    request: Request,
+    token: Optional[str] = Query(None),
     db: Session = Depends(get_db),
 ):
     """Serve a single page image from a comic book archive.
-    Uses ?token= query param auth (img tags can't send Authorization headers)."""
-    from backend.core.security import user_from_query_token
+    Uses ?token= query param auth (img tags can't send Authorization headers):
+    a reader token for this book (POST /books/{id}/reader-token) or a login
+    token. An Authorization header works too."""
+    from backend.core.security import user_for_reader_file
 
-    user = user_from_query_token(db, token)
+    user = user_for_reader_file(db, request, book_id, token)
     book = db.get(Book, book_id)
     if not book or not user_can_see_book(db, user, book):
         raise HTTPException(status_code=404, detail="Book not found")
@@ -2364,11 +2407,16 @@ def get_comic_page(
 
 
 @router.get("/{book_id}/read.cbz")
-def read_cbz(book_id: int, token: str = Query(...), db: Session = Depends(get_db)):
+def read_cbz(
+    book_id: int,
+    request: Request,
+    token: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
     """Serve CBZ/CBR file for the comic reader."""
-    from backend.core.security import user_from_query_token
+    from backend.core.security import user_for_reader_file
 
-    user = user_from_query_token(db, token)
+    user = user_for_reader_file(db, request, book_id, token)
 
     # Find CBZ or CBR file
     comic_file = db.query(BookFile).filter(
@@ -2408,11 +2456,16 @@ def read_cbz(book_id: int, token: str = Query(...), db: Session = Depends(get_db
 
 
 @router.get("/{book_id}/read.pdf")
-def read_pdf(book_id: int, token: str = Query(...), db: Session = Depends(get_db)):
+def read_pdf(
+    book_id: int,
+    request: Request,
+    token: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+):
     """Serve PDF file for the reader."""
-    from backend.core.security import user_from_query_token
+    from backend.core.security import user_for_reader_file
 
-    user = user_from_query_token(db, token)
+    user = user_for_reader_file(db, request, book_id, token)
 
     pdf_file = db.query(BookFile).filter(
         BookFile.book_id == book_id,
@@ -2435,14 +2488,15 @@ def read_pdf(book_id: int, token: str = Query(...), db: Session = Depends(get_db
 @router.get("/{book_id}/read.epub")
 def read_epub(
     book_id: int,
-    token: str = Query(..., description="JWT token for epub.js auth"),
+    request: Request,
+    token: Optional[str] = Query(None, description="Reader or login token, for clients that cannot send a header"),
     db: Session = Depends(get_db),
 ):
     """Serve the EPUB file for in-browser reading. Accepts JWT as a query param
     so epub.js can fetch it by URL (it cannot send Authorization headers)."""
-    from backend.core.security import user_from_query_token
+    from backend.core.security import user_for_reader_file
 
-    user = user_from_query_token(db, token)
+    user = user_for_reader_file(db, request, book_id, token)
 
     epub_file = (
         db.query(BookFile)
@@ -2537,7 +2591,7 @@ def bulk_delete_books(
     errors: list[dict] = []
     for book_id in dict.fromkeys(req.book_ids):  # dedupe, keep order
         book = db.query(Book).filter(Book.id == book_id).first()
-        if not book:
+        if not book or not user_can_see_book(db, current_user, book):
             errors.append({"book_id": book_id, "error": "Book not found"})
             continue
         if not _is_admin(current_user) and book.added_by != current_user.id:
@@ -2562,18 +2616,62 @@ def delete_book(
 ):
     require_role(current_user, "member")
 
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
-
     # Members can only delete their own uploads; admins can delete any book
-    from backend.core.permissions import is_admin as _is_admin
-    if not _is_admin(current_user) and book.added_by != current_user.id:
-        raise HTTPException(status_code=403, detail="You can only delete books you uploaded")
+    book = editable_book_or_403(
+        db, current_user, book_id, detail="You can only delete books you uploaded",
+    )
 
     _delete_book_record(book, db, current_user)
 
 
+
+
+def _save_upload(file: UploadFile) -> Path:
+    """Stream an uploaded book to its own temp folder and return the path.
+
+    The folder name is unique per upload, so two uploads of the same file
+    name at once cannot overwrite each other; the file inside keeps the
+    client's name, which the rest of the import reads. The copy stops with
+    413 once it passes TOME_MAX_UPLOAD_MB (0 = no limit) and the partial
+    file is removed. Call _discard_upload once the file has been moved or
+    is not needed.
+    """
+    safe_name = Path(file.filename or "").name  # strip any path components
+    if not safe_name or safe_name in (".", ".."):
+        raise HTTPException(status_code=400, detail="Invalid filename")
+    tmp_dir = settings.incoming_dir / ".tmp" / uuid.uuid4().hex
+    tmp_dir.mkdir(parents=True)
+    tmp_path = tmp_dir / safe_name
+    limit = max(settings.max_upload_mb, 0) * 1024 * 1024
+    written = 0
+    try:
+        # Defense in depth: confirm resolved path stays inside tmp_dir
+        if not tmp_path.resolve().is_relative_to(tmp_dir.resolve()):
+            raise HTTPException(status_code=400, detail="Invalid filename")
+        with open(tmp_path, "wb") as f:
+            while chunk := file.file.read(1024 * 1024):
+                written += len(chunk)
+                if limit and written > limit:
+                    raise HTTPException(
+                        status_code=413,
+                        detail=f"File is larger than the upload limit ({settings.max_upload_mb} MB)",
+                    )
+                f.write(chunk)
+    except BaseException:
+        _discard_upload(tmp_path)
+        raise
+    finally:
+        file.file.close()
+    return tmp_path
+
+
+def _discard_upload(tmp_path: Path) -> None:
+    """Remove an upload's temp file (if still there) and its temp folder."""
+    tmp_path.unlink(missing_ok=True)
+    try:
+        tmp_path.parent.rmdir()
+    except OSError:
+        pass
 
 
 @router.post("/upload", response_model=BookDetailOut, status_code=status.HTTP_201_CREATED)
@@ -2593,20 +2691,7 @@ def upload_book(
         raise HTTPException(status_code=400, detail=f"Unsupported format: {suffix}")
 
     # Write to a temp location first so we can extract metadata before deciding the path
-    tmp_dir = settings.incoming_dir / ".tmp"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = Path(file.filename).name  # strip any path components from client filename
-    if not safe_name or safe_name in (".", ".."):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    tmp_path = tmp_dir / safe_name
-    # Defense in depth: confirm resolved path stays inside tmp_dir
-    if tmp_dir.resolve() not in tmp_path.resolve().parents:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    try:
-        with open(tmp_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-    finally:
-        file.file.close()
+    tmp_path = _save_upload(file)
 
     # Duplicate check by hash
     content_hash = sha256_file(tmp_path)
@@ -2621,6 +2706,7 @@ def upload_book(
             dest = resolve_unique_path(settings.library_dir, rel)
             dest.parent.mkdir(parents=True, exist_ok=True)
             shutil.move(str(tmp_path), str(dest))
+            _discard_upload(tmp_path)
             db.add(BookFile(
                 book_id=existing.id,
                 file_path=str(dest.resolve()),
@@ -2630,7 +2716,7 @@ def upload_book(
             ))
             record_ko_hash(db, existing.id, ko_partial_md5(dest), "raw")
         else:
-            tmp_path.unlink(missing_ok=True)
+            _discard_upload(tmp_path)
         db.commit()
         db.refresh(existing)
         return existing
@@ -2650,6 +2736,7 @@ def upload_book(
     dest = resolve_unique_path(settings.library_dir, rel)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(tmp_path), str(dest))
+    _discard_upload(tmp_path)
 
     book = Book(
         title=meta.get("title", Path(file.filename).stem),
@@ -2833,19 +2920,7 @@ def ingest_book(
         raise HTTPException(status_code=400, detail=f"Unsupported format: {suffix}")
 
     # Write to a temp location so we can compute hash before deciding path
-    tmp_dir = settings.incoming_dir / ".tmp"
-    tmp_dir.mkdir(parents=True, exist_ok=True)
-    safe_name = Path(file.filename).name
-    if not safe_name or safe_name in (".", ".."):
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    tmp_path = tmp_dir / safe_name
-    if tmp_dir.resolve() not in tmp_path.resolve().parents:
-        raise HTTPException(status_code=400, detail="Invalid filename")
-    try:
-        with open(tmp_path, "wb") as f:
-            shutil.copyfileobj(file.file, f)
-    finally:
-        file.file.close()
+    tmp_path = _save_upload(file)
 
     # Deduplicate by content hash
     content_hash = sha256_file(tmp_path)
@@ -2857,7 +2932,7 @@ def ingest_book(
         .first()
     )
     if existing_book:
-        tmp_path.unlink(missing_ok=True)
+        _discard_upload(tmp_path)
         raise HTTPException(
             status_code=409,
             detail={"detail": "duplicate", "existing_id": existing_book.id},
@@ -2876,6 +2951,7 @@ def ingest_book(
     dest = resolve_unique_path(settings.library_dir, rel)
     dest.parent.mkdir(parents=True, exist_ok=True)
     shutil.move(str(tmp_path), str(dest))
+    _discard_upload(tmp_path)
 
     book = Book(
         title=meta.title,
@@ -2974,7 +3050,7 @@ async def fetch_metadata(
     book_id: int,
     q: Optional[str] = Query(None, description="Override search query"),
     db: Session = Depends(get_db),
-    _: User = Depends(get_current_user),
+    current_user: User = Depends(get_current_user),
 ):
     """Search external sources; return ranked candidates + per-source status.
 
@@ -2982,9 +3058,7 @@ async def fetch_metadata(
     ``sources`` tells the UI when an empty list means "rate limited", not
     "this book doesn't exist anywhere".
     """
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = visible_book_or_404(db, current_user, book_id)
 
     result = await fetch_candidates(
         title=book.title,
@@ -3016,9 +3090,7 @@ async def apply_metadata(
     """Apply only the explicitly passed fields from a chosen candidate."""
     require_role(current_user, "member")
 
-    book = db.query(Book).filter(Book.id == book_id).first()
-    if not book:
-        raise HTTPException(status_code=404, detail="Book not found")
+    book = editable_book_or_403(db, current_user, book_id)
 
     # Apply scalar fields if provided
     simple_fields = ("title", "author", "description", "publisher", "year", "language", "isbn", "series", "series_index")

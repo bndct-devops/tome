@@ -17,6 +17,23 @@ function withTz(path: string): string {
   }
 }
 
+// The token stopped working. While impersonating, that is the one-hour
+// impersonation token running out: go back to the admin's own sign-in
+// (kept in sessionStorage by AuthContext) instead of the login page. If the
+// admin's token is dead too, its own 401 lands on /login as usual.
+function signedOut() {
+  const adminToken = sessionStorage.getItem("tome_admin_token")
+  sessionStorage.removeItem("tome_admin_token")
+  sessionStorage.removeItem("tome_impersonated_username")
+  if (adminToken) {
+    localStorage.setItem("tome_token", adminToken)
+    window.location.href = "/"
+    return
+  }
+  localStorage.removeItem("tome_token")
+  window.location.href = "/login"
+}
+
 // `noRedirect`: a 401 is the caller's answer, not an expired session (the
 // login form shows "wrong password" inline instead of reloading /login).
 async function request<T>(path: string, options?: RequestInit, noRedirect = false): Promise<T> {
@@ -29,8 +46,7 @@ async function request<T>(path: string, options?: RequestInit, noRedirect = fals
   }
   const res = await bootFetch(path, options?.method, () => fetch(`${API_BASE}${path}`, { ...options, headers }))
   if (res.status === 401 && !noRedirect) {
-    localStorage.removeItem("tome_token")
-    window.location.href = "/login"
+    signedOut()
     throw new Error("Unauthorized")
   }
   if (!res.ok) {
@@ -55,8 +71,7 @@ async function requestWithHeaders<T>(
   }
   const res = await bootFetch(path, options?.method, () => fetch(`${API_BASE}${path}`, { ...options, headers }))
   if (res.status === 401) {
-    localStorage.removeItem("tome_token")
-    window.location.href = "/login"
+    signedOut()
     throw new Error("Unauthorized")
   }
   if (!res.ok) {
@@ -76,8 +91,9 @@ export const api = {
     requestWithHeaders<T>(path, { signal }),
   post: <T>(path: string, body?: unknown, opts?: { noRedirect?: boolean }) =>
     request<T>(path, { method: "POST", body: JSON.stringify(body) }, opts?.noRedirect),
-  put: <T>(path: string, body?: unknown) =>
-    request<T>(path, { method: "PUT", body: JSON.stringify(body) }),
+  // keepalive: the request survives the page being closed or navigated away.
+  put: <T>(path: string, body?: unknown, opts?: { keepalive?: boolean }) =>
+    request<T>(path, { method: "PUT", body: JSON.stringify(body), keepalive: opts?.keepalive }),
   patch: <T>(path: string, body?: unknown) =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body) }),
   delete: <T>(path: string) => request<T>(path, { method: "DELETE" }),

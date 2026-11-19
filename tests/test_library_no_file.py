@@ -333,13 +333,15 @@ def test_bulk_metadata_on_a_file_less_book(client, db, world):
     r = client.put("/api/books/bulk-metadata", headers=w["alice_h"],
                    json={"book_ids": [w["nf_alice"].id, w["a2"].id], "tags_add": ["to-buy"]})
     assert r.status_code == 200, r.text
-    assert r.json()["updated"] == 2
+    # Her own file-less book is changed; the admin's upload in the same
+    # selection is left out (a member only changes books they uploaded).
+    assert r.json()["updated"] == 1
     db.expire_all()
     book = db.get(Book, w["nf_alice"].id)
     assert book.status == BOOK_NO_FILE
     assert [t.tag for t in book.tags] == ["to-buy"]
     _, ids, _ = _list(client, w["alice_h"], include_no_file="true", tag="to-buy")
-    assert set(ids) == {w["nf_alice"].id, w["a2"].id}
+    assert set(ids) == {w["nf_alice"].id}
 
 
 def test_add_to_library_skips_file_less_books(client, db, world):

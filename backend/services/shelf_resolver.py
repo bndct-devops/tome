@@ -14,9 +14,10 @@ from backend.models.book import Book, BookFile, BookTag
 from backend.models.library import Library
 from backend.models.user import User
 from backend.models.user_book_status import UserBookStatus
+from backend.services.book_filters import apply_word_count_bounds
 
 SHELF_SUPPORTED = {"q", "series", "no_series", "author", "tag", "format",
-                   "language", "library_id", "reading_status", "min_rating",
+                   "language", "library_id", "reading_status", "min_rating", "min_words", "max_words",
                    "on_device", "not_on_device"}
 
 
@@ -89,4 +90,5 @@ def shelf_query(db: Session, user: User, params: dict):
             ).filter(UserBookStatus.rating >= float(params["min_rating"]))
         except (TypeError, ValueError):
             pass
+    query = apply_word_count_bounds(query, params.get("min_words"), params.get("max_words"))
     return query, unsupported

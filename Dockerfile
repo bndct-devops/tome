@@ -24,9 +24,12 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends unrar-free gosu && rm -rf /var/lib/apt/lists/*
 
-COPY pyproject.toml ./
+# Dependencies come from the lock file, so the image holds the exact set the
+# tests ran on; Tome itself is then installed without resolving anything.
+COPY pyproject.toml requirements.lock ./
 COPY backend/__init__.py ./backend/
-RUN pip install --no-cache-dir .
+RUN pip install --no-cache-dir -r requirements.lock \
+    && pip install --no-cache-dir --no-deps .
 
 COPY backend/ ./backend/
 COPY alembic.ini ./

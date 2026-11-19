@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import { useSearchParams, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import {
@@ -46,13 +46,13 @@ import { SeriesReadingStats } from '@/components/SeriesReadingStats'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { QuickLook } from '@/components/QuickLook'
 import { SortMenu } from '@/components/library/SortMenu'
-import { PageBody, PageHeader, SectionTitle, Pill, Select, FormLabel, INPUT_CLASS } from '@/components/page'
+import { PageBody, PageHeader, SectionTitle, Pill, Select, Input, FormLabel, INPUT_CLASS } from '@/components/page'
 // Library / Series tab icons, kept apart from the shared import above.
 import { ArrowLeft, Eye, Upload } from 'lucide-react'
 import { coverSrc } from '@/lib/covers'
 import { preloadImages } from '@/lib/preload'
 
-type SortField = 'title' | 'author' | 'year' | 'added_at' | 'rating'
+type SortField = 'title' | 'author' | 'year' | 'added_at' | 'rating' | 'word_count'
 type SortOrder = 'asc' | 'desc'
 
 interface SeriesItem {
@@ -100,13 +100,13 @@ interface Facets {
 }
 
 const SORT_LABELS: Record<SortField, MessageDescriptor> = {
-  title: msg`Title`, author: msg`Author`, year: msg`Year`, added_at: msg`Date added`, rating: msg`My rating`,
+  title: msg`Title`, author: msg`Author`, year: msg`Year`, added_at: msg`Date added`, rating: msg`My rating`, word_count: msg`Length`,
 }
 
 // Reading-status + series-status display names, shared by filter buttons and chips.
 const READING_STATUS_LABELS: Record<string, MessageDescriptor> = {
   unread: msg`Unread`, want_to_read: msg`Want to read`, reading: msg`Reading`,
-  read: msg({ message: 'Read', context: 'status' }), shelved: msg`Shelved`,
+  read: msg({ message: 'Read', context: 'status' }), shelved: msg`On hold`,
 }
 const MISSING_LABELS: Record<string, MessageDescriptor> = {
   cover: msg`Cover`, description: msg`Description`, author: msg`Author`,
@@ -274,7 +274,6 @@ export function DashboardPage() {
   const [shareSeries, setShareSeries] = useState<string | null>(null)
   const [seriesDetailLoading, setSeriesDetailLoading] = useState(false)
   const [markingAllRead, setMarkingAllRead] = useState(false)
-  const [contentType, setContentType] = useState<string>('volume')
   // Series meta (status badges) - keyed by series name
   const [seriesMetaMap, setSeriesMetaMap] = useState<Record<string, SeriesStatus>>({})
   // Arcs for the currently open series detail
@@ -489,6 +488,11 @@ export function DashboardPage() {
   const filterLibrary = searchParams.get('library_id') ? Number(searchParams.get('library_id')) : null
   const filterReadingStatus = searchParams.get('reading_status') ?? ''
   const filterMinRating = searchParams.get('min_rating') ? Number(searchParams.get('min_rating')) : null
+  const filterMinWords = searchParams.get('min_words') ?? ''
+  const filterMaxWords = searchParams.get('max_words') ?? ''
+  // Chips show the bound the way people write it (30,000), the URL keeps the plain number.
+  const minWords = filterMinWords ? Number(filterMinWords).toLocaleString(i18n.locale) : ''
+  const maxWords = filterMaxWords ? Number(filterMaxWords).toLocaleString(i18n.locale) : ''
   const filterMissing = searchParams.get('missing') ?? ''
   const filterOwnership = searchParams.get('ownership') ?? ''
   const filterAddedBy = searchParams.get('added_by') ? Number(searchParams.get('added_by')) : null
@@ -496,6 +500,13 @@ export function DashboardPage() {
   // on_device and on none of not_on_device.
   const filterOnDevice = searchParams.get('on_device') ?? ''
   const filterNotOnDevice = searchParams.get('not_on_device') ?? ''
+  // Type (content_type): Volumes when absent, so a plain link keeps the
+  // default; 'all' in the address means no type filter.
+  const contentTypeParam = searchParams.get('content_type')
+  const contentType = contentTypeParam === null ? 'volume' : contentTypeParam === 'all' ? '' : contentTypeParam
+  function setContentType(value: string) {
+    setFilter('content_type', value === 'volume' ? '' : value === '' ? 'all' : value)
+  }
   const onDevices = filterOnDevice.split(',').filter(Boolean)
   const notOnDevices = filterNotOnDevice.split(',').filter(Boolean)
   const devices = useDeviceInventories()
@@ -546,7 +557,7 @@ export function DashboardPage() {
     })
   }
 
-  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterLanguage || filterReadingStatus || filterMinRating || filterMissing || filterOwnership || filterAddedBy || filterOnDevice || filterNotOnDevice)
+  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterLanguage || filterReadingStatus || filterMinRating || filterMinWords || filterMaxWords || filterMissing || filterOwnership || filterAddedBy || filterOnDevice || filterNotOnDevice || contentTypeParam !== null)
 
   // Grouping is bypassed while drilling into a specific series - the user
   // explicitly asked for that series' volumes, so a single stack is useless.
@@ -763,8 +774,14 @@ export function DashboardPage() {
       if (bulkMetaSeries) body.series = bulkMetaSeries
       if (bulkMetaTagsAdd.length) body.tags_add = bulkMetaTagsAdd
       if (bulkMetaTypeId) body.book_type_id = bulkMetaTypeId
-      await api.put('/books/bulk-metadata', body)
-      toastSuccess(plural(selected.size, { one: 'Updated metadata for # book', other: 'Updated metadata for # books' }))
+      const res = await api.put<{ updated: number; skipped: number }>('/books/bulk-metadata', body)
+      if (res.updated === 0) {
+        toastError(t`Nothing was changed. You can only edit books you uploaded.`)
+        return
+      }
+      const updatedText = plural(res.updated, { one: 'Updated metadata for # book', other: 'Updated metadata for # books' })
+      const skippedText = plural(res.skipped, { one: '# book was left as it is because you did not upload it', other: '# books were left as they are because you did not upload them' })
+      toastSuccess(res.skipped > 0 ? t`${updatedText}. ${skippedText}.` : updatedText)
       setBulkMetaOpen(false)
       setBulkMetaAuthor(''); setBulkMetaSeries(''); setBulkMetaTagsAdd([]); setBulkMetaTypeId('')
       clearSelection()
@@ -842,6 +859,8 @@ export function DashboardPage() {
     if (filterLibrary) params.set('library_id', String(filterLibrary))
     if (filterReadingStatus) params.set('reading_status', filterReadingStatus)
     if (filterMinRating) params.set('min_rating', String(filterMinRating))
+    if (filterMinWords) params.set('min_words', filterMinWords)
+    if (filterMaxWords) params.set('max_words', filterMaxWords)
     if (filterMissing) params.set('missing', filterMissing)
     if (contentType) params.set('content_type', contentType)
     if (filterOwnership) params.set('ownership', filterOwnership)
@@ -928,7 +947,7 @@ export function DashboardPage() {
           setLoadingMore(false)
         }
       })
-  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLanguage, filterLibrary, filterReadingStatus, filterMinRating, filterMissing, contentType, filterOwnership, filterAddedBy, filterOnDevice, filterNotOnDevice, groupActive])
+  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLanguage, filterLibrary, filterReadingStatus, filterMinRating, filterMinWords, filterMaxWords, filterMissing, contentType, filterOwnership, filterAddedBy, filterOnDevice, filterNotOnDevice, groupActive])
 
   useEffect(() => {
     if (seededRef.current) {
@@ -1089,6 +1108,9 @@ export function DashboardPage() {
       }
 
       if (e.key === 'Enter') {
+        // A link focused with Tab (a book card) opens itself; do not open
+        // the j/k-highlighted book on top of it.
+        if ((e.target as HTMLElement).closest('a')) return
         if (prev !== null && booksRef.current[prev]) {
           const b = booksRef.current[prev]
           if (groupActiveRef.current && b.series && b.status !== 'no_file') {
@@ -1131,23 +1153,23 @@ export function DashboardPage() {
     ...(filterLanguage ? [{ label: t`Language: ${filterLanguageLabel}`, key: 'language' }] : []),
     ...(filterReadingStatus ? [{ label: t`Status: ${filterStatusLabel}`, key: 'reading_status' }] : []),
     ...(filterMinRating ? [{ label: filterMinRating === 5 ? t`Rated: 5 stars` : t`Rated: ${filterMinRating}+ stars`, key: 'min_rating' }] : []),
+    ...(filterMinWords ? [{ label: t`At least ${minWords} words`, key: 'min_words' }] : []),
+    ...(filterMaxWords ? [{ label: t`At most ${maxWords} words`, key: 'max_words' }] : []),
     ...(filterMissing ? [{ label: t`Missing: ${filterMissingLabel}`, key: 'missing' }] : []),
     ...(filterOwnership === 'mine' ? [{ label: t`My books`, key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: t`Shared library`, key: 'ownership' }] : []),
     ...(filterAddedBy ? [{ label: t`Uploader: ${filterUploaderName}`, key: 'added_by' }] : []),
+    ...(contentTypeParam === 'chapter' ? [{ label: t`Type: Chapters`, key: 'content_type' }] : contentTypeParam === 'all' ? [{ label: t`Type: All`, key: 'content_type' }] : []),
     ...(onDevices.length ? [{ label: (() => { const names = onDevices.join(', '); return t`On ${names}` })(), key: 'on_device' }] : []),
     ...(notOnDevices.length ? [{ label: (() => { const names = notOnDevices.join(', '); return t`Not on ${names}` })(), key: 'not_on_device' }] : []),
   ]
 
-  // Params to pass to SaveFilterButton (excludes library_id - that belongs in sidebar)
-  const saveableParams: Record<string, string> = {}
-  if (search) saveableParams.q = search
-  if (filterSeries) saveableParams.series = filterSeries
-  if (filterAuthor) saveableParams.author = filterAuthor
-  if (filterTag) saveableParams.tag = filterTag
-  if (filterFormat) saveableParams.format = filterFormat
-  if (filterLanguage) saveableParams.language = filterLanguage
-  if (filterOnDevice) saveableParams.on_device = filterOnDevice
-  if (filterNotOnDevice) saveableParams.not_on_device = filterNotOnDevice
+  // Params to pass to SaveFilterButton: the same filters that build the
+  // query, minus library_id (that belongs in the sidebar). Type is kept only
+  // when it is Chapters: the default (Volumes) needs no param, and "All" has
+  // no server-side value that shelves on devices and stats understand.
+  const saveableParams: Record<string, string> = Object.fromEntries(buildFilterParams())
+  delete saveableParams.library_id
+  if (saveableParams.content_type !== 'chapter') delete saveableParams.content_type
 
   // Grid columns flow from the spring-smoothed cover size; card typography
   // follows the slider value. The grid/list switch swaps in place: the old
@@ -1216,10 +1238,11 @@ export function DashboardPage() {
         onDone={() => { loadBooks(); loadFacets() }}
         onWishMatches={(wishIds) => {
           const n = wishIds.length
+          // Only admins can open the wishlist review, so only they get the link.
           toast.info(plural(n, {
-            one: 'This upload satisfies # wish. Review it in Admin > Wishlist',
-            other: 'This upload satisfies # wishes. Review them in Admin > Wishlist',
-          }))
+            one: 'This upload satisfies # wish.',
+            other: 'This upload satisfies # wishes.',
+          }), isAdmin(user) ? { action: { label: t`Open Wishlist`, onClick: () => navigate('/admin/wishlist') } } : undefined)
         }}
       />
 
@@ -1687,7 +1710,7 @@ export function DashboardPage() {
                     ? plural(n, { one: '# title', other: '# titles' })
                     : plural(n, { one: '# book', other: '# books' })
                 })()}
-            title={activeLibraryName ?? <Trans>Library</Trans>}
+            title={activeLibraryName ?? <Trans>All books</Trans>}
             actions={
               /* Capped at the viewport so the row wraps on phones instead of
                  running off the side. */
@@ -1875,6 +1898,31 @@ export function DashboardPage() {
                 ))}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
+                <span className={rowLabel}><Trans>Length</Trans></span>
+                <div className="flex items-center gap-2 flex-1 min-w-0 sm:flex-none">
+                {([['min_words', t`Minimum words`, t`Min words`, filterMinWords], ['max_words', t`Maximum words`, t`Max words`, filterMaxWords]] as const).map(([key, label, placeholder, value]) => (
+                  <Fragment key={key}>
+                    {key === 'max_words' && <span className="text-[13px] text-muted-foreground" aria-hidden>–</span>}
+                    {/* Commit on blur or Enter so typing doesn't refetch on every digit. */}
+                    <Input
+                      key={value}
+                      type="number" inputMode="numeric" min="0" step="1" defaultValue={value}
+                      aria-label={label}
+                      placeholder={placeholder}
+                      onBlur={e => {
+                        if (e.currentTarget.validity.valid) setFilter(key, e.currentTarget.value === '' ? '' : String(e.currentTarget.valueAsNumber))
+                      }}
+                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                      className="w-auto min-w-0 flex-1 sm:flex-none sm:w-32 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    />
+                  </Fragment>
+                ))}
+                </div>
+                {(filterMinWords || filterMaxWords) && (
+                  <span className="text-[13px] text-muted-foreground sm:ml-2"><Trans>Books without a word count are hidden.</Trans></span>
+                )}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
                 <span className={rowLabel}><Trans>Rating</Trans></span>
                 {([
                   { value: '', label: t`All`, starless: true },
@@ -1897,7 +1945,7 @@ export function DashboardPage() {
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={rowLabel}><Trans>Missing</Trans></span>
                 {([
-                  { value: '', label: t`None` },
+                  { value: '', label: t`All` },
                   { value: 'cover', label: t`Cover` },
                   { value: 'description', label: t`Description` },
                   { value: 'author', label: t`Author` },
@@ -1995,12 +2043,23 @@ export function DashboardPage() {
                 <Trans>Download ZIP</Trans>
               </Pill>
               {isMember(user) && (
-                <SendButton
-                  variant="bulk"
-                  disabled={bulkPending || !books.some(b => selected.has(b.id) && b.files.length > 0)}
+                (() => {
+                  // Send needs each book's files, which only loaded rows have.
+                  // "Select all" can select past the loaded pages; sending then
+                  // would quietly drop the rest, so it waits for them instead.
                   // Books without a file (a reader's sync) have nothing to send.
-                  books={books.filter(b => selected.has(b.id) && b.files.length > 0).map(b => ({ id: b.id, title: b.title, files: b.files }))}
-                />
+                  const loaded = books.filter(b => selected.has(b.id))
+                  const sendable = loaded.filter(b => b.files.length > 0)
+                  const unloaded = selected.size - loaded.length
+                  return (
+                    <SendButton
+                      variant="bulk"
+                      disabled={bulkPending || sendable.length === 0 || unloaded > 0}
+                      hint={unloaded > 0 ? plural(unloaded, { one: '# selected book is not loaded yet. Scroll down to load it, or select fewer, to send.', other: '# selected books are not loaded yet. Scroll down to load them, or select fewer, to send.' }) : undefined}
+                      books={sendable.map(b => ({ id: b.id, title: b.title, files: b.files }))}
+                    />
+                  )
+                })()
               )}
               <Pill
                 onClick={() => { setBulkMetaOpen(true); api.get<Facets>('/books/facets').then(setFacets).catch(() => {}) }}

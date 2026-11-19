@@ -14,10 +14,10 @@ and read status only.
 import calendar
 import time
 import logging
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any, Optional
 
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -26,6 +26,45 @@ from backend.models.user import User
 
 router = APIRouter(prefix="/v1", tags=["kosync"])
 logger = logging.getLogger(__name__)
+
+
+# How long an OPDS download may wait for the KOSync push that claims it. The
+# fallback guesses (it links the next unknown document to the last download),
+# so it only holds right after the download; older rows are dropped unused.
+PENDING_LINK_TTL = timedelta(minutes=15)
+
+
+def clear_pending_links(db: Session, tome_user_id: int, book_id: int) -> None:
+    """Drop this user's pending OPDS links for a book that now has a real map.
+
+    A leftover link would otherwise wait for the next unknown document (a
+    sideload, an old copy) and attach that file's progress to this book.
+    Caller commits.
+    """
+    db.query(OPDSPendingLink).filter(
+        OPDSPendingLink.user_id == tome_user_id,
+        OPDSPendingLink.book_id == book_id,
+    ).delete(synchronize_session=False)
+
+
+def _claim_pending_link(db: Session, tome_user_id: int) -> Optional[OPDSPendingLink]:
+    """Oldest fresh pending link for this user; expired ones are deleted."""
+    cutoff = datetime.utcnow() - PENDING_LINK_TTL
+    expired = db.query(OPDSPendingLink).filter(
+        OPDSPendingLink.user_id == tome_user_id,
+        OPDSPendingLink.created_at < cutoff,
+    ).delete(synchronize_session=False)
+    if expired:
+        db.commit()
+    return (
+        db.query(OPDSPendingLink)
+        .filter(
+            OPDSPendingLink.user_id == tome_user_id,
+            OPDSPendingLink.created_at >= cutoff,
+        )
+        .order_by(OPDSPendingLink.created_at.asc())
+        .first()
+    )
 
 
 def _epoch(dt: datetime) -> int:
@@ -76,6 +115,7 @@ def _find_or_hash_link(
 
     doc_map = KOSyncDocumentMap(tome_user_id=tome_user_id, document=document, book_id=hit)
     db.add(doc_map)
+    clear_pending_links(db, tome_user_id, hit)
     # Progress pushes logged while the file was unknown belong to this book.
     from backend.services.kosync_stats import attach_history
     attach_history(db, tome_user_id, document, hit)
@@ -90,24 +130,32 @@ def _find_or_hash_link(
 # ── Auth helper ───────────────────────────────────────────────────────────────
 
 def _get_kosync_user(
+    request: Request,
     db: Session = Depends(get_db),
     x_auth_user: str | None = Header(None),
     x_auth_key: str | None = Header(None),
 ) -> KOSyncUser:
     import hmac
+    from backend.core import login_throttle
     if not x_auth_user or not x_auth_key:
         raise HTTPException(status_code=401, detail="Missing auth headers")
+    throttle_key = login_throttle.throttle.key(x_auth_user, login_throttle.client_ip(request))
+    login_throttle.check(throttle_key)  # 429 before any key check
     user = db.query(KOSyncUser).filter(KOSyncUser.username == x_auth_user).first()
     # Constant-time compare to prevent timing-side-channel discovery of the userkey.
     # (The userkey is an MD5 supplied by KOReader's protocol; we still want timing-safe compare.)
     if not user or not hmac.compare_digest(user.userkey, x_auth_key):
+        login_throttle.throttle.failure(throttle_key)
         raise HTTPException(status_code=401, detail="Unauthorized")
+    login_throttle.throttle.success(throttle_key)
     # Check Tome permission if linked
     if user.user_id:
         from backend.core.permissions import has_role
         tome_user = db.get(User, user.user_id)
         if tome_user and not has_role(tome_user, "member"):
             raise HTTPException(status_code=403, detail="KOSync access requires member role or above")
+        from backend.core.security import refuse_if_password_change_pending
+        refuse_if_password_change_pending(tome_user)
     return user
 
 
@@ -224,12 +272,7 @@ def update_progress(
         doc_map = _find_or_hash_link(db, user.user_id, document)
 
         if not doc_map:
-            pending = (
-                db.query(OPDSPendingLink)
-                .filter(OPDSPendingLink.user_id == user.user_id)
-                .order_by(OPDSPendingLink.created_at.asc())
-                .first()
-            )
+            pending = _claim_pending_link(db, user.user_id)
             tome_user = db.get(User, user.user_id) if meta is not None else None
             if meta is not None and tome_user is not None:
                 # The reader named the book, so nothing is guessed: an exact
@@ -245,7 +288,7 @@ def update_progress(
                     db.rollback()
                     doc_map = _find_or_hash_link(db, user.user_id, document)
                 if doc_map and pending and doc_map.book_id == pending.book_id:
-                    db.delete(pending)
+                    clear_pending_links(db, user.user_id, pending.book_id)
                     db.commit()
             elif pending:
                 doc_map = KOSyncDocumentMap(
@@ -255,7 +298,7 @@ def update_progress(
                     guessed=True,
                 )
                 db.add(doc_map)
-                db.delete(pending)
+                clear_pending_links(db, user.user_id, pending.book_id)
                 db.commit()
 
         if doc_map:

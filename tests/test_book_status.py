@@ -375,3 +375,84 @@ def test_reading_to_reading_does_not_reset_progress(client: TestClient, make_boo
     data = _put_status(client, book.id, {"status": "reading"})
     assert data["progress_pct"] == pytest.approx(0.3)
     assert data["cfi"] == "epubcfi(/6/8!/4/2)"
+
+
+# ── reader autosave keeps a finished book finished (D1) ───────────────────────
+
+def test_reader_autosave_after_finish_does_not_unfinish(client: TestClient, db: Session, admin_user, make_book):
+    """The web reader sends "read" at the end and its delayed page save
+    ("reading") can land after it. With the autosave flag the book stays read
+    with its finish date; only the resume position moves."""
+    from backend.models.tome_sync import TomeSyncPosition
+    from backend.models.user_book_status import UserBookStatus
+    user, _ = admin_user
+    book = make_book(title="The Glass Orchard")
+    _put_status(client, book.id, {"status": "read", "progress_pct": 1, "cfi": "epubcfi(/6/40!/4/2)", "autosave": True})
+    row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+    finished = row.finished_at
+    assert finished is not None
+
+    data = _put_status(client, book.id, {
+        "status": "reading", "progress_pct": 0.96, "cfi": "epubcfi(/6/38!/4/2)", "autosave": True,
+    })
+    assert data["status"] == "read"
+    assert data["progress_pct"] == pytest.approx(1.0)
+    assert data["cfi"] == "epubcfi(/6/38!/4/2)"
+    db.refresh(row)
+    assert row.finished_at == finished
+    pos = db.query(TomeSyncPosition).filter_by(user_id=user.id, book_id=book.id).one()
+    assert pos.progress == "epubcfi(/6/38!/4/2)"
+
+
+def test_reader_open_of_finished_book_keeps_progress(client: TestClient, db: Session, admin_user, make_book):
+    """Opening a finished book in the reader sends a bare "reading" autosave.
+    It must not run the "reading again" restart (progress, CFI, device position)."""
+    from backend.models.tome_sync import TomeSyncPosition
+    from backend.services.book_progress import upsert_position
+    user, _ = admin_user
+    book = make_book(title="The Glass Orchard")
+    _put_status(client, book.id, {"status": "read", "progress_pct": 1.0, "cfi": "comic:41"})
+    upsert_position(db, user_id=user.id, book_id=book.id, percentage=1.0, progress="comic:41", device="Kindle")
+    db.commit()
+
+    data = _put_status(client, book.id, {"status": "reading", "autosave": True})
+    assert data["status"] == "read"
+    assert data["progress_pct"] == pytest.approx(1.0)
+    assert data["cfi"] == "comic:41"
+    assert db.query(TomeSyncPosition).filter_by(user_id=user.id, book_id=book.id).count() == 1
+
+
+def test_reader_autosave_still_moves_an_unfinished_book(client: TestClient, make_book):
+    book = make_book(title="The Glass Orchard")
+    _put_status(client, book.id, {"status": "reading", "progress_pct": 0.2, "autosave": True})
+    data = _put_status(client, book.id, {"status": "reading", "progress_pct": 0.3, "cfi": "x", "autosave": True})
+    assert data["status"] == "reading"
+    assert data["progress_pct"] == pytest.approx(0.3)
+
+
+def test_reading_at_full_progress_finishes_the_book(client: TestClient, db: Session, admin_user, make_book):
+    """A client that only reports positions (no explicit "read") still
+    finishes the book, like the device paths do at 99%."""
+    from backend.models.user_book_status import UserBookStatus
+    user, _ = admin_user
+    book = make_book(title="Position Only")
+    client.put(f"/api/books/{book.id}/status", json={"status": "reading", "progress_pct": 0.4})
+    r = client.put(f"/api/books/{book.id}/status", json={"status": "reading", "progress_pct": 0.995})
+    assert r.status_code == 200
+    assert r.json()["status"] == "read"
+    assert r.json()["progress_pct"] == 1.0
+    db.expire_all()
+    row = db.query(UserBookStatus).filter_by(user_id=user.id, book_id=book.id).one()
+    assert row.finished_at is not None
+
+
+def test_first_save_at_full_progress_finishes_the_book(client: TestClient, make_book):
+    book = make_book(title="Straight To The End")
+    r = client.put(f"/api/books/{book.id}/status", json={"status": "reading", "progress_pct": 1.0})
+    assert r.json()["status"] == "read"
+
+
+def test_reading_below_the_finish_line_stays_reading(client: TestClient, make_book):
+    book = make_book(title="Almost There")
+    r = client.put(f"/api/books/{book.id}/status", json={"status": "reading", "progress_pct": 0.98})
+    assert r.json()["status"] == "reading"
