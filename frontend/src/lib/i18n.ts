@@ -14,6 +14,7 @@ export interface LocaleDefinition {
 
 export const LOCALES: LocaleDefinition[] = [
   { code: "en", label: "English" },
+  { code: "es", label: "Español" },
   { code: "fr", label: "Français" },
   { code: "zh-CN", label: "简体中文" },
 ];
