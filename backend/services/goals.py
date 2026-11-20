@@ -822,6 +822,13 @@ def goal_history(gd: GoalData, goal: ReadingGoal, periods: Optional[int] = None)
     if metric == "books":
         summary["bulk"] = [{"start": p["start"], "day": p["bulk_day"], "count": p["bulk_count"], "of": p["value"]}
                            for p in shown if p.get("bulk_day")]
+    if period == "year":
+        # With fewer than two past years that have data, past years say little (empty
+        # bars): the detail shows this year's months instead.
+        past_with_data = sum(1 for p in complete if p["state"] != "no_data")
+        summary["view"] = "years" if past_with_data >= 2 else "months"
+        if summary["view"] == "months":
+            summary["months"], summary["months_summary"] = _year_months(gd, vals, metric, rows, data_from, cur0, cur1)
     weeks = None
     if goal.kind == "days_per_week":
         # The detail's grid: the shown weeks day by day, a day reached when it is a reading day.
@@ -1062,3 +1069,51 @@ def _books_entry(kind: str, min90: list[float], med_book: Optional[float], days_
             v = _floor_step(_pick(rates, q), step)
             entry["suggested"].append({"label": label, "value": v, **counted(v)})
     return entry
+
+
+def _year_months(gd: GoalData, vals: dict[date, float], metric: str, rows, data_from: Optional[date],
+                 y0: date, y1: date) -> tuple[list[dict], dict]:
+    """A year goal's months this year: each month's value against the monthly share of
+    the target (target ÷ 12, the target that applies to the year), the running total,
+    and the bulk-set finish day as the history marks it. State: ``met`` / ``missed``
+    (complete months at or under the share), ``no_data`` (ended before the first data),
+    ``current`` (this month), ``future``."""
+    target = target_for(rows, y1)
+    share = round(target / 12, 1)
+    months, cum = [], 0.0
+    m0 = y0
+    while m0 <= y1:
+        m1 = period_bounds("month", m0)[1]
+        raw = _sum(vals, m0, min(m1, gd.today))
+        cum += raw if m0 <= gd.today else 0
+        entry = {"start": m0.isoformat(), "end": m1.isoformat(), "value": _fmt(metric, raw),
+                 "share": share, "cumulative": _fmt(metric, cum)}
+        if m0 > gd.today:
+            entry.update(state="future", reached=None, cumulative=None)
+        elif m1 >= gd.today:
+            entry.update(state="current", reached=raw >= share)
+        elif data_from is None or m1 < data_from:
+            entry.update(state="no_data", reached=None)
+        else:
+            entry.update(state="met" if raw >= share else "missed", reached=raw >= share)
+        if metric == "books":
+            in_m = [(d, c) for d, c in vals.items() if m0 <= d <= m1]
+            top = max(in_m, key=lambda x: (x[1], x[0]), default=None)
+            if top and top[1] >= BULK_MIN and top[1] * 2 > raw:
+                entry["bulk_day"], entry["bulk_count"] = top[0].isoformat(), int(top[1])
+            else:
+                entry["bulk_day"], entry["bulk_count"] = None, 0
+        months.append(entry)
+        m0 = m1 + timedelta(days=1)
+    judged = [m for m in months if m["state"] in ("met", "missed")]
+    best = max(judged, key=lambda m: (m["value"], m["start"]), default=None)
+    summary = {
+        "share": share,
+        "with_data": len(judged),
+        "at_share": sum(1 for m in judged if m["reached"]),
+        "usual": _median([m["value"] for m in judged]),
+        "best": {"start": best["start"], "value": best["value"]} if best else None,
+        "bulk": [{"start": m["start"], "day": m["bulk_day"], "count": m["bulk_count"], "of": m["value"]}
+                 for m in months if m.get("bulk_day")],
+    }
+    return months, summary

@@ -770,3 +770,36 @@ def test_weekly_streak_follows_the_week_start():
     assert mon.current_weeks == 2 and mon.current_weeks_start == date(2026, 11, 2)
     assert sun.current_weeks == 2 and sun.current_weeks_start == date(2026, 11, 8)
     assert sun.longest_weeks_end == date(2026, 11, 21)
+
+
+def test_year_history_shows_this_years_months_without_two_past_years(client, make_book, admin_user, db, now):
+    user, _ = admin_user
+    now.set("2026-11-20 09:00", VIENNA)
+    # Finishes only this year: five on one day in June (bulk), one in August, one in November.
+    for k in range(5):
+        finish(db, user.id, make_book(title=f"j{k}").id, utc("2026-06-28 12:00", VIENNA))
+    finish(db, user.id, make_book(title="a").id, utc("2026-08-03 12:00", VIENNA))
+    finish(db, user.id, make_book(title="n").id, utc("2026-11-03 12:00", VIENNA))
+    g = create(client, "books_per_year", 24, tz=VIENNA)
+    h = client.get(f"/api/goals/{g['id']}/history?tz={VIENNA}").json()
+    s = h["summary"]
+    assert s["view"] == "months"
+    months = {m["start"][:7]: m for m in s["months"]}
+    assert len(months) == 12 and months["2026-06"]["value"] == 5 and months["2026-06"]["share"] == 2.0
+    assert months["2026-06"]["state"] == "met" and months["2026-07"]["state"] == "missed"
+    assert months["2026-05"]["state"] == "no_data" and months["2026-11"]["state"] == "current"
+    assert months["2026-12"]["state"] == "future" and months["2026-12"]["cumulative"] is None
+    assert months["2026-11"]["cumulative"] == 7
+    assert months["2026-06"]["bulk_day"] == "2026-06-28" and months["2026-06"]["bulk_count"] == 5
+    ms = s["months_summary"]
+    assert ms["with_data"] == 5 and ms["at_share"] == 1 and ms["best"]["value"] == 5  # Jun..Oct judged
+
+
+def test_year_history_keeps_years_with_two_past_years_of_data(client, make_book, admin_user, db, now):
+    user, _ = admin_user
+    now.set("2026-11-20 09:00", VIENNA)
+    for y in (2024, 2025):
+        finish(db, user.id, make_book(title=f"y{y}").id, utc(f"{y}-03-03 12:00", VIENNA))
+    g = create(client, "books_per_year", 12, tz=VIENNA)
+    s = client.get(f"/api/goals/{g['id']}/history?tz={VIENNA}").json()["summary"]
+    assert s["view"] == "years" and "months" not in s
