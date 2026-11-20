@@ -343,6 +343,7 @@ function ReadingNow({ stats, estimates, desktop, loading, sig, onRefresh }: { st
   // The skeleton reserves as many cards as the last answer had (remembered per
   // browser), so a reader with one or three books in progress sees no shift.
   const [skeletonCount] = useState(() => rememberedNowCount(desktop))
+  const [countKnown] = useState(nowCountKnown)
   const books = stats ? all.slice(0, 3) : Array.from({ length: skeletonCount }, () => null)
   useEffect(() => {
     if (stats) rememberNowCount(Math.min(3, stats.books_in_progress.length))
@@ -400,7 +401,10 @@ function ReadingNow({ stats, estimates, desktop, loading, sig, onRefresh }: { st
       >
         <Trans>Reading now</Trans>
       </Heading>
-      {books.length === 0 ? (
+      {!stats && !countKnown && books.length === 0 ? (
+        // A first visit on desktop: the row's height is known, its cards are not. One quiet block holds the row.
+        <div aria-hidden="true" className="rounded-[12px] bg-muted/50" style={{ height: NOW_CARD_H }} />
+      ) : books.length === 0 ? (
         <p className="flex items-center text-[15px] text-muted-foreground" style={{ height: Math.max(NOW_CARD_H, minH ?? 0) }}>{stats && <Trans>Nothing in progress. Books you start show up here.</Trans>}</p>
       ) : (
         <div className={desktop ? 'grid grid-cols-12 gap-4' : 'flex flex-col gap-5'} style={{ minHeight: minH }}>
