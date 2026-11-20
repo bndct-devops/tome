@@ -66,7 +66,7 @@ def _err(msg: str):
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _ctx(tz_offset: int, tz: Optional[str]) -> DayCtx:
-    return DayCtx(tz_offset, tz)
+    return gs.day_ctx(tz_offset, tz)
 
 
 def _data(db: Session, user: User, tz_offset: int, tz: Optional[str]) -> gs.GoalData:
@@ -152,12 +152,9 @@ def list_kinds(
     goals = _user_goals(db, current_user.id)
     out = []
     for kind, (metric, period) in gs.KINDS.items():
-        start = gs.period_bounds(period, gd.today, gd.week_start)[0] if period != "deadline" else None
-        names = gs.goal_name(kind, start, None, gd.today, "", gd.today) if kind != "finish_by" else \
-            {"name": "Finish by a date", "name_key": "finish_by", "name_params": {}}
         out.append({
             "kind": kind, "metric": metric, "period": period, "unit": gs.UNITS[metric],
-            **names,
+            "label": gs.KIND_LABELS[kind],
             "presets": gs.PRESETS.get(kind, []),
             "min": 1, "max": 7 if kind == "days_per_week" else None,
             "book_type_scoped": kind in gs.TYPE_SCOPED_KINDS,

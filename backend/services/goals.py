@@ -80,6 +80,14 @@ STEPS = {
     "books_per_month": 1, "books_per_year": 1, "days_per_week": 1,
 }
 
+# The create dialog's label per kind (a goal's own name is goal_name()).
+KIND_LABELS = {
+    "books_per_year": "Books a year", "books_per_month": "Books a month",
+    "minutes_per_day": "Minutes a day", "minutes_per_week": "Minutes a week",
+    "pages_per_day": "Pages a day", "pages_per_week": "Pages a week",
+    "days_per_week": "Reading days a week", "finish_by": "Finish by a date",
+}
+
 WEEK_STARTS = ("monday", "sunday")
 # A deleted goal can be restored for this long; then it is purged.
 RESTORE_WINDOW = timedelta(minutes=30)
@@ -190,6 +198,32 @@ def goal_name(kind: str, period_start: Optional[date], type_label: Optional[str]
 
 
 # ── Per-request data ──────────────────────────────────────────────────────────
+
+class _MinuteDayCtx(DayCtx):
+    """DayCtx for a client that sends only ``tz_offset``, to the minute.
+
+    The shared fixed-offset path (``reading_day.date_modifier``) rounds the
+    offset to whole hours, so a +05:30 reader's day turns at 03:30. Goals use
+    the exact offset; Stats still rounds (not changed here, see API.md)."""
+
+    def _fixed_modifier(self, rollover_hours: int) -> str:
+        return f"{-self.tz_offset_minutes - rollover_hours * 60:+d} minutes"
+
+    def py_day(self, epoch_seconds: int) -> date:
+        if self.tz_name is not None:
+            return super().py_day(epoch_seconds)
+        shift = timedelta(minutes=-self.tz_offset_minutes - self.rollover_hours * 60)
+        return (datetime.utcfromtimestamp(epoch_seconds) + shift).date()
+
+
+def day_ctx(tz_offset: int, tz: Optional[str]) -> DayCtx:
+    """The reader's reading-day context: IANA ``tz`` when known (DST-correct),
+    else the fixed ``tz_offset`` to the minute."""
+    ctx = DayCtx(tz_offset, tz)
+    if ctx.tz_name is None and tz_offset % 60:
+        return _MinuteDayCtx(tz_offset, None)
+    return ctx
+
 
 def _epoch(dt: datetime) -> int:
     return int(dt.replace(tzinfo=timezone.utc).timestamp())
@@ -554,7 +588,10 @@ def finish_goal_state(gd: GoalData, goal: ReadingGoal) -> dict:
     due = goal.due_date or gd.today
     est = finish_estimate(gd, goal.target_series, goal.target_book_id if goal.target_series is None else None, due)
     total, done = est["volumes_total"], est["volumes_read"]
-    complete = goal.completed_at is not None or (total > 0 and done >= total)
+    if goal.completed_at is None and total > 0 and done >= total:
+        goal.completed_at = gd.now
+        goal._just_completed = True  # maybe_notify sends the one notification
+    complete = goal.completed_at is not None
     expired = not complete and gd.today > due
     if complete:
         status = "completed"
@@ -622,9 +659,9 @@ def maybe_notify(gd: GoalData, goal: ReadingGoal, state: dict) -> bool:
     completed. Day goals never notify (a bell a day). Made when goals are
     read, as before: there is no hook on the reading itself yet."""
     if goal.kind == "finish_by":
-        if state["status"] != "completed" or goal.completed_at is not None:
+        if not getattr(goal, "_just_completed", False):
             return False
-        goal.completed_at = gd.now
+        goal._just_completed = False
         body = f"You finished {state['finish']['title']} by {_short_date(goal.due_date or gd.today, gd.today)}."
     else:
         metric, period = parse_kind(goal.kind)
