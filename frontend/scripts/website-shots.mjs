@@ -83,6 +83,10 @@ for (const theme of themes) {
       } else if (scene.fullPage) {
         const h = await page.evaluate(() => (document.querySelector('main')?.scrollHeight ?? document.body.scrollHeight) + 90)
         await page.setViewportSize({ width: viewport.width, height: Math.min(Math.max(h, viewport.height), scene.maxHeight ?? 2400) }); await page.waitForTimeout(400)
+        // Growing the viewport brings sections into view, and their entry animations start then;
+        // a shot taken mid-animation shows half-grown bars and transparent panel corners.
+        await page.waitForFunction(() => document.getAnimations().every(a => a.playState !== 'running' || a.effect?.getComputedTiming?.().iterations === Infinity), null, { timeout: 5000 }).catch(() => {})
+        await page.waitForTimeout(200)
         await page.screenshot({ path: file })
       } else await page.screenshot({ path: file })
       console.log(`${theme.padEnd(6)} ${scene.name}${errors.length ? '  (page errors: ' + errors.join(' | ').slice(0, 120) + ')' : ''}`)
