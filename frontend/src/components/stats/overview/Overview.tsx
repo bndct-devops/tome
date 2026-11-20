@@ -5,7 +5,7 @@
 // Motion and hover come from the kit: each section has an entry (kit/motion.ts:
 // range-bound sections play again for a new range, the rest once a session),
 // figures count up (CountUp), and chart marks, tracks and covers have tips (kit/tip.ts).
-import { useEffect, useMemo, useState, type ReactNode } from 'react'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
 import { Check } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
@@ -55,7 +55,7 @@ const TOP_ROWS = 5
 const PH = {
   total: '000h 00m', delta: '8% more than the previous 90 days · 95h 50m',
   sessions: '000', sessionsFoot: 'avg 00m', pages: '00,000', pagesFoot: '000 a day',
-  finished: '00', finishedFoot: '00 in the previous 90 days', streak: '000', streakFoot: 'since Dec 10, 2025', streakFoot2: 'your longest',
+  finished: '00', finishedFoot: '00 in the previous 90 days', finishedShorter: ['00 the 90 days before', '00 before'], streak: '000', streakFoot: 'since Dec 10, 2025', streakFoot2: 'your longest',
   title: 'He Who Fights with Monsters', author: 'Shirtaloon', pct: '00%', bookLine: 'about 4 days left · last read yesterday',
   month: 'Nov', shelfNote: '13 books in the last 90 days', dur: '00h 00m', when: 'Mostly between 01:00 and 02:00, most on Mondays.',
   active: '361 active days in the last 365', life: '000h 00m', lifeFoot: 'avg 1h 06m a reading day', lifeN: '00,000', lifeNFoot: '000 a reading day', session: '0h 0m', day: '0h 00m', pagesDay: '0,000', date: 'Sep 9, 2026', streakSpan: 'Dec 10, 2025 to Nov 15, 2026',
@@ -191,6 +191,14 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
   }
 
   const prev = (n: number, phrase: string) => { const c = num(n); return t`${c} in ${phrase}` }
+  // Shorter wordings of the same line for a narrow cell, longest first (see FitLine).
+  const span = stats?.daily.length ?? days
+  const prevShorter = (count: number) => {
+    const c = num(count)
+    const n = custom ? span : days
+    const mid = !custom && days === 365 ? t`${c} the year before` : t`${c} the ${n} days before`
+    return [mid, t`${c} before`]
+  }
   const longest = h ? h.streaks.longest_days : 0
   const streakStart = h?.streaks.current_start ? fmtDay(h.streaks.current_start) : null
   const longestLine = h && h.streaks.current_days > 0 && h.streaks.current_days >= longest ? t`your longest` : plural(longest, { one: 'longest # day', other: 'longest # days' })
@@ -208,7 +216,8 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
     else { streakLine = t`no reading yet`; streakLine2 = t`one day starts it` }
   }
 
-  const figs: { label: ReactNode; value: ReactNode; unit?: ReactNode; foot: ReactNode; foot2?: ReactNode; tone?: string; ph: string; phFoot: string; phFoot2?: string }[] = [
+  const hasPrev = !!pc && pc.previous_books_finished != null
+  const figs: { label: ReactNode; value: ReactNode; unit?: ReactNode; foot: ReactNode; shorter?: string[]; foot2?: ReactNode; tone?: string; ph: string; phFoot: string; phShorter?: string[]; phFoot2?: string }[] = [
     { label: <Trans>Sessions</Trans>, value: h ? <CountUp entry={e} value={h.total_sessions} format={num} /> : '', foot: h ? (() => { const avg = formatDuration(h.avg_session_seconds); return t`avg ${avg}` })() : '', ph: PH.sessions, phFoot: PH.sessionsFoot },
     {
       label: <Trans>Pages</Trans>,
@@ -220,8 +229,9 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
       label: <Trans context="reading">Finished</Trans>,
       value: h ? <CountUp entry={e} value={h.books_finished} format={num} /> : '',
       // All time has no previous window (and older servers send no previous count): the range then.
-      foot: <span className="whitespace-nowrap">{pc && pc.previous_books_finished != null ? prev(pc.previous_books_finished, prevPhrase) : t`in ${rangePhrase}`}</span>,
-      tone: 'text-success', ph: PH.finished, phFoot: PH.finishedFoot,
+      foot: hasPrev ? prev(pc.previous_books_finished!, prevPhrase) : t`in ${rangePhrase}`,
+      shorter: hasPrev ? prevShorter(pc.previous_books_finished!) : undefined,
+      tone: 'text-success', ph: PH.finished, phFoot: PH.finishedFoot, phShorter: PH.finishedShorter,
     },
     {
       label: <Trans>Streak</Trans>,
@@ -247,10 +257,15 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
         <Ph on={loading}>{loading ? f.ph : f.value}</Ph>
         {f.unit && <span className="ml-1.5 font-sans text-[16px] font-semibold tracking-normal">{f.unit}</span>}
       </div>
-      {/* One line, truncated: a foot longer than a narrow cell (a desktop window just
-          above the breakpoint) neither runs into the next cell nor wraps its placeholder.
-          The clip starts 4 px further left (-ml-1 pl-1) so a first glyph's overhang is not cut. */}
-      <div className={cn(desktop ? FOOT_SMALL_MT : 'mt-1.5', '-ml-1 truncate pl-1 text-[13px] leading-[1.4] text-muted-foreground')}>{loading ? <Ph on>{f.phFoot}</Ph> : f.foot}</div>
+      {/* One line: a foot longer than a narrow cell (a desktop window just above the
+          breakpoint) takes its shorter wording (FitLine), and truncates only if even the
+          shortest does not fit. The clip starts 4 px further left (-ml-1 pl-1) so a first
+          glyph's overhang is not cut. */}
+      <div className={cn(desktop ? FOOT_SMALL_MT : 'mt-1.5', '-ml-1 truncate pl-1 text-[13px] leading-[1.4] text-muted-foreground')}>
+        {loading
+          ? f.phShorter ? <FitLine ways={[f.phFoot, ...f.phShorter].map((s, k) => <Ph key={k} on>{s}</Ph>)} /> : <Ph on>{f.phFoot}</Ph>
+          : f.shorter ? <FitLine ways={[f.foot, ...f.shorter]} /> : f.foot}
+      </div>
       {f.phFoot2 && <div className="text-[13px] leading-[1.4] text-muted-foreground">{loading ? <Ph on>{f.phFoot2}</Ph> : f.foot2}</div>}
     </div>
   ))
@@ -292,6 +307,38 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
       {chartBox}
       {!desktop && <div className={cn('order-2 mt-5 grid grid-cols-[minmax(0,1.3fr)_minmax(0,1fr)] border-t', HAIR)}>{figures}</div>}
     </section>
+  )
+}
+
+/**
+ * One line that shows the longest of its wordings (longest first) that fits its box,
+ * chosen by layout alone, so it is right on the first paint and on every resize. Inside
+ * a one-line, clipping box (the hero's foot): a column of wordings that wraps into
+ * further columns, four lines high, each wording the box's width and allowed to wrap,
+ * each after a three-line spacer, every column zero wide (all at the box's left edge).
+ * A wording that fits (one line) shares its spacer's column and sits on its fourth line;
+ * one that wraps (up to three lines) does not fit beside a spacer and gets a column of
+ * its own, at the top. The column is lifted three lines, so its fourth line is the box's
+ * line, and every wording that fits is on it. They come shortest first, so the longest
+ * that fits is drawn last, its page background covering the shorter ones under it; the
+ * shortest truncates if even it does not fit. No transform: a wording that fits is drawn
+ * as a plain line is. Screen readers get the first wording only.
+ */
+function FitLine({ ways }: { ways: ReactNode[] }) {
+  const last = ways.length - 1
+  // Lifted three lines; 2 px taller than four lines (rounding), given back below.
+  return (
+    <span className="-mb-[2px] -mt-[4.2em] flex h-[calc(5.6em+2px)] flex-col flex-wrap content-start">
+      {ways.map((_, i) => {
+        const k = last - i
+        return (
+          <Fragment key={k}>
+            <span aria-hidden="true" className="-mr-[100%] h-[4.2em] w-full shrink-0" />
+            <span aria-hidden={k > 0 || undefined} className={cn('-mr-[100%] w-full shrink-0', k === last ? 'truncate' : 'whitespace-normal bg-background')}>{ways[k]}</span>
+          </Fragment>
+        )
+      })}
+    </span>
   )
 }
 
