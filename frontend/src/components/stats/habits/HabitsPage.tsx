@@ -21,6 +21,7 @@ import { rangeQuery, useStatsGet } from '@/components/stats/kit/useStatsGet'
 import { hourModel, readingDayOf } from '@/components/stats/overview/model'
 import { ChartEmpty, Lengths, Months, Pace, Rhythm, Timeline } from './charts'
 import { bucketCounts, byWeekday, formatShares, monthsHeight, paceChange, paceModel, paceTicks, rhythmHeight, timelineHeight, timelineRows, type FormatShare } from './model'
+import { inWeekOrder } from '@/lib/weekStart'
 
 const GAP = 16
 // Session length's chart height: tuned so the side column ends on the same pixel as the 14 timeline rows.
@@ -135,7 +136,7 @@ function WhenYouRead({ stats, width, phone, dim, sig }: { stats: StatsResponse |
   const loading = !stats
   const m = useMemo(() => hourModel(stats?.hour_dow_heatmap ?? [], phone), [stats, phone])
   const dow = useMemo(() => byWeekday(stats?.hour_dow_heatmap ?? []), [stats])
-  const plural7 = [t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`]
+  const plural7 = inWeekOrder([t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`])
   let sentence: ReactNode
   if (loading) sentence = <Ph on>{PH.when}</Ph>
   else if (m.peakHour == null || m.peakDow == null) sentence = t`No reading in this range yet.`

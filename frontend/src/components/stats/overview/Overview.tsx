@@ -26,6 +26,7 @@ import { GoalsStart } from './Goals'
 import { CompactRow } from '@/components/goals/CompactRow'
 import { rememberedGoalCount, useGoals } from '@/lib/goals'
 import { bestDay, busiestMonth, dayDiff, emptyYear, heroBars, hourHeatHeight, hourModel, readingDayOf, yearHeight, yearModel } from './model'
+import { inWeekOrder } from '@/lib/weekStart'
 
 
 const HERO_CHART_H = 180
@@ -696,7 +697,7 @@ function WhenYouRead({ stats, loading, width, desktop, dim, sig }: { stats: Stat
   const two = !desktop
   const histH = desktop ? 86 : 48
   const m = useMemo(() => hourModel(stats?.hour_dow_heatmap ?? [], two), [stats, two])
-  const plural7 = [t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`]
+  const plural7 = inWeekOrder([t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`])
   let sentence: ReactNode
   if (loading) sentence = <Ph on>{PH.when}</Ph>
   else if (m.peakHour == null || m.peakDow == null) sentence = t`No reading in this range yet.`

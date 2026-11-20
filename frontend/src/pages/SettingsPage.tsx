@@ -1112,7 +1112,7 @@ function WeekStartSetting() {
   return (
     <PanelSection
       title={<Trans>Week starts on</Trans>}
-      description={<Trans>Your reading goals count weeks from this day: weekly goals, reading days a week and the marks of the week.</Trans>}
+      description={<Trans>Weeks start on this day across the web app: reading goals, the weekly streak, the calendar and the Stats charts by weekday.</Trans>}
     >
       <PillGroup
         aria-label={t`Week starts on`}
