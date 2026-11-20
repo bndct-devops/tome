@@ -28,7 +28,7 @@ export function daysFigures(goal: Goal, h: GoalHistory): Fig[] {
     return [
       { label: t`Reached`, value: s.reached, unit: plural(of, { one: 'of # week', other: 'of the last # weeks' }), foot: plural(n, { one: 'A reading day or more in a week', other: '# reading days or more in a week' }) },
       { label: t`Best run`, value: s.best_run, unit: plural(s.best_run, { one: 'week', other: 'weeks in a row' }), foot: span && from ? t`${span}, since your data starts (${from})` : t`No run yet` },
-      { label: t`Current run`, value: s.current_run, unit: plural(s.current_run, { one: 'week', other: 'weeks' }), foot: s.current_run_includes_current ? t`This week already counts` : s.current_run ? t`Up to last week` : t`Last week missed` },
+      { label: t`Current run`, value: s.current_run, unit: plural(s.current_run, { one: 'week', other: 'weeks' }), foot: s.current_run_includes_current ? t`This week already counts` : s.current_run ? t`Up to last week` : h.periods.at(-1)?.state === 'no_data' ? t`No reading recorded last week` : t`Last week missed` },
     ]
   }
   const unitLine = goal.metric === 'minutes' ? (() => { const n = num(goal.target); return t`${n} min or more on a reading day` })() : (() => { const n = num(goal.target); return t`${n} pages or more on a reading day` })()
@@ -78,9 +78,15 @@ export function periodFigures(goal: Goal, h: GoalHistory): Fig[] {
   const last = h.periods.length ? h.periods[h.periods.length - 1] : null
   const lastName = last ? (goal.period === 'month' ? monthName(last.start) : goal.period === 'year' ? last.start.slice(0, 4) : t`Last week`) : ''
   const curName = goal.period === 'month' ? monthName(goal.period_start) : goal.period === 'year' ? goal.period_start.slice(0, 4) : t`this week`
+  // A period before the data starts is "no data", never "missed" (its `reached` is null).
+  const lastNoData = books
+    ? (() => { const l = goal.period === 'week' ? t`last week` : lastName; return t`No finish dates in ${l}` })()
+    : goal.period === 'week' ? t`No reading recorded last week` : (() => { const l = lastName; return t`No reading recorded in ${l}` })()
   const runFoot = s.current_run_includes_current
     ? (() => { const c = curName; return t`${c} already reached` })()
-    : last && last.reached
+    : last && last.state === 'no_data'
+      ? lastNoData
+      : last && last.reached
       ? (() => { const l = lastName, c = curName; return t`${l} met, ${c} still open` })()
       : last ? (() => { const l = lastName; return t`${l} missed` })() : ''
   return [

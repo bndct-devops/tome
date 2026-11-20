@@ -429,6 +429,27 @@ test('Finish by, far behind: an hour or more a day reads in hours and minutes', 
   await expect(detail(page)).not.toContainText('388')
 })
 
+test('A year goal\'s years: a year without data says so and is never "missed"', async ({ page }) => {
+  seed('goals')
+  await login(page)
+  // The years view (two past years with data) where the last year has none: as a reader with
+  // finish dates in older years only.
+  await page.route(HISTORY_RE, async (route) => {
+    const res = await route.fetch()
+    const body = await res.json()
+    if (body.kind === 'books_per_year' && body.summary) {
+      body.periods = body.periods.map((p: { state: string }, i: number, all: unknown[]) => i === all.length - 1 ? { ...p, value: 0, state: 'no_data', reached: null } : { ...p, state: 'met', reached: true })
+      body.summary = { ...body.summary, view: 'years', months: undefined, months_summary: undefined, current_run: 0, current_run_includes_current: false }
+    }
+    await route.fulfill({ response: res, json: body })
+  })
+  await openTab(page, 'Goals')
+  await card(page, 'Comics').getByRole('button').click()
+  await expect(detail(page)).toHaveAttribute('aria-busy', 'false')
+  await expect(detail(page)).toContainText(`No finish dates in ${year - 1}`)
+  await expect(detail(page)).not.toContainText(`${year - 1} missed`)
+})
+
 test('Dialog: Escape closes an open picker first, the dialog only on the next Escape', async ({ page }) => {
   seed('goals')
   await login(page)
