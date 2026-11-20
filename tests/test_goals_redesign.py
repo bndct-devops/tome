@@ -532,6 +532,83 @@ def test_reading_days_goal_notifies(client, make_book, admin_user, db, now):
     assert len(notes) == 1 and "reading on 2 days this week" in notes[0].body
 
 
+def _reached_notes(db) -> int:
+    return db.query(Notification).filter_by(kind="goal_reached").count()
+
+
+def test_week_start_change_never_notifies(client, make_book, admin_user, db, now):
+    """Friday Nov 20: Sunday's reading (Nov 15) reaches both weekly goals only in
+    the Sunday week. Switching to Sunday, reading the goals and switching back
+    creates no notification."""
+    user, _ = admin_user
+    book = make_book(title="ws-n")
+    now.set("2026-11-20 09:00", VIENNA)
+    session(db, user.id, book.id, utc("2026-11-15 12:00", VIENNA), pages=300)  # Sunday
+    session(db, user.id, book.id, utc("2026-11-16 12:00", VIENNA), pages=100)  # Monday
+    for d in ("2026-11-17", "2026-11-18"):
+        session(db, user.id, book.id, utc(f"{d} 12:00", VIENNA), pages=10)
+    pw = create(client, "pages_per_week", 400, tz=VIENNA)
+    dw = create(client, "days_per_week", 4, tz=VIENNA)
+    assert not pw["reached"] and not dw["reached"]  # Monday week: 120 pages, 3 days
+    assert _reached_notes(db) == 0
+
+    r = client.put(f"/api/auth/me?tz={VIENNA}", json={"week_start": "sunday"})
+    assert r.status_code == 200
+    g = goals(client, tz=VIENNA)
+    assert g["pages_per_week"]["reached"] and g["days_per_week"]["reached"]  # 420 pages, 4 days
+    history(client, pw["id"], tz=VIENNA)
+    assert _reached_notes(db) == 0
+
+    r = client.put(f"/api/auth/me?tz={VIENNA}", json={"week_start": "monday"})
+    assert r.status_code == 200
+    goals(client, tz=VIENNA)
+    assert _reached_notes(db) == 0
+    # And to Sunday again, and the same value once more: still quiet.
+    client.put(f"/api/auth/me?tz={VIENNA}", json={"week_start": "sunday"})
+    goals(client, tz=VIENNA)
+    client.put(f"/api/auth/me?tz={VIENNA}", json={"week_start": "sunday"})
+    goals(client, tz=VIENNA)
+    assert _reached_notes(db) == 0
+
+
+def test_week_start_switch_back_while_reached_under_both_rules(client, make_book, admin_user, db, now):
+    """Reached and notified in the Monday week, reached in the Sunday week too:
+    neither switch notifies."""
+    user, _ = admin_user
+    book = make_book(title="ws-b")
+    now.set("2026-11-20 09:00", VIENNA)
+    session(db, user.id, book.id, utc("2026-11-17 12:00", VIENNA), pages=500)
+    create(client, "pages_per_week", 400, tz=VIENNA)
+    assert _reached_notes(db) == 1
+    client.put(f"/api/auth/me?tz={VIENNA}", json={"week_start": "sunday"})
+    assert goals(client, tz=VIENNA)["pages_per_week"]["reached"]
+    client.put(f"/api/auth/me?tz={VIENNA}", json={"week_start": "monday"})
+    assert goals(client, tz=VIENNA)["pages_per_week"]["reached"]
+    assert _reached_notes(db) == 1
+
+
+def test_week_start_change_then_reached_by_reading_notifies_once(client, make_book, admin_user, db, now):
+    user, _ = admin_user
+    book = make_book(title="ws-r")
+    now.set("2026-11-20 09:00", VIENNA)
+    session(db, user.id, book.id, utc("2026-11-16 12:00", VIENNA), pages=100)
+    create(client, "pages_per_week", 400, tz=VIENNA)
+    assert client.put(f"/api/auth/me?tz={VIENNA}", json={"week_start": "sunday"}).status_code == 200
+    g = goals(client, tz=VIENNA)["pages_per_week"]
+    assert g["period_start"] == "2026-11-15" and not g["reached"]
+    assert _reached_notes(db) == 0
+    # Reading in the new week reaches it: one notification, and only one.
+    session(db, user.id, book.id, utc("2026-11-20 08:00", VIENNA), pages=350)
+    assert goals(client, tz=VIENNA)["pages_per_week"]["reached"]
+    goals(client, tz=VIENNA)
+    assert _reached_notes(db) == 1
+    # The next Sunday week, reached again by reading: notifies again.
+    now.set("2026-11-23 09:00", VIENNA)
+    session(db, user.id, book.id, utc("2026-11-22 12:00", VIENNA), pages=450)
+    goals(client, tz=VIENNA)
+    assert _reached_notes(db) == 2
+
+
 def test_upgrade_does_not_renotify_a_reached_month(client, make_book, admin_user, db, now):
     """The notified key is the one the first goals build stored (UTC instant of
     local midnight on the period's first day), so a month already notified
@@ -803,3 +880,41 @@ def test_year_history_keeps_years_with_two_past_years_of_data(client, make_book,
     g = create(client, "books_per_year", 12, tz=VIENNA)
     s = client.get(f"/api/goals/{g['id']}/history?tz={VIENNA}").json()["summary"]
     assert s["view"] == "years" and "months" not in s
+
+
+@pytest.mark.parametrize("kind,target", [
+    ("books_per_year", 2), ("books_per_month", 1), ("minutes_per_week", 30),
+    ("pages_per_week", 50), ("days_per_week", 2), ("minutes_per_day", 5), ("pages_per_day", 5),
+])
+def test_no_data_is_never_missed(client, make_book, admin_user, db, now, kind, target):
+    """Every kind and period: a period (or day, or month) before the data starts is
+    no_data with reached null, never missed, and is not counted as missed."""
+    user, _ = admin_user
+    now.set("2026-11-20 09:00", VIENNA)
+    book = make_book(title=f"nd-{kind}")
+    # Data from 2023-03 on: finishes and reading days in 2023, 2024 and this autumn.
+    for d in ("2023-03-03", "2024-03-03", "2026-10-05", "2026-11-17"):
+        session(db, user.id, book.id, utc(f"{d} 12:00", VIENNA), seconds=1800, pages=60)
+        finish(db, user.id, make_book(title=f"f{kind}{d}").id, utc(f"{d} 20:00", VIENNA))
+    g = create(client, kind, target, tz=VIENNA)
+    h = history(client, g["id"], tz=VIENNA, periods=120 if kind.endswith("_week") or kind.endswith("_month") else None)
+    data_from = h["summary"]["data_from"]
+    entries = list(h["periods"])
+    for w in h["weeks"] or []:
+        entries += w["days"]
+    entries += h["summary"].get("months") or []
+    for e in entries:
+        end = e.get("end") or e.get("date")
+        if e["state"] == "no_data":
+            assert e["reached"] is None, e
+            assert end < data_from, (e, data_from)
+        if e["state"] == "missed":
+            assert end >= data_from and e["reached"] is False, (e, data_from)
+    if h["periods"]:
+        assert h["summary"]["missed"] == sum(1 for p in h["periods"] if p["state"] == "missed")
+    if kind == "books_per_year":
+        # Two past years with data: the years view; 2021 and 2022 are before the data.
+        assert h["summary"]["view"] == "years"
+        states = {p["start"][:4]: p["state"] for p in h["periods"]}
+        assert states["2021"] == "no_data" and states["2022"] == "no_data"
+        assert states["2023"] != "no_data" and states["2024"] != "no_data"

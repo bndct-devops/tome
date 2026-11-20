@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi import Response
 from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy.orm import Session
@@ -150,6 +150,8 @@ class UpdateProfileRequest(PydanticBaseModel):
 @router.put("/me", response_model=UserOut)
 def update_profile(
     body: UpdateProfileRequest,
+    tz_offset: int = Query(0, description="JS getTimezoneOffset() in minutes (week_start changes)"),
+    tz: str | None = Query(None, description="IANA timezone name (week_start changes)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -164,7 +166,12 @@ def update_profile(
     if body.week_start is not None:
         if body.week_start not in ("monday", "sunday"):
             raise HTTPException(status_code=422, detail="week_start must be monday or sunday")
-        current_user.week_start = body.week_start
+        if body.week_start != current_user.week_start:
+            current_user.week_start = body.week_start
+            # A settings change never sends "goal reached": weekly goals already
+            # reached in the week under the new rule count as notified for it.
+            from backend.services import goals as goals_service
+            goals_service.settle_week_start_change(db, current_user, goals_service.day_ctx(tz_offset, tz))
     db.commit()
     db.refresh(current_user)
     return current_user

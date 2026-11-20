@@ -701,6 +701,29 @@ def maybe_notify(gd: GoalData, goal: ReadingGoal, state: dict) -> bool:
     return True
 
 
+def settle_week_start_change(db: Session, user: User, day: DayCtx) -> int:
+    """The reader changed their week start: a settings change never notifies.
+
+    Called after ``user.week_start`` is set. Every weekly goal (and reading days
+    a week) already reached in the current week under the new rule is marked as
+    notified for that week, so the next read of the goals stays quiet; one not
+    reached yet keeps its marker and notifies once when reading reaches it.
+    Switching back marks the week under the old rule the same way. Returns how
+    many goals were marked."""
+    gd = GoalData(db, user, day, utcnow())
+    marked = 0
+    for goal in (db.query(ReadingGoal)
+                 .filter(ReadingGoal.user_id == user.id, ReadingGoal.deleted_at.is_(None))
+                 .all()):
+        if goal.kind not in KINDS or KINDS[goal.kind][1] != "week":
+            continue
+        state = goal_state(gd, goal)
+        if state["reached"]:
+            goal.notified_window_start = gd.local_midnight_utc(date.fromisoformat(state["period_start"]))
+            marked += 1
+    return marked
+
+
 # ── History ───────────────────────────────────────────────────────────────────
 
 def _median(xs: list[float]) -> Optional[float]:

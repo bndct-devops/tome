@@ -220,9 +220,11 @@ export function restoreGoal(id: number): Promise<Goal> {
   return api.post<Goal>(`/goals/${id}/restore?${tz()}`, {}).then((g) => { goalsChanged(); return g })
 }
 
-/** Set the first day of the reader's week (goals follow it); every goal is asked for again. */
+/** Set the first day of the reader's week (goals follow it); every goal is asked for again.
+    The zone goes along: the server marks weekly goals already reached in the new week as
+    notified, so changing the setting never sends "goal reached". */
 export function saveWeekStart(week_start: WeekStart): Promise<void> {
-  return api.put('/auth/me', { week_start }).then(() => { goalsChanged() })
+  return api.put(`/auth/me?${tz()}`, { week_start }).then(() => { goalsChanged() })
 }
 
 // ── One shared copy ───────────────────────────────────────────────────────────
