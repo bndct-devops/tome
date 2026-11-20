@@ -240,3 +240,67 @@ export function fitClauses(clauses: string[], width: number, measure: (s: string
   }
   return out
 }
+
+// ── Burn-up end labels ────────────────────────────────────────────────────────
+
+export type Box = { x0: number; y0: number; x1: number; y1: number }
+export type Seg = { x0: number; y0: number; x1: number; y1: number }
+
+/** Does the segment touch the box? (Liang–Barsky clipping.) */
+export function segHitsBox(s: Seg, b: Box): boolean {
+  const dx = s.x1 - s.x0, dy = s.y1 - s.y0
+  let t0 = 0, t1 = 1
+  const edges: [number, number][] = [[-dx, s.x0 - b.x0], [dx, b.x1 - s.x0], [-dy, s.y0 - b.y0], [dy, b.y1 - s.y0]]
+  for (const [p, q] of edges) {
+    if (p === 0) { if (q < 0) return false; continue }
+    const r = q / p
+    if (p < 0) { if (r > t1) return false; if (r > t0) t0 = r } else { if (r < t0) return false; if (r < t1) t1 = r }
+  }
+  return t0 <= t1
+}
+export const boxesMeet = (a: Box, b: Box) => a.x0 < b.x1 && b.x0 < a.x1 && a.y0 < b.y1 && b.y0 < a.y1
+
+/** A label to put at the right end of its line: the end point, its text width, and which side it would rather take. */
+export type EndLabel = { id: string; ex: number; ey: number; w: number; prefer: 'above' | 'below' }
+export type Placed = { id: string; x: number; y: number }
+
+/**
+ * Where the burn-up's end labels go ("pace for 60", "on course for 65"). Each is
+ * right-aligned 4 px before its line's end, on a baseline above it (6 px, then a
+ * line height higher each step) or below it (14 px, then lower), its own
+ * preferred side first. A place is taken only when its box (11 px text, 2 px
+ * margin) touches none of the lines, points, the "today" marker or the other
+ * label and stays inside the plot; the pair with the fewest steps wins. No place
+ * for every label: null, and the chart says them in a small legend under itself.
+ */
+export function placeEndLabels(labels: EndLabel[], obstacles: { segs: Seg[]; boxes: Box[] }, plot: Box, steps = 4): Placed[] | null {
+  const ASC = 9, DESC = 3, PAD = 2, LINE = 13
+  const cands = (l: EndLabel) => {
+    const above = Array.from({ length: steps }, (_, k) => l.ey - 6 - k * LINE)
+    const below = Array.from({ length: steps }, (_, k) => l.ey + 14 + k * LINE)
+    const order = l.prefer === 'above' ? [above, below] : [below, above]
+    // Interleave by step: the preferred side's step k before the other side's step k.
+    const out: { y: number; rank: number }[] = []
+    for (let k = 0; k < steps; k++) { out.push({ y: order[0][k], rank: 2 * k }); out.push({ y: order[1][k], rank: 2 * k + 1 }) }
+    return out
+  }
+  const box = (l: EndLabel, y: number): Box => ({ x0: l.ex - 4 - l.w - PAD, x1: l.ex - 4 + PAD, y0: y - ASC - PAD, y1: y + DESC + PAD })
+  const clear = (b: Box) =>
+    b.x0 >= plot.x0 && b.x1 <= plot.x1 && b.y0 >= plot.y0 && b.y1 <= plot.y1 &&
+    !obstacles.segs.some((s) => segHitsBox(s, b)) && !obstacles.boxes.some((o) => boxesMeet(o, b))
+  const options = labels.map((l) => cands(l).map((c) => ({ ...c, b: box(l, c.y) })).filter((c) => clear(c.b)))
+  if (options.some((o) => o.length === 0)) return null
+  let best: { rank: number; pick: number[] } | null = null
+  const walk = (i: number, pick: number[], rank: number) => {
+    if (best && rank >= best.rank) return
+    if (i === labels.length) { best = { rank, pick: [...pick] }; return }
+    options[i].forEach((c, j) => {
+      if (pick.some((p, k) => boxesMeet(options[k][p].b, c.b))) return
+      walk(i + 1, [...pick, j], rank + c.rank)
+    })
+  }
+  walk(0, [], 0)
+  if (!best) return null
+  const chosen = (best as { pick: number[] }).pick
+  return labels.map((l, i) => ({ id: l.id, x: l.ex - 4, y: options[i][chosen[i]].y }))
+}

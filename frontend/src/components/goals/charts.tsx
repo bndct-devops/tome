@@ -4,13 +4,14 @@
 // marks carry their tips (kit/tip.ts) and enter with the kit's motion classes.
 import { t, plural } from '@lingui/core/macro'
 import type { Goal, GoalHistory, HistoryDay, HistoryPeriod, YearMonth } from '@/lib/goals'
-import { addDays } from '@/lib/goalsModel'
+import { addDays, placeEndLabels, type Box, type EndLabel, type Placed, type Seg } from '@/lib/goalsModel'
 import { K, stagger } from '@/components/stats/kit/motion'
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { num, useWidth } from '@/components/stats/kit/tokens'
 import { cn } from '@/lib/utils'
 import { Dot, FUTURE, MISS } from './GoalCard'
 import { gridMark } from './marks'
+import { textWidth, useFontsReady } from './measure'
 import { dayName, mediumDate, monthName, monthShort, shortDate, unitWord, weekdayLetter } from './text'
 
 const NEUTRAL = 'color-mix(in oklch, var(--foreground) 30%, var(--background))'
@@ -30,9 +31,12 @@ function niceMax(v: number): { max: number; step: number } {
 // eslint-disable-next-line lingui/no-unlocalized-strings -- ISO time suffix
 const dayCount = (a: string, b: string) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86_400_000)
 
-/** The period so far: the reader's line, the pace to the target, the projection to the period's end. */
+/** The period so far: the reader's line, the pace to the target, the projection to the period's end.
+    The two end labels go where they touch no line, point, the "today" marker or each other
+    (goalsModel.placeEndLabels); with no such place they move to a small legend under the plot. */
 export function BurnUp({ goal, history, h }: { goal: Goal; history: GoalHistory; h: number }) {
   const [ref, w] = useWidth<HTMLDivElement>()
+  useFontsReady()
   const cur = history.current
   const days = cur?.days ?? []
   const total = goal.days_total
@@ -40,19 +44,48 @@ export function BurnUp({ goal, history, h }: { goal: Goal; history: GoalHistory;
   const proj = cur?.projection ?? null
   const last = days.length ? days[days.length - 1].cumulative : 0
   const { max, step } = niceMax(Math.max(target, proj ?? 0, last) * 1.08)
-  const L = 30, R = 10, T = 18, B = 22
-  const X = (i: number) => L + (i / total) * (w - L - R)
-  const Y = (v: number) => T + (1 - v / max) * (h - T - B)
   const ok = goal.reached
-  const col = ok ? 'var(--success)' : 'var(--primary)'
-  // A step line: books arrive one at a time. Day i's finishes land at its start.
-  const pts: string[] = [`${X(0).toFixed(1)},${Y(0).toFixed(1)}`]
-  days.forEach((d, i) => {
-    const before = i > 0 ? days[i - 1].cumulative : 0
-    if (d.cumulative !== before) { pts.push(`${X(i).toFixed(1)},${Y(before).toFixed(1)}`); pts.push(`${X(i).toFixed(1)},${Y(d.cumulative).toFixed(1)}`) }
-  })
-  const todayX = X(days.length)
-  pts.push(`${todayX.toFixed(1)},${Y(last).toFixed(1)}`)
+  const showProj = proj != null && !ok
+  const paceText = (() => { const n = num(target); return t`pace for ${n}` })()
+  const projText = showProj ? (() => { const n = num(proj!); return t`on course for ${n}` })() : ''
+  const L = 30, R = 10, T = 18, LEGEND = 18
+
+  const geometry = (B: number) => {
+    const X = (i: number) => L + (i / total) * (w - L - R)
+    const Y = (v: number) => T + (1 - v / max) * (h - T - B)
+    // A step line: books arrive one at a time. Day i's finishes land at its start.
+    const xy: [number, number][] = [[X(0), Y(0)]]
+    days.forEach((d, i) => {
+      const before = i > 0 ? days[i - 1].cumulative : 0
+      if (d.cumulative !== before) { xy.push([X(i), Y(before)]); xy.push([X(i), Y(d.cumulative)]) }
+    })
+    const todayX = X(days.length)
+    xy.push([todayX, Y(last)])
+    return { X, Y, xy, todayX, B }
+  }
+  let g = geometry(22)
+  let placed: Placed[] | null = null
+  let legend = false
+  if (w > 0) {
+    const fit = (gg: ReturnType<typeof geometry>) => {
+      const segs: Seg[] = []
+      for (let i = 1; i < gg.xy.length; i++) segs.push({ x0: gg.xy[i - 1][0], y0: gg.xy[i - 1][1], x1: gg.xy[i][0], y1: gg.xy[i][1] })
+      segs.push({ x0: gg.X(0), y0: gg.Y(0), x1: gg.X(total), y1: gg.Y(target) })
+      if (showProj) segs.push({ x0: gg.todayX, y0: gg.Y(last), x1: gg.X(total), y1: gg.Y(proj!) })
+      segs.push({ x0: gg.todayX, y0: T - 6, x1: gg.todayX, y1: h - gg.B })
+      const tw = textWidth(t`today`, 11, 600)
+      const boxes: Box[] = [{ x0: gg.todayX - tw / 2 - 2, x1: gg.todayX + tw / 2 + 2, y0: 0, y1: T - 6 }]
+      days.forEach((d, i) => { if (d.value > 0) boxes.push({ x0: gg.X(i) - 5, x1: gg.X(i) + 5, y0: gg.Y(d.cumulative) - 5, y1: gg.Y(d.cumulative) + 5 }) })
+      const labels: EndLabel[] = [{ id: 'pace', ex: gg.X(total), ey: gg.Y(target), w: textWidth(paceText, 11), prefer: showProj && proj! > target ? 'below' : 'above' }]
+      if (showProj) labels.push({ id: 'proj', ex: gg.X(total), ey: gg.Y(proj!), w: textWidth(projText, 11), prefer: proj! > target ? 'above' : 'below' })
+      return placeEndLabels(labels, { segs, boxes }, { x0: L, y0: 0, x1: w, y1: h - gg.B })
+    }
+    placed = fit(g)
+    if (!placed) { legend = true; g = geometry(22 + LEGEND) }
+  }
+  const { X, Y, xy, todayX, B } = g
+  const pts = xy.map(([x, y]) => `${x.toFixed(1)},${y.toFixed(1)}`)
+  const at = (id: string) => placed?.find((p) => p.id === id) ?? null
   const ticks: { i: number; label: string }[] = []
   if (goal.period === 'year') {
     for (let m = 0; m < 12; m += 3) { const iso = `${goal.period_start.slice(0, 4)}-${String(m + 1).padStart(2, '0')}-01`; ticks.push({ i: dayCount(goal.period_start, iso), label: monthShort(iso) }) }
@@ -62,6 +95,10 @@ export function BurnUp({ goal, history, h }: { goal: Goal; history: GoalHistory;
   const ys: number[] = []
   for (let v = 0; v <= max + 1e-9; v += step) ys.push(v)
   const unit = (n: number) => unitWord(goal.metric, n)
+  const col = ok ? 'var(--success)' : 'var(--primary)'
+  const tickY = h - B + 18
+  const paceAt = at('pace'), projAt = at('proj')
+  const legendProjX = L + 22 + textWidth(paceText, 11) + 16
   return (
     <div ref={ref} style={{ height: h }}>
       {w > 0 && (
@@ -72,14 +109,13 @@ export function BurnUp({ goal, history, h }: { goal: Goal; history: GoalHistory;
               <text x={L - 8} y={Y(v) + 4} textAnchor="end" fill="var(--muted-foreground)">{num(v)}</text>
             </g>
           ))}
-          {ticks.map((k) => <text key={k.i} x={X(k.i)} y={h - 4} textAnchor={k.i === 0 ? 'start' : 'middle'} fill="var(--muted-foreground)">{k.label}</text>)}
+          {ticks.map((k) => <text key={k.i} x={X(k.i)} y={tickY} textAnchor={k.i === 0 ? 'start' : 'middle'} fill="var(--muted-foreground)">{k.label}</text>)}
           <line className={K.wipe} x1={X(0)} y1={Y(0)} x2={X(total)} y2={Y(target)} stroke="var(--muted-foreground)" strokeDasharray="5 4" />
-          {/* The two end labels never meet: the higher line's label above it, the lower one's below. */}
-          <text x={X(total) - 4} y={proj != null && !ok && proj > target ? Y(target) + 14 : Y(target) - 6} textAnchor="end" fill="var(--muted-foreground)">{(() => { const n = num(target); return t`pace for ${n}` })()}</text>
-          {proj != null && !ok && (
+          {paceAt && <text data-label="pace" x={paceAt.x} y={paceAt.y} textAnchor="end" fill="var(--muted-foreground)">{paceText}</text>}
+          {showProj && (
             <g className={K.wipe}>
-              <line x1={todayX} y1={Y(last)} x2={X(total)} y2={Y(proj)} stroke="var(--primary)" strokeOpacity="0.75" strokeWidth="2" strokeDasharray="2 4" strokeLinecap="round" />
-              <text x={X(total) - 4} y={proj > target ? Y(proj) - 8 : Y(proj) + 14} textAnchor="end" fill="var(--primary)">{(() => { const n = num(proj); return t`on course for ${n}` })()}</text>
+              <line x1={todayX} y1={Y(last)} x2={X(total)} y2={Y(proj!)} stroke="var(--primary)" strokeOpacity="0.75" strokeWidth="2" strokeDasharray="2 4" strokeLinecap="round" />
+              {projAt && <text data-label="proj" x={projAt.x} y={projAt.y} textAnchor="end" fill="var(--primary)">{projText}</text>}
             </g>
           )}
           <polyline className={K.draw} pathLength={1} points={pts.join(' ')} fill="none" stroke={col} strokeWidth="2.5" strokeLinejoin="round" />
@@ -97,6 +133,18 @@ export function BurnUp({ goal, history, h }: { goal: Goal; history: GoalHistory;
           ))}
           <line x1={todayX} x2={todayX} y1={T - 6} y2={h - B} stroke="var(--foreground)" strokeOpacity="0.5" />
           <text x={todayX} y={T - 9} textAnchor="middle" fill="var(--foreground)" fontWeight="600">{t`today`}</text>
+          {legend && (
+            <g data-legend="" transform={`translate(0 ${h - 3})`}>
+              <line x1={L} x2={L + 16} y1={-4} y2={-4} stroke="var(--muted-foreground)" strokeDasharray="5 4" />
+              <text x={L + 22} y={0} fill="var(--muted-foreground)">{paceText}</text>
+              {showProj && (
+                <>
+                  <line x1={legendProjX} x2={legendProjX + 16} y1={-4} y2={-4} stroke="var(--primary)" strokeOpacity="0.75" strokeWidth="2" strokeDasharray="2 4" strokeLinecap="round" />
+                  <text x={legendProjX + 22} y={0} fill="var(--primary)">{projText}</text>
+                </>
+              )}
+            </g>
+          )}
         </svg>
       )}
     </div>

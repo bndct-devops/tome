@@ -5,6 +5,7 @@ import assert from 'node:assert/strict'
 import {
   addDays, booksAMonth, fitClauses, detail, dow, lead, markKind, minutesADay, monthGrid, parseTarget, shapeFits,
   stripMarks, tick, weekStartOf, weekdayOrder, type GoalLike, type WeekMark,
+  boxesMeet, placeEndLabels, segHitsBox,
 } from '../src/lib/goalsModel.ts'
 
 const base: GoalLike = {
@@ -132,4 +133,72 @@ test('a card line keeps its first clause and drops trailing ones that would wrap
   assert.deepEqual(fitClauses(c, m('2 to go · 42 days left'), m), ['2 to go', '42 days left'])
   assert.deepEqual(fitClauses(c, 10, m), ['2 to go'])
   assert.deepEqual(fitClauses([], 100, m), [])
+})
+
+// ── Burn-up end labels ────────────────────────────────────────────────────────
+
+const plot = { x0: 30, y0: 0, x1: 500, y1: 128 }
+const textBox = (p: { x: number; y: number }, w: number) => ({ x0: p.x - w - 2, x1: p.x + 2, y0: p.y - 11, y1: p.y + 5 })
+
+test('a segment meets a box when it crosses it, not when it passes by', () => {
+  const b = { x0: 10, y0: 10, x1: 20, y1: 20 }
+  assert.equal(segHitsBox({ x0: 0, y0: 15, x1: 30, y1: 15 }, b), true)
+  assert.equal(segHitsBox({ x0: 0, y0: 0, x1: 30, y1: 30 }, b), true)
+  assert.equal(segHitsBox({ x0: 0, y0: 25, x1: 30, y1: 25 }, b), false)
+  assert.equal(segHitsBox({ x0: 12, y0: 12, x1: 14, y1: 14 }, b), true)
+  assert.equal(segHitsBox({ x0: 0, y0: 30, x1: 30, y1: 21 }, b), false)
+})
+
+test('end labels: the projection under the pace (Books in November) sits clear of every line', () => {
+  // pace 0 -> 6 over the month, projection from today (x 330, 2) to the end (3); max 8.
+  const Y = (v: number) => 18 + (1 - v / 8) * 110
+  const pace = { x0: 30, y0: Y(0), x1: 490, y1: Y(6) }
+  const proj = { x0: 330, y0: Y(2), x1: 490, y1: Y(3) }
+  const reader = { x0: 30, y0: Y(2), x1: 330, y1: Y(2) }
+  const today = { x0: 330, y0: 12, x1: 330, y1: 128 }
+  const segs = [pace, proj, reader, today]
+  const labels = [
+    { id: 'pace', ex: 490, ey: Y(6), w: 62, prefer: 'above' as const },
+    { id: 'proj', ex: 490, ey: Y(3), w: 92, prefer: 'below' as const },
+  ]
+  const placed = placeEndLabels(labels, { segs, boxes: [] }, plot)
+  assert.ok(placed)
+  for (const p of placed!) {
+    const b = textBox(p, labels.find((l) => l.id === p.id)!.w)
+    for (const s of segs) assert.equal(segHitsBox(s, b), false, `${p.id} touches a line`)
+  }
+  const [a, b] = placed!.map((p) => textBox(p, 92))
+  assert.equal(boxesMeet(a, b), false)
+})
+
+test('end labels: projection and pace ending close together go one above, one below', () => {
+  const pace = { x0: 30, y0: 120, x1: 490, y1: 40 }
+  const proj = { x0: 380, y0: 52, x1: 490, y1: 37 }
+  const labels = [
+    { id: 'pace', ex: 490, ey: 40, w: 62, prefer: 'below' as const },
+    { id: 'proj', ex: 490, ey: 37, w: 92, prefer: 'above' as const },
+  ]
+  const placed = placeEndLabels(labels, { segs: [pace, proj], boxes: [] }, plot)
+  assert.ok(placed)
+  const by = Object.fromEntries(placed!.map((p) => [p.id, p.y]))
+  assert.ok(by.proj < 37 && by.pace > 40, JSON.stringify(by))
+  assert.equal(boxesMeet(textBox({ x: 486, y: by.pace }, 62), textBox({ x: 486, y: by.proj }, 92)), false)
+})
+
+test('end labels: no room right of a late "today" marker means the legend (null)', () => {
+  // Nov 20 in a year: today at 88% of the width, 55 px before the end; labels 60-90 px wide.
+  const today = { x0: 435, y0: 12, x1: 435, y1: 128 }
+  const labels = [
+    { id: 'pace', ex: 490, ey: 50, w: 62, prefer: 'below' as const },
+    { id: 'proj', ex: 490, ey: 30, w: 92, prefer: 'above' as const },
+  ]
+  assert.equal(placeEndLabels(labels, { segs: [today], boxes: [] }, plot), null)
+})
+
+test('end labels: a point in the way is avoided too', () => {
+  const labels = [{ id: 'pace', ex: 490, ey: 60, w: 62, prefer: 'above' as const }]
+  const dot = { x0: 440, y0: 40, x1: 450, y1: 56 }
+  const placed = placeEndLabels(labels, { segs: [], boxes: [dot] }, plot)
+  assert.ok(placed)
+  assert.equal(boxesMeet(textBox(placed![0], 62), dot), false)
 })
