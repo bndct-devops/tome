@@ -248,8 +248,9 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
         {f.unit && <span className="ml-1.5 font-sans text-[16px] font-semibold tracking-normal">{f.unit}</span>}
       </div>
       {/* One line, truncated: a foot longer than a narrow cell (a desktop window just
-          above the breakpoint) neither runs into the next cell nor wraps its placeholder. */}
-      <div className={cn(desktop ? FOOT_SMALL_MT : 'mt-1.5', 'truncate text-[13px] leading-[1.4] text-muted-foreground')}>{loading ? <Ph on>{f.phFoot}</Ph> : f.foot}</div>
+          above the breakpoint) neither runs into the next cell nor wraps its placeholder.
+          The clip starts 4 px further left (-ml-1 pl-1) so a first glyph's overhang is not cut. */}
+      <div className={cn(desktop ? FOOT_SMALL_MT : 'mt-1.5', '-ml-1 truncate pl-1 text-[13px] leading-[1.4] text-muted-foreground')}>{loading ? <Ph on>{f.phFoot}</Ph> : f.foot}</div>
       {f.phFoot2 && <div className="text-[13px] leading-[1.4] text-muted-foreground">{loading ? <Ph on>{f.phFoot2}</Ph> : f.foot2}</div>}
     </div>
   ))
