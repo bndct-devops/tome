@@ -5,7 +5,7 @@ so writing from a second process while uvicorn is up is fine). Every scenario
 starts from a clean slate: all book data, libraries and shelves wiped, library
 dir recreated, the `e2e` admin and one member and one guest ensured.
 
-Usage: seed.py <orphans|duplicates|many|race|shelves|sessions|reset> [count]
+Usage: seed.py <orphans|duplicates|many|race|shelves|sessions|stats|goals|reset> [count]
 """
 import sys
 from pathlib import Path
@@ -31,6 +31,7 @@ from backend.models.book import Book, BookFile  # noqa: E402
 from backend.models.library import Library, SavedFilter  # noqa: E402
 from backend.models.tome_sync import ReadingSession  # noqa: E402
 from backend.models.user import User  # noqa: E402
+from backend.models.user_book_status import UserBookStatus  # noqa: E402
 
 LIBRARY = E2E_DATA / "library"
 
@@ -56,6 +57,8 @@ def reset(db) -> int:
         "duplicate_dismissals",
         "books_fts",
         "reading_sessions",
+        "reading_goals",
+        "notifications",
         "books",
     ):
         db.execute(text(f"DELETE FROM {table}"))
@@ -221,6 +224,129 @@ def scenario_sessions(db, admin_id):
             n += 1
 
 
+def _type_ids(db) -> dict[str, int]:
+    """The default book types (seeded at startup), by slug."""
+    from backend.models.library import BookType
+    return {t.slug: t.id for t in db.query(BookType).all()}
+
+
+def _status(db, admin_id, book, status, *, progress=None, finished_at=None, updated_at=None):
+    from datetime import datetime
+    db.add(UserBookStatus(user_id=admin_id, book_id=book.id, status=status, progress_pct=progress,
+                          finished_at=finished_at, updated_at=updated_at or datetime.utcnow()))
+
+
+def _sessions(db, admin_id, book, days_ago, *, minutes=20, pages=15):
+    """One live session a day on each of `days_ago`, at noon UTC."""
+    from datetime import datetime, timedelta
+    noon = datetime.utcnow().replace(hour=12, minute=0, second=0, microsecond=0)
+    for d in days_ago:
+        start = noon - timedelta(days=d)
+        db.add(ReadingSession(user_id=admin_id, book_id=book.id, started_at=start,
+                              ended_at=start + timedelta(minutes=minutes), duration_seconds=minutes * 60,
+                              pages_turned=pages, device="web"))
+
+
+def scenario_stats(db, admin_id, goals=False):
+    """A reader for the Stats pages' paths the other scenarios lack:
+
+    - Reading now: "Twin Format Novel" (one book, an EPUB and a PDF file),
+      "Panel Comic" (CBZ) and "Almost Done" at 99.5 %, which offers Mark as read.
+    - Two finished novels with sessions (a words-per-minute pace for the backlog).
+    - Unstarted novels with word counts: two in "Seeded Library", three by
+      "Shelf Author" (the "Short reads" shelf), one on Want to read, all with
+      different word counts so every backlog scope has its own figure.
+    - goals=True adds book-type-scoped year goals in each state (Manga reached,
+      Comics ahead of pace, Light Novels behind pace) plus a weekly minutes goal,
+      with the finished manga, comics and light novel those need.
+    """
+    import json
+    from datetime import datetime, timedelta
+    from backend.models.reading_goal import ReadingGoal
+    types = _type_ids(db)
+    now = datetime.utcnow()
+
+    twin = _add_book(db, admin_id, "Twin Format Novel", author="Ada Twin",
+                     path="Twin/Twin Format Novel.epub", content=b"twin epub bytes", fmt="epub")
+    twin.book_type_id = types["book"]
+    twin.word_count = 90_000
+    _write_file("Twin/Twin Format Novel.pdf", b"twin pdf bytes")
+    db.add(BookFile(book_id=twin.id, file_path=str(LIBRARY / "Twin/Twin Format Novel.pdf"),
+                    format="pdf", file_size=len(b"twin pdf bytes")))
+    comic = _add_book(db, admin_id, "Panel Comic", author="Cole Panel",
+                      path="Comics/Panel Comic.cbz", content=b"panel comic bytes", fmt="cbz")
+    comic.book_type_id = types["comic"]
+    done = _add_book(db, admin_id, "Almost Done", author="Fin Ish",
+                     path="Novels/Almost Done.epub", content=b"almost done bytes", fmt="epub")
+    done.book_type_id = types["book"]
+    done.word_count = 60_000
+    # Updated in this order, so the most recent (the Home hero) is Almost Done.
+    _status(db, admin_id, twin, "reading", progress=0.45, updated_at=now - timedelta(hours=3))
+    _status(db, admin_id, comic, "reading", progress=0.30, updated_at=now - timedelta(hours=2))
+    _status(db, admin_id, done, "reading", progress=0.995, updated_at=now - timedelta(hours=1))
+    _sessions(db, admin_id, twin, [1, 3, 5, 8], minutes=30, pages=20)
+    _sessions(db, admin_id, comic, [2, 4], minutes=10, pages=40)
+    _sessions(db, admin_id, done, [1, 2, 6], minutes=25, pages=18)
+
+    for i, wc in enumerate((80_000, 100_000), start=1):
+        b = _add_book(db, admin_id, f"Finished Novel {i}", author="Fin Ish",
+                      path=f"Novels/Finished Novel {i}.epub", content=f"finished {i}".encode(), fmt="epub")
+        b.book_type_id = types["book"]
+        b.word_count = wc
+        _status(db, admin_id, b, "read", progress=1.0, finished_at=now - timedelta(days=10 + i))
+        _sessions(db, admin_id, b, [11 + i, 12 + i, 14 + i], minutes=40, pages=30)
+
+    lib = Library(name="Seeded Library", owner_id=admin_id)
+    db.add(lib)
+    db.flush()
+    for i, wc in enumerate((50_000, 70_000), start=1):
+        b = _add_book(db, admin_id, f"Library Novel {i}", author="Lib Rary",
+                      path=f"Library/Library Novel {i}.epub", content=f"library {i}".encode(), fmt="epub")
+        b.book_type_id = types["book"]
+        b.word_count = wc
+        lib.books.append(b)
+    for i, wc in enumerate((20_000, 25_000, 30_000), start=1):
+        b = _add_book(db, admin_id, f"Short Read {i}", author="Shelf Author",
+                      path=f"Short/Short Read {i}.epub", content=f"short {i}".encode(), fmt="epub")
+        b.book_type_id = types["book"]
+        b.word_count = wc
+    want = _add_book(db, admin_id, "Wanted Novel", author="Will Want",
+                     path="Novels/Wanted Novel.epub", content=b"wanted bytes", fmt="epub")
+    want.book_type_id = types["book"]
+    want.word_count = 150_000
+    _status(db, admin_id, want, "want_to_read")
+    db.add(SavedFilter(name="Short reads", owner_id=admin_id, params=json.dumps({"author": "Shelf Author"})))
+
+    if not goals:
+        return
+    # This year's elapsed share, as the server paces a year goal (local calendar year).
+    local = datetime.now()
+    y0, y1 = datetime(local.year, 1, 1), datetime(local.year + 1, 1, 1)
+    f = (local - y0).total_seconds() / (y1 - y0).total_seconds()
+    # Comics ahead of pace and not reached: target = c + 1 with c - (c + 1) * f >= 1.5.
+    ahead = int((1.5 + f) / (1 - f)) + 1
+    finished = {"manga": 2, "comic": ahead, "light_novel": 1}
+    k = 0
+    for slug, n in finished.items():
+        for i in range(1, n + 1):
+            k += 1
+            b = _add_book(db, admin_id, f"Goal {slug} {i:03d}", author="Goal Author",
+                          path=f"Goals/{slug}/{i:03d}.cbz", content=f"goal {slug} {i}".encode(), fmt="cbz")
+            b.book_type_id = types[slug]
+            _status(db, admin_id, b, "read", progress=1.0, finished_at=now - timedelta(minutes=5 + k))
+    db.flush()
+    t0 = now - timedelta(days=1)
+    for j, (kind, target, slug) in enumerate((
+        ("books_per_year", 2, "manga"),
+        ("books_per_year", ahead + 1, "comic"),
+        ("books_per_year", 40, "light_novel"),
+        ("minutes_per_week", 300, None),
+    )):
+        db.add(ReadingGoal(user_id=admin_id, kind=kind, target=target,
+                           book_type_id=types[slug] if slug else None,
+                           created_at=t0 + timedelta(seconds=j), updated_at=t0))
+
+
 def main():
     scenario = sys.argv[1] if len(sys.argv) > 1 else "orphans"
     db = SessionLocal()
@@ -238,6 +364,10 @@ def main():
             scenario_shelves(db, admin_id)
         elif scenario == "sessions":
             scenario_sessions(db, admin_id)
+        elif scenario == "stats":
+            scenario_stats(db, admin_id)
+        elif scenario == "goals":
+            scenario_stats(db, admin_id, goals=True)
         elif scenario == "reset":
             pass
         else:
