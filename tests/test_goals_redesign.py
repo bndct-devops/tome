@@ -743,3 +743,18 @@ def test_reading_days_card_counts_the_last_twelve_weeks(client, make_book, admin
     g = create(client, "days_per_week", 5, tz=VIENNA)
     assert g["recent_weeks"] == {"reached": 3, "of": 5}
     assert goals(client, tz=VIENNA)["days_per_week"]["recent_weeks"] == {"reached": 3, "of": 5}
+
+
+def test_reading_days_history_has_the_weeks_day_by_day(client, make_book, admin_user, db, now):
+    user, _ = admin_user
+    now.set("2026-11-20 09:00", VIENNA)
+    book = make_book(title="grid")
+    session(db, user.id, book.id, utc("2026-11-17 12:00", VIENNA), seconds=600)
+    g = create(client, "days_per_week", 3, tz=VIENNA)
+    h = client.get(f"/api/goals/{g['id']}/history?tz={VIENNA}&periods=4").json()
+    assert len(h["weeks"]) == 4 and h["weeks"][-1]["start"] == "2026-11-16"
+    days = {d["date"]: d for d in h["weeks"][-1]["days"]}
+    assert days["2026-11-17"]["value"] == 1 and days["2026-11-17"]["reached"] is True
+    assert days["2026-11-18"]["state"] == "before_goal" and days["2026-11-18"]["reached"] is False
+    assert days["2026-11-20"]["state"] == "today" and days["2026-11-22"]["state"] == "future"
+    assert h["weeks"][0]["days"][0]["state"] == "no_data"

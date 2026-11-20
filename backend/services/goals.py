@@ -822,7 +822,11 @@ def goal_history(gd: GoalData, goal: ReadingGoal, periods: Optional[int] = None)
     if metric == "books":
         summary["bulk"] = [{"start": p["start"], "day": p["bulk_day"], "count": p["bulk_count"], "of": p["value"]}
                            for p in shown if p.get("bulk_day")]
-    return {**base, "periods": shown, "weeks": None, "summary": summary, "current": current}
+    weeks = None
+    if goal.kind == "days_per_week":
+        # The detail's grid: the shown weeks day by day, a day reached when it is a reading day.
+        weeks = _day_history(gd, goal, metric, [(start, 1)], vals, data_from, start, n)["weeks"]
+    return {**base, "periods": shown, "weeks": weeks, "summary": summary, "current": current}
 
 
 def _day_history(gd: GoalData, goal: ReadingGoal, metric: str, rows, vals, data_from, start, n_weeks) -> dict:
