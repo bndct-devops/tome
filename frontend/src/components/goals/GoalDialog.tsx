@@ -308,11 +308,13 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter }: {
                 onClick={() => setText(String(c.value))}
                 className={cn('min-w-0 flex-1 rounded-xl px-3 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', on ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-surface-hover')}
               >
-                <span className="flex items-baseline justify-between gap-2">
+                {/* Nothing in a chip is cut: the note wraps and the chip grows (the three stay one height);
+                    a long number drops below its title rather than run out. */}
+                <span className="flex flex-wrap items-baseline justify-between gap-x-2">
                   <span className="text-[13px] font-semibold">{CHIP_TITLE[c.label ?? 'keep_it_up']()}</span>
-                  <span className="text-[15px] font-bold tabular-nums">{num(c.value)}</span>
+                  <span className="min-w-0 text-[15px] font-bold tabular-nums [overflow-wrap:anywhere]">{num(c.value)}</span>
                 </span>
-                <span className={cn('mt-0.5 block truncate text-[12px]', on ? 'text-background/75' : 'text-muted-foreground')}>{chipNote(s!, c)}</span>
+                <span className={cn('mt-0.5 block text-[12px] leading-snug [overflow-wrap:anywhere]', on ? 'text-background/75' : 'text-muted-foreground')}>{chipNote(s!, c)}</span>
               </button>
             )
           })}

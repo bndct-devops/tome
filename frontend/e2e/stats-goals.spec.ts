@@ -173,6 +173,21 @@ test('Dialog: suggested targets from the reader\'s own days, presets without his
   // Books goals come from reading time too.
   await dialog(page).getByRole('radio', { name: /^Books a month/ }).click()
   await expect(dialog(page).getByRole('radio', { name: /Keep it up/ })).toContainText(/your pace on \d+ of 90 days/)
+  // No chip text is cut, at this width and a phone's: the note wraps and the chip grows.
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    for (const kind of ['Books a month', 'Minutes a day', 'Pages a week']) {
+      await dialog(page).getByRole('radio', { name: new RegExp('^' + kind) }).click()
+      const group = dialog(page).getByRole('radiogroup', { name: 'Suggested targets' })
+      await expect(group.getByRole('radio')).toHaveCount(3)
+      const cut = await group.evaluate((g) => [...g.querySelectorAll('[role="radio"] span')]
+        .filter((el) => el.scrollWidth > el.clientWidth + 0.5 || getComputedStyle(el).textOverflow === 'ellipsis' ||
+          el.getBoundingClientRect().right > el.closest('[role="radio"]')!.getBoundingClientRect().right + 0.5)
+        .map((el) => el.textContent))
+      expect(cut, `${kind} at ${width}`).toEqual([])
+    }
+  }
+  await page.setViewportSize({ width: 1280, height: 720 })
   await dialog(page).getByRole('button', { name: 'Cancel' }).click()
 
   seed('stats')
