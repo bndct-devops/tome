@@ -37,8 +37,10 @@ const MY_BOARD = {
 }
 
 export const scenes = [
-  // Landing and docs: the Overview from the header to the year grid.
-  page('stats-overview', 'overview', 90, { maxHeight: 1600 }),
+  // Landing and docs: the Overview from the header through the "Where the time went" /
+  // "When you read" row, cut 44 px under it so no part of "The year" heading shows
+  // (on the showcase seed that row ends at 1503 and The year starts at 1555).
+  page('stats-overview', 'overview', 90, { maxHeight: 1555 }),
   page('stats-habits', 'habits', 90),
   page('stats-library', 'library', 0),
   page('stats-taste', 'taste', 90),
