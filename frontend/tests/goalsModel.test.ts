@@ -3,7 +3,7 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import {
-  addDays, booksAMonth, detail, dow, lead, markKind, minutesADay, monthGrid, parseTarget, shapeFits,
+  addDays, booksAMonth, fitClauses, detail, dow, lead, markKind, minutesADay, monthGrid, parseTarget, shapeFits,
   stripMarks, tick, weekStartOf, weekdayOrder, type GoalLike, type WeekMark,
 } from '../src/lib/goalsModel.ts'
 
@@ -37,7 +37,7 @@ test('the status line: ahead and reached in success, behind in warning, the rest
     { k: 'days', n: 2, left: 3, reachable: true })
   assert.equal((lead(g({ kind: 'days_per_week', metric: 'days', period: 'week', status: 'behind' })).lead as { reachable: boolean }).reachable, false)
   // Finish by: the server's status, completed in success, behind in warning, expired muted.
-  assert.deepEqual(lead(g({ kind: 'finish_by', status: 'completed' })), { lead: { k: 'finish', status: 'completed' }, tone: 'success' })
+  assert.deepEqual(lead(g({ kind: 'finish_by', status: 'completed' })), { lead: { k: 'reached' }, tone: 'success' })
   assert.equal(lead(g({ kind: 'finish_by', status: 'behind' })).tone, 'warning')
   assert.equal(lead(g({ kind: 'finish_by', status: 'expired' })).tone, 'muted')
   assert.deepEqual(lead(g({ kind: 'finish_by', status: 'weird' })).lead, { k: 'finish', status: 'open' })
@@ -52,7 +52,12 @@ test('what it takes: "on course for" only when the server sends a projection', (
   assert.deepEqual(detail(g({ kind: 'days_per_week', recent_weeks: { reached: 0, of: 0 } })), { k: 'none' })
   const finish = { volumes_left: 2, needed_seconds_per_day: 1757, recent_seconds_per_day: 4231 }
   assert.deepEqual(detail(g({ kind: 'finish_by', status: 'on_pace', finish })), { k: 'finish', left: 2, minutes: 29 })
-  assert.deepEqual(detail(g({ kind: 'finish_by', status: 'completed', finish })), { k: 'finish', left: 2, minutes: null })
+  assert.deepEqual(detail(g({ kind: 'finish_by', status: 'completed', finish })), { k: 'finish_done' })
+  // Behind: what it needs a day against what the reader reads.
+  assert.deepEqual(detail(g({ kind: 'finish_by', status: 'behind', finish: { volumes_left: 2, needed_seconds_per_day: 5700, recent_seconds_per_day: 4231 } })), { k: 'finish_need', minutes: 95, recent: 71, left: 2 })
+  // Weekly goals never say "on course for": a week is too short to project.
+  assert.deepEqual(detail(g({ kind: 'pages_per_week', period: 'week', projection: 2080 })), { k: 'togo', toGo: 2, left: 42, projection: null })
+  assert.deepEqual(detail(g({ kind: 'books_per_month', period: 'month', projection: 3 })), { k: 'togo', toGo: 2, left: 42, projection: 3 })
 })
 
 test('the pace tick sits at expected / target, and not on a reached, day or finish-by goal', () => {
@@ -118,4 +123,13 @@ test('a remembered grid shape fits only the same count and columns', () => {
   assert.ok(!shapeFits(s, 5, 4))
   assert.ok(!shapeFits(s, 6, 2))
   assert.ok(!shapeFits(null, 6, 4))
+})
+
+test('a card line keeps its first clause and drops trailing ones that would wrap', () => {
+  const m = (s: string) => s.length * 6
+  const c = ['2 to go', '42 days left', 'on course for 65']
+  assert.deepEqual(fitClauses(c, 1000, m), c)
+  assert.deepEqual(fitClauses(c, m('2 to go · 42 days left'), m), ['2 to go', '42 days left'])
+  assert.deepEqual(fitClauses(c, 10, m), ['2 to go'])
+  assert.deepEqual(fitClauses([], 100, m), [])
 })

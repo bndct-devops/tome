@@ -60,8 +60,10 @@ test('Goals tab: reached, ahead, behind and a completed finish-by read as such, 
     await expect(ln.getByText(/behind$/)).toHaveClass(/text-warning/)
     await expect(card(page, 'Minutes a week')).toContainText('/ 300 min')
     await expect(card(page, 'Reading days a week')).toContainText('/ 3 days')
-    const saga = card(page, 'Done Saga by')
-    await expect(saga).toContainText('Finished')
+    // Finish by: labelled by its date, the series on the strong line, reached when every volume is read.
+    const saga = card(page, 'Done Saga')
+    await expect(saga).toContainText(/Finish by \w+ \d+/)
+    await expect(saga).toContainText('Reached')
     await expect(saga).toContainText('2/ 2 volumes')
     await page.reload()
     await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
@@ -80,10 +82,11 @@ test('Goals tab: every kind has its detail', async ({ page }) => {
   await login(page)
   await openTab(page, 'Goals')
   const expectations: [string | RegExp, string[]][] = [
-    ['Manga', ['This year', 'Met', 'Current run']],
+    // A year goal without two past years of data: this year's months, not empty years.
+    ['Manga', ['This year', 'This year by month', 'Months at pace', 'Best month']],
     ['Minutes a week', ['This week', 'Last 12 weeks', 'Usual week']],
     ['Reading days a week', ['This week', 'Last 12 weeks', 'reached', 'still to come', 'Best run']],
-    ['Done Saga by', ['Volumes', 'What it takes', 'Time left']],
+    ['Done Saga', ['Volumes', 'What it takes', 'Time left']],
   ]
   for (const [name, texts] of expectations) {
     await card(page, name).getByRole('button').click()
@@ -93,7 +96,7 @@ test('Goals tab: every kind has its detail', async ({ page }) => {
   }
   // The selection is remembered in this browser.
   await page.reload()
-  await expect(card(page, 'Done Saga by').getByRole('button')).toHaveAttribute('aria-pressed', 'true')
+  await expect(card(page, 'Done Saga').getByRole('button')).toHaveAttribute('aria-pressed', 'true')
 })
 
 test('Dialog: every kind created, one edited, one deleted and undone; the end state is on the server', async ({ page, request }) => {
@@ -198,7 +201,10 @@ test('Week start Sunday: the strip starts on Sunday and a weekly goal\'s week wi
   seed('goals')
   await login(page)
   await openTab(page, 'Goals')
-  const letters = () => card(page, 'Reading days a week').locator('.k-dot > span:last-child').allTextContents()
+  const letters = async () => {
+    await expect(card(page, 'Reading days a week').locator('.k-dot')).toHaveCount(7)
+    return card(page, 'Reading days a week').locator('.k-dot > span:last-child').allTextContents()
+  }
   expect((await letters())[0]).toBe('M')
   await page.goto('/settings/language')
   const put = page.waitForResponse((r) => /\/api\/auth\/me$/.test(r.url()) && r.request().method() === 'PUT')
@@ -336,4 +342,24 @@ test('Overview: a reader without goals starts one from the end of the page', asy
   await expect(page.locator('[data-box="goal-cells"] > div')).toHaveCount(1)
   await expect(start).toHaveCount(0)
   expect((await goalsFromApi(request)).goals.map((g) => g.kind)).toEqual(['books_per_month'])
+})
+
+test('Dialog: Escape closes an open picker first, the dialog only on the next Escape', async ({ page }) => {
+  seed('goals')
+  await login(page)
+  await openTab(page, 'Goals')
+  await newGoal(page)
+  await dialog(page).getByRole('radio', { name: /^Finish by a date/ }).click()
+  await dialog(page).getByRole('button', { name: 'Book or series' }).click()
+  await expect(page.getByRole('listbox', { name: 'Book or series' })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('listbox', { name: 'Book or series' })).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: /New goal/ })).toBeVisible()
+  await dialog(page).getByRole('button', { name: 'Pick a day' }).click()
+  await expect(page.getByRole('grid')).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('grid')).toHaveCount(0)
+  await expect(page.getByRole('dialog', { name: /New goal/ })).toBeVisible()
+  await page.keyboard.press('Escape')
+  await expect(page.getByRole('dialog')).toHaveCount(0)
 })
