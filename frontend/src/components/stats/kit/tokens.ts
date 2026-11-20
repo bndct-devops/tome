@@ -46,6 +46,8 @@ const fmtFor = (digits: number) => {
 export const num = (n: number) => fmtFor(0).format(n)
 /** One decimal in the app language ("4.3"; "4,3" in French). */
 export const dec1 = (n: number) => fmtFor(1).format(n)
+/** A figure as the server sent it, in the app language: grouped, up to two decimals ("1,117", "96.7", "3.71"). */
+export const fig = (n: number) => new Intl.NumberFormat(i18n.locale || undefined, { maximumFractionDigits: 2 }).format(n)
 /** A large count in words from a million on ("6.6 million"; "6,6 millions" in French), else as num(). */
 export const big = (n: number) =>
   n < 1_000_000 ? num(n) : new Intl.NumberFormat(i18n.locale || undefined, { notation: 'compact', compactDisplay: 'long', maximumFractionDigits: 1 }).format(n)

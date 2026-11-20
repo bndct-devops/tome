@@ -19,7 +19,7 @@ import { t, msg, plural } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
-import { num } from '@/components/stats/kit/tokens'
+import { fig, num } from '@/components/stats/kit/tokens'
 import { ReadingDNABody } from '@/components/stats/ReadingDNACard'
 import { TimelineRibbon } from '@/components/stats/TimelineRibbon'
 import { FullBleedTimeline } from '@/components/stats/FullBleedTimeline'
@@ -152,9 +152,9 @@ function metricValue(stats: StatsResponse, id: string): { value: string; sub?: s
     case 'time-per-day':
       return { value: formatDuration(Math.round(secs / days)), sub: t`over ${days} days` }
     case 'pages-per-day':
-      return { value: String(Math.round(stats.headline.pages_turned / days)), sub: t`over ${days} days` }
+      return { value: num(Math.round(stats.headline.pages_turned / days)), sub: t`over ${days} days` }
     case 'pages-per-hour':
-      return { value: secs > 0 ? String(Math.round(stats.headline.pages_turned / (secs / 3600))) : '0', sub: t`average pace` }
+      return { value: secs > 0 ? num(Math.round(stats.headline.pages_turned / (secs / 3600))) : '0', sub: t`average pace` }
     case 'best-day': {
       const best = stats.daily.reduce((a, b) => (b.seconds > a.seconds ? b : a), { date: '', seconds: 0, sessions: 0, pages: 0 })
       return best.seconds > 0 ? { value: formatDuration(best.seconds), sub: formatDate(best.date) } : { value: '0m', sub: t`no reading yet` }
@@ -165,22 +165,22 @@ function metricValue(stats: StatsResponse, id: string): { value: string; sub?: s
       return top ? { value: formatDuration(top.duration_seconds), sub: top.title } : { value: '0m', sub: t`no sessions yet` }
     }
     case 'books-started':
-      return { value: String(stats.completion_rate.started), sub: `${stats.completion_rate.finished} finished` }
+      return { value: num(stats.completion_rate.started), sub: `${num(stats.completion_rate.finished)} finished` }
     case 'longest-streak': {
       const s = stats.headline.streaks
-      if (!s.longest_start || !s.longest_end) return { value: `${stats.headline.longest_streak_days}d` }
+      if (!s.longest_start || !s.longest_end) return { value: `${num(stats.headline.longest_streak_days)}d` }
       const from = formatDate(s.longest_start)
       const to = formatDate(s.longest_end)
-      return { value: `${stats.headline.longest_streak_days}d`, sub: t`${from} to ${to}` }
+      return { value: `${num(stats.headline.longest_streak_days)}d`, sub: t`${from} to ${to}` }
     }
     case 'weekly-streak': {
       // Weeks in a row with at least one reading day (Monday-based).
-      const best = stats.headline.streaks.longest_weeks
-      return { value: `${stats.headline.streaks.current_weeks}w`, sub: t`Best: ${best}w` }
+      const best = num(stats.headline.streaks.longest_weeks)
+      return { value: `${num(stats.headline.streaks.current_weeks)}w`, sub: t`Best: ${best}w` }
     }
     case 'avg-session':
     default:
-      return { value: formatDuration(stats.headline.avg_session_seconds), sub: `${stats.headline.total_sessions} sessions` }
+      return { value: formatDuration(stats.headline.avg_session_seconds), sub: `${num(stats.headline.total_sessions)} sessions` }
   }
 }
 
@@ -231,21 +231,21 @@ const WIDGETS: WidgetDef[] = [
     title: msg`Sessions`,
     icon: Activity,
     size: STAT_SIZE,
-    render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.total_sessions)} />,
+    render: ({ stats }) => <HeadlineStatBody value={num(stats.headline.total_sessions)} />,
   },
   {
     id: 'stat-finished',
     title: msg({ message: 'Finished', context: 'reading' }),
     icon: BookCheck,
     size: STAT_SIZE,
-    render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.books_finished)} />,
+    render: ({ stats }) => <HeadlineStatBody value={num(stats.headline.books_finished)} />,
   },
   {
     id: 'stat-streak',
     title: msg`Streak`,
     icon: Flame,
     size: STAT_SIZE,
-    render: ({ stats }) => <HeadlineStatBody value={String(stats.headline.current_streak_days)} unit={plural(stats.headline.current_streak_days, { one: 'day', other: 'days' })} sub={(() => { const d = stats.headline.longest_streak_days; return t`Longest: ${d}d` })()} />,
+    render: ({ stats }) => <HeadlineStatBody value={num(stats.headline.current_streak_days)} unit={plural(stats.headline.current_streak_days, { one: 'day', other: 'days' })} sub={(() => { const d = num(stats.headline.longest_streak_days); return t`Longest: ${d}d` })()} />,
   },
   {
     id: 'stat-pages',
@@ -259,7 +259,7 @@ const WIDGETS: WidgetDef[] = [
     title: msg`Completion`,
     icon: Target,
     size: STAT_SIZE,
-    render: ({ stats }) => <HeadlineStatBody value={String(stats.completion_rate.pct)} unit="%" sub={(() => { const fin = stats.completion_rate.finished, st = stats.completion_rate.started; return t`${fin} of ${st} started` })()} />,
+    render: ({ stats }) => <HeadlineStatBody value={fig(stats.completion_rate.pct)} unit="%" sub={(() => { const fin = num(stats.completion_rate.finished), st = num(stats.completion_rate.started); return t`${fin} of ${st} started` })()} />,
   },
   {
     id: 'stat-metric',

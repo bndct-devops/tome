@@ -7,7 +7,7 @@ import { formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { ChartTooltip, type StatsResponse, type StreakSummary } from '@/components/stats/shared'
-import { num } from '@/components/stats/kit/tokens'
+import { fig, num } from '@/components/stats/kit/tokens'
 
 const fmtDay = (d: string | null) =>
   d ? new Date(d + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '--'
@@ -20,10 +20,10 @@ export function LifetimeTotals({ data }: { data: StatsResponse['lifetime'] }) {
   const items: { icon: LucideIcon; label: string; value: string }[] = [
     { icon: Clock, label: t`Total time`, value: formatDuration(data.seconds) },
     { icon: FileText, label: t`Pages`, value: num(data.pages) },
-    { icon: BookCheck, label: t`Books finished`, value: String(data.books_finished) },
-    { icon: Activity, label: t`Sessions`, value: String(data.sessions) },
-    { icon: Calendar, label: t`Active days`, value: String(data.active_days) },
-    { icon: Flame, label: t`Longest streak`, value: `${data.longest_streak_days}d` },
+    { icon: BookCheck, label: t`Books finished`, value: num(data.books_finished) },
+    { icon: Activity, label: t`Sessions`, value: num(data.sessions) },
+    { icon: Calendar, label: t`Active days`, value: num(data.active_days) },
+    { icon: Flame, label: t`Longest streak`, value: `${num(data.longest_streak_days)}d` },
   ]
   return (
     <div className="grid h-full grid-cols-2 content-center gap-x-6 gap-y-4 sm:grid-cols-3">
@@ -89,7 +89,7 @@ export function LibraryCompletion({ data }: { data: StatsResponse['tbr'] }) {
   return (
     <div className="flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
-        <span className="text-2xl font-bold text-foreground">{data.pct}%</span>
+        <span className="text-2xl font-bold text-foreground">{fig(data.pct)}%</span>
         <span className="text-[13px] text-muted-foreground">{(() => { const read = data.read; const owned = data.owned; return <Trans>{read} of {owned} owned read</Trans> })()}{data.reading ? (() => { const n = data.reading; return t` · ${n} reading` })() : ''}{data.want_to_read ? (() => { const n = data.want_to_read; return t` · ${n} want to read` })() : ''}</span>
       </div>
       <div className="flex flex-col gap-2">
@@ -97,7 +97,7 @@ export function LibraryCompletion({ data }: { data: StatsResponse['tbr'] }) {
           <div key={t.type}>
             <div className="mb-1 flex items-center justify-between text-[13px]">
               <span className="truncate font-medium text-foreground">{t.type}</span>
-              <span className="shrink-0 text-muted-foreground">{t.read}/{t.owned} · {t.pct}%</span>
+              <span className="shrink-0 text-muted-foreground">{num(t.read)}/{num(t.owned)} · {fig(t.pct)}%</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
               <div className="h-full rounded-full" style={{ width: `${Math.min(t.pct, 100)}%`, backgroundColor: accent }} />

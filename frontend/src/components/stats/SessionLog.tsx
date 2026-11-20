@@ -10,6 +10,7 @@ import { api } from '@/lib/api'
 import { InfoHint } from '@/components/InfoHint'
 import { Pill } from '@/components/page'
 import type { SessionEntry } from '@/components/stats/shared'
+import { num } from '@/components/stats/kit/tokens'
 import { sourceLabel, useSessionActions } from '@/components/stats/sessions/actions'
 import { SessionTools, TrimPanel } from '@/components/stats/sessions/SessionTools'
 
@@ -189,7 +190,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
             ) : (
               <>
                 <ChevronDown className="h-4 w-4" />
-                {(() => { const left = total - loaded; return <span><Trans>Show more ({left} remaining)</Trans></span> })()}
+                {(() => { const left = num(total - loaded); return <span><Trans>Show more ({left} remaining)</Trans></span> })()}
               </>
             )}
           </Pill>

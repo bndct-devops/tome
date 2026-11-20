@@ -20,6 +20,7 @@ import { cn, formatDuration } from '@/lib/utils'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
+import { fig, num } from '@/components/stats/kit/tokens'
 import { axisDuration, niceDurationTicks } from '@/components/stats/axis'
 import { SessionLog } from '@/components/stats/SessionLog'
 import { coverSrc } from '@/lib/covers'
@@ -34,11 +35,11 @@ export function YearInReview({ summary }: { summary: StatsResponse['year_summary
   }
   // Six bare numbers (the Stat look at 30px), no nested frames or icons.
   const items: { label: string; value: string }[] = [
-    { label: t`Books finished`, value: String(summary.books_finished) },
-    { label: t`Total hours`, value: `${summary.total_hours}h` },
+    { label: t`Books finished`, value: num(summary.books_finished) },
+    { label: t`Total hours`, value: `${fig(summary.total_hours)}h` },
     { label: t`Top genre`, value: summary.top_genre ?? '--' },
-    { label: t`Longest streak`, value: `${summary.longest_streak_days}d` },
-    { label: t`Total sessions`, value: String(summary.total_sessions) },
+    { label: t`Longest streak`, value: `${num(summary.longest_streak_days)}d` },
+    { label: t`Total sessions`, value: num(summary.total_sessions) },
     { label: t`Most active month`, value: summary.most_active_month ?? '--' },
   ]
   return (
@@ -240,8 +241,8 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
                 </td>
                 <td className="py-1.5 px-2 text-muted-foreground hidden sm:table-cell truncate max-w-[160px]">{b.author || '--'}</td>
                 <td className="py-1.5 px-2 text-right text-muted-foreground">{formatDuration(b.seconds)}</td>
-                <td className="py-1.5 px-2 text-right text-muted-foreground">{b.sessions}</td>
-                <td className="py-1.5 px-2 text-right text-muted-foreground">{b.pages_turned}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground">{num(b.sessions)}</td>
+                <td className="py-1.5 px-2 text-right text-muted-foreground">{num(b.pages_turned)}</td>
                 <td className="py-1.5 px-2">
                   <button
                     onClick={() => setOpenBook(openBook === b.book_id ? null : b.book_id)}

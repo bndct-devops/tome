@@ -25,7 +25,7 @@ import { useChartColors } from '@/lib/useChartAccent'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { HourDowHeatmap } from '@/components/stats/HourDowHeatmap'
 import { ChartTooltip, type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
-import { dec1 } from '@/components/stats/kit/tokens'
+import { dec1, fig, num } from '@/components/stats/kit/tokens'
 import { axisDuration, dayIso, evenDateTicks, isoDay, niceDurationTicks } from '@/components/stats/axis'
 import { coverSrc } from '@/lib/covers'
 
@@ -168,8 +168,8 @@ function PaceArea({ days }: { days: PaceDay[] }) {
             return (
               <ChartTooltip>
                 <div className="font-medium">{formatDate(d.date)}</div>
-                {(() => { const ppm = d.ppm; return <div><Trans>{ppm} pg/min</Trans></div> })()}
-                {(() => { const pages = d.pages; const dur = formatDuration(d.seconds); return <div className="text-muted-foreground"><Trans>{pages} pages in {dur}</Trans></div> })()}
+                {(() => { const ppm = fig(d.ppm); return <div><Trans>{ppm} pg/min</Trans></div> })()}
+                {(() => { const pages = num(d.pages); const dur = formatDuration(d.seconds); return <div className="text-muted-foreground"><Trans>{pages} pages in {dur}</Trans></div> })()}
                 <div className="text-muted-foreground">{plural(d.sessions, { one: '# session', other: '# sessions' })}</div>
               </ChartTooltip>
             )

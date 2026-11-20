@@ -19,7 +19,7 @@ function Empty({ text }: { text?: string }) {
 function compact(n: number): string {
   if (n >= 1_000_000) return `${n >= 10_000_000 ? num(n / 1_000_000) : dec1(n / 1_000_000)}M`
   if (n >= 1_000) return `${n >= 10_000 ? num(n / 1_000) : dec1(n / 1_000)}k`
-  return String(n)
+  return num(n)
 }
 
 function Cover({ id, has, alt }: { id: number | null; has: boolean; alt: string }) {
@@ -151,7 +151,7 @@ export function BookLength({ data }: { data: StatsResponse['book_lengths'] }) {
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null
                 const d = payload[0].payload
-                return <ChartTooltip><div className="font-medium">{d.label} words</div><div className="text-muted-foreground">{d.count} book{d.count !== 1 ? 's' : ''}</div></ChartTooltip>
+                return <ChartTooltip><div className="font-medium">{d.label} words</div><div className="text-muted-foreground">{num(d.count)} book{d.count !== 1 ? 's' : ''}</div></ChartTooltip>
               }}
             />
             <Bar dataKey="count" fill={accent} radius={[4, 4, 0, 0]} isAnimationActive={false} />

@@ -171,7 +171,7 @@ export function ReadingTimePerDay({ daily, chartType = 'bar' }: { daily: StatsRe
                 <div className="font-medium">{formatDate(d.date)}</div>
                 <div>{formatDuration(d.seconds)}</div>
                 <div className="text-muted-foreground">
-                  {d.sessions} session{d.sessions !== 1 ? 's' : ''}
+                  {num(d.sessions)} session{d.sessions !== 1 ? 's' : ''}
                   {d.pages > 0 ? (() => { const pages = num(d.pages); return t` · ${pages} pages` })() : ''}
                 </div>
               </ChartTooltip>
