@@ -676,7 +676,7 @@ function BookDetailView() {
   const STATUS_PILLS: { id: ReadingStatus; label: string; title?: string }[] = [
     { id: 'unread', label: t`Unread` },
     { id: 'reading', label: t`Reading` },
-    { id: 'read', label: t`Read` },
+    { id: 'read', label: t({ message: 'Read', context: 'status' }) },
     { id: 'want_to_read', label: t`Want to read`, title: t`Queue this book up next` },
     { id: 'shelved', label: t`On hold`, title: t`Set aside, keeps your progress` },
   ]
