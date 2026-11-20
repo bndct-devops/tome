@@ -43,6 +43,8 @@ const api = async (p, init = {}) => {
   const r = await fetch(`${API}/api${p}`, { ...init, headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json', ...(init.headers ?? {}) } })
   const text = await r.text(); try { return JSON.parse(text) } catch { return text }
 }
+// Mark the server's current version as seen, so the "What's new" dialog never covers a shot.
+const seenVersion = (await api('/meta/whats-new'))?.version ?? 'dev'
 
 const browser = await chromium.launch()
 const failures = []
@@ -52,10 +54,10 @@ for (const theme of themes) {
     const vpName = typeof scene.viewport === 'string' ? scene.viewport : 'desktop'
     const viewport = typeof scene.viewport === 'object' ? scene.viewport : VIEWPORTS[vpName]
     const ctx = await browser.newContext({ viewport, deviceScaleFactor: scene.scale ?? 1, colorScheme: theme === 'light' ? 'light' : 'dark' })
-    await ctx.addInitScript(([t, th]) => {
+    await ctx.addInitScript(([t, th, seen]) => {
       localStorage.setItem('tome_token', t); localStorage.setItem('tome_theme', th); localStorage.setItem('tome_sidebar', 'open')
-      localStorage.setItem('tome_seen_version', '1.0.0'); localStorage.setItem('tome_stats_hint', '1'); sessionStorage.setItem('tome_follows_disabled', '1')
-    }, [token, theme])
+      localStorage.setItem('tome_seen_version', seen); localStorage.setItem('tome_stats_hint', '1'); sessionStorage.setItem('tome_follows_disabled', '1')
+    }, [token, theme, seenVersion])
     const page = await ctx.newPage()
     const errors = []; page.on('pageerror', e => errors.push(e.message))
     try {
