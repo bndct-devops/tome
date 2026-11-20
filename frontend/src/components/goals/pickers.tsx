@@ -95,19 +95,29 @@ export function FinishTargetPicker({ value, onPick, taken }: { value: FinishTarg
   const input = useRef<HTMLInputElement>(null)
   const close = () => { setOpen(false); setQ('') }
   const pos = usePlace(open, trigger, card, close)
-  const { data: series } = useStatsGet<SeriesRow[]>('/books/series')
-  const { data: reading } = useStatsGet<BookRow[]>('/books?reading_status=reading&sort=status_updated&order=desc&limit=30')
-  const [found, setFound] = useState<BookRow[]>([])
+  const seriesGet = useStatsGet<SeriesRow[]>('/books/series')
+  const readingGet = useStatsGet<BookRow[]>('/books?reading_status=reading&sort=status_updated&order=desc&limit=30')
+  const series = useMemo(() => seriesGet.data ?? (seriesGet.failed ? [] : null), [seriesGet.data, seriesGet.failed])
+  const reading = useMemo(() => readingGet.data ?? (readingGet.failed ? [] : null), [readingGet.data, readingGet.failed])
+  // Nothing is listed until both lists are in: rows never appear above the pointer (a
+  // series arriving after the books once put a book where the series was meant).
+  const ready = series != null && reading != null
+  // A search's library matches, with the term they answer (shown only for that term,
+  // and only below everything already listed).
+  const [found, setFound] = useState<{ term: string; rows: BookRow[] } | null>(null)
   useEffect(() => {
-    if (q.trim().length < 2) { setFound([]); return }
+    const term = q.trim()
+    if (term.length < 2) return
     const id = window.setTimeout(() => {
-      api.get<BookRow[]>(`/books?q=${encodeURIComponent(q.trim())}&limit=12`).then(setFound).catch(() => setFound([]))
+      api.get<BookRow[]>(`/books?q=${encodeURIComponent(term)}&limit=12`).then((rows) => setFound({ term, rows })).catch(() => setFound({ term, rows: [] }))
     }, 200)
     return () => window.clearTimeout(id)
   }, [q])
+  const searching = q.trim().length >= 2 && found?.term !== q.trim()
   useEffect(() => { if (open) input.current?.focus({ preventScroll: true }) }, [open, pos])
 
   const options = useMemo(() => {
+    if (!series || !reading) return []
     const term = q.trim().toLowerCase()
     const rows = (series ?? []).filter((s) => s.name !== '__unserialized__' && s.read_count < s.book_count)
     const ser: FinishTarget[] = rows
@@ -117,9 +127,11 @@ export function FinishTargetPicker({ value, onPick, taken }: { value: FinishTarg
       .slice(0, term ? 20 : 12)
       .map((s) => ({ series: s.name, cover: s.cover_book_id, read: s.read_count, total: s.book_count }))
     // Searching: the books being read that match, then the library's matches.
-    const mine = (reading ?? []).filter((b) => !term || b.title.toLowerCase().includes(term))
-    const bookRows = term ? [...mine, ...found.filter((f) => !mine.some((m) => m.id === f.id))] : mine
+    const mine = reading.filter((b) => !term || b.title.toLowerCase().includes(term))
+    const more = found && found.term.toLowerCase() === term && term.length >= 2 ? found.rows : []
+    const bookRows = term ? [...mine, ...more.filter((f) => !mine.some((m) => m.id === f.id))] : mine
     const books: FinishTarget[] = bookRows.slice(0, 10).map((b) => ({ bookId: b.id, title: b.title, cover: b.cover_path ? b.id : null }))
+    // A stable order: series first, then books (the ones being read, then a search's matches).
     return [...ser.map((x) => ({ x, group: 'series' as const })), ...books.map((x) => ({ x, group: 'book' as const }))]
   }, [series, reading, found, q])
   useEffect(() => { setActive(0) }, [q])
@@ -165,8 +177,10 @@ export function FinishTargetPicker({ value, onPick, taken }: { value: FinishTarg
               className="h-9 min-w-0 flex-1 bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
           </div>
-          <div id="goal-target-list" role="listbox" aria-label={t`Book or series`} className="mt-1.5 max-h-[300px] overflow-y-auto overscroll-contain [scrollbar-width:thin]">
-            {options.length === 0 && <p className="px-3 py-3 text-[13px] text-muted-foreground">{series ? t`Nothing found.` : t`Loading…`}</p>}
+          <div id="goal-target-list" role="listbox" aria-label={t`Book or series`} aria-busy={!ready || searching} className="mt-1.5 max-h-[300px] overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+            {!ready
+              ? <p className="px-3 py-3 text-[13px] text-muted-foreground">{t`Loading series and books…`}</p>
+              : options.length === 0 && !searching && <p className="px-3 py-3 text-[13px] text-muted-foreground">{t`Nothing found.`}</p>}
             {options.map((o, i) => {
               const k = targetKey(o.x)
               const sel = value != null && targetKey(value) === k
@@ -189,14 +203,18 @@ export function FinishTargetPicker({ value, onPick, taken }: { value: FinishTarg
                   >
                     <Cover id={o.x.cover} h={30} className="rounded-[4px]" />
                     <span className="min-w-0 flex-1 truncate">{'series' in o.x ? o.x.series : o.x.title}</span>
+                    {/* What the row is, on every row: "series · 10 of 12 read" or "book". */}
                     <span className="shrink-0 text-[12px] text-muted-foreground">
-                      {has ? t`has a goal` : 'series' in o.x ? (() => { const r = num(o.x.read), n = num(o.x.total); return t`${r} of ${n} read` })() : ''}
+                      {'series' in o.x
+                        ? (has ? t`series · has a goal` : (() => { const r = num(o.x.read), n = num(o.x.total); return t`series · ${r} of ${n} read` })())
+                        : (has ? t`book · has a goal` : t`book`)}
                     </span>
                     {sel && <Check className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />}
                   </button>
                 </div>
               )
             })}
+            {ready && searching && <p className="px-3 py-2 text-[13px] text-muted-foreground">{t`Searching books…`}</p>}
           </div>
         </Card>
       )}

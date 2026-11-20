@@ -359,6 +359,49 @@ test('Overview: a reader without goals starts one from the end of the page', asy
   expect((await goalsFromApi(request)).goals.map((g) => g.kind)).toEqual(['books_per_month'])
 })
 
+for (const late of ['series', 'books'] as const) {
+  test(`Dialog: the finish-by picker lists nothing until series and books are in (${late} late), series first, each row says what it is`, async ({ page }) => {
+    seed('goals')
+    await login(page)
+    // Held from the first request on (a fresh page: nothing cached yet). The seed's one series
+    // (Done Saga) is all read, so it would not be offered: answered here as not read yet, so the
+    // list has a series row to come first.
+    let release: () => void = () => {}
+    const open = new Promise<void>((r) => { release = r })
+    await page.route(/\/api\/books\/series(\?|$)/, async (route) => {
+      if (late === 'series') await open
+      const res = await route.fetch()
+      const rows = (await res.json()) as { read_count: number }[]
+      await route.fulfill({ response: res, json: rows.map((r) => ({ ...r, read_count: 0 })) })
+    })
+    if (late === 'books') await page.route(/\/api\/books\?reading_status=reading/, async (route) => { await open; await route.continue() })
+    const held = { release: () => release() }
+    await openTab(page, 'Goals')
+    await newGoal(page)
+    await dialog(page).getByRole('radio', { name: /^Finish by a date/ }).click()
+    await dialog(page).getByRole('button', { name: 'Book or series' }).click()
+    const list = page.getByRole('listbox', { name: 'Book or series' })
+    await expect(list).toHaveAttribute('aria-busy', 'true')
+    await expect(list).toContainText('Loading series and books…')
+    await expect(list.getByRole('option')).toHaveCount(0)
+    held.release()
+    await expect(list).toHaveAttribute('aria-busy', 'false')
+    const rows = await list.getByRole('option').allTextContents()
+    expect(rows.length).toBeGreaterThan(0)
+    const kinds = rows.map((r) => (/series · (\d+ of \d+ read|has a goal)$/.test(r) ? 's' : /book( · has a goal)?$/.test(r) ? 'b' : '?')).join('')
+    expect(kinds, rows.join(' | ')).toMatch(/^s+b+$/)
+    // Rows already shown keep their place while a search's matches arrive below them.
+    const search = await gate(page, /\/api\/books\?q=/)
+    await page.getByPlaceholder('Search series and books').fill('Vol')
+    await expect(list).toContainText('Searching books…')
+    const before = await list.getByRole('option').allTextContents()
+    search.release()
+    await expect(list).toHaveAttribute('aria-busy', 'false')
+    const after = await list.getByRole('option').allTextContents()
+    expect(after.slice(0, before.length)).toEqual(before)
+  })
+}
+
 test('Finish by, far behind: an hour or more a day reads in hours and minutes', async ({ page }) => {
   seed('goals')
   await login(page)
