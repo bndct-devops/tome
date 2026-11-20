@@ -918,3 +918,66 @@ def test_no_data_is_never_missed(client, make_book, admin_user, db, now, kind, t
         states = {p["start"][:4]: p["state"] for p in h["periods"]}
         assert states["2021"] == "no_data" and states["2022"] == "no_data"
         assert states["2023"] != "no_data" and states["2024"] != "no_data"
+
+
+@pytest.mark.parametrize("zone", ["", "?tz_offset=-60", f"?tz={VIENNA}"], ids=["no-zone", "tz_offset", "tz"])
+def test_week_start_change_never_notifies_for_any_client(client, make_book, admin_user, db, now, zone):
+    """Every client: with the zone, without it (the iOS app), or with only an offset.
+    Sunday's reading reaches both weekly goals only in the Sunday week; switching
+    there, reading the goals (in the reader's zone and in others) and switching
+    back creates no notification."""
+    user, _ = admin_user
+    book = make_book(title="ws-any")
+    now.set("2026-11-20 09:00", VIENNA)
+    session(db, user.id, book.id, utc("2026-11-15 12:00", VIENNA), pages=300)  # Sunday
+    session(db, user.id, book.id, utc("2026-11-16 12:00", VIENNA), pages=100)
+    for d in ("2026-11-17", "2026-11-18"):
+        session(db, user.id, book.id, utc(f"{d} 12:00", VIENNA), pages=10)
+    create(client, "pages_per_week", 400, tz=VIENNA)
+    create(client, "days_per_week", 4, tz=VIENNA)
+    assert _reached_notes(db) == 0
+    assert client.put(f"/api/auth/me{zone}", json={"week_start": "sunday"}).status_code == 200
+    g = goals(client, tz=VIENNA)
+    assert g["pages_per_week"]["reached"] and g["days_per_week"]["reached"]
+    goals(client)  # read without a zone too (UTC)
+    client.get("/api/goals?tz=Pacific/Kiritimati")
+    client.get("/api/goals?tz=Etc/GMT%2B12")
+    assert _reached_notes(db) == 0
+    assert client.put(f"/api/auth/me{zone}", json={"week_start": "monday"}).status_code == 200
+    goals(client, tz=VIENNA)
+    goals(client)
+    assert _reached_notes(db) == 0
+
+
+def test_week_start_change_without_zone_stays_quiet_that_week_only(client, make_book, admin_user, db, now):
+    """The cost of not knowing the zone: a goal first reached later in that same
+    week does not notify; the next week notifies as usual."""
+    user, _ = admin_user
+    book = make_book(title="ws-nz")
+    now.set("2026-11-20 09:00", VIENNA)
+    session(db, user.id, book.id, utc("2026-11-16 12:00", VIENNA), pages=100)
+    create(client, "pages_per_week", 400, tz=VIENNA)
+    assert client.put("/api/auth/me", json={"week_start": "sunday"}).status_code == 200
+    session(db, user.id, book.id, utc("2026-11-20 08:00", VIENNA), pages=350)
+    assert goals(client, tz=VIENNA)["pages_per_week"]["reached"]
+    assert _reached_notes(db) == 0
+    now.set("2026-11-23 09:00", VIENNA)
+    session(db, user.id, book.id, utc("2026-11-22 12:00", VIENNA), pages=450)
+    goals(client, tz=VIENNA)
+    goals(client, tz=VIENNA)
+    assert _reached_notes(db) == 1
+
+
+def test_a_reached_week_notifies_once_whichever_zone_reads_it(client, make_book, admin_user, db, now):
+    """Notified when the web read it (Vienna); a client without a zone (UTC) and one
+    far east read the same week: still one notification."""
+    user, _ = admin_user
+    book = make_book(title="zones")
+    now.set("2026-11-20 09:00", VIENNA)
+    session(db, user.id, book.id, utc("2026-11-17 12:00", VIENNA), pages=500)
+    create(client, "pages_per_week", 400, tz=VIENNA)
+    assert _reached_notes(db) == 1
+    goals(client)
+    client.get("/api/goals?tz=Pacific/Kiritimati")
+    client.get("/api/goals?tz_offset=480")
+    assert _reached_notes(db) == 1

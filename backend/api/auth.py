@@ -150,7 +150,7 @@ class UpdateProfileRequest(PydanticBaseModel):
 @router.put("/me", response_model=UserOut)
 def update_profile(
     body: UpdateProfileRequest,
-    tz_offset: int = Query(0, description="JS getTimezoneOffset() in minutes (week_start changes)"),
+    tz_offset: int | None = Query(None, description="JS getTimezoneOffset() in minutes (week_start changes)"),
     tz: str | None = Query(None, description="IANA timezone name (week_start changes)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -171,7 +171,10 @@ def update_profile(
             # A settings change never sends "goal reached": weekly goals already
             # reached in the week under the new rule count as notified for it.
             from backend.services import goals as goals_service
-            goals_service.settle_week_start_change(db, current_user, goals_service.day_ctx(tz_offset, tz))
+            # Without a zone the change still stays quiet, for the week in progress in any zone.
+            zone_known = tz is not None or tz_offset is not None
+            goals_service.settle_week_start_change(
+                db, current_user, goals_service.day_ctx(tz_offset or 0, tz) if zone_known else None)
     db.commit()
     db.refresh(current_user)
     return current_user

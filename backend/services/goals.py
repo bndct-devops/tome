@@ -89,6 +89,9 @@ KIND_LABELS = {
 }
 
 WEEK_STARTS = ("monday", "sunday")
+# Two notification keys this close are the same period seen from two zones (UTC-12 to
+# UTC+14): a period's key is local midnight on its first day, as a UTC instant.
+SAME_PERIOD_KEY = timedelta(hours=26)
 # A deleted goal can be restored for this long; then it is purged.
 RESTORE_WINDOW = timedelta(minutes=30)
 # "On course for" is held back until this share of the period has passed.
@@ -687,7 +690,13 @@ def maybe_notify(gd: GoalData, goal: ReadingGoal, state: dict) -> bool:
         if period == "day" or not state["reached"]:
             return False
         key = gd.local_midnight_utc(date.fromisoformat(state["period_start"]))
-        if goal.notified_window_start == key:
+        # The same period read in another zone (the web sends its zone, a client without
+        # one reads in UTC) has a key at most 26 hours away; another period is days away.
+        if goal.notified_window_start is not None and abs(goal.notified_window_start - key) <= SAME_PERIOD_KEY:
+            return False
+        if period == "week" and goal.quiet_before is not None and key <= goal.quiet_before:
+            # The week start changed during this week without a zone: stay quiet for it.
+            goal.notified_window_start = key
             return False
         goal.notified_window_start = key
         body = f"You hit your goal of {_phrase(goal, metric, period, state)}."
@@ -701,22 +710,35 @@ def maybe_notify(gd: GoalData, goal: ReadingGoal, state: dict) -> bool:
     return True
 
 
-def settle_week_start_change(db: Session, user: User, day: DayCtx) -> int:
+def settle_week_start_change(db: Session, user: User, day: Optional[DayCtx]) -> int:
     """The reader changed their week start: a settings change never notifies.
 
-    Called after ``user.week_start`` is set. Every weekly goal (and reading days
-    a week) already reached in the current week under the new rule is marked as
-    notified for that week, so the next read of the goals stays quiet; one not
-    reached yet keeps its marker and notifies once when reading reaches it.
-    Switching back marks the week under the old rule the same way. Returns how
-    many goals were marked."""
-    gd = GoalData(db, user, day, utcnow())
+    Called after ``user.week_start`` is set. With the reader's zone (``day``):
+    every weekly goal (and reading days a week) already reached in the current
+    week under the new rule is marked as notified for that week, so the next
+    read of the goals stays quiet; one not reached yet keeps its marker and
+    notifies once when reading reaches it. Switching back marks the week under
+    the old rule the same way.
+
+    Without a zone (``day`` None: a client that sends neither tz nor tz_offset)
+    the current week is not known for certain (it depends on the zone), so every
+    weekly goal is made quiet for whatever week is in progress now, in any zone:
+    ``quiet_before`` = now, and a week that began before it never notifies. The
+    cost: a weekly goal first reached later in that same week gets no "reached"
+    notification; the next week notifies as usual. Returns how many goals were
+    marked."""
+    now = utcnow()
     marked = 0
-    for goal in (db.query(ReadingGoal)
-                 .filter(ReadingGoal.user_id == user.id, ReadingGoal.deleted_at.is_(None))
-                 .all()):
-        if goal.kind not in KINDS or KINDS[goal.kind][1] != "week":
-            continue
+    goals = [g for g in (db.query(ReadingGoal)
+                         .filter(ReadingGoal.user_id == user.id, ReadingGoal.deleted_at.is_(None))
+                         .all())
+             if g.kind in KINDS and KINDS[g.kind][1] == "week"]
+    if day is None:
+        for goal in goals:
+            goal.quiet_before = now
+        return len(goals)
+    gd = GoalData(db, user, day, now)
+    for goal in goals:
         state = goal_state(gd, goal)
         if state["reached"]:
             goal.notified_window_start = gd.local_midnight_utc(date.fromisoformat(state["period_start"]))

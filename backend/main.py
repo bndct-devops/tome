@@ -514,6 +514,7 @@ def upgrade_reading_goals(engine) -> None:
             ("due_date", "DATE"),
             ("completed_at", "DATETIME"),
             ("deleted_at", "DATETIME"),
+            ("quiet_before", "DATETIME"),
         ):
             if name not in cols:
                 conn.execute(text(f"ALTER TABLE reading_goals ADD COLUMN {name} {ddl}"))

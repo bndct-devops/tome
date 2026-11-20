@@ -59,6 +59,11 @@ class ReadingGoal(Base):
     notified_window_start: Mapped[Optional[datetime]] = mapped_column(
         DateTime, nullable=True
     )
+    # Weekly goals (and reading days a week): a week that began before this
+    # instant (naive UTC) never notifies. Set when the reader changed the week
+    # start without sending their zone, so the settings change stays quiet in
+    # whatever zone they read in (goals.settle_week_start_change).
+    quiet_before: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
     # The reader's reading day the goal was set. Older rows: backfilled from
     # created_at (UTC date) by the startup migration.
     start_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
