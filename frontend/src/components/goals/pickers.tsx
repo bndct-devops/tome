@@ -107,7 +107,9 @@ export function FinishTargetPicker({ value, onPick, taken }: { value: FinishTarg
       .sort((a, b) => Number(b.reading_count > 0) - Number(a.reading_count > 0) || Number(b.read_count > 0) - Number(a.read_count > 0) || a.name.localeCompare(b.name))
       .slice(0, term ? 20 : 12)
       .map((s) => ({ series: s.name, cover: s.cover_book_id, read: s.read_count, total: s.book_count }))
-    const bookRows = term ? found : (reading ?? [])
+    // Searching: the books being read that match, then the library's matches.
+    const mine = (reading ?? []).filter((b) => !term || b.title.toLowerCase().includes(term))
+    const bookRows = term ? [...mine, ...found.filter((f) => !mine.some((m) => m.id === f.id))] : mine
     const books: FinishTarget[] = bookRows.slice(0, 10).map((b) => ({ bookId: b.id, title: b.title, cover: b.cover_path ? b.id : null }))
     return [...ser.map((x) => ({ x, group: 'series' as const })), ...books.map((x) => ({ x, group: 'book' as const }))]
   }, [series, reading, found, q])

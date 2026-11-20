@@ -613,7 +613,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
 
       {/* ── Recently added ───────────────────────────────────────────────── */}
       {recent.length > 0 && (
-        <section>
+        <section data-box="home-recent">
           <SectionTitle action={<SeeAll onClick={onSeeAllRecent} />}><Trans>Recently added</Trans></SectionTitle>
           <HScrollRow className="gap-4 px-2 pt-5 pb-3" wrapClassName="-mx-2 -mt-1" controlsTop="top-[128px]">
             {recent.map(book => { const title = book.title; return (

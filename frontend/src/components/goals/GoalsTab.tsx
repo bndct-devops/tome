@@ -136,7 +136,7 @@ function GoalDetail({ goal, skeleton, desktop, rev, today, onEdit }: {
   const { data: history } = useStatsGet<GoalHistory>(wantsHistory ? historyUrl(goal!.id, rev) : null)
   const ready = !!goal && (kind === 'finish' || !!history)
   const shape = useShape(detailKey(id, desktop))
-  const known = shape.has(['top', 'figs'])
+  const known = shape.has(['head', 'top', 'figs'])
   const [e, attach] = useEntryRef(`goals/detail/${id}`, ready ? ONCE : null)
   const del = useDeleteGoal()
   if (!kind) return null
@@ -155,7 +155,7 @@ function GoalDetail({ goal, skeleton, desktop, rev, today, onEdit }: {
     <section ref={attach} data-box="goal-detail" aria-busy={!ready} aria-label={name || undefined}>
       {/* The kit's heading look (Heading), with a title that may be long (a series): one line with an
           ellipsis on a desktop, wrapping on the phone, never under the actions. */}
-      <div className="mb-5 flex items-baseline justify-between gap-4">
+      <div ref={ready ? shape.measure('head') : undefined} style={!ready ? { height: shape.h('head') } : undefined} className="mb-5 flex items-baseline justify-between gap-4">
         <h2 className={cn('min-w-0 font-display text-[24px] font-bold text-foreground', desktop ? 'truncate leading-none' : 'leading-tight [overflow-wrap:anywhere]')} {...(goal && desktop ? tipAttrs({ title: name }) : {})}>
           {goal ? name : <span className="inline-block h-6 w-56 rounded-[8px] bg-muted align-middle" aria-hidden="true" />}
         </h2>

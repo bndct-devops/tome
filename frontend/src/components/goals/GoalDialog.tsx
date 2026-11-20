@@ -267,7 +267,8 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter }: {
   if (value != null && sug) {
     if (kind === 'minutes_per_day' || kind === 'pages_per_day' || kind === 'minutes_per_week' || kind === 'pages_per_week') {
       const per = kind.endsWith('_day') ? 'day' : 'week'
-      const b = booksAMonth(value, per, kind.startsWith('minutes') ? sug.per_book.minutes : sug.per_book.pages)
+      // Minutes per book finished in the 90 days, else the median time per finished book.
+      const b = booksAMonth(value, per, kind.startsWith('minutes') ? (sug.per_book.minutes ?? sug.per_book.median_minutes ?? null) : sug.per_book.pages)
       if (b != null) {
         const v = num(value), bm = dec1(b)
         consequence = kind === 'minutes_per_day' ? <Trans>At {v} min a day you'd finish about <b className="font-semibold">{bm} books a month</b>.</Trans>

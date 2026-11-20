@@ -83,7 +83,8 @@ export function LeadLine({ goal, className }: { goal: Goal; className?: string }
   return (
     <span className={className}>
       {l.lead.k === 'reached' || (l.lead.k === 'finish' && l.lead.status === 'completed')
-        ? <span className="inline-flex items-center gap-1 font-semibold text-success"><Check className="h-4 w-4" strokeWidth={2.5} aria-hidden="true" />{w.lead}</span>
+        // The check sits inside the line's own height (an inline-flex box taller than the line would push it down).
+        ? <span className="font-semibold text-success"><Check className="mr-1 inline-block h-[0.95em] w-[0.95em] align-[-0.12em]" strokeWidth={2.5} aria-hidden="true" />{w.lead}</span>
         : <span className={cn('font-semibold', toneClass[l.tone])}>{w.lead}</span>}
       {w.rest && <span className="text-foreground">{w.rest}</span>}
     </span>
