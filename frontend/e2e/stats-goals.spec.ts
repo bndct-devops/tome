@@ -225,6 +225,8 @@ for (const vp of VIEWPORTS) {
     seed('goals')
     await page.setViewportSize({ width: vp.width, height: vp.height })
     await login(page)
+    // Home (where login lands) remembers the goal count when its goals answer: let it land before forgetting.
+    await page.waitForLoadState('networkidle')
     for (const visit of ['first', 'second'] as const) {
       if (visit === 'first') await forgetStats(page)
       const list = await gate(page, GOALS_LIST_RE)
@@ -260,6 +262,8 @@ for (const vp of VIEWPORTS) {
     seed('goals')
     await page.setViewportSize({ width: vp.width, height: vp.height })
     await login(page)
+    // Home (where login lands) remembers the goal count when its goals answer: let it land before forgetting.
+    await page.waitForLoadState('networkidle')
     for (const visit of ['first', 'second'] as const) {
       if (visit === 'first') await forgetStats(page)
       await page.evaluate(() => localStorage.setItem('tome_stats_view', JSON.stringify({ tab: 'overview', days: 30, board: null })))
@@ -294,6 +298,8 @@ for (const vp of VIEWPORTS) {
     seed('goals')
     await page.setViewportSize({ width: vp.width, height: vp.height })
     await login(page)
+    // Home (where login lands) remembers the goal count when its goals answer: let it land before forgetting.
+    await page.waitForLoadState('networkidle')
     for (const visit of ['first', 'second'] as const) {
       if (visit === 'first') await forgetStats(page)
       const goals = await gate(page, GOALS_RE)

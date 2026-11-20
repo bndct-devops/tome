@@ -43,7 +43,7 @@ test('Show Boards opens the default boards to a reader who never customised them
 
   // Nothing customised, switch off: no Boards tab.
   await page.goto('/stats')
-  await expect(statsTabs(page)).toHaveText(['Overview', 'Habits', 'Library', 'Taste', 'Timeline', 'Sessions'])
+  await expect(statsTabs(page)).toHaveText(['Overview', 'Goals', 'Habits', 'Library', 'Taste', 'Timeline', 'Sessions'])
   await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
   expect(puts).toEqual([])
 
@@ -87,7 +87,7 @@ test('Show Boards opens the default boards to a reader who never customised them
   // Stats remembered the Boards tab; it is gone and the Overview is shown, without an error.
   puts.length = 0
   await page.goto('/stats')
-  await expect(statsTabs(page)).toHaveText(['Overview', 'Habits', 'Library', 'Taste', 'Timeline', 'Sessions'])
+  await expect(statsTabs(page)).toHaveText(['Overview', 'Goals', 'Habits', 'Library', 'Taste', 'Timeline', 'Sessions'])
   await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByText('Couldn’t load stats.')).toHaveCount(0)
   // After the server's answer too.
@@ -124,7 +124,7 @@ test('Show Boards off hides the Boards tab even for a reader with a board of the
 
   // The Boards tab is gone, Overview is selected, and there is no New board menu.
   await page.goto('/stats')
-  await expect(statsTabs(page)).toHaveText(['Overview', 'Habits', 'Library', 'Taste', 'Timeline', 'Sessions'])
+  await expect(statsTabs(page)).toHaveText(['Overview', 'Goals', 'Habits', 'Library', 'Taste', 'Timeline', 'Sessions'])
   await expect(page.getByRole('tab', { name: 'Overview' })).toHaveAttribute('aria-selected', 'true')
   await expect(page.getByRole('button', { name: 'More' })).toHaveCount(0)
 
