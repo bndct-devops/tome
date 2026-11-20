@@ -93,7 +93,7 @@ export function QuickLook({ bookId, onClose }: { bookId: number; onClose: () => 
           {text && <p className="mt-3 text-[15px] leading-relaxed text-foreground/80 line-clamp-4 whitespace-pre-line">{text}</p>}
           {pct > 0 && (
             <div className="mt-4 flex items-center gap-3">
-              <div className="h-[5px] flex-1 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) var(--rail-mix), var(--card))' }}>
+              <div className="h-[5px] flex-1 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--card))' }}>
                 <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, pct)}%` }} />
               </div>
               <span className="text-[15px] font-bold text-foreground">{Math.round(pct)}%</span>
