@@ -15,7 +15,7 @@ import { useStatsGet } from '@/components/stats/kit/useStatsGet'
 import { longDate, monthName, weekdayLetter } from './text'
 import { targetKey, type FinishTarget } from './pickerModel'
 
-function usePlace(open: boolean, trigger: RefObject<HTMLElement | null>, card: RefObject<HTMLElement | null>, onClose: () => void) {
+function usePlace(open: boolean, trigger: RefObject<HTMLElement | null>, card: RefObject<HTMLElement | null>, onClose: () => void, below = false) {
   const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null)
   useLayoutEffect(() => {
     if (!open || !trigger.current || !card.current) return
@@ -23,12 +23,13 @@ function usePlace(open: boolean, trigger: RefObject<HTMLElement | null>, card: R
     const c = card.current
     const vw = document.documentElement.clientWidth, vh = window.innerHeight
     const width = Math.min(Math.max(r.width, 280), vw - 16)
-    const up = r.bottom + 6 + c.offsetHeight > vh - 8 && r.top - 6 - c.offsetHeight > 8
+    // `below`: always under the trigger (the card fits its height to the room there).
+    const up = !below && r.bottom + 6 + c.offsetHeight > vh - 8 && r.top - 6 - c.offsetHeight > 8
     const left = Math.min(Math.max(8, r.left), vw - width - 8)
     // Placed from the measured trigger and card before paint, as ChoiceMenu does (its refs are its own).
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setPos({ left, top: up ? r.top - 6 - c.offsetHeight : r.bottom + 6, width })
-  }, [open, trigger, card])
+  }, [open, trigger, card, below])
   useEffect(() => {
     if (!open) return
     // Escape closes the picker only (the dialog's own Escape steps aside while it is open).
@@ -69,6 +70,9 @@ function Card({ cardRef, pos, children, label, wide }: { cardRef: RefObject<HTML
 
 // ── Book or series ────────────────────────────────────────────────────────────
 
+const LIST_MAX = 300
+const LIST_MIN = 120
+
 type SeriesRow = { name: string; book_count: number; cover_book_id: number | null; read_count: number; reading_count: number }
 type BookRow = { id: number; title: string; series: string | null; cover_path: string | null; reading_status?: string | null }
 
@@ -94,7 +98,29 @@ export function FinishTargetPicker({ value, onPick, taken }: { value: FinishTarg
   const card = useRef<HTMLDivElement>(null)
   const input = useRef<HTMLInputElement>(null)
   const close = () => { setOpen(false); setQ('') }
-  const pos = usePlace(open, trigger, card, close)
+  const pos = usePlace(open, trigger, card, close, true)
+  // The list's height, fitted once when the card opens and kept in every state (loading,
+  // loaded, searching): at most 300 px, ending above the screen's edge and never across a
+  // line of the dialog under it (a line is wholly covered or wholly clear).
+  const [listH, setListH] = useState(LIST_MAX)
+  useLayoutEffect(() => {
+    if (!open || !pos || !card.current || !trigger.current) return
+    const c = card.current.getBoundingClientRect()
+    const list = card.current.querySelector<HTMLElement>('#goal-target-list')
+    if (!list) return
+    const chrome = c.height - list.offsetHeight
+    let bottom = Math.min(pos.top + chrome + LIST_MAX, window.innerHeight - 8)
+    const lines = [...(trigger.current.closest('[role="dialog"]')?.querySelectorAll('p, label, button, input, h2, [role="radio"]') ?? [])]
+      .map((el) => el.getBoundingClientRect())
+      .filter((b) => b.height > 0 && b.top >= pos.top && b.left < pos.left + pos.width && b.right > pos.left)
+    for (let moved = true; moved;) {
+      moved = false
+      for (const b of lines) if (b.top < bottom && b.bottom > bottom) { bottom = b.top - 2; moved = true }
+    }
+    const h = Math.max(LIST_MIN, Math.round(bottom - pos.top - chrome))
+    // Fitted from the measured card and dialog before paint (once per opening).
+    if (h !== listH) setListH(h)
+  }, [open, pos]) // eslint-disable-line react-hooks/exhaustive-deps
   const seriesGet = useStatsGet<SeriesRow[]>('/books/series')
   const readingGet = useStatsGet<BookRow[]>('/books?reading_status=reading&sort=status_updated&order=desc&limit=30')
   const series = useMemo(() => seriesGet.data ?? (seriesGet.failed ? [] : null), [seriesGet.data, seriesGet.failed])
@@ -177,7 +203,9 @@ export function FinishTargetPicker({ value, onPick, taken }: { value: FinishTarg
               className="h-9 min-w-0 flex-1 bg-transparent text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none"
             />
           </div>
-          <div id="goal-target-list" role="listbox" aria-label={t`Book or series`} aria-busy={!ready || searching} className="mt-1.5 max-h-[300px] overflow-y-auto overscroll-contain [scrollbar-width:thin]">
+          {/* One height in every state (loading, loaded, searching, nothing found), fitted when the card
+              opens: it never grows over the dialog's lines or off the screen once the lists are in. */}
+          <div id="goal-target-list" role="listbox" aria-label={t`Book or series`} aria-busy={!ready || searching} className="mt-1.5 overflow-y-auto overscroll-contain [scrollbar-width:thin]" style={{ height: listH }}>
             {!ready
               ? <p className="px-3 py-3 text-[13px] text-muted-foreground">{t`Loading series and books…`}</p>
               : options.length === 0 && !searching && <p className="px-3 py-3 text-[13px] text-muted-foreground">{t`Nothing found.`}</p>}

@@ -475,6 +475,52 @@ test('Burn-up legend: each mark is drawn exactly as its line in the plot', async
   }
 })
 
+test('Finish-by picker while loading: the card keeps the size it will have, nothing peeks out under it', async ({ page }) => {
+  seed('goals')
+  await login(page)
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
+    // A fresh page each time (nothing cached), with the series answer held.
+    await page.unrouteAll({ behavior: 'ignoreErrors' })
+    let release: () => void = () => {}
+    const open = new Promise<void>((r) => { release = r })
+    await page.route(/\/api\/books\/series(\?|$)/, async (route) => { await open; await route.continue() })
+    await openTab(page, 'Goals')
+    await newGoal(page)
+    await dialog(page).getByRole('radio', { name: /^Finish by a date/ }).click()
+    await dialog(page).getByRole('button', { name: 'Book or series' }).click()
+    const list = page.getByRole('listbox', { name: 'Book or series' })
+    const card = page.getByRole('dialog', { name: 'Book or series' })
+    const check = async () => card.evaluate((c) => {
+      const r = c.getBoundingClientRect()
+      const out: string[] = []
+      if (r.top < 0 || r.bottom > window.innerHeight) out.push(`card off screen ${r.top}-${r.bottom}`)
+      // Every line of the dialog under the card is either wholly covered or wholly clear.
+      const dlg = document.querySelector('[role="dialog"][aria-label="New goal"]')!
+      for (const el of dlg.querySelectorAll('p, span, button, label')) {
+        if (el.children.length && el.tagName !== 'BUTTON') continue
+        const b = el.getBoundingClientRect()
+        if (!b.height || !b.width) continue
+        const overlapX = b.left < r.right && b.right > r.left
+        const cut = overlapX && ((b.top < r.bottom && b.bottom > r.bottom) || (b.top < r.top && b.bottom > r.top))
+        if (cut) out.push(`${el.tagName} "${(el.textContent || '').trim().slice(0, 30)}" ${Math.round(b.top)}-${Math.round(b.bottom)} vs card ${Math.round(r.top)}-${Math.round(r.bottom)}`)
+      }
+      return { h: Math.round(r.height), out }
+    })
+    await expect(list).toHaveAttribute('aria-busy', 'true')
+    const loading = await check()
+    expect(loading.out, `loading at ${width}`).toEqual([])
+    release()
+    await expect(list).toHaveAttribute('aria-busy', 'false')
+    const loaded = await check()
+    expect(loaded.out, `loaded at ${width}`).toEqual([])
+    expect(loaded.h).toBe(loading.h)
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  }
+})
+
 test('Dialog: Escape closes an open picker first, the dialog only on the next Escape', async ({ page }) => {
   seed('goals')
   await login(page)
