@@ -80,6 +80,19 @@ All notable changes to Tome are documented here. Format loosely follows
   self-update.
 
 ### Changed
+- **Stats has six fixed pages.** Overview shows reading time, sessions,
+  pages, books finished and your streak, your reading goals, the books you are
+  reading now, the year as a grid, and all-time totals and records. Habits
+  shows when you read, the last 14 days, session lengths, pace, reading speed,
+  the last 12 months and your reading character. Library shows your library,
+  series with their next volume, book types, languages, authors, the backlog,
+  book lengths and what you added. Taste shows your ratings and how they
+  relate to the time you spent. Timeline shows every book as a bar across the
+  years. Sessions lists every session by day, with trim and delete. Each page
+  keeps its layout while it loads.
+- **Boards are no longer the default Stats view.** The rearrangeable boards
+  remain available through Settings → Appearance → Stats → Show Boards.
+  Anyone who customised a board keeps seeing the Boards tab automatically.
 - **Tome's own log lines now reach the container log.** Informational
   messages (auto-import, Hardcover sync, restore) were dropped before, and
   warnings came without a time or level. Every line now has both. Set

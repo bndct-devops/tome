@@ -189,7 +189,7 @@ export function WordCountTab() {
               </span>
               <span className="text-[14px] font-bold tabular-nums">{pct.toFixed(1)}%</span>
             </div>
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
+            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--rail)' }}>
               <div className="h-full bg-primary rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
             </div>
             <div className="flex flex-wrap items-center justify-between gap-x-3 mt-2 text-[13px] text-muted-foreground">

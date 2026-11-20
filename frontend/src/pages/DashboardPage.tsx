@@ -1382,7 +1382,7 @@ export function DashboardPage() {
                         <div className="flex items-center gap-3">
                           <div
                             className="h-[6px] flex-1 rounded-full overflow-hidden flex"
-                            style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}
+                            style={{ background: 'var(--rail)' }}
                           >
                             <div className="h-full bg-primary" style={{ width: `${readPct}%` }} />
                             <div className="h-full bg-primary/50" style={{ width: `${readingPct}%` }} />

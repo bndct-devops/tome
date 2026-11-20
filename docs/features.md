@@ -195,31 +195,50 @@ Shelves are per-user and private. Each shelf can have a custom icon chosen from 
 
 ## Reading Stats
 
-The Stats page has three tabs, all powered by KOReader session data via TomeSync. The time-based charts can also be **backfilled from KOReader's own per-page reading history** (from before TomeSync) by enabling reading-history import in the plugin — see the [KOReader plugin](koreader-plugin.md#reading-history-import) docs. The backfill adds reading time and pages only; it never changes your read/unread status.
+The Stats page has six fixed pages, all powered by reading sessions from the web reader and from KOReader via TomeSync. The time-based charts can also be **backfilled from KOReader's own per-page reading history** (from before TomeSync) by enabling reading-history import in the plugin — see the [KOReader plugin](koreader-plugin.md#reading-history-import) docs. The backfill adds reading time and pages only; it never changes your read/unread status.
+
+The range pills (7d, 30d, 90d, 1y, All, or a custom range) apply to every page that depends on a period. Each page keeps its layout while it loads, and the image button saves the page as a PNG.
 
 ### Overview
 
-Top-line numbers — total reading time, sessions, pages turned, streak — plus the recent session log and a "currently reading" panel.
+Reading time in the range with the change against the period before, sessions, pages, books finished and your streak; reading time per day (per week for longer ranges); your reading goals; the books you are reading now with an estimate of the days left; the books you finished; your top books by time; when you read; a 365-day grid; and all-time totals and records.
 
 ### Habits
 
 When and how you read:
 
-- **When You Read** — hour × day-of-week heatmap
-- **Session timeline** — per-day session ribbons across the last two weeks
-- **Reading pace** — pages per hour over time, plus pace by format
-- **Reading speed trend** — how your pages-per-hour has changed over time
-- **Completion estimates** — projected finish dates for in-progress books based on recent pace
-- **Period & monthly comparison** — compare two time windows side by side
+- **When you read** — hour × weekday grid, with weekday and hour totals
+- **Last 14 days** — one row per day, each sitting at its start time
+- **Sessions** — average and longest sitting, sittings per reading day, and session lengths
+- **Pace** — pages per minute per reading day with a 7-day mean, and pages per minute per format
+- **Reading speed** — words per minute, with your fastest and slowest books
+- **The last 12 months** — reading hours and books finished per month
+- **Reading character** — your reading personality and the traits behind it
 
 ### Library
 
-How your collection grows and what you finish:
+What is on your shelves and what you have made of it:
 
-- **Year in review** — books read, pages, and time spent in a given year
-- **Series completion** — how far you are through each series
-- **Author affinity** — most-read authors
-- **Completion by type** — finish rates per book type
-- **Per-book time table** — total time, sessions, and pages turned for every book
-- **Library growth** — books added over time
-- **Backlog** -- how long your unstarted books would take at your own pace (hours from word count x your reading speed, days from your recent minutes per day), scoped to Want to Read, all unread, a library, or a shelf. The same estimate shows as "Est. read time" on the book page and "left in this series" on the series page
+- **Your library** — books owned, read, in progress and wanted
+- **Series** — how far you are through each series, and the next volume
+- **By type** — owned, read, finish rate and reading time per book type
+- **Languages** and **Authors** — reading time per language, your most-read authors
+- **Backlog** — how long your unstarted books would take at your own pace (hours from word count × your reading speed, days from your recent minutes per day), scoped to Want to Read, all unread, a library, or a shelf. The same estimate shows as "Est. read time" on the book page and "left in this series" on the series page
+- **Book length**, **Published**, **Time to finish** and **Added to the library**
+- **All books by reading time** — time, sessions and pages for every book, with its sessions one click away
+
+### Taste
+
+Your ratings: the distribution, highest and lowest rated, rated series, reading time against rating, and ratings over time.
+
+### Timeline
+
+Your reading life as a Gantt chart: one lane per series, one bar per book, a tick for every day you read.
+
+### Sessions
+
+Every reading session, grouped by day, with trim and delete for runaway sessions.
+
+### Boards
+
+The rearrangeable boards from earlier versions are still there. If you customised a board, a **Boards** tab shows it. **Settings › Appearance › Stats › Show Boards** shows the tab always (with the default boards) or never.

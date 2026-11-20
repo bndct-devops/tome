@@ -258,3 +258,37 @@ def test_series_completion_visibility(client: TestClient, db: Session, make_book
     # Member has no status on this book, so the series should not appear for them
     names = [c["series"] for c in data["series_completion"]]
     assert "PrivateSeries" not in names, "Member must not see admin-only series"
+
+
+# ── period comparison: previous-window counts ─────────────────────────────────
+
+def test_period_comparison_previous_counts(client: TestClient, db: Session, make_book, admin_user):
+    """The window before the range reports the headline's own counts, so the page
+    can compare finished books, sessions and pages without a second request."""
+    user, _token = admin_user
+    now = datetime.utcnow()
+    inside = make_book(title="Inside")
+    before = make_book(title="Before")
+    before2 = make_book(title="Before Two")
+    long_ago = make_book(title="Long Ago")
+
+    _make_session(db, user.id, inside.id, now - timedelta(days=2), duration_seconds=600, pages_turned=12)
+    _make_session(db, user.id, before.id, now - timedelta(days=40), duration_seconds=900, pages_turned=20)
+    _make_session(db, user.id, before.id, now - timedelta(days=45), duration_seconds=300, pages_turned=5)
+    _make_session(db, user.id, long_ago.id, now - timedelta(days=80), duration_seconds=300, pages_turned=7)
+
+    for book, days_ago in ((inside, 3), (before, 35), (before2, 50), (long_ago, 75)):
+        st = _make_status(db, user.id, book.id, "read", updated_at=now - timedelta(days=days_ago))
+        st.finished_at = now - timedelta(days=days_ago)
+    db.commit()
+
+    data = _get_stats(client, days=30)
+    pc = data["period_comparison"]
+    assert data["headline"]["books_finished"] == 1
+    assert pc["previous_books_finished"] == 2  # days 35 and 50, not 3 or 75
+    assert pc["previous_sessions"] == 2
+    assert pc["previous_pages"] == 25
+    assert pc["previous_seconds"] == 1200
+
+    # All time has no previous window.
+    assert _get_stats(client, days=0)["period_comparison"] is None

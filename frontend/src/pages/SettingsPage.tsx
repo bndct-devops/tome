@@ -1,5 +1,5 @@
 import { TelemetrySettings } from '@/components/TelemetryConsentCard'
-import { useState, useEffect, useMemo } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
@@ -35,6 +35,8 @@ import { Trans, Plural, useLingui } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import { LOCALES, getActiveLocale, setLocale } from '@/lib/i18n'
+import { boardsTabVisible, customBoardIds, readShowBoards, withShowBoards } from '@/lib/statsBoards'
+import { loadBoardsFlag, loadLocalDashboard, saveBoardsFlag } from '@/components/stats/boards/types'
 
 interface ApiKey {
   id: number
@@ -952,7 +954,92 @@ function AppearanceSection() {
             )}
           </div>
 
+          <StatsBoardsSetting />
+
         </PanelSection>
+  )
+}
+
+/**
+ * Stats › Boards: on, the customisable grid from earlier versions is a Boards
+ * tab listing every board, the shipped defaults included; off, there is no
+ * Boards tab and the saved boards are kept. Never set, it shows on exactly when
+ * a board is the reader's own (the tab is there then), so it reads as the page
+ * does. Kept in the saved dashboard blob (`showBoards`) so it follows the
+ * account; this is the only place that writes the flag, it always writes an
+ * explicit true or false, and it changes nothing else in the blob.
+ */
+function StatsBoardsSetting() {
+  const [on, setOn] = useState(() => boardsTabVisible(loadBoardsFlag(), customBoardIds(loadLocalDashboard()?.tabs)))
+  const [busy, setBusy] = useState(false)
+  const [failed, setFailed] = useState(false)
+  // A flip before the first answer arrives wins over that answer.
+  const touched = useRef(false)
+  useEffect(() => {
+    let alive = true
+    api.get<{ data: unknown }>('/stats/dashboard')
+      .then(r => {
+        if (!alive || touched.current) return
+        const flag = readShowBoards(r.data)
+        const saved = (r.data as { tabs?: unknown } | null)?.tabs
+        const tabs = Array.isArray(saved) && saved.length > 0 ? saved : loadLocalDashboard()?.tabs
+        setOn(boardsTabVisible(flag, customBoardIds(tabs)))
+        saveBoardsFlag(flag)
+      })
+      .catch(() => {})
+    return () => { alive = false }
+  }, [])
+
+  async function toggle() {
+    const next = !on
+    touched.current = true
+    setOn(next)
+    setBusy(true)
+    setFailed(false)
+    try {
+      // Written onto the server's current blob, so boards saved from another
+      // browser meanwhile are kept as they are.
+      const r = await api.get<{ data: unknown }>('/stats/dashboard')
+      await api.put('/stats/dashboard', { data: withShowBoards(r.data, next) })
+      saveBoardsFlag(next)
+    } catch {
+      setOn(!next)
+      setFailed(true)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <div className="mt-6 pt-5 border-t border-border/70">
+      <p className="text-[13px] text-muted-foreground mb-3"><Trans>Stats</Trans></p>
+      <div className="flex items-center justify-between gap-3 max-w-2xl">
+        <div>
+          <p id="stats-boards-label" className="text-sm text-foreground"><Trans>Show Boards</Trans></p>
+          <p className="text-[13px] text-muted-foreground mt-0.5">
+            <Trans>The customisable grid from earlier versions, as an extra tab on Stats. Turning it off hides the tab; your boards are kept.</Trans>
+          </p>
+          {failed && <p className="text-[13px] text-destructive mt-1"><Trans>Couldn’t save. Try again.</Trans></p>}
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={on}
+          aria-labelledby="stats-boards-label"
+          disabled={busy}
+          onClick={() => void toggle()}
+          className={cn(
+            'relative w-9 h-5 rounded-full transition-colors shrink-0',
+            on ? 'bg-primary' : 'bg-muted-foreground/30'
+          )}
+        >
+          <span className={cn(
+            'absolute left-0 top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
+            on ? 'translate-x-[18px]' : 'translate-x-0.5'
+          )} />
+        </button>
+      </div>
+    </div>
   )
 }
 

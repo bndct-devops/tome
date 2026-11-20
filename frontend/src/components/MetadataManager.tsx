@@ -412,7 +412,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
           <span className="text-[13px] text-muted-foreground whitespace-nowrap">
             {(() => { const at = idx + 1; const total = queue.length; return <Trans>Book {at} of {total}</Trans> })()}
           </span>
-          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
+          <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--rail)' }}>
             <div
               className="h-full bg-primary rounded-full transition-all"
               style={{ width: `${((idx + 1) / queue.length) * 100}%` }}
@@ -715,7 +715,7 @@ function StandardizeModal({ proposals, onClose, onApplied }: StandardizeModalPro
       footer={
         <>
           {applying && (
-            <div className="mr-auto flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
+            <div className="mr-auto flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--rail)' }}>
               <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
             </div>
           )}

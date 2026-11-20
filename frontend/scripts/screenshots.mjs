@@ -115,78 +115,15 @@ const SHOTS = [
   { name: 'series', path: '/?tab=series', viewport: DESKTOP, settle: 800 },
   { name: 'book-detail', path: () => `/books/${bookIds.goodGuys2 ?? 1}`, viewport: DESKTOP, settle: 800 },
   { name: 'series-detail', path: '/?tab=series&series_detail=Berserk', viewport: DESKTOP, settle: 1200, prefs: { tome_sidebar: 'closed' } },
-  { name: 'stats', path: '/stats', viewport: DESKTOP, settle: 1200 },
-  // Cropped view of the stats Overview tab — autoCrop trims to the centered content.
+  // Stats: one shot per designed page. The page's tab and range are browser view
+  // state (localStorage `tome_stats_view`), seeded through `prefs`.
+  { name: 'stats', path: '/stats', viewport: DESKTOP, settle: 1500, prefs: { tome_stats_view: '{"tab":"overview","days":30,"board":null}' } },
   // Used on the landing page.
-  { name: 'stats-overview', path: '/stats', viewport: { width: 1600, height: 1400, deviceScaleFactor: 2 }, settle: 1500, autoCrop: true },
-
-  // Per-card element-bounded stats shots for /docs/stats. Each card gets its
-  // own tight crop so the docs can interleave shot + description per H3.
-  // Overview tab
-  // The headline stats are six separate dashboard tiles (no shared wrapper) —
-  // union-clip them. :has(p.font-bold.tabular-nums) picks the stat tile over
-  // the "Books Finished" chart widget that shares a title.
-  { name: 'stats-totals',             path: '/stats', viewport: { width: 1600, height: 1200, deviceScaleFactor: 2 }, settle: 1500,
-    elements: ['Reading Time', 'Sessions', 'Books Finished', 'Streak', 'Pages Turned', 'Completion Rate']
-      .map((t) => `div.rounded-xl:has(h3:text-is("${t}")):has(p.font-bold.tabular-nums)`) },
-  { name: 'stats-currently-reading',  path: '/stats', viewport: { width: 1400, height: 1200, deviceScaleFactor: 2 }, settle: 1500, element: 'div.rounded-xl:has(h3:text-is("Currently Reading"))' },
-  { name: 'stats-time-per-day',       path: '/stats', viewport: { width: 1400, height: 1200, deviceScaleFactor: 2 }, settle: 1500, element: 'div.rounded-xl:has(h3:text-is("Reading Time per Day"))' },
-  { name: 'stats-top-books',          path: '/stats', viewport: { width: 1400, height: 1200, deviceScaleFactor: 2 }, settle: 1500, element: 'div.rounded-xl:has(h3:text-is("Top Books by Reading Time"))' },
-  { name: 'stats-activity-grid',      path: '/stats', viewport: { width: 1400, height: 1200, deviceScaleFactor: 2 }, settle: 1500, element: 'div.rounded-xl:has(h3:has-text("Reading Activity"))' },
-
-  // Add-tile gallery modal — enter edit mode, open the gallery. The mini
-  // previews render live charts, so give them a beat to paint.
-  { name: 'stats-add-tile', path: '/stats', viewport: { width: 1600, height: 1300, deviceScaleFactor: 2 }, settle: 1500,
-    after: async (p) => {
-      await p.locator('button:has-text("Edit")').first().click()
-      await p.waitForTimeout(600)
-      await p.locator('button:has-text("Add tile")').first().click()
-      await p.waitForTimeout(1500)
-    },
-    element: 'div.max-w-3xl:has(h2:text-is("Add a widget"))' },
-
-  // Habits tab — click the Habits pill first
-  { name: 'stats-heatmap',           path: '/stats', viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1500, after: async (p) => { await p.locator('button:has-text("habits")').first().click().catch(() => {}); await p.waitForTimeout(700) }, element: 'div.rounded-xl:has(h3:has-text("Reading Intensity"))' },
-  { name: 'stats-session-timeline',  path: '/stats', viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1500, after: async (p) => { await p.locator('button:has-text("habits")').first().click().catch(() => {}); await p.waitForTimeout(700) }, element: 'div.rounded-xl:has(h3:text-is("Session Timeline"))' },
-  { name: 'stats-pace',              path: '/stats', viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1500, after: async (p) => { await p.locator('button:has-text("habits")').first().click().catch(() => {}); await p.waitForTimeout(700) }, element: 'div.rounded-xl:has(h3:text-is("Reading Pace"))' },
-  { name: 'stats-monthly-comparison', path: '/stats', viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1500, after: async (p) => { await p.locator('button:has-text("habits")').first().click().catch(() => {}); await p.waitForTimeout(700) }, element: 'div.rounded-xl:has(h3:has-text("Last 12 Months"))' },
-
-  // Library tab — click the Library pill first
-  { name: 'stats-series-completion', path: '/stats', viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1500, after: async (p) => { await p.locator('button:has-text("library")').first().click().catch(() => {}); await p.waitForTimeout(700) }, element: 'div.rounded-xl:has(h3:text-is("Series Completion"))' },
-  { name: 'stats-author-affinity',   path: '/stats', viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1500, after: async (p) => { await p.locator('button:has-text("library")').first().click().catch(() => {}); await p.waitForTimeout(700) }, element: 'div.rounded-xl:has(h3:text-is("Top Authors by Reading Time"))' },
-  { name: 'stats-completion-by-type',path: '/stats', viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1500, after: async (p) => { await p.locator('button:has-text("library")').first().click().catch(() => {}); await p.waitForTimeout(700) }, element: 'div.rounded-xl:has(h3:has-text("Finish Rate per Book Category"))' },
-  { name: 'stats-category-breakdown',path: '/stats', viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1500, after: async (p) => { await p.locator('button:has-text("library")').first().click().catch(() => {}); await p.waitForTimeout(700) }, element: 'div.rounded-xl:has(h3:text-is("Category Breakdown"))' },
-  { name: 'stats-library-growth',    path: '/stats', viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1500, after: async (p) => { await p.locator('button:has-text("library")').first().click().catch(() => {}); await p.waitForTimeout(700) }, element: 'div.rounded-xl:has(h3:has-text("Cumulative Books Added"))' },
-
-  // Docs — admin + feature surfaces (tier 2 sweep). All auto-cropped so the
-  // shot ends where the content ends instead of bleeding into the min-h-screen tail.
-  {
-    name: 'stats-habits',
-    path: '/stats',
-    viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 },
-    settle: 1500,
-    autoCrop: true,
-    after: async (page) => {
-      await page.locator('button:has-text("habits")').first().click().catch(() => {})
-      await page.waitForTimeout(800)
-    },
-  },
-  {
-    name: 'stats-library',
-    path: '/stats',
-    viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 },
-    settle: 1500,
-    autoCrop: true,
-    after: async (page) => {
-      await page.locator('button:has-text("library")').first().click().catch(() => {})
-      await page.waitForTimeout(800)
-    },
-  },
-  // v1.7.0 surfaces — word-count + page-stat stats, Highlights, admin word counts
-  { name: 'stats-words-read',    path: '/stats', viewport: { width: 1400, height: 1200, deviceScaleFactor: 2 }, settle: 1500, element: 'div.rounded-xl:has(h3:text-is("Words Read"))' },
-  { name: 'stats-reading-speed', path: '/stats', viewport: { width: 1500, height: 1300, deviceScaleFactor: 2 }, settle: 1500, after: async (page) => { await page.locator('button:has-text("habits")').first().click().catch(() => {}); await page.waitForTimeout(800) }, element: 'div.rounded-xl:has(h3:text-is("Reading Speed"))' },
-  { name: 'stats-book-length',   path: '/stats', viewport: { width: 1400, height: 1300, deviceScaleFactor: 2 }, settle: 1500, after: async (page) => { await page.locator('button:has-text("library")').first().click().catch(() => {}); await page.waitForTimeout(800) }, element: 'div.rounded-xl:has(h3:text-is("Book Length"))' },
-  { name: 'stats-rereads',       path: '/stats', viewport: { width: 1400, height: 1300, deviceScaleFactor: 2 }, settle: 1500, after: async (page) => { await page.locator('button:has-text("library")').first().click().catch(() => {}); await page.waitForTimeout(800) }, element: 'div.rounded-xl:has(h3:text-is("Re-reads"))' },
+  { name: 'stats-overview', path: '/stats', viewport: { width: 1600, height: 1400, deviceScaleFactor: 2 }, settle: 1500, autoCrop: true, prefs: { tome_stats_view: '{"tab":"overview","days":90,"board":null}' } },
+  ...['habits', 'library', 'taste', 'sessions'].map((tab) => ({
+    name: `stats-${tab}`, path: '/stats', viewport: { width: 1600, height: 2400, deviceScaleFactor: 2 }, settle: 1800, autoCrop: true,
+    prefs: { tome_stats_view: JSON.stringify({ tab, days: tab === 'library' ? 0 : 90, board: null }) },
+  })),
   { name: 'book-intensity',      path: () => `/books/${bookIds.dune ?? 2}`, viewport: { width: 1400, height: 1400, deviceScaleFactor: 2 }, settle: 1200, element: 'div.rounded-xl:has(p:text-is("Reading intensity"))' },
   // Bounded viewport (no autoCrop) — the list is long, so crop to the top: header,
   // search, on-this-day, and the first couple of books.

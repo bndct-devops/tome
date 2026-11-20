@@ -3,6 +3,7 @@ import { useChartColors } from '@/lib/useChartAccent'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { coverSrc } from '@/lib/covers'
+import { num } from '@/components/stats/kit/tokens'
 
 interface SeriesCompletion {
   series: string
@@ -53,8 +54,8 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
               {s.series}
             </p>
             <p className="text-[13px] text-muted-foreground mt-0.5">
-              {s.read} of {s.total} read
-              {s.reading > 0 && (() => { const n = s.reading; return t` · ${n} in progress` })()}
+              {num(s.read)} of {num(s.total)} read
+              {s.reading > 0 && (() => { const n = num(s.reading); return t` · ${n} in progress` })()}
             </p>
             <div className="mt-2 flex items-center gap-2">
               <div className="flex-1 h-1.5 bg-muted rounded-full overflow-hidden">

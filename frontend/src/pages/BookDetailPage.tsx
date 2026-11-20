@@ -1045,7 +1045,7 @@ function BookDetailView() {
   const progressRow = showProgress ? (
     <div className="mt-5 max-w-[560px]">
       <div className="flex items-center gap-3">
-        <div className="h-[6px] flex-1 overflow-hidden rounded-full" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
+        <div className="h-[6px] flex-1 overflow-hidden rounded-full" style={{ background: 'var(--rail)' }}>
           <div className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
             style={{ width: progressAnimated ? `${Math.min(100, pctShown)}%` : '0%' }} />
         </div>
