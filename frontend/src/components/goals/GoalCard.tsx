@@ -19,7 +19,7 @@ import { textWidth, useFontsReady } from './measure'
 import { useShape } from './shape'
 import { gridCols, markTip } from './marks'
 
-export const TRACK = 'color-mix(in oklch, var(--primary) 28%, var(--background))'
+export const TRACK = 'var(--rail)'
 export const TRACK_OK = 'color-mix(in oklch, var(--success) 28%, var(--background))'
 /** A missed day: a dim neutral filled dot. */
 export const MISS = 'color-mix(in oklch, var(--foreground) var(--goal-miss-mix, 26%), var(--background))'
