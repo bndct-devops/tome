@@ -13,6 +13,26 @@ export function Ph({ on, children }: { on: boolean; children: ReactNode }) {
 }
 
 /**
+ * Below the last section whose size is known on a first visit: a quiet, generic
+ * stand-in (a few soft lines fading out towards the bottom of the window), not a
+ * picture of any section. The sections take its place when their answer lands; it
+ * is the page's last element, so its going moves nothing that is drawn.
+ */
+export function Pending() {
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS value
+  const fade = 'linear-gradient(to bottom, #000 0%, #000 25%, transparent 100%)'
+  return (
+    <div aria-hidden="true" data-pending="" className="pointer-events-none flex flex-col gap-4" style={{ height: '60vh', maskImage: fade, WebkitMaskImage: fade }}>
+      <div className="h-5 w-[38%] rounded-[6px] bg-muted/70" />
+      <div className="h-[88px] rounded-[12px] bg-muted/45" />
+      <div className="h-4 w-[82%] rounded-[6px] bg-muted/45" />
+      <div className="h-4 w-[64%] rounded-[6px] bg-muted/45" />
+      <div className="h-[88px] rounded-[12px] bg-muted/35" />
+    </div>
+  )
+}
+
+/**
  * Home's progress track: 6 px, accent fill on a tinted track. Inside a section
  * with an entry (motion.ts) the fill grows from the start; `style` takes its
  * stagger() delay. `tip` (tipAttrs()) gives it a tooltip and a hover ring; in a

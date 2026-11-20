@@ -12,7 +12,7 @@ import { cn, formatDuration } from '@/lib/utils'
 import type { HabitsResponse, StatsResponse } from '@/components/stats/shared'
 import type { DesignedPageProps } from '@/components/stats/kit/page'
 import { fmtDay as fmtShortDay } from '@/components/stats/range'
-import { Cover, Heading, Ph } from '@/components/stats/kit/Kit'
+import { Cover, Heading, Pending, Ph } from '@/components/stats/kit/Kit'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, rangeSig, stagger, useEntry, type Entry } from '@/components/stats/kit/motion'
 import { tipAttrs, useTips } from '@/components/stats/kit/tip'
@@ -112,6 +112,7 @@ export function HabitsPage({ stats, pending, days, custom, requested }: Designed
               <Speed stats={stats} desktop={false} sig={once} slowMem={slowMem} />
             </>
           )}
+          {holdSpeed && <Pending />}
           {!holdSpeed && <MonthsSection stats={stats} width={width} phone={!desktop} sig={once} />}
           {!holdSpeed && <Character stats={stats} desktop={desktop} sig={once} />}
         </>

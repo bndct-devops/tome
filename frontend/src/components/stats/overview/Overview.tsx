@@ -16,7 +16,7 @@ import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import type { CompletionEstimate, StatsResponse } from '@/components/stats/shared'
 import { fmtDay as fmtShortDay, type CustomRange } from '@/components/stats/range'
-import { Cover, Heading, Ph, Track } from '@/components/stats/kit/Kit'
+import { Cover, Heading, Pending, Ph, Track } from '@/components/stats/kit/Kit'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, rangeSig, stagger, useEntry } from '@/components/stats/kit/motion'
 import { tipAttrs } from '@/components/stats/kit/tip'
@@ -112,8 +112,10 @@ export function Overview({ stats, estimates, pending, days, custom, onAllBooks, 
       {width > 0 && (
         <>
           <Hero stats={stats} desktop={desktop} width={width} loading={loading} neverRead={neverRead} prevPhrase={prevPhrase} rangePhrase={rangePhrase} days={days} custom={custom} dim={dim} sig={sig} />
+          {holdGoals && <Pending />}
           {!holdGoals && <Goals goals={goals} reload={reloadGoals} desktop={desktop} />}
           {!holdGoals && <ReadingNow stats={stats} estimates={estimates} desktop={desktop} loading={loading} sig={once} onRefresh={onRefresh} />}
+          {!holdGoals && holdNow && <Pending />}
           {!holdGoals && !holdNow && <>
           <Finished stats={stats} width={width} desktop={desktop} loading={loading} rangePhrase={rangePhrase} allTime={days === 0 && !custom} dim={dim} sig={sig} />
           <div className={cn(desktop ? 'grid grid-cols-2 gap-4' : 'flex flex-col gap-10')}>

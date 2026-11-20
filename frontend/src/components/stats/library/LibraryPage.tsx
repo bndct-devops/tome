@@ -22,7 +22,7 @@ import type { BacklogScope, BacklogSummary } from '@/lib/backlog'
 import type { LibraryResponse, StatsResponse } from '@/components/stats/shared'
 import { fmtDay as fmtShortDay } from '@/components/stats/range'
 import type { DesignedPageProps } from '@/components/stats/kit/page'
-import { Cover, Ph, Track } from '@/components/stats/kit/Kit'
+import { Cover, Pending, Ph, Track } from '@/components/stats/kit/Kit'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, rangeSig, stagger, useEntry } from '@/components/stats/kit/motion'
 import { tipAttrs } from '@/components/stats/kit/tip'
@@ -100,6 +100,7 @@ export function LibraryPage({ stats, pending, days, custom }: DesignedPageProps)
       {width > 0 && (
         <>
           <Figures {...common} />
+          {holdStats && <Pending />}
           {!holdStats && <>
           <SeriesSection {...common} />
           {desktop ? (
@@ -116,6 +117,7 @@ export function LibraryPage({ stats, pending, days, custom }: DesignedPageProps)
             </>
           )}
           </>}
+          {!holdStats && holdBacklog && <Pending />}
           {!holdBacklog && <>
           <Backlog
             data={backlog.data} failed={backlog.failed} pending={backlog.pending} desktop={desktop}

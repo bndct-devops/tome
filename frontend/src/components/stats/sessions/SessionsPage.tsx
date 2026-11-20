@@ -14,7 +14,7 @@ import { api } from '@/lib/api'
 import { cn, formatDuration } from '@/lib/utils'
 import { Pill } from '@/components/page'
 import type { SessionEntry, SessionsPage as SessionsAnswer } from '@/components/stats/shared'
-import { Cover, Ph } from '@/components/stats/kit/Kit'
+import { Cover, Pending, Ph } from '@/components/stats/kit/Kit'
 import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
 import { DESKTOP_MIN, DIM, HAIR, UNDIM, num, useWidth } from '@/components/stats/kit/tokens'
 import { ChoiceMenu } from '@/components/stats/kit/Menu'
@@ -181,7 +181,10 @@ export function SessionsPage() {
 
           <div data-box="sessions-log" className={cn('mt-6', pending ? DIM : UNDIM)}>
             {loading ? (
-              <Skeleton shape={shape} desktop={desktop} />
+              <>
+                <Skeleton shape={shape} desktop={desktop} />
+                {!known && <div className="mt-7"><Pending /></div>}
+              </>
             ) : view.sessions.length === 0 ? (
               <p className="flex h-[88px] items-center text-[15px] text-muted-foreground">
                 {view.counts.all === 0
