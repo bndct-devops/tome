@@ -30,6 +30,30 @@ All notable changes to Tome are documented here. Format loosely follows
   `include=description` to add each book's description to the list items, so
   a client that keeps an offline copy of the library needs no request per
   book. Without it the reply is unchanged.
+- **A Goals tab in Stats.** It comes after Overview and shows each reading
+  goal as a card: how far you are against the target, how far ahead of or
+  behind pace, and what it takes. Click a card for the goal in detail: the
+  period so far, past periods against the target, and your best and current
+  runs. Overview keeps one row of up to four goals.
+- **Goal cards on Home.** Home shows the same cards under its four numbers.
+  Click one to open it on the Goals tab.
+- **Two new kinds of goal.** "Reading days a week" counts the days you read,
+  as the streak does. "Finish by a date" takes a book or a series and a date,
+  and shows the minutes a day that takes at your own pace next to what you
+  have read a day lately.
+- **Suggested targets.** The new goal dialog suggests three targets from your
+  own reading over the last 90 days (12 weeks for weekly goals), each with
+  how often you reached it. Without enough history it offers fixed targets.
+- **Undo for a deleted goal.** A deleted goal can be brought back for 30
+  minutes, with its history.
+- **Week starts on.** Settings → Language and region (formerly Language) has
+  a "Week starts on" setting, Monday or Sunday. Weekly goals follow it, and
+  so do the Calendar, the weekly streak and the Stats charts by weekday.
+- **Goals API for other clients.** `/api/goals` has new fields (name, status,
+  pace, projection, the week's days), takes `tz` (an IANA zone) next to
+  `tz_offset`, and adds `/history`, `/kinds`, `/suggestions`,
+  `/finish-preview` and `/{id}/restore`. `DELETE` is now a soft delete that
+  `/restore` can undo for 30 minutes. `week_start` is on `/api/auth/me`.
 
 ### Security
 - **The web server only serves files from its own interface folder.** A
@@ -93,6 +117,13 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Boards are no longer the default Stats view.** The rearrangeable boards
   remain available through Settings → Appearance → Stats → Show Boards.
   Anyone who customised a board keeps seeing the Boards tab automatically.
+- **Reading goals count the way Stats does.** A goal counts its calendar
+  period (this week, month or year), with the same reading time, pages and
+  reading days as Stats and the same 4 a.m. day boundary. Weekly goals used
+  to count the last seven days and now count the calendar week, so their
+  numbers can differ from before. Reaching a weekly goal now also sends a
+  notification. Existing goals are kept; on first start Tome adds the new
+  goal columns and a table for target changes to the database.
 - **Tome's own log lines now reach the container log.** Informational
   messages (auto-import, Hardcover sync, restore) were dropped before, and
   warnings came without a time or level. Every line now has both. Set

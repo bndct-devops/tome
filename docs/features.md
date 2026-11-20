@@ -70,7 +70,7 @@ Switch themes in **Settings > Appearance**. The theme is stored per-browser, so 
 
 ### Interface Language
 
-The web UI is translatable. Choose a language in **Settings > Appearance > Language**; on first visit Tome follows the browser language when a catalog exists for it. Translations are community-maintained `.po` files and anything untranslated falls back to English -- see [translating.md](translating.md) to improve or add one. The KOReader plugin, OPDS and the website stay English.
+The web UI is translatable. Choose a language in **Settings > Language and region**; on first visit Tome follows the browser language when a catalog exists for it. Translations are community-maintained `.po` files and anything untranslated falls back to English -- see [translating.md](translating.md) to improve or add one. The KOReader plugin, OPDS and the website stay English.
 
 ### Custom Themes
 
@@ -195,13 +195,23 @@ Shelves are per-user and private. Each shelf can have a custom icon chosen from 
 
 ## Reading Stats
 
-The Stats page has six fixed pages, all powered by reading sessions from the web reader and from KOReader via TomeSync. The time-based charts can also be **backfilled from KOReader's own per-page reading history** (from before TomeSync) by enabling reading-history import in the plugin — see the [KOReader plugin](koreader-plugin.md#reading-history-import) docs. The backfill adds reading time and pages only; it never changes your read/unread status.
+The Stats page has seven fixed pages, all powered by reading sessions from the web reader and from KOReader via TomeSync. The time-based charts can also be **backfilled from KOReader's own per-page reading history** (from before TomeSync) by enabling reading-history import in the plugin — see the [KOReader plugin](koreader-plugin.md#reading-history-import) docs. The backfill adds reading time and pages only; it never changes your read/unread status.
 
 The range pills (7d, 30d, 90d, 1y, All, or a custom range) apply to every page that depends on a period. Each page keeps its layout while it loads, and the image button saves the page as a PNG.
 
 ### Overview
 
-Reading time in the range with the change against the period before, sessions, pages, books finished and your streak; reading time per day (per week for longer ranges); your reading goals; the books you are reading now with an estimate of the days left; the books you finished; your top books by time; when you read; a 365-day grid; and all-time totals and records.
+Reading time in the range with the change against the period before, sessions, pages, books finished and your streak; reading time per day (per week for longer ranges); one row of up to four reading goals; the books you are reading now with an estimate of the days left; the books you finished; your top books by time; when you read; a 365-day grid; and all-time totals and records.
+
+### Goals
+
+Your reading goals, each as a card: how far you are against the target, how far ahead of or behind pace, and what it takes. Goals count calendar periods (this week, this month, this year, or up to the date of a finish-by goal) with the same numbers as the rest of Stats, so this page ignores the range pills. The same cards are on Home.
+
+Click a card for the goal in detail: the period so far day by day, past periods against the target that applied then, and your best and current runs. Periods before you set the goal are shown but not counted as met or missed.
+
+**New goal** offers eight kinds: books a year or a month, minutes or pages a day or a week, **reading days a week** (a day counts as it does for your streak) and **finish by a date** (a book or a series, with the minutes a day it takes at your own pace). Count goals can be limited to one book type. The dialog suggests three targets from your last 90 days (12 weeks for weekly goals), each with how often you reached it; without enough history it offers fixed targets. A deleted goal can be restored with **Undo** for 30 minutes.
+
+Weeks start on Monday unless you choose Sunday under **Settings > Language and region > Week starts on**. Goals follow it, and so do the weekly streak, the Calendar and the Stats charts by weekday.
 
 ### Habits
 

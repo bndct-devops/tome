@@ -68,7 +68,7 @@ Pick **Calibre-Web** if you want the largest ecosystem and don't mind the dated 
 *All your series at a glance with volume counts and descriptions.*
 
 ![Stats](docs/screenshots/stats.png)
-*Six Stats pages: Overview, Habits, Library, Taste, Timeline and Sessions, built from real reading sessions.*
+*Seven Stats pages: Overview, Goals, Habits, Library, Taste, Timeline and Sessions, built from real reading sessions.*
 
 ![Calendar](docs/screenshots/calendar.png)
 *A month of reading as a calendar, with a card for any day you pick.*
