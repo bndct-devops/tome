@@ -864,6 +864,10 @@ msgstr "{dur} read time"
 msgid "{dur} with {mainTitle}."
 msgstr "{dur} with {mainTitle}."
 
+#: src/components/SeriesCoverageStrip.tsx
+msgid "{extraCount} more with other numbering"
+msgstr "{extraCount} more with other numbering"
+
 #: src/pages/DashboardPage.tsx
 msgid "{failed, plural, one {# book could not be deleted} other {# books could not be deleted}}"
 msgstr "{failed, plural, one {# book could not be deleted} other {# books could not be deleted}}"
@@ -954,6 +958,10 @@ msgstr "{h}h ago"
 #: src/components/stats/widgets/habits.tsx
 msgid "{h}h reading"
 msgstr "{h}h reading"
+
+#: src/components/SeriesCoverageStrip.tsx
+msgid "{have} of {slotCount} present"
+msgstr "{have} of {slotCount} present"
 
 #: src/pages/SettingsPage.tsx
 msgid "{hidden, plural, one {Show # more} other {Show # more}}"
@@ -5744,6 +5752,10 @@ msgstr "Missing"
 msgid "Missing: {filterMissingLabel}"
 msgstr "Missing: {filterMissingLabel}"
 
+#: src/components/SeriesCoverageStrip.tsx
+msgid "Missing: {gapList}"
+msgstr "Missing: {gapList}"
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "missing: {missingList}"
 msgstr "missing: {missingList}"
@@ -9023,6 +9035,10 @@ msgstr "Short app-specific passwords for OPDS, easier to type on an e-reader tha
 msgid "Show {title} here"
 msgstr "Show {title} here"
 
+#: src/components/SeriesCoverageStrip.tsx
+msgid "Show all"
+msgstr "Show all"
+
 #: src/components/stats/widgets/library.tsx
 msgid "Show all ({n} books)"
 msgstr "Show all ({n} books)"
@@ -9052,6 +9068,7 @@ msgstr "Show details"
 msgid "Show individual volumes"
 msgstr "Show individual volumes"
 
+#: src/components/SeriesCoverageStrip.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -10414,6 +10431,10 @@ msgstr "Volume number, as 01 or 10.5"
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
 msgstr "Volumes"
+
+#: src/components/SeriesCoverageStrip.tsx
+msgid "Volumes {from} to {to}: {have} of {size} in the library"
+msgstr "Volumes {from} to {to}: {have} of {size} in the library"
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Waiting for a code…"

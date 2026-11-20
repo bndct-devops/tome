@@ -714,6 +714,10 @@ msgstr "{dur} de lectura"
 msgid "{dur} with {mainTitle}."
 msgstr "{dur} con {mainTitle}."
 
+#: src/components/SeriesCoverageStrip.tsx
+msgid "{extraCount} more with other numbering"
+msgstr "{extraCount} más con otra numeración"
+
 #: src/pages/DashboardPage.tsx
 msgid "{failed, plural, one {# book could not be deleted} other {# books could not be deleted}}"
 msgstr "{failed, plural, one {No se pudo eliminar # libro} other {No se pudieron eliminar # libros}}"
@@ -800,6 +804,10 @@ msgstr "hace {h} h"
 #: src/components/stats/widgets/habits.tsx
 msgid "{h}h reading"
 msgstr "{h} h de lectura"
+
+#: src/components/SeriesCoverageStrip.tsx
+msgid "{have} of {slotCount} present"
+msgstr "{have} de {slotCount} en la biblioteca"
 
 #: src/pages/SettingsPage.tsx
 msgid "{hidden, plural, one {Show # more} other {Show # more}}"
@@ -4839,6 +4847,10 @@ msgstr "Faltan"
 msgid "Missing: {filterMissingLabel}"
 msgstr "Faltan: {filterMissingLabel}"
 
+#: src/components/SeriesCoverageStrip.tsx
+msgid "Missing: {gapList}"
+msgstr "Faltan: {gapList}"
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "missing: {missingList}"
 msgstr "faltan: {missingList}"
@@ -7459,6 +7471,10 @@ msgstr "Contraseñas cortas específicas de aplicación para OPDS, más fáciles
 msgid "Show {title} here"
 msgstr "Mostrar {title} aquí"
 
+#: src/components/SeriesCoverageStrip.tsx
+msgid "Show all"
+msgstr "Mostrar todo"
+
 #: src/components/stats/widgets/library.tsx
 msgid "Show all ({n} books)"
 msgstr "Mostrar todo ({n} libros)"
@@ -7488,6 +7504,7 @@ msgstr "Mostrar detalles"
 msgid "Show individual volumes"
 msgstr "Mostrar volúmenes por separado"
 
+#: src/components/SeriesCoverageStrip.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -8653,6 +8670,10 @@ msgstr "Número de volumen, como 01 o 10.5"
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
 msgstr "Volúmenes"
+
+#: src/components/SeriesCoverageStrip.tsx
+msgid "Volumes {from} to {to}: {have} of {size} in the library"
+msgstr "Volúmenes {from} a {to}: {have} de {size} en la biblioteca"
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Waiting for a code…"

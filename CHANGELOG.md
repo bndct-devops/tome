@@ -114,6 +114,12 @@ All notable changes to Tome are documented here. Format loosely follows
   name.
 
 ### Fixed
+- **A long series no longer shows hundreds of volume chips.** The "In the
+  library" list on a series page (and the coverage strip on a whole-series
+  wish) drew one chip per volume, so a series with hundreds of volumes or
+  chapters ran several screens down. From 25 volumes on it is one coverage
+  bar, filled where the volumes are in the library, with the missing ranges
+  listed under it ("Missing: 111-198, 208-210").
 - **The "Read" button in Quick look is a verb in every language.** It shared
   its text with the "Read" status, so in Spanish it said "Leído" where "Leer"
   was meant.
