@@ -168,6 +168,10 @@ msgstr ": copia de seguridad de {when} (v{v}, {users} usuarios, {books} libros).
 msgid "…and {more} more not shown"
 msgstr "…y {more} más que no se muestran"
 
+#: src/components/stats/library/LibraryPage.tsx
+msgid "· {f} of {s} started"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "· {n} docs"
 msgstr "· {n} documentos"
@@ -220,6 +224,11 @@ msgstr "{0, plural, one {{dur} en # día} other {{dur} en # días}}"
 msgid "{0, plural, one {{fin} finished · # book read} other {{fin} finished · # books read}}"
 msgstr "{0, plural, one {{fin} terminados · # libro leído} other {{fin} terminados · # libros leídos}}"
 
+#. placeholder {0}: ws.books_counted
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{0, plural, one {{n} words in # finished book} other {{n} words in # finished books}}"
+msgstr ""
+
 #. placeholder {0}: dayEntries.length
 #: src/components/stats/widgets/habits.tsx
 msgid "{0, plural, one {# active day in this window} other {# active days in this window}}"
@@ -242,6 +251,8 @@ msgstr "{0, plural, one {# entrada de libro eliminada} other {# entradas de libr
 
 #. placeholder {0}: d.books_finished
 #. placeholder {0}: data.totals.books_finished
+#. placeholder {0}: m.books
+#: src/components/stats/habits/charts.tsx
 #: src/components/stats/widgets/habits.tsx
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{0, plural, one {# book finished} other {# books finished}}"
@@ -251,6 +262,18 @@ msgstr "{0, plural, one {# libro terminado} other {# libros terminados}}"
 #: src/components/ScanSyncCodeModal.tsx
 msgid "{0, plural, one {# book not in your library} other {# books not in your library}}"
 msgstr "{0, plural, one {# libro que no está en tu biblioteca} other {# libros que no están en tu biblioteca}}"
+
+#. placeholder {0}: r.count
+#: src/components/stats/taste/TastePage.tsx
+msgid "{0, plural, one {# book rated} other {# books rated}}"
+msgstr ""
+
+#. placeholder {0}: a.book_count
+#. placeholder {0}: l.books
+#: src/components/stats/library/Languages.tsx
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{0, plural, one {# book read} other {# books read}}"
+msgstr ""
 
 #. placeholder {0}: books.length
 #: src/components/SendToDeviceModal.tsx
@@ -274,8 +297,10 @@ msgstr "{0, plural, one {# libro, aún sin estimar.} other {# libros, ninguno es
 
 #. placeholder {0}: data.books
 #. placeholder {0}: data.totals.books
-#. placeholder {0}: row.books
+#. placeholder {0}: l.books
 #: src/components/stats/BacklogEstimate.tsx
+#: src/components/stats/library/Languages.tsx
+#: src/components/stats/library/Sections.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# book} other {# books}}"
@@ -286,12 +311,20 @@ msgstr "{0, plural, one {# libro} other {# libros}}"
 msgid "{0, plural, one {# candidate. Click to select.} other {# candidates. Click to select.}}"
 msgstr "{0, plural, one {# candidato. Haz clic para seleccionarlo.} other {# candidatos. Haz clic para seleccionar uno.}}"
 
+#. placeholder {0}: done.length
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{0, plural, one {# complete} other {# complete}}"
+msgstr ""
+
 #. placeholder {0}: candidates.length
 #: src/components/CoverPickerModal.tsx
 msgid "{0, plural, one {# cover found, click to apply} other {# covers found, click to apply}}"
 msgstr "{0, plural, one {# portada encontrada, haz clic para aplicarla} other {# portadas encontradas, haz clic en una para aplicarla}}"
 
 #. placeholder {0}: hover.b.days.length
+#. placeholder {0}: q.days
+#. placeholder {0}: s.days
+#: src/components/stats/library/Sections.tsx
 #: src/components/stats/TimelineRibbon.tsx
 msgid "{0, plural, one {# day} other {# days}}"
 msgstr "{0, plural, one {# día} other {# días}}"
@@ -331,13 +364,59 @@ msgstr "{0, plural, one {# archivo seleccionado} other {# archivos seleccionados
 msgid "{0, plural, one {# file} other {# files}}"
 msgstr "{0, plural, one {# archivo} other {# archivos}}"
 
+#. placeholder {0}: a.books_finished
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{0, plural, one {# finished all time} other {# finished all time}}"
+msgstr ""
+
+#. placeholder {0}: P.no_year
+#: src/components/stats/library/Sections.tsx
+msgid "{0, plural, one {# finished book has no year.} other {# finished books have no year.}}"
+msgstr ""
+
+#. placeholder {0}: b.count
+#. placeholder {0}: p.count
+#: src/components/stats/library/Sections.tsx
+msgid "{0, plural, one {# finished book} other {# finished books}}"
+msgstr ""
+
+#. placeholder {0}: L.count
+#. placeholder {0}: m.withYear
+#: src/components/stats/library/Sections.tsx
+msgid "{0, plural, one {# finished} other {# finished}}"
+msgstr ""
+
+#. placeholder {0}: b.count
 #. placeholder {0}: b.highlights.length
+#: src/components/stats/taste/TastePage.tsx
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# highlight} other {# highlights}}"
 msgstr "{0, plural, one {# subrayado} other {# subrayados}}"
 
+#. placeholder {0}: Math.round(s / 3600)
+#: src/components/stats/library/Sections.tsx
+msgid "{0, plural, one {# hour} other {# hours}}"
+msgstr ""
+
+#. placeholder {0}: m.rows.length + m.rest.length
+#: src/components/stats/library/Languages.tsx
+msgid "{0, plural, one {# language} other {# languages}}"
+msgstr ""
+
+#. placeholder {0}: rest.length
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{0, plural, one {# more complete series} other {# more complete series}}"
+msgstr ""
+
+#. placeholder {0}: m.rest.length
+#: src/components/stats/library/Languages.tsx
+msgid "{0, plural, one {# more language} other {# more languages}}"
+msgstr ""
+
+#. placeholder {0}: r.unestimated
 #. placeholder {0}: row.unestimated
 #: src/components/stats/BacklogEstimate.tsx
+#: src/components/stats/library/Sections.tsx
 msgid "{0, plural, one {# not estimated} other {# not estimated}}"
 msgstr "{0, plural, one {# sin estimar} other {# sin estimar}}"
 
@@ -347,7 +426,12 @@ msgid "{0, plural, one {# open} other {# open}}"
 msgstr "{0, plural, one {# abierto} other {# abiertos}}"
 
 #. placeholder {0}: b.pages
+#. placeholder {0}: d.dot.pages
+#. placeholder {0}: f.pages
 #: src/components/ScanSyncCodeModal.tsx
+#: src/components/stats/habits/charts.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/library/BookSessions.tsx
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{0, plural, one {# page} other {# pages}}"
 msgstr "{0, plural, one {# página} other {# páginas}}"
@@ -361,6 +445,11 @@ msgstr "{0, plural, one {# posición conservada (más reciente aquí)} other {# 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "{0, plural, one {# position updated} other {# positions updated}}"
 msgstr "{0, plural, one {# posición actualizada} other {# posiciones actualizadas}}"
+
+#. placeholder {0}: c.count
+#: src/components/stats/taste/TastePage.tsx
+msgid "{0, plural, one {# rated} other {# rated}}"
+msgstr ""
 
 #. placeholder {0}: result.ratings_applied
 #: src/components/ScanSyncCodeModal.tsx
@@ -405,15 +494,26 @@ msgstr "{0, plural, one {# serie} other {# series}}"
 msgid "{0, plural, one {# session · {pages} pages} other {# sessions · {pages} pages}}"
 msgstr "{0, plural, one {# sesión · {pages} páginas} other {# sesiones · {pages} páginas}}"
 
+#. placeholder {0}: a.sessions
 #. placeholder {0}: aggregate.total_sessions
 #. placeholder {0}: b.sessions
-#. placeholder {0}: b.sessions_added
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/SeriesReadingStats.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/library/BookSessions.tsx
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/habits.tsx
 #: src/components/stats/widgets/overview.tsx
 msgid "{0, plural, one {# session} other {# sessions}}"
 msgstr "{0, plural, one {# sesión} other {# sesiones}}"
+
+#. placeholder {0}: habits.sessions
+#. placeholder {0}: m.row.sittings
+#: src/components/stats/habits/charts.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{0, plural, one {# sitting} other {# sittings}}"
+msgstr ""
 
 #. placeholder {0}: data.reread_bins
 #: src/pages/BookDetailPage.tsx
@@ -424,6 +524,11 @@ msgstr "{0, plural, one {# tramo releído} other {# tramos releídos}}"
 #: src/pages/AdminPage.tsx
 msgid "{0, plural, one {# suggested match} other {# suggested matches}}"
 msgstr "{0, plural, one {# coincidencia sugerida} other {# coincidencias sugeridas}}"
+
+#. placeholder {0}: r.books
+#: src/components/stats/library/Sections.tsx
+msgid "{0, plural, one {# unread book} other {# unread books}}"
+msgstr ""
 
 #. placeholder {0}: users.length
 #: src/pages/AdminPage.tsx
@@ -436,6 +541,11 @@ msgstr "{0, plural, one {# usuario} other {# usuarios}}"
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# volume} other {# volumes}}"
 msgstr "{0, plural, one {# volumen} other {# volúmenes}}"
+
+#. placeholder {0}: T.books
+#: src/components/stats/library/Sections.tsx
+msgid "{0, plural, one {# with reading days} other {# with reading days}}"
+msgstr ""
 
 #. placeholder {0}: s.current_days
 #: src/pages/ReadingCalendarPage.tsx
@@ -457,6 +567,11 @@ msgstr "{0, plural, one {+# más} other {+# más}}"
 msgid "{0, plural, one {~# day remaining} other {~# days remaining}}"
 msgstr "{0, plural, one {~# día restante} other {~# días restantes}}"
 
+#. placeholder {0}: Math.round(lt.seconds / 86400)
+#: src/components/stats/overview/Overview.tsx
+msgid "{0, plural, one {about # day around the clock} other {about # days around the clock}}"
+msgstr ""
+
 #. placeholder {0}: group.files.length
 #: src/pages/BinderyPage.tsx
 msgid "{0, plural, one {Accept # volume} other {Accept # volumes}}"
@@ -467,6 +582,11 @@ msgstr "{0, plural, one {Aceptar # volumen} other {Aceptar # volúmenes}}"
 #: src/pages/BinderyPage.tsx
 msgid "{0, plural, one {Accepted # book} other {Accepted # books}}"
 msgstr "{0, plural, one {Se ha aceptado # libro} other {Se han aceptado # libros}}"
+
+#. placeholder {0}: w.books_counted
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{0, plural, one {across # book} other {across # books}}"
+msgstr ""
 
 #. placeholder {0}: own.books_with_sessions
 #: src/components/SeriesReadingStats.tsx
@@ -488,13 +608,21 @@ msgstr "{0, plural, one {Se ha aplicado # grupo} other {Se han aplicado # grupos
 msgid "{0, plural, one {Best streak # day} other {Best streak # days}}"
 msgstr "{0, plural, one {Mejor racha: # día} other {Mejor racha: # días}}"
 
+#. placeholder {0}: tb.owned
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{0, plural, one {book} other {books}}"
+msgstr ""
+
 #. placeholder {0}: healthData.missing.length
 #: src/components/LibraryHealth.tsx
 msgid "{0, plural, one {Confirm: remove # entry} other {Confirm: remove # entries}}"
 msgstr "{0, plural, one {Confirmar: eliminar # entrada} other {Confirmar: eliminar # entradas}}"
 
+#. placeholder {0}: h.streaks.current_days
+#. placeholder {0}: s.longest_days
 #. placeholder {0}: stats.headline.current_streak_days
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "{0, plural, one {day} other {days}}"
 msgstr "{0, plural, one {día} other {días}}"
 
@@ -513,6 +641,16 @@ msgstr "{0, plural, one {Eliminando # libro...} other {Eliminando # libros...}}"
 msgid "{0, plural, one {Edit metadata for # book} other {Edit metadata for # books}}"
 msgstr "{0, plural, one {Editar metadatos de # libro} other {Editar metadatos de # libros}}"
 
+#. placeholder {0}: h.count
+#: src/components/stats/taste/TastePage.tsx
+msgid "{0, plural, one {highlight} other {highlights}}"
+msgstr ""
+
+#. placeholder {0}: h.books
+#: src/components/stats/taste/TastePage.tsx
+msgid "{0, plural, one {in # book} other {in # books}}"
+msgstr ""
+
 #. placeholder {0}: group.library_match.volume_count
 #: src/pages/BinderyPage.tsx
 msgid "{0, plural, one {In library · # vol} other {In library · # vols}}"
@@ -522,6 +660,16 @@ msgstr "{0, plural, one {En la biblioteca · # vol.} other {En la biblioteca · 
 #: src/components/SyncStatusBadge.tsx
 msgid "{0, plural, one {Last sync from {lastDevice} · # book tracked} other {Last sync from {lastDevice} · # books tracked}}"
 msgstr "{0, plural, one {Última sincronización desde {lastDevice} · # libro con seguimiento} other {Última sincronización desde {lastDevice} · # libros con seguimiento}}"
+
+#. placeholder {0}: Math.max(1, Math.round(total / 60))
+#: src/components/stats/library/Sections.tsx
+msgid "{0, plural, one {minute} other {minutes}}"
+msgstr ""
+
+#. placeholder {0}: r.most_pages_day
+#: src/components/stats/overview/Overview.tsx
+msgid "{0, plural, one {page} other {pages}}"
+msgstr ""
 
 #. placeholder {0}: confirmReject?.length ?? 0
 #: src/pages/BinderyPage.tsx
@@ -559,7 +707,9 @@ msgid "{0, plural, one {Updated metadata for # book} other {Updated metadata for
 msgstr "{0, plural, one {Se han actualizado los metadatos de # libro} other {Se han actualizado los metadatos de # libros}}"
 
 #. placeholder {0}: month!.streaks.current_weeks
+#. placeholder {0}: s.longest_weeks
 #: src/components/home/HomeTab.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "{0, plural, one {week} other {weeks}}"
 msgstr "{0, plural, one {semana} other {semanas}}"
 
@@ -573,9 +723,30 @@ msgstr "{0, plural, one {palabras leídas · # libro} other {palabras leídas ·
 msgid "{0, plural, one {words/min · across # book} other {words/min · across # books}}"
 msgstr "{0, plural, one {palabras/min · en # libro} other {palabras/min · en # libros}}"
 
+#: src/components/stats/library/Sections.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "{a} to {b}"
+msgstr ""
+
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{a} to {z}"
 msgstr "{a} a {z}"
+
+#: src/components/stats/library/Sections.tsx
+msgid "{a}s"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{active, plural, one {# active day in the last 365} other {# active days in the last 365}}"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{active, plural, one {# reading day in all} other {# reading days in all}}"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{activeDays, plural, one {on # reading day} other {on # reading days}}"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "{added} added · {skipped} skipped"
@@ -584,6 +755,26 @@ msgstr "{added} añadidos · {skipped} omitidos"
 #: src/components/MetadataManager.tsx
 msgid "{all, plural, one {# book} other {# books}}"
 msgstr "{all, plural, one {# libro} other {# libros}}"
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{all} pages a minute across {rangeWords}."
+msgstr ""
+
+#: src/components/stats/library/BookSessions.tsx
+msgid "{all}, {c} counted, all time, newest first"
+msgstr ""
+
+#: src/components/stats/library/BookSessions.tsx
+msgid "{all}, all time, newest first"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{b} to {d}"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{base} · {rd} in progress"
+msgstr ""
 
 #: src/pages/HardcoverPage.tsx
 msgid "{base} · Vol. {idx}"
@@ -597,9 +788,37 @@ msgstr "{behind} por detrás del ritmo"
 msgid "{books, plural, one {{total} from # book} other {{total} from # books}}"
 msgstr "{books, plural, one {{total} en # libro} other {{total} en # libros}}"
 
+#: src/components/stats/library/Languages.tsx
+msgid "{books} · {pct}% of your reading time"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "{books}, {a}"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "{books}, {a} to {b}"
+msgstr ""
+
 #: src/components/stats/widgets/habits.tsx
 msgid "{bt}: {st} to {en} ({dur})"
 msgstr "{bt}: de {st} a {en} ({dur})"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{c} before"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{c} in {phrase}"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{c} the {n} days before"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{c} the year before"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "{clearResult} thumbnails deleted."
@@ -608,6 +827,14 @@ msgstr "Se han eliminado {clearResult} miniaturas."
 #: src/pages/HighlightsPage.tsx
 msgid "{color} highlight"
 msgstr "Subrayado {color}"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{count, plural, one {# book in {rangePhrase}} other {# books in {rangePhrase}}}"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{count, plural, one {# book, all time} other {# books, all time}}"
+msgstr ""
 
 #: src/components/DeviceInventoryList.tsx
 msgid "{count, plural, one {# book} other {# books}}"
@@ -621,7 +848,7 @@ msgstr "{count, plural, one {# volumen} other {# volúmenes}}"
 msgid "{count} sittings · {from} to {to}"
 msgstr "{count} tandas · del {from} al {to}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "{customStart} to {customEnd}"
 msgstr "Del {customStart} al {customEnd}"
 
@@ -632,6 +859,14 @@ msgstr "{d} días"
 #: src/components/home/HomeTab.tsx
 msgid "{d} days ago"
 msgstr "hace {d} días"
+
+#: src/components/stats/taste/charts.tsx
+msgid "{d} read in Tome"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{d} to {e}"
+msgstr ""
 
 #: src/components/stats/widgets/insights.tsx
 msgid "{d}d"
@@ -674,6 +909,10 @@ msgstr "{deleted, plural, one {Se ha eliminado # libro} other {Se han eliminado 
 msgid "{deltaStr}% vs last week"
 msgstr "{deltaStr} % frente a la semana pasada"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "{diff, plural, one {last read # day ago} other {last read # days ago}}"
+msgstr ""
+
 #: src/lib/goals.ts
 msgid "{diff} ahead of pace"
 msgstr "{diff} por delante del ritmo"
@@ -702,6 +941,10 @@ msgstr "{dur} · {books} libros, tu único idioma"
 msgid "{dur} across {n} chapters"
 msgstr "{dur} en {n} capítulos"
 
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{dur} in {rangePhrase}"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "{dur} on device"
 msgstr "{dur} en el dispositivo"
@@ -713,6 +956,14 @@ msgstr "{dur} de lectura"
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{dur} with {mainTitle}."
 msgstr "{dur} con {mainTitle}."
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{e} and more"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{f} of {s} started"
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{failed, plural, one {# book could not be deleted} other {# books could not be deleted}}"
@@ -730,7 +981,7 @@ msgstr "{failedN} de {totalN} con error: {firstErr}"
 msgid "{fin} of {st} finished"
 msgstr "{fin} de {st} terminados"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "{fin} of {st} started"
 msgstr "{fin} de {st} empezados"
 
@@ -750,6 +1001,11 @@ msgstr "Del {first} al {last}"
 msgid "{flagged} of {scanned} books flagged (low-res = narrower than {minW}px)."
 msgstr "{flagged} de {scanned} libros marcados (baja resolución = menos de {minW} px de ancho)."
 
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/charts.tsx
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/insights.tsx
 #: src/pages/StatsPage.tsx
 msgid "{from} to {to}"
@@ -759,15 +1015,16 @@ msgstr "Del {from} al {to}"
 msgid "{from}% to {to}%"
 msgstr "Del {from} % al {to} %"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "{fromDay} to …"
 msgstr "Del {fromDay} al …"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "{fromDay} to {toDay}"
 msgstr "Del {fromDay} al {toDay}"
 
 #: src/components/ScanSyncCodeModal.tsx
+#: src/components/stats/library/Sections.tsx
 msgid "{h} h"
 msgstr "{h} h"
 
@@ -809,6 +1066,10 @@ msgstr "{hidden, plural, one {Mostrar # más} other {Mostrar # más}}"
 msgid "{hit}/7 days this week"
 msgstr "{hit}/7 días esta semana"
 
+#: src/components/stats/library/Sections.tsx
+msgid "{hours, plural, one {hour} other {hours}}"
+msgstr ""
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "{hours} h"
 msgstr "{hours} h"
@@ -844,7 +1105,28 @@ msgstr "{inc, plural, one {# archivo pendiente de revisión} other {# archivos p
 msgid "{label} only"
 msgstr "Solo {label}"
 
+#: src/components/stats/library/Sections.tsx
+msgid "{label} words"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{left, plural, one {# volume to go} other {# volumes to go}}"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "{left} at your pace"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{longest, plural, one {longest # day} other {longest # days}}"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "{m, plural, one {# minute} other {# minutes}}"
+msgstr ""
+
 #: src/components/ScanSyncCodeModal.tsx
+#: src/components/stats/library/Sections.tsx
 msgid "{m} min"
 msgstr "{m} min"
 
@@ -865,6 +1147,10 @@ msgstr "{m} min {rem} s"
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "{matched} matched"
 msgstr "{matched} con coincidencia"
+
+#: src/components/stats/library/Sections.tsx
+msgid "{median, plural, one {day} other {days}}"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "{mergeCount, plural, one {merge # group} other {merge # groups}}"
@@ -902,7 +1188,16 @@ msgstr "{mm} min"
 msgid "{months}mo ago"
 msgstr "hace {months} mes(es)"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "{more, plural, one {# more finished} other {# more finished}}"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "{n, plural, one {# book read} other {# books read}}"
+msgstr ""
+
 #: src/components/BulkMetadataReviewModal.tsx
+#: src/components/stats/taste/TastePage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {# book} other {# books}}"
 msgstr "{n, plural, one {# libro} other {# libros}}"
@@ -915,9 +1210,25 @@ msgstr "{n, plural, one {Ahora hay # volumen coincidente en la biblioteca.} othe
 msgid "{n, plural, one {# series} other {# series}}"
 msgstr "{n, plural, one {# serie} other {# series}}"
 
+#: src/components/stats/habits/charts.tsx
+msgid "{n, plural, one {# session} other {# sessions}}"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "{n, plural, one {# sitting} other {# sittings}}"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {# title} other {# titles}}"
 msgstr "{n, plural, one {# título} other {# títulos}}"
+
+#: src/components/stats/library/Sections.tsx
+msgid "{n, plural, one {# unstarted book, none estimated yet.} other {# unstarted books, none estimated yet.}}"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{n, plural, one {about a day left} other {about # days left}}"
+msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "{n, plural, one {Accepted # volume of {seriesName}} other {Accepted # volumes of {seriesName}}}"
@@ -936,6 +1247,18 @@ msgstr "{n, plural, one {Confirmar: aplicar # decisión} other {Confirmar: aplic
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {This upload satisfies # wish.} other {This upload satisfies # wishes.}}"
 msgstr "{n, plural, one {Esta subida cumple # deseo.} other {Esta subida cumple # deseos.}}"
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{n} %"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{n} a reading day"
+msgstr ""
+
+#: src/components/stats/taste/charts.tsx
+msgid "{n} books"
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{n} books · {r} read"
@@ -956,6 +1279,10 @@ msgstr "{n} capítulos subidos, {detected} números de capítulo detectados"
 #: src/components/stats/widgets/overview.tsx
 msgid "{n} finished {when}, the only finishes in this range."
 msgstr "{n} terminados el {when}, los únicos de este periodo."
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{n} more formats"
+msgstr ""
 
 #: src/components/MetadataManager.tsx
 msgid "{n} of {total} books would change"
@@ -982,6 +1309,10 @@ msgstr "{n} omitidos (el archivo existe en el disco)"
 msgid "{n} synced"
 msgstr "{n} sincronizados"
 
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{n} unread in all"
+msgstr ""
+
 #: src/components/stats/TimelineRibbon.tsx
 msgid "{n} vols · "
 msgstr "{n} vols. · "
@@ -1002,7 +1333,7 @@ msgstr "{n} % más lento de lo habitual en este libro"
 msgid "{name} · Vol. {start_index}-{end_index}"
 msgstr "{name} · vols. {start_index}-{end_index}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "{name} copy"
 msgstr "Copia de {name}"
 
@@ -1022,6 +1353,18 @@ msgstr "Tema {name}"
 msgid "{name} timed out"
 msgstr "Se ha agotado el tiempo de espera de {name}"
 
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{name}, {read}"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{nDone, plural, one {# complete} other {# complete}}"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{nOpen, plural, one {# in progress} other {# in progress}}"
+msgstr ""
+
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "{ok} of {total} approved"
 msgstr "{ok} de {total} aprobados"
@@ -1034,13 +1377,34 @@ msgstr "{ok} subidos"
 msgid "{othersCount, plural, one {Delete # other} other {Delete # others}}"
 msgstr "{othersCount, plural, one {Eliminar # otro} other {Eliminar # otros}}"
 
+#: src/components/stats/taste/TastePage.tsx
+msgid "{p}% of your ratings"
+msgstr ""
+
 #: src/components/home/HomeTab.tsx
+#: src/components/stats/overview/charts.tsx
 msgid "{pages, plural, one {# page} other {# pages}}"
 msgstr "{pages, plural, one {# página} other {# páginas}}"
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{pages} in {dur} · {sessions}"
+msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
 msgid "{pages} pages in {dur}"
 msgstr "{pages} páginas en {dur}"
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{pct} % faster lately"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{pct} % slower lately"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{pct}% finished"
+msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
 msgid "{pct}% less reading this period"
@@ -1049,6 +1413,34 @@ msgstr "{pct} % menos de lectura en este periodo"
 #: src/components/stats/widgets/habits.tsx
 msgid "{pct}% more reading this period"
 msgstr "{pct} % más de lectura en este periodo"
+
+#: src/components/stats/habits/charts.tsx
+msgid "{pct}% of sittings"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "{pct}% of the backlog"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "{pct}% of the finished books with a word count"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "{pct}% of the finished books with a year"
+msgstr ""
+
+#: src/components/stats/overview/Goals.tsx
+msgid "{pct}% of the goal"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{pct}% of your {ty}"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{pct}% of your library"
+msgstr ""
 
 #: src/components/WordCount.tsx
 msgid "{pending, plural, one {Count # file} other {Count # files}}"
@@ -1062,9 +1454,21 @@ msgstr "{pendingEpubs, plural, one {Contar palabras en # EPUB} other {Contar pal
 msgid "{pendingPages, plural, one {Count pages in # file} other {Count pages in # files}}"
 msgstr "{pendingPages, plural, one {Contar páginas en # archivo} other {Contar páginas en # archivos}}"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "{perDay} a day"
+msgstr ""
+
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{pph} p/h"
 msgstr "{pph} pág./h"
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{ppm} pages a minute · {pct} of the time"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "{ppm} pages a minute, {pages} in {len}"
+msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
 msgid "{ppm} pg/min"
@@ -1073,6 +1477,35 @@ msgstr "{ppm} pág./min"
 #: src/components/SeriesCoverageStrip.tsx
 msgid "{presentCount} of {maxN} present"
 msgstr "{presentCount} de {maxN} en la biblioteca"
+
+#: src/components/stats/taste/charts.tsx
+#: src/components/stats/taste/TastePage.tsx
+msgid "{r, plural, one {# star} other {# stars}}"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{r} of {tot} read"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "{r}, all days"
+msgstr ""
+
+#: src/components/stats/overview/charts.tsx
+msgid "{range}, all days"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{rd} <0>of {ow} owned</0>"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{rd} in progress"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{rd} read of {ow} owned"
+msgstr ""
 
 #: src/components/stats/widgets/insights.tsx
 msgid "{read} of {owned} owned read"
@@ -1094,25 +1527,82 @@ msgstr "{readDays, plural, one {# día con lectura} other {# días con lectura}}
 msgid "{readN} read · {unreadN} unread"
 msgstr "{readN} leídos · {unreadN} sin leer"
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{recent} against {all} pages a minute"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "{recent} in the last 7 days vs {prior} the week before"
 msgstr "{recent} en los últimos 7 días frente a {prior} la semana anterior"
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{recent} pages a minute over the last 7 reading days <0>(down {pct} %)</0>, {all} across {rangeWords}."
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{recent} pages a minute over the last 7 reading days <0>(steady)</0>, {all} across {rangeWords}."
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{recent} pages a minute over the last 7 reading days <0>(up {pct} %)</0>, {all} across {rangeWords}."
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{recent} pages a minute over the last 7 reading days, {all} across {rangeWords}."
+msgstr ""
+
+#: src/components/stats/taste/charts.tsx
+msgid "{rest, plural, one {{st}: {names} and # more} other {{st}: {names} and # more}}"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{s} of 100"
+msgstr ""
+
 #: src/components/WordCount.tsx
 msgid "{s}s"
 msgstr "{s} s"
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "{sa}-star books took a median of {da}, {sb}-star books {db}."
+msgstr ""
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "{sa}-star books took a median of {da}."
+msgstr ""
 
 #: src/components/MetadataManager.tsx
 msgid "{seriesName} Chapter {num}"
 msgstr "{seriesName} Capítulo {num}"
 
 #: src/components/home/HomeTab.tsx
+#: src/components/stats/overview/charts.tsx
 msgid "{sessions, plural, one {# session} other {# sessions}}"
 msgstr "{sessions, plural, one {# sesión} other {# sesiones}}"
+
+#: src/components/stats/habits/charts.tsx
+msgid "{sessions} · {pct}% of the reading"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{sessions} · {share}% of all your reading"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{sessions} · {share}% of the reading in {rangePhrase}"
+msgstr ""
 
 #: src/components/stats/widgets/overview.tsx
 msgid "{sessions}, avg {avg}"
 msgstr "{sessions}, media de {avg}"
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{share}% of the reading in {rangePhrase}"
+msgstr ""
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "{share}% of your highlights"
+msgstr ""
 
 #: src/components/MetadataManager.tsx
 msgid "{shown} of {all} books"
@@ -1125,6 +1615,11 @@ msgstr "{size} por leer"
 #: src/components/UploadModal.tsx
 msgid "{skipped, plural, one {Nothing to upload, # file is already in your library} other {Nothing to upload, # files are already in your library}}"
 msgstr "{skipped, plural, one {No hay nada que subir: # archivo ya está en tu biblioteca} other {No hay nada que subir: # archivos ya están en tu biblioteca}}"
+
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "{started, plural, one {of # book started} other {of # books started}}"
+msgstr ""
 
 #: src/components/UploadModal.tsx
 msgid "{success, plural, one {# book uploaded} other {# books uploaded}}"
@@ -1146,9 +1641,17 @@ msgstr "{title}, {author}"
 msgid "{title}, {dur} between {from} and {to}"
 msgstr "{title}, {dur} entre {from} y {to}"
 
+#: src/components/stats/taste/TastePage.tsx
+msgid "{title}, {stars}"
+msgstr ""
+
 #: src/lib/goals.ts
 msgid "{toGo} to go"
 msgstr "faltan {toGo}"
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "{tot} of {tot} read"
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{total, plural, one {# volume} other {# volumes}}"
@@ -1157,6 +1660,10 @@ msgstr "{total, plural, one {# volumen} other {# volúmenes}}"
 #: src/components/home/HomeTab.tsx
 msgid "{total, plural, one {book} other {books}}"
 msgstr "{total, plural, one {libro} other {libros}}"
+
+#: src/components/stats/library/charts.tsx
+msgid "{total} books added"
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "{totalCount, plural, one {# result for \"{search}\"} other {# results for \"{search}\"}}"
@@ -1170,6 +1677,15 @@ msgstr "{unloaded, plural, one {# libro seleccionado aún no se ha cargado. Desp
 msgid "{updatedText}. {skippedText}."
 msgstr "{updatedText}. {skippedText}."
 
+#. Hours on a chart axis
+#: src/components/stats/taste/charts.tsx
+msgid "{v}h"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "{v}k"
+msgstr ""
+
 #: src/components/stats/widgets/library.tsx
 msgid "{v}m"
 msgstr "{v} min"
@@ -1178,7 +1694,20 @@ msgstr "{v} min"
 msgid "{w}w"
 msgstr "{w} sem"
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{words} words in {dur}"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{wpm} words a minute"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "{wpm} wpm"
+msgstr ""
+
 #: src/components/stats/GoalWidget.tsx
+#: src/components/stats/overview/Goals.tsx
 msgid "{y} challenge"
 msgstr "Reto {y}"
 
@@ -1199,9 +1728,17 @@ msgstr "@{user} · última sincronización: {when}"
 msgid "+{gain}% today"
 msgstr "+{gain} % hoy"
 
+#: src/components/stats/library/Sections.tsx
+msgid "<0>{a}</0> at your pace"
+msgstr ""
+
 #: src/components/stats/BacklogEstimate.tsx
 msgid "<0>{d}</0> at your pace"
 msgstr "<0>{d}</0> a tu ritmo"
+
+#: src/components/stats/sessions/SessionsPage.tsx
+msgid "<0>{dur}</0> counted"
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "<0>{dur}</0> left in this series"
@@ -1212,12 +1749,18 @@ msgid "<0>Device name</0> (e.g. Kindle): recorded live by the KOReader plugin. <
 msgstr "<0>Nombre del dispositivo</0> (p. ej. Kindle): registrada en directo por el plugin de KOReader. <1>Lector web</1> / <2>Manual</2>: el lector web o un registro manual."
 
 #: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
 msgid "<0>Imported</0>: from KOReader's synced reading history. Delete only: KOReader already caps idle time, so there is nothing to trim."
 msgstr "<0>Importada</0>: del historial de lectura sincronizado de KOReader. Solo se puede eliminar: KOReader ya limita el tiempo inactivo, así que no hay nada que recortar."
 
 #: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
 msgid "<0>Not counted</0>: a live device session whose sitting is also described by imported history. Listed for completeness, excluded from the totals so nothing is counted twice."
 msgstr "<0>No contabilizada</0>: una sesión en directo de un dispositivo cuya tanda también figura en el historial importado. Aparece para que la lista esté completa, pero queda fuera de los totales para no contar nada dos veces."
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "<1 %"
+msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "~{at}% in · {dur}"
@@ -1267,7 +1810,12 @@ msgstr "~1 año"
 msgid "0 highlights"
 msgstr "0 subrayados"
 
+#: src/components/stats/library/charts.tsx
+msgid "1 book added"
+msgstr ""
+
 #: src/components/ShareShelfModal.tsx
+#: src/components/stats/library/Sections.tsx
 msgid "1 day"
 msgstr "1 día"
 
@@ -1275,45 +1823,107 @@ msgstr "1 día"
 msgid "1 hour ago"
 msgstr "hace 1 hora"
 
+#: src/components/stats/habits/charts.tsx
+msgid "1 to 2 hours"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "1 to 2 weeks"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "1 to 2h"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "1–2 wk"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "10 hex values, comma-separated"
 msgstr "10 valores hexadecimales separados por comas"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "14d"
 msgstr "14 d"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/habits/charts.tsx
+msgid "15 to 30 minutes"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "15 to 30m"
+msgstr ""
+
+#: src/components/stats/range.ts
 msgid "1y"
 msgstr "1 año"
+
+#: src/components/stats/library/Sections.tsx
+msgid "2 to 3 days"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "2–3"
+msgstr ""
 
 #: src/components/ShareShelfModal.tsx
 msgid "30 days"
 msgstr "30 días"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/habits/charts.tsx
+msgid "30 to 60 minutes"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "30 to 60m"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/range.ts
 msgid "30d"
 msgstr "30 d"
+
+#: src/components/stats/library/Sections.tsx
+msgid "4 to 7 days"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "4–7"
+msgstr ""
 
 #: src/components/ShareShelfModal.tsx
 msgid "7 days"
 msgstr "7 días"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "7-day mean"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "7-day mean {m}"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/range.ts
 msgid "7d"
 msgstr "7 d"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/range.ts
 msgid "90d"
 msgstr "90 d"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "A 24-hour radial of when you read"
 msgstr "Un gráfico radial de 24 horas de cuándo lees"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "A bit"
 msgstr "Un poco"
+
+#: src/pages/StatsPage.tsx
+msgid "A board of your own, with tiles you place yourself."
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "A browser that is not used for {webIdleDays} days is signed out on its own."
@@ -1327,13 +1937,21 @@ msgstr "Una carpeta por autor, con una carpeta por serie dentro."
 msgid "A folder per author; series books keep their volume number in the file name."
 msgstr "Una carpeta por autor; los libros de series conservan su número de volumen en el nombre del archivo."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "A lot"
 msgstr "Mucho"
 
 #: src/pages/SettingsPage.tsx
 msgid "A newer release is available. The link opens the release notes. Update by pulling the new image and restarting the container."
 msgstr "Hay una versión más reciente disponible. El enlace abre las notas de la versión. Para actualizar, descarga la nueva imagen y reinicia el contenedor."
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "a rating"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "a reading day"
+msgstr ""
 
 #: src/components/ShareShelfModal.tsx
 msgid "A share link is a read-only page anyone with the link can open, no account needed. It shows covers, titles, tags, descriptions, and your ratings and highlights for the books in this series. It never exposes files: no downloads, no reading, no way in. Revoke it any time and the link stops working at once."
@@ -1356,7 +1974,7 @@ msgstr "Una visita corta. {p} páginas también cuentan."
 msgid "A sync is already running"
 msgstr "Ya hay una sincronización en curso"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "A year of reading, heatmap"
 msgstr "Un año de lectura, en mapa de calor"
 
@@ -1364,9 +1982,17 @@ msgstr "Un año de lectura, en mapa de calor"
 msgid "About"
 msgstr "Acerca de"
 
+#: src/components/stats/library/Sections.tsx
+msgid "about {d}"
+msgstr ""
+
 #: src/components/stats/BacklogEstimate.tsx
 msgid "about <0>{d}</0> at your pace"
 msgstr "aproximadamente <0>{d}</0> a tu ritmo"
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "About as fast as usual"
+msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "About your usual pace for this book"
@@ -1420,6 +2046,7 @@ msgstr "Acciones"
 msgid "Active"
 msgstr "Activo"
 
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/insights.tsx
 msgid "Active days"
 msgstr "Días activos"
@@ -1449,7 +2076,7 @@ msgstr "Añadir una nota…"
 msgid "Add a review"
 msgstr "Añadir una reseña"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Add a widget"
 msgstr "Añadir un widget"
 
@@ -1461,7 +2088,7 @@ msgstr "Añadir un deseo"
 msgid "Add arc"
 msgstr "Añadir arco"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Add board"
 msgstr "Añadir panel"
 
@@ -1502,7 +2129,7 @@ msgstr "Añadir etiquetas"
 msgid "Add theme"
 msgstr "Añadir tema"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Add tile"
 msgstr "Añadir tarjeta"
 
@@ -1540,6 +2167,10 @@ msgstr "Añadido"
 msgid "Added {timeAgo}"
 msgstr "Añadido {timeAgo}"
 
+#: src/components/stats/library/Sections.tsx
+msgid "Added to the library"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Added to Want to Read"
 msgstr "Añadido a Quiero leer"
@@ -1570,21 +2201,27 @@ msgstr "Avanzado: plantilla personalizada"
 msgid "After this, add books by scanning your library folder or uploading files."
 msgstr "Después, añade libros escaneando la carpeta de tu biblioteca o subiendo archivos."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "all"
 msgstr "todo"
 
 #: src/components/home/HomeTab.tsx
 #: src/components/MetadataManager.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/range.ts
+#: src/components/stats/sessions/SessionsPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/HardcoverPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "All"
 msgstr "Todos"
 
 #: src/pages/DashboardPage.tsx
 msgid "All {loadedCount} books loaded"
 msgstr "Se han cargado los {loadedCount} libros"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "All {more} in progress"
+msgstr ""
 
 #: src/components/CoverAudit.tsx
 msgid "All {scanned} covers look healthy."
@@ -1602,13 +2239,15 @@ msgstr "Todas las acciones"
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/components/Sidebar.tsx
 #: src/components/stats/GoalWidget.tsx
+#: src/components/stats/overview/Overview.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "All books"
 msgstr "Todos los libros"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/library/Sections.tsx
 msgid "All books by reading time"
 msgstr "Todos los libros por tiempo de lectura"
 
@@ -1620,6 +2259,7 @@ msgstr "Todos los dispositivos"
 msgid "All files are correctly placed."
 msgstr "Todos los archivos están bien ubicados."
 
+#: src/components/stats/taste/TastePage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "All highlights"
 msgstr "Todos los subrayados"
@@ -1636,6 +2276,10 @@ msgstr "Todos los elementos deben tener un título"
 msgid "All libraries"
 msgstr "Todas las bibliotecas"
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "All of it read as {f}."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "All readers: {dur} · {days} · {readers}"
 msgstr "Todos los lectores: {dur} · {days} · {readers}"
@@ -1649,6 +2293,19 @@ msgid "All series"
 msgstr "Todas las series"
 
 #: src/pages/StatsPage.tsx
+msgid "All sessions"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
+#: src/components/stats/taste/TastePage.tsx
+msgid "all time"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
+#: src/pages/StatsPage.tsx
 msgid "All time"
 msgstr "Desde siempre"
 
@@ -1656,16 +2313,24 @@ msgstr "Desde siempre"
 msgid "All types"
 msgstr "Todos los tipos"
 
+#: src/components/stats/library/Sections.tsx
+msgid "All unread"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "All users"
 msgstr "Todos los usuarios"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "All your reading"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "All your reading goals: rings fill as you read, managed in place"
 msgstr "Todos tus objetivos de lectura: los anillos se llenan mientras lees y se gestionan ahí mismo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "All-time hours, pages, books, streak"
 msgstr "Horas, páginas, libros y racha desde siempre"
 
@@ -1689,6 +2354,10 @@ msgstr "Revocar también mis tokens de API, claves del plugin y PIN de OPDS"
 #: src/components/ThemeToggle.tsx
 msgid "Amber"
 msgstr "Ámbar"
+
+#: src/components/stats/library/Languages.tsx
+msgid "And {more}: {list}."
+msgstr ""
 
 #: src/components/TelemetryConsentCard.tsx
 msgid "Anonymous monthly report:"
@@ -1731,7 +2400,7 @@ msgid "Applied: {statuses} statuses, {ratings} ratings, {finishes} finish dates,
 msgstr "Aplicado: {statuses} estados, {ratings} valoraciones, {finishes} fechas de fin, {reviews} reseñas."
 
 #: src/components/CoverPickerModal.tsx
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "Apply"
 msgstr "Aplicar"
 
@@ -1813,7 +2482,7 @@ msgstr "Arcos"
 msgid "are shorter passwords for e-readers."
 msgstr "(contraseñas más cortas para lectores electrónicos)."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Are you getting faster?"
 msgstr "¿Lees cada vez más rápido?"
 
@@ -1855,6 +2524,7 @@ msgstr "Autenticación"
 
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
+#: src/components/stats/library/Sections.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
@@ -1901,10 +2571,11 @@ msgid "Authorizing..."
 msgstr "Autorizando..."
 
 #: src/components/CommandPalette.tsx
+#: src/components/stats/library/LibraryPage.tsx
 msgid "Authors"
 msgstr "Autores"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Auto"
 msgstr "Automático"
 
@@ -1912,7 +2583,7 @@ msgstr "Automático"
 msgid "Auto-filled from series"
 msgstr "Rellenado automáticamente a partir de la serie"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Auto-fit height"
 msgstr "Ajustar altura automáticamente"
 
@@ -1920,21 +2591,47 @@ msgstr "Ajustar altura automáticamente"
 msgid "Auto-fix {missingCount} missing"
 msgstr "Corregir automáticamente {missingCount} sin portada"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/library/Sections.tsx
+msgid "Average <0>{avg}</0> words · median {med}"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Average length"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "average pace"
 msgstr "ritmo medio"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/taste/TastePage.tsx
+msgid "Average rating"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Average rating per book type"
 msgstr "Valoración media por tipo de libro"
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "average rating per type"
+msgstr ""
+
+#. Short for average, before a duration on a chart
+#: src/components/stats/overview/charts.tsx
+msgid "avg"
+msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
 msgid "avg {a} pg/min"
 msgstr "media de {a} pág./min"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "avg {avg}"
 msgstr "media {avg}"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "avg {avg} a reading day"
+msgstr ""
 
 #: src/components/SeriesReadingStats.tsx
 msgid "avg / volume"
@@ -1948,8 +2645,8 @@ msgstr "media <0>{avg}</0> · mediana {median}"
 msgid "avg <0>{avg}</0> words per book"
 msgstr "media de <0>{avg}</0> palabras por libro"
 
+#: src/components/stats/boards/BoardsView.tsx
 #: src/pages/BookDetailPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Avg session"
 msgstr "Sesión media"
 
@@ -1978,17 +2675,27 @@ msgstr "Volver a la búsqueda"
 msgid "Back to table"
 msgstr "Volver a la tabla"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/library/Sections.tsx
 msgid "Backlog"
 msgstr "Pendientes"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Backlog · {scope}"
 msgstr "Pendientes · {scope}"
+
+#: src/components/stats/library/Sections.tsx
+msgid "Backlog of"
+msgstr ""
 
 #: src/components/InstanceBackup.tsx
 msgid "Backup failed"
 msgstr "Error en la copia de seguridad"
+
+#. Beside the count above a bar drawn shorter than its value (an axis break)
+#: src/components/stats/library/charts.tsx
+msgid "bar shortened"
+msgstr ""
 
 #: src/pages/ReaderPage.tsx
 msgid "Based on a default pace (no reading history yet)"
@@ -2014,7 +2721,12 @@ msgstr "Obtener en lote ({n})"
 msgid "Best {n} days"
 msgstr "Récord: {n} días"
 
-#: src/pages/StatsPage.tsx
+#. Before a date and a duration at the top of a chart
+#: src/components/stats/overview/charts.tsx
+msgid "best day"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Best day"
 msgstr "Mejor día"
 
@@ -2030,11 +2742,11 @@ msgstr "Mejor coincidencia aplicada a {matched} de {totalN} archivos. No hay coi
 msgid "Best match applied to all {matched} files"
 msgstr "Mejor coincidencia aplicada a los {matched} archivos"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Best-rated series"
 msgstr "Series mejor valoradas"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Best: {best}w"
 msgstr "Récord: {best} sem"
 
@@ -2046,6 +2758,7 @@ msgstr "Beta"
 msgid "Biggest day this month"
 msgstr "Mejor día del mes"
 
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/insights.tsx
 msgid "Biggest reading day"
 msgstr "Día de más lectura"
@@ -2067,6 +2780,18 @@ msgstr "Negro"
 #: src/pages/AdminPage.tsx
 msgid "blank = unlimited, 0 = downloads disabled"
 msgstr "vacío = ilimitadas, 0 = descargas desactivadas"
+
+#: src/pages/StatsPage.tsx
+msgid "Boards"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
+msgid "Boards are the customisable grid from earlier versions: the default boards and your own, each one editable."
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
+msgid "Boards are your own layouts from the previous Stats page. They keep working as before."
+msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "book"
@@ -2100,7 +2825,8 @@ msgstr "Detalle del libro"
 msgid "book entry will be removed"
 msgstr "se eliminará la entrada del libro"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/library/Sections.tsx
 msgid "Book length"
 msgstr "Extensión de los libros"
 
@@ -2146,11 +2872,15 @@ msgstr "libros"
 msgid "Books"
 msgstr "Libros"
 
+#: src/components/stats/library/charts.tsx
+msgid "Books added per month"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Books can no longer be sent to this address until you add it again."
 msgstr "No se podrán enviar libros a esta dirección hasta que vuelvas a añadirla."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Books completed"
 msgstr "Libros terminados"
 
@@ -2158,14 +2888,15 @@ msgstr "Libros terminados"
 msgid "Books downloaded through the OPDS catalog are automatically mapped to their Tome book ID. Open one and TomeSync will start tracking your session immediately."
 msgstr "Los libros descargados desde el catálogo OPDS se asocian automáticamente a su ID de libro de Tome. Abre uno y TomeSync empezará a registrar tu sesión al momento."
 
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/habits/charts.tsx
 #: src/components/stats/widgets/habits.tsx
 #: src/components/stats/widgets/insights.tsx
 #: src/components/stats/widgets/library.tsx
-#: src/pages/StatsPage.tsx
 msgid "Books finished"
 msgstr "Libros terminados"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Books in progress, with covers"
 msgstr "Libros en curso, con portadas"
 
@@ -2173,7 +2904,7 @@ msgstr "Libros en curso, con portadas"
 msgid "Books on your devices"
 msgstr "Libros en tus dispositivos"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Books started"
 msgstr "Libros empezados"
 
@@ -2185,7 +2916,7 @@ msgstr "Libros este mes"
 msgid "Books this year"
 msgstr "Libros este año"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Books whose pages you revisit"
 msgstr "Libros cuyas páginas vuelves a leer"
 
@@ -2225,6 +2956,31 @@ msgstr "Explorar la biblioteca"
 msgid "Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately."
 msgstr "Navegadores y móviles con la sesión iniciada en tu cuenta. Mantienen la sesión hasta que la cierres en ellos o los revoques aquí, lo que cierra su sesión al instante."
 
+#: src/components/stats/library/Sections.tsx
+msgid "By decade of publication."
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "By five-year period of publication."
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "By format:"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "by reading time"
+msgstr ""
+
+#: src/components/stats/library/Languages.tsx
+msgid "By the language set on each book you read."
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/taste/TastePage.tsx
+msgid "By type"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/ReadingCalendarPage.tsx
@@ -2248,7 +3004,7 @@ msgstr "¿No lo encuentras? Añádelo manualmente"
 #: src/components/ShareShelfModal.tsx
 #: src/components/Sidebar.tsx
 #: src/components/stats/GoalWidget.tsx
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionTools.tsx
 #: src/components/TelemetryConsentCard.tsx
 #: src/components/UploadModal.tsx
 #: src/components/WishlistModal.tsx
@@ -2267,11 +3023,11 @@ msgstr "Cancelar"
 msgid "Cancel restore"
 msgstr "Cancelar restauración"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Category breakdown"
 msgstr "Desglose por categoría"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Category mix over the year"
 msgstr "Mezcla de categorías a lo largo del año"
 
@@ -2317,7 +3073,7 @@ msgstr "Capítulo"
 msgid "Chapters"
 msgstr "Capítulos"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Chart type"
 msgstr "Tipo de gráfico"
 
@@ -2342,9 +3098,9 @@ msgid "Choose icon"
 msgstr "Elegir icono"
 
 #: src/components/MetadataManager.tsx
+#: src/components/stats/RangeControl.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Clear"
 msgstr "Borrar"
 
@@ -2440,6 +3196,10 @@ msgstr "Cerrar navegación"
 msgid "Close the day"
 msgstr "Cerrar el día"
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Closer to {pole}"
+msgstr ""
+
 #: src/pages/LoginPage.tsx
 msgid "Code expired. Try again."
 msgstr "El código ha caducado. Vuelve a intentarlo."
@@ -2493,6 +3253,7 @@ msgstr "Colores"
 msgid "Command palette: jump to a book, series, author, or page"
 msgstr "Paleta de comandos: ir a un libro, serie, autor o página"
 
+#: src/components/stats/library/LibraryPage.tsx
 #: src/pages/AdminPage.tsx
 msgid "Complete"
 msgstr "Completar"
@@ -2501,11 +3262,11 @@ msgstr "Completar"
 msgid "Complete series: {title}"
 msgstr "Completar serie: {title}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Completion"
 msgstr "Finalización"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Completion estimates"
 msgstr "Estimaciones de finalización"
 
@@ -2513,7 +3274,7 @@ msgstr "Estimaciones de finalización"
 msgid "Completion rate"
 msgstr "Tasa de finalización"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Configure"
 msgstr "Configurar"
 
@@ -2630,6 +3391,18 @@ msgstr "No se pudo vincular la cuenta de Hardcover"
 msgid "Could not link SSO. Please try again."
 msgstr "No se pudo vincular el SSO. Vuelve a intentarlo."
 
+#: src/components/stats/library/Sections.tsx
+msgid "Could not load the backlog."
+msgstr ""
+
+#: src/components/stats/library/BookSessions.tsx
+msgid "Could not load the sessions."
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "Could not load this chart."
+msgstr ""
+
 #: src/components/stats/BacklogEstimate.tsx
 msgid "Could not load this scope."
 msgstr "No se pudo cargar este ámbito."
@@ -2687,6 +3460,11 @@ msgstr "No se pudieron cargar las estadísticas."
 msgid "Couldn't load the timeline."
 msgstr "No se pudo cargar la cronología."
 
+#: src/pages/SettingsPage.tsx
+msgid "Couldn’t save. Try again."
+msgstr ""
+
+#: src/components/stats/sessions/SessionsPage.tsx
 #: src/components/WordCount.tsx
 msgid "Counted"
 msgstr "Contados"
@@ -2698,6 +3476,14 @@ msgstr "Contando… {done} / {total}"
 #: src/components/stats/GoalWidget.tsx
 msgid "Counts"
 msgstr "Qué cuenta"
+
+#: src/components/stats/library/Sections.tsx
+msgid "Counts finished books that have a word count."
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "Counts finished books that have reading days."
+msgstr ""
 
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "cover"
@@ -2750,15 +3536,15 @@ msgstr "Creado"
 msgid "Creating..."
 msgstr "Creando..."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Cumulative books added, last 24 months"
 msgstr "Libros añadidos acumulados, últimos 24 meses"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Cumulative finishes over time"
 msgstr "Libros terminados acumulados a lo largo del tiempo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "current"
 msgstr "actual"
 
@@ -2768,7 +3554,7 @@ msgstr "actual"
 msgid "Current"
 msgstr "Actual"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Current & longest daily streak"
 msgstr "Racha diaria actual y más larga"
 
@@ -2780,15 +3566,15 @@ msgstr "Contraseña actual"
 msgid "Current:"
 msgstr "Actual:"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Currently reading"
 msgstr "Leyendo ahora"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "Custom"
 msgstr "Personalizado"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Custom stat"
 msgstr "Estadística personalizada"
 
@@ -2804,7 +3590,7 @@ msgstr "Minutos diarios"
 msgid "Daily pages"
 msgstr "Páginas diarias"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Daily sessions on a 24h track"
 msgstr "Sesiones diarias en una franja de 24 h"
 
@@ -2846,9 +3632,21 @@ msgstr "Día {n} de una racha de {len} días"
 msgid "Day {n} of your best streak ({len} days)"
 msgstr "Día {n} de tu mejor racha ({len} días)"
 
+#: src/components/stats/library/Sections.tsx
+msgid "days"
+msgstr ""
+
 #: src/lib/backlog.ts
 msgid "days at ~{mpd} min a day (last {win} days)"
 msgstr "días a ~{mpd} min al día (últimos {win} días)"
+
+#: src/components/stats/library/Sections.tsx
+msgid "Days from the first reading day to the finish"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "days with any reading"
+msgstr ""
 
 #: src/components/LibraryHealth.tsx
 msgid "Dead entries removed"
@@ -2872,7 +3670,7 @@ msgstr "Eliminar"
 msgid "Delete \"{title}\"?"
 msgstr "¿Eliminar \"{title}\"?"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Delete {name}"
 msgstr "Eliminar {name}"
 
@@ -2884,7 +3682,7 @@ msgstr "Elimina las {count} miniaturas de portadas ({mb} MB). Se vuelven a gener
 msgid "Delete arc"
 msgstr "Eliminar arco"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Delete board"
 msgstr "Eliminar panel"
 
@@ -2898,7 +3696,7 @@ msgstr "Error al eliminar"
 msgid "Delete others"
 msgstr "Eliminar los demás"
 
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionTools.tsx
 msgid "Delete session"
 msgstr "Eliminar sesión"
 
@@ -2915,6 +3713,7 @@ msgid "Delete this book from the library? The file will be removed and this cann
 msgstr "¿Eliminar este libro de la biblioteca? Se borrará el archivo y no se podrá deshacer."
 
 #: src/components/stats/GoalWidget.tsx
+#: src/components/stats/overview/Goals.tsx
 msgid "Delete this goal"
 msgstr "Eliminar este objetivo"
 
@@ -2923,11 +3722,11 @@ msgstr "Eliminar este objetivo"
 msgid "Delete this highlight"
 msgstr "Eliminar este subrayado"
 
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionTools.tsx
 msgid "Delete this imported sitting"
 msgstr "Eliminar esta tanda importada"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Deleted board “{name}”"
 msgstr "Panel “{name}” eliminado"
 
@@ -3010,10 +3809,10 @@ msgid "Directories"
 msgstr "Directorios"
 
 #: src/components/LibraryHealth.tsx
+#: src/components/stats/boards/BoardsView.tsx
 #: src/components/WordCount.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Dismiss"
 msgstr "Descartar"
 
@@ -3029,7 +3828,7 @@ msgstr "Descartar deseo"
 msgid "Dismissed"
 msgstr "Descartado"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Do you rate books you spend longer on higher?"
 msgstr "¿Valoras mejor los libros a los que dedicas más tiempo?"
 
@@ -3037,15 +3836,19 @@ msgstr "¿Valoras mejor los libros a los que dedicas más tiempo?"
 msgid "Docs"
 msgstr "Documentación"
 
+#: src/components/stats/taste/TastePage.tsx
+msgid "Does time spent match the rating?"
+msgstr ""
+
 #: src/components/ScanSyncCodeModal.tsx
+#: src/components/stats/boards/BoardsView.tsx
 #: src/components/WordCount.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Done"
 msgstr "Hecho"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Double-click to rename"
 msgstr "Haz doble clic para cambiar el nombre"
 
@@ -3094,7 +3897,7 @@ msgstr "Descargar ZIP del plugin"
 msgid "Download the plugin"
 msgstr "Descarga el plugin"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "Download the plugin from Settings"
 msgstr "Descarga el plugin desde Ajustes"
 
@@ -3130,15 +3933,15 @@ msgstr "Simular todo"
 msgid "Dry run preview: {n} files would be moved"
 msgstr "Vista previa de la simulación: se moverían {n} archivos"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Duplicate “{name}”"
 msgstr "Duplicar “{name}”"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Duplicate {title}"
 msgstr "Duplicar {title}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Duplicate tile"
 msgstr "Duplicar tarjeta"
 
@@ -3190,14 +3993,18 @@ msgstr "Cada dispositivo envía la lista de libros de Tome que contiene al sincr
 msgid "Each download creates a plugin key; manage them under"
 msgstr "Cada descarga crea una clave del plugin; puedes gestionarlas en"
 
+#: src/components/stats/taste/TastePage.tsx
+msgid "Each rated book appears here by the hours you read it."
+msgstr ""
+
 #: src/components/stats/SessionLog.tsx
 msgid "Each row is one reading session."
 msgstr "Cada fila es una sesión de lectura."
 
 #: src/components/Sidebar.tsx
+#: src/components/stats/boards/BoardsView.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Edit"
 msgstr "Editar"
 
@@ -3206,6 +4013,7 @@ msgid "Edit {label}"
 msgstr "Editar {label}"
 
 #: src/components/stats/GoalWidget.tsx
+#: src/components/stats/overview/Goals.tsx
 msgid "Edit goal"
 msgstr "Editar objetivo"
 
@@ -3262,7 +4070,7 @@ msgstr "El envío por correo electrónico aún no está configurado."
 msgid "Ember"
 msgstr "Brasa"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Empty board"
 msgstr "Panel vacío"
 
@@ -3278,7 +4086,7 @@ msgstr "Fin"
 msgid "EPUB failed to open: {msg2}"
 msgstr "No se pudo abrir el EPUB: {msg2}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "EPUB vs CBZ time split"
 msgstr "Reparto del tiempo entre EPUB y CBZ"
 
@@ -3310,15 +4118,23 @@ msgstr "Tiempo de lectura est."
 msgid "Est. remaining"
 msgstr "Restante est."
 
+#: src/components/stats/library/Sections.tsx
+msgid "Every finished book has a year."
+msgstr ""
+
 #: src/components/ShareLinksOverview.tsx
 msgid "Every public link you've shared: shelves, series, and books. Links show metadata, your ratings, highlights, and reading stats; never files. Revoking kills a link instantly."
 msgstr "Todos los enlaces públicos que has compartido: estanterías, series y libros. Los enlaces muestran metadatos, tus valoraciones, subrayados y estadísticas de lectura; nunca archivos. Al revocar un enlace, deja de funcionar al instante."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/library/LibraryPage.tsx
+msgid "Every series you started is complete."
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Every session, paginated and deletable"
 msgstr "Todas las sesiones, paginadas y con opción de eliminarlas"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Every widget is already on this board."
 msgstr "Todos los widgets ya están en este panel."
 
@@ -3399,8 +4215,8 @@ msgstr "Caduca el {d}"
 msgid "Expires in {timeLeft}"
 msgstr "Caduca en {timeLeft}"
 
+#: src/components/stats/boards/BoardsView.tsx
 #: src/pages/HighlightsPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Export"
 msgstr "Exportar"
 
@@ -3424,13 +4240,17 @@ msgstr "Exportar el registro de lectura en CSV"
 msgid "Export the reading log as JSON"
 msgstr "Exportar el registro de lectura en JSON"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Export this board as a JSON file (share or back up)"
 msgstr "Exportar este panel como archivo JSON (para compartirlo o guardar una copia de seguridad)"
 
 #: src/pages/SettingsPage.tsx
 msgid "Exporting..."
 msgstr "Exportando..."
+
+#: src/components/stats/overview/charts.tsx
+msgid "F"
+msgstr ""
 
 #: src/components/NotificationChannels.tsx
 msgid "failed"
@@ -3640,6 +4460,7 @@ msgstr "No se pudo actualizar el estado de lectura"
 msgid "Failed to update sharing"
 msgstr "No se pudo actualizar el uso compartido"
 
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/overview.tsx
 msgid "Failed to update status"
 msgstr "No se pudo actualizar el estado"
@@ -3652,6 +4473,7 @@ msgstr "No se pudo subir la portada"
 msgid "fantasy, action, romance"
 msgstr "fantasía, acción, romance"
 
+#: src/components/stats/habits/HabitsPage.tsx
 #: src/components/stats/widgets/wordstats.tsx
 msgid "Fastest"
 msgstr "Más rápidos"
@@ -3728,14 +4550,19 @@ msgid "Filters"
 msgstr "Filtros"
 
 #: src/components/stats/BacklogEstimate.tsx
+#: src/components/stats/library/Sections.tsx
 msgid "Finish a couple of books of each type so Tome can measure your pace."
 msgstr "Termina un par de libros de cada tipo para que Tome pueda medir tu ritmo."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/library/LibraryPage.tsx
+msgid "Finish rate"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Finish rate by book type"
 msgstr "Tasa de finalización por tipo de libro"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Finish rate per book category"
 msgstr "Tasa de finalización por categoría de libro"
 
@@ -3751,9 +4578,10 @@ msgstr "terminado"
 msgid "Finished"
 msgstr "Terminado"
 
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/overview/Overview.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/ReadingCalendarPage.tsx
-#: src/pages/StatsPage.tsx
 msgctxt "reading"
 msgid "Finished"
 msgstr "Terminado"
@@ -3771,6 +4599,10 @@ msgstr "Terminaste {a} y pasaste directamente a {b}."
 msgid "Finished {a}."
 msgstr "Terminaste {a}."
 
+#: src/components/stats/overview/Overview.tsx
+msgid "Finished {finishedOn}"
+msgstr ""
+
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Finished {l}"
 msgstr "Terminado: {l}"
@@ -3782,6 +4614,18 @@ msgstr "Terminado el {when}, el único de este periodo."
 #: src/pages/ReadingCalendarPage.tsx
 msgid "finished a book"
 msgstr "terminaste un libro"
+
+#: src/components/stats/library/Sections.tsx
+msgid "Finished books by decade of publication"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "Finished books by five-year period of publication"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "Finished books by length in words"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "First author"
@@ -3879,18 +4723,31 @@ msgstr "Formato"
 msgid "Format: {filterFormatUpper}"
 msgstr "Formato: {filterFormatUpper}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "Fr"
 msgstr "V"
 
+#: src/components/stats/habits/charts.tsx
 #: src/components/stats/HourDowHeatmap.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Fri"
 msgstr "vie"
 
+#: src/components/stats/habits/charts.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "Fridays"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "From"
 msgstr "Desde"
+
+#: src/components/stats/library/Sections.tsx
+msgid "From the first reading day to the finish · {pct}%"
+msgstr ""
 
 #: src/components/home/HomeTab.tsx
 msgid "From your highlights"
@@ -3998,9 +4855,14 @@ msgstr "Agrupar volúmenes por serie"
 msgid "Guest"
 msgstr "Invitado"
 
+#: src/components/stats/boards/BoardsView.tsx
 #: src/pages/StatsPage.tsx
 msgid "Habits"
 msgstr "Hábitos"
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "half star"
+msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Hardcover"
@@ -4027,7 +4889,7 @@ msgstr "Con portada"
 msgid "Height"
 msgstr "Alto"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Height auto-fits the content, only width is resizable"
 msgstr "La altura se ajusta al contenido; solo se puede cambiar el ancho"
 
@@ -4060,17 +4922,26 @@ msgstr "Ocultar detalles"
 msgid "Hide password"
 msgstr "Ocultar contraseña"
 
+#: src/components/stats/library/Sections.tsx
 #: src/components/stats/widgets/library.tsx
 msgid "Hide sessions"
 msgstr "Ocultar sesiones"
+
+#: src/components/stats/library/Sections.tsx
+msgid "Hide the sessions of {title}"
+msgstr ""
 
 #: src/components/stats/widgets/taste.tsx
 msgid "Highest"
 msgstr "Mejor valorados"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Highest and lowest rated"
 msgstr "Mejor y peor valorados"
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "Highest rated"
+msgstr ""
 
 #: src/pages/ReaderPage.tsx
 msgid "Highlight"
@@ -4092,6 +4963,7 @@ msgstr "Subrayado el {when}"
 #: src/components/CommandPalette.tsx
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/components/Sidebar.tsx
+#: src/components/stats/taste/TastePage.tsx
 #: src/pages/HighlightsPage.tsx
 msgid "Highlights"
 msgstr "Subrayados"
@@ -4108,7 +4980,7 @@ msgstr "Los subrayados y las notas que hagas en KOReader se sincronizan aquí au
 msgid "Highlights you made on this day in past years"
 msgstr "Subrayados que hiciste tal día como hoy en años anteriores"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Hit Edit, then Add tile."
 msgstr "Pulsa Editar y luego Añadir tarjeta."
 
@@ -4122,11 +4994,15 @@ msgstr "Inicio"
 msgid "Host"
 msgstr "Host"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Hours & finishes, last 12 months"
 msgstr "Horas y libros terminados, últimos 12 meses"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/taste/charts.tsx
+msgid "Hours read against rating, one dot per rated book"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "How far through each series"
 msgstr "Cuánto llevas de cada serie"
 
@@ -4134,15 +5010,15 @@ msgstr "Cuánto llevas de cada serie"
 msgid "How far through the book you'd read by each date."
 msgstr "Hasta dónde habías leído del libro en cada fecha."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "How long the books you finish are"
 msgstr "Extensión de los libros que terminas"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "How long your unread pile would take"
 msgstr "Cuánto tardarías en leer tus pendientes"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "How much of what you own you’ve read"
 msgstr "Cuánto has leído de lo que tienes"
 
@@ -4154,7 +5030,7 @@ msgstr "Cómo autorizarlo"
 msgid "How to set it up"
 msgstr "Cómo configurarlo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "How you spread your 1-5 stars"
 msgstr "Cómo repartes tus estrellas del 1 al 5"
 
@@ -4172,7 +5048,7 @@ msgstr "Si una versión posterior cambia el contenido de este informe, el envío
 msgid "Impersonation failed"
 msgstr "Error al suplantar"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Import board…"
 msgstr "Importar panel…"
 
@@ -4192,15 +5068,19 @@ msgstr "Importar ahora"
 msgid "Import reading history"
 msgstr "Importar historial de lectura"
 
+#: src/components/stats/library/BookSessions.tsx
 #: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
 msgid "Imported"
 msgstr "Importada"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Imported board"
 msgstr "Panel importado"
 
+#: src/components/stats/library/BookSessions.tsx
 #: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
 msgid "Imported from KOReader reading history"
 msgstr "Importada del historial de lectura de KOReader"
 
@@ -4208,6 +5088,10 @@ msgstr "Importada del historial de lectura de KOReader"
 #: src/pages/BinderyPage.tsx
 msgid "Importing…"
 msgstr "Importando…"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "in {rangePhrase}"
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "In KOReader: main menu -> TomeSync -> \"Test connection\" to confirm the plugin can reach your Tome server."
@@ -4225,6 +5109,10 @@ msgstr "En KOReader: \"Settings\" > \"Device\" > \"Restart KOReader\". El plugin
 msgid "In KOReader: Tools → Progress sync → Custom sync server."
 msgstr "En KOReader: \"Tools\" → \"Progress sync\" → \"Custom sync server\"."
 
+#: src/components/stats/library/LibraryPage.tsx
+msgid "In progress"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "In the library"
 msgstr "En la biblioteca"
@@ -4240,6 +5128,10 @@ msgstr "Inactivo"
 #: src/pages/HardcoverPage.tsx
 msgid "Include"
 msgstr "Incluir"
+
+#: src/components/stats/overview/charts.tsx
+msgid "includes today"
+msgstr ""
 
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
@@ -4309,6 +5201,10 @@ msgstr "ahora mismo"
 #: src/pages/SettingsPage.tsx
 msgid "Just now"
 msgstr "Ahora mismo"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "just started"
+msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
 msgid "Just started"
@@ -4401,17 +5297,31 @@ msgstr "Idioma"
 msgid "Language: {filterLanguageLabel}"
 msgstr "Idioma: {filterLanguageLabel}"
 
+#: src/components/stats/library/Languages.tsx
+msgid "Languages"
+msgstr ""
+
 #: src/components/reader/ReaderChrome.tsx
 msgid "Larger text"
 msgstr "Texto más grande"
 
+#: src/components/stats/library/LibraryPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Last {days} days"
 msgstr "Últimos {days} días"
 
+#: src/components/stats/library/LibraryPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Last 12 months"
 msgstr "Últimos 12 meses"
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Last 14 days"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "last 26 weeks"
+msgstr ""
 
 #: src/components/home/HomeTab.tsx
 msgid "Last 30 days"
@@ -4422,6 +5332,18 @@ msgstr "Últimos 30 días"
 #: src/pages/BookDetailPage.tsx
 msgid "Last read"
 msgstr "Última lectura"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "last read {on}"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "last read today"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "last read yesterday"
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Last seen"
@@ -4447,7 +5369,7 @@ msgstr "última sincronización: {when}"
 msgid "Last used"
 msgstr "Último uso"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Latest finishes, newest first"
 msgstr "Últimos libros terminados, los más recientes primero"
 
@@ -4477,20 +5399,26 @@ msgstr "De izquierda a derecha"
 msgid "Length"
 msgstr "Extensión"
 
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/habits.tsx
 #: src/components/stats/widgets/overview.tsx
 msgid "Less"
 msgstr "Menos"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "less than {prevPhrase}"
+msgstr ""
 
 #: src/pages/SetupPage.tsx
 msgid "librarian"
 msgstr "bibliotecario"
 
 #: src/components/Sidebar.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/library/Sections.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Libraries"
 msgstr "Bibliotecas"
 
@@ -4500,13 +5428,16 @@ msgstr "Bibliotecas aplicadas a {n} archivos"
 
 #: src/components/home/HomeTab.tsx
 #: src/components/MetadataManager.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/library/Sections.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Library"
 msgstr "Biblioteca"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Library completion"
 msgstr "Progreso de la biblioteca"
 
@@ -4514,7 +5445,7 @@ msgstr "Progreso de la biblioteca"
 msgid "Library health"
 msgstr "Estado de la biblioteca"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Library size over time"
 msgstr "Tamaño de la biblioteca a lo largo del tiempo"
 
@@ -4522,16 +5453,16 @@ msgstr "Tamaño de la biblioteca a lo largo del tiempo"
 msgid "Library: {filterLibraryChipName}"
 msgstr "Biblioteca: {filterLibraryChipName}"
 
+#: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/TimelineRibbon.tsx
-#: src/pages/StatsPage.tsx
 msgid "lifetime"
 msgstr "desde siempre"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Lifetime totals"
 msgstr "Totales históricos"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Lifetime words read, by year"
 msgstr "Palabras leídas en total, por año"
 
@@ -4601,6 +5532,10 @@ msgstr "Cargando libros…"
 msgid "Loading icons"
 msgstr "Cargando iconos"
 
+#: src/pages/StatsPage.tsx
+msgid "Loading the new range"
+msgstr ""
+
 #: src/components/stats/TimelineRibbon.tsx
 msgid "Loading your reading life…"
 msgstr "Cargando tu vida lectora…"
@@ -4611,12 +5546,12 @@ msgstr "Cargando tu vida lectora…"
 #: src/components/ShareLinksOverview.tsx
 #: src/components/ShareShelfModal.tsx
 #: src/components/stats/BacklogEstimate.tsx
+#: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/GoalWidget.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/HardcoverPage.tsx
 #: src/pages/SettingsPage.tsx
 #: src/pages/SharePage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Loading…"
 msgstr "Cargando…"
 
@@ -4640,26 +5575,45 @@ msgstr "Error al iniciar sesión"
 msgid "Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation."
 msgstr "Tokens de larga duración para scripts y herramientas (p. ej. Scribe). Cada token se muestra una sola vez, al crearlo."
 
+#: src/components/stats/library/Sections.tsx
+msgid "longer"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "Longer than 2 weeks"
+msgstr ""
+
 #: src/components/stats/widgets/insights.tsx
 msgid "Longest daily streak"
 msgstr "Racha diaria más larga"
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Longest ever"
+msgstr ""
+
 #: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
 msgid "Longest first"
 msgstr "Más largas primero"
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Longest in range"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/insights.tsx
-#: src/pages/StatsPage.tsx
 msgid "Longest session"
 msgstr "Sesión más larga"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Longest session, biggest day, most pages"
 msgstr "Sesión más larga, día de más lectura, más páginas"
 
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/insights.tsx
 #: src/components/stats/widgets/library.tsx
-#: src/pages/StatsPage.tsx
 msgid "Longest streak"
 msgstr "Racha más larga"
 
@@ -4667,13 +5621,18 @@ msgstr "Racha más larga"
 msgid "Longest volume"
 msgstr "Volumen más largo"
 
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/insights.tsx
 msgid "Longest weekly streak"
 msgstr "Racha semanal más larga"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Longest: {d}d"
 msgstr "Récord: {d} d"
+
+#: src/components/stats/library/Sections.tsx
+msgid "Longest: {title} ({w})"
+msgstr ""
 
 #: src/components/CoverAudit.tsx
 msgid "Low resolution"
@@ -4682,6 +5641,14 @@ msgstr "Baja resolución"
 #: src/components/stats/widgets/taste.tsx
 msgid "Lowest"
 msgstr "Peor valorados"
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "Lowest rated"
+msgstr ""
+
+#: src/components/stats/overview/charts.tsx
+msgid "M"
+msgstr ""
 
 #: src/pages/ReaderPage.tsx
 msgid "Made on the web, syncs to KOReader"
@@ -4698,7 +5665,7 @@ msgid "Manage series"
 msgstr "Gestionar serie"
 
 #: src/components/PositionHistoryModal.tsx
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/actions.ts
 #: src/pages/BookDetailPage.tsx
 msgid "Manual"
 msgstr "Manual"
@@ -4708,6 +5675,7 @@ msgstr "Manual"
 msgid "Mark all read"
 msgstr "Marcar todo como leído"
 
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/overview.tsx
 msgid "Mark as read"
 msgstr "Marcar como leído"
@@ -4724,6 +5692,7 @@ msgstr "Márcalo como completado cuando consideres que la serie está disponible
 msgid "Marked as read"
 msgstr "Marcado como leído"
 
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/overview.tsx
 msgid "Marked as read: {title}"
 msgstr "Marcado como leído: {title}"
@@ -4768,6 +5737,14 @@ msgstr "Máx. palabras"
 msgid "Maximum words"
 msgstr "Máximo de palabras"
 
+#: src/components/stats/taste/TastePage.tsx
+msgid "mean of the last five"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "median, first day to finish"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Member"
 msgstr "Miembro"
@@ -4792,11 +5769,11 @@ msgstr "Metadatos guardados"
 msgid "Metadata suggestions"
 msgstr "Sugerencias de metadatos"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Metric"
 msgstr "Métrica"
 
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionTools.tsx
 #: src/lib/goals.ts
 #: src/pages/BookDetailPage.tsx
 msgid "min"
@@ -4826,9 +5803,13 @@ msgstr "Minutos al día"
 msgid "Minutes per week"
 msgstr "Minutos a la semana"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Minutes read per day"
 msgstr "Minutos leídos al día"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "missed yesterday"
+msgstr ""
 
 #: src/components/MetadataManager.tsx
 #: src/pages/DashboardPage.tsx
@@ -4843,7 +5824,7 @@ msgstr "Faltan: {filterMissingLabel}"
 msgid "missing: {missingList}"
 msgstr "faltan: {missingList}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "Mo"
 msgstr "L"
 
@@ -4851,17 +5832,28 @@ msgstr "L"
 msgid "Mode"
 msgstr "Modo"
 
+#: src/components/stats/habits/charts.tsx
 #: src/components/stats/HourDowHeatmap.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Mon"
 msgstr "lun"
+
+#: src/components/stats/habits/charts.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "Mondays"
+msgstr ""
 
 #: src/lib/goals.ts
 msgid "Monthly goal"
 msgstr "Objetivo mensual"
 
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/habits.tsx
 #: src/components/stats/widgets/overview.tsx
+#: src/pages/StatsPage.tsx
 msgid "More"
 msgstr "Más"
 
@@ -4869,29 +5861,48 @@ msgstr "Más"
 msgid "More send options"
 msgstr "Más opciones de envío"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "more than {prevPhrase}"
+msgstr ""
+
 #: src/lib/backlog.ts
 msgid "more than 10 years"
 msgstr "más de 10 años"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Morning vs evening reader?"
 msgstr "¿Lees más por la mañana o por la noche?"
+
+#. Before a month and a duration at the top of a chart
+#: src/components/stats/overview/charts.tsx
+msgid "most active month"
+msgstr ""
 
 #: src/components/stats/widgets/library.tsx
 msgid "Most active month"
 msgstr "Mes más activo"
 
+#: src/components/stats/taste/TastePage.tsx
+msgid "Most highlighted"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/insights.tsx
 msgid "Most pages in a day"
 msgstr "Más páginas en un día"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Most-read authors"
 msgstr "Autores más leídos"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Most-read books by time"
 msgstr "Libros más leídos por tiempo"
+
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "Mostly between {fromH} and {toH}, most on {day}."
+msgstr ""
 
 #: src/components/LibraryHealth.tsx
 msgid "Move files on disk?"
@@ -4957,6 +5968,7 @@ msgstr "Nunca sincronizado"
 msgid "never used"
 msgstr "sin usar"
 
+#: src/components/stats/boards/BoardsView.tsx
 #: src/pages/StatsPage.tsx
 msgid "New board"
 msgstr "Nuevo panel"
@@ -4969,15 +5981,16 @@ msgstr "Nuevo código"
 msgid "New cover"
 msgstr "Nueva portada"
 
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionTools.tsx
 msgid "New duration"
 msgstr "Nueva duración"
 
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionTools.tsx
 msgid "New duration in minutes"
 msgstr "Nueva duración en minutos"
 
 #: src/components/stats/GoalWidget.tsx
+#: src/components/stats/overview/Goals.tsx
 msgid "New goal"
 msgstr "Nuevo objetivo"
 
@@ -5015,6 +6028,7 @@ msgid "New user"
 msgstr "Nuevo usuario"
 
 #: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
 msgid "Newest first"
 msgstr "Más recientes primero"
 
@@ -5026,8 +6040,12 @@ msgstr "Siguiente"
 msgid "Next book"
 msgstr "Libro siguiente"
 
+#: src/components/home/HomeTab.tsx
+msgid "Next in {series}"
+msgstr ""
+
+#: src/components/stats/RangeControl.tsx
 #: src/pages/ReadingCalendarPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Next month"
 msgstr "Mes siguiente"
 
@@ -5043,6 +6061,10 @@ msgstr "Volumen siguiente"
 #: src/components/SeriesFollowButton.tsx
 msgid "Next: Vol {v} · {d}"
 msgstr "Próximo: vol. {v} · {d}"
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "Next: Volume {nextIdx}"
+msgstr ""
 
 #: src/components/stats/HourDowHeatmap.tsx
 msgid "No activity"
@@ -5068,9 +6090,17 @@ msgstr "Sin autor"
 msgid "No author data."
 msgstr "No hay datos de autores."
 
+#: src/components/stats/taste/TastePage.tsx
+msgid "No book is rated below the rest."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "No book types yet."
 msgstr "Aún no hay tipos de libro."
+
+#: src/components/stats/library/Sections.tsx
+msgid "No books added in the last two years."
+msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
 msgid "No books currently in progress."
@@ -5088,6 +6118,10 @@ msgstr "Aún no se ha enviado ningún libro."
 msgid "No books in progress"
 msgstr "No hay libros en curso"
 
+#: src/components/stats/library/LibraryPage.tsx
+msgid "No books in the library yet."
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "No books in this view."
 msgstr "No hay libros en esta vista."
@@ -5099,6 +6133,14 @@ msgstr "Ningún libro coincide con los filtros actuales."
 #: src/pages/AdminPage.tsx
 msgid "No books of this type yet; examples use other books from the library."
 msgstr "Aún no hay libros de este tipo; los ejemplos usan otros libros de la biblioteca."
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "No books rated yet. Rate a book on its page."
+msgstr ""
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "No books rated yet. Your best rated books line up here."
+msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "No camera available here. Browsers allow it only on HTTPS or localhost, and this device needs one. Take a photo of the code and pick it below instead."
@@ -5112,7 +6154,7 @@ msgstr "No se han encontrado candidatos."
 msgid "No category data."
 msgstr "No hay datos por categoría."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "No comparison data."
 msgstr "No hay datos para comparar."
 
@@ -5174,6 +6216,22 @@ msgstr "No se han encontrado carpetas vacías."
 msgid "No files in the bindery"
 msgstr "No hay archivos en Bindery"
 
+#: src/components/stats/library/Sections.tsx
+msgid "No finished books with a publication year yet."
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "No finished books with a word count yet."
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "No finished books with reading days yet."
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "No finished books with word counts yet."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "No fulfilled wishes."
 msgstr "No hay deseos cumplidos."
@@ -5193,6 +6251,10 @@ msgstr "Aún no hay subrayados"
 #: src/pages/HardcoverPage.tsx
 msgid "no ISBN"
 msgstr "sin ISBN"
+
+#: src/components/stats/library/Languages.tsx
+msgid "No language set"
+msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "No libraries"
@@ -5246,6 +6308,10 @@ msgstr "No hay datos de ritmo por formato."
 msgid "No paced sessions."
 msgstr "No hay sesiones con ritmo medido."
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "No pages read in this range yet."
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "No PINs yet. Generate one to use with OPDS clients."
 msgstr "Aún no hay ningún PIN. Genera uno para usarlo con clientes OPDS."
@@ -5290,9 +6356,15 @@ msgstr "Aún no hay relecturas. Aquí aparecerán las páginas que vuelvas a lee
 msgid "No readable file found for this book."
 msgstr "No se ha encontrado ningún archivo legible para este libro."
 
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/TimelineRibbon.tsx
 msgid "no reading"
 msgstr "sin lectura"
+
+#: src/components/stats/habits/charts.tsx
+#: src/components/stats/overview/charts.tsx
+msgid "No reading"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "No reading activity yet. Records appear when users start reading books."
@@ -5302,9 +6374,13 @@ msgstr "Aún no hay actividad de lectura. Los registros aparecen cuando los usua
 msgid "No reading data"
 msgstr "No hay datos de lectura"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "No reading data yet"
 msgstr "Aún no hay datos de lectura"
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "no reading days"
+msgstr ""
 
 #: src/components/stats/TimelineRibbon.tsx
 msgid "No reading history yet. Sessions and imported KOReader history land here."
@@ -5314,11 +6390,30 @@ msgstr "Aún no hay historial de lectura. Aquí aparecerán las sesiones y el hi
 msgid "No reading in {monthName} yet"
 msgstr "Aún no hay lecturas en {monthName}"
 
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/library/Sections.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "No reading in {rangePhrase}."
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "No reading in the last 12 months."
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "no reading in the last 7 days"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "No reading in this range yet."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "No reading logged yet. Track time by hand, handy for a paper copy or a device that isn't synced."
 msgstr "Aún no hay lectura registrada. Registra el tiempo a mano: útil para un ejemplar en papel o un dispositivo sin sincronizar."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "No reading sessions in this range, so the session-based tiles are empty."
 msgstr "No hay sesiones de lectura en este periodo, así que las tarjetas basadas en sesiones están vacías."
 
@@ -5334,9 +6429,22 @@ msgstr "No hay lecturas este día."
 msgid "No reading this month yet."
 msgstr "Aún no hay lecturas este mes."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/taste/charts.tsx
+msgid "No reading time in Tome"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "no reading yet"
 msgstr "aún sin lecturas"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "No reading yet"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "No reading yet."
+msgstr ""
 
 #: src/components/stats/widgets/insights.tsx
 msgid "No reading-time data yet."
@@ -5366,15 +6474,23 @@ msgstr "No hay resultados. Prueba con otra búsqueda."
 msgid "No series"
 msgstr "Sin serie"
 
+#: src/components/stats/taste/TastePage.tsx
+msgid "No series rated yet. Rate a series on its page."
+msgstr ""
+
 #: src/components/stats/widgets/library.tsx
 msgid "No series read yet."
 msgstr "Aún no has leído ninguna serie."
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "No series started yet. Series you read show up here."
+msgstr ""
 
 #: src/components/stats/SeriesCompletionGrid.tsx
 msgid "No series with reading history yet."
 msgstr "Aún no hay series con historial de lectura."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "No series with reading progress yet."
 msgstr "Aún no hay series con progreso de lectura."
 
@@ -5391,13 +6507,29 @@ msgstr "No hay datos de sesiones."
 msgid "No session-time data yet."
 msgstr "Aún no hay datos de duración de las sesiones."
 
+#: src/components/stats/sessions/SessionsPage.tsx
+msgid "No sessions in this view."
+msgstr ""
+
+#: src/components/stats/library/BookSessions.tsx
+msgid "No sessions recorded for this book."
+msgstr ""
+
 #: src/components/stats/SessionLog.tsx
 msgid "No sessions recorded."
 msgstr "No hay sesiones registradas."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
+msgid "No sessions recorded. Sessions arrive from the TomeSync KOReader plugin, the web reader, or by hand on a book page."
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "no sessions yet"
 msgstr "aún sin sesiones"
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "No sittings in this range."
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "No suggested match yet. Search for the book to link, or upload it first."
@@ -5411,6 +6543,7 @@ msgstr "No hay índice disponible."
 msgid "No thanks"
 msgstr "No, gracias"
 
+#: src/components/stats/habits/HabitsPage.tsx
 #: src/components/stats/widgets/wordstats.tsx
 msgid "No timed reading with word counts yet."
 msgstr "Aún no hay lecturas cronometradas con recuento de palabras."
@@ -5433,6 +6566,10 @@ msgstr "Sin tipo"
 msgid "No type (staging / admin only)"
 msgstr "Sin tipo (en espera / solo administradores)"
 
+#: src/components/stats/library/Sections.tsx
+msgid "No unread books. Everything in the library is started or read."
+msgstr ""
+
 #: src/components/stats/BacklogEstimate.tsx
 msgid "No unstarted books in this scope."
 msgstr "No hay libros sin empezar en este ámbito."
@@ -5441,11 +6578,11 @@ msgstr "No hay libros sin empezar en este ámbito."
 msgid "No users have added devices yet."
 msgstr "Ningún usuario ha añadido dispositivos todavía."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "No widgets match “{q}”."
 msgstr "Ningún widget coincide con “{q}”."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "No widgets on this board yet."
 msgstr "Aún no hay widgets en este panel."
 
@@ -5453,24 +6590,40 @@ msgstr "Aún no hay widgets en este panel."
 msgid "No word counts yet."
 msgstr "Aún no hay recuentos de palabras."
 
+#: src/components/stats/library/LibraryPage.tsx
+msgid "none"
+msgstr ""
+
 #: src/components/MetadataManager.tsx
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "None"
 msgstr "Ninguno"
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "none finished"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "none started"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Not configured"
 msgstr "Sin configurar"
 
+#: src/components/stats/library/BookSessions.tsx
 #: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
 msgid "Not counted"
 msgstr "No contabilizada"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/habits/HabitsPage.tsx
 msgid "Not enough reading history yet."
 msgstr "Aún no hay suficiente historial de lectura."
 
 #: src/components/stats/BacklogEstimate.tsx
+#: src/components/stats/library/Sections.tsx
 #: src/lib/backlog.ts
 msgid "not enough recent reading for a day estimate"
 msgstr "no hay suficiente lectura reciente para estimar en días"
@@ -5479,17 +6632,31 @@ msgstr "no hay suficiente lectura reciente para estimar en días"
 msgid "Not enough sessions yet."
 msgstr "Aún no hay suficientes sesiones."
 
+#: src/components/stats/taste/TastePage.tsx
+msgid "Not enough whole-star ratings with reading time to compare yet."
+msgstr ""
+
 #: src/components/stats/BacklogEstimate.tsx
 msgid "not estimated yet"
 msgstr "aún sin estimar"
+
+#: src/components/stats/library/Sections.tsx
+msgid "Not estimated yet: {list}."
+msgstr ""
 
 #: src/pages/SharePage.tsx
 msgid "Not found"
 msgstr "No encontrado"
 
+#: src/components/stats/library/BookSessions.tsx
 #: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
 msgid "Not in totals: this book's imported KOReader history already covers this reading"
 msgstr "Fuera de los totales: el historial de KOReader importado de este libro ya cubre esta lectura"
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "not in your library"
+msgstr ""
 
 #: src/components/ReadingImport.tsx
 msgid "Not in your library ({n})"
@@ -5507,7 +6674,7 @@ msgstr "No en {name}"
 msgid "Not on {names}"
 msgstr "No en {names}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Not on board"
 msgstr "Fuera del panel"
 
@@ -5530,6 +6697,10 @@ msgstr "sin sincronizar"
 #: src/components/NotificationChannels.tsx
 msgid "Not used"
 msgstr "Sin usar"
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Not yet"
+msgstr ""
 
 #: src/components/WishlistModal.tsx
 msgid "Note"
@@ -5556,9 +6727,17 @@ msgstr "Nota guardada. Se sincronizará con tus dispositivos."
 msgid "Note: {note}"
 msgstr "Nota: {note}"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "Nothing finished in {rangePhrase}."
+msgstr ""
+
 #: src/components/stats/widgets/overview.tsx
 msgid "Nothing finished in this range."
 msgstr "No hay libros terminados en este periodo."
+
+#: src/components/stats/overview/Overview.tsx
+msgid "Nothing finished yet."
+msgstr ""
 
 #: src/pages/SharePage.tsx
 msgid "Nothing here yet."
@@ -5568,9 +6747,17 @@ msgstr "Aún no hay nada aquí."
 msgid "Nothing highlighted on this day yet."
 msgstr "Aún no hay subrayados de tal día como hoy."
 
+#: src/components/stats/overview/Overview.tsx
+msgid "Nothing in {prevPhrase}"
+msgstr ""
+
 #: src/components/home/HomeTab.tsx
 msgid "Nothing in progress"
 msgstr "Nada en curso"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "Nothing in progress. Books you start show up here."
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Nothing matched “{search}”"
@@ -5580,13 +6767,26 @@ msgstr "Nada coincide con “{search}”"
 msgid "Nothing new. Tome already had everything in this code."
 msgstr "Nada nuevo. Tome ya tenía todo lo que contiene este código."
 
+#: src/components/stats/taste/TastePage.tsx
+msgid "Nothing rated yet."
+msgstr ""
+
 #: src/components/ShareLinksOverview.tsx
 msgid "Nothing shared yet. Use the share icon on a shelf, a series page, or a book page."
 msgstr "Aún no has compartido nada. Usa el icono de compartir de una estantería, de la página de una serie o de la página de un libro."
 
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "nothing started yet"
+msgstr ""
+
 #: src/components/LibraryHealth.tsx
 msgid "Nothing to remove."
 msgstr "No hay nada que eliminar."
+
+#: src/components/stats/library/Sections.tsx
+msgid "Nothing unstarted here. Every book in this scope is started or read."
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Nothing was changed. You can only edit books you uploaded."
@@ -5597,7 +6797,7 @@ msgstr "No se ha cambiado nada. Solo puedes editar los libros que has subido tú
 msgid "Notifications"
 msgstr "Notificaciones"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Number of reading sessions"
 msgstr "Número de sesiones de lectura"
 
@@ -5625,6 +6825,10 @@ msgstr "Desactivado por TOME_TELEMETRY."
 msgid "Off, you have not opted in."
 msgstr "Desactivado; no has dado tu consentimiento."
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "on {activeDays} of {nDays} days"
+msgstr ""
+
 #: src/components/DevicePills.tsx
 msgid "On {name}"
 msgstr "En {name}"
@@ -5645,11 +6849,11 @@ msgstr "En {names}"
 msgid "On a device where you're already signed in, go to <0>Settings → Access → Quick Connect</0> and enter this code."
 msgstr "En un dispositivo en el que ya hayas iniciado sesión, ve a <0>Ajustes → Acceso → Conexión rápida</0> e introduce este código."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "on board"
 msgstr "en el panel"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "On board"
 msgstr "En el panel"
 
@@ -5687,11 +6891,19 @@ msgstr "En el servidor"
 msgid "On this day"
 msgstr "Tal día como hoy"
 
+#: src/components/stats/library/LibraryPage.tsx
+msgid "on your shelf"
+msgstr ""
+
 #: src/components/TelemetryConsentCard.tsx
 msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes. Separately, Tome checks upgrades.bndct.dev once a day for a newer version; only the version number is sent."
 msgstr "Una vez al mes, Tome puede enviar un pequeño informe anónimo: versión, plataforma, recuentos agrupados por rangos y qué funciones se han usado. Nunca un título, un nombre ni un nombre de host. Desactivado salvo que digas que sí. Aparte, Tome consulta upgrades.bndct.dev una vez al día para ver si hay una versión nueva; solo se envía el número de versión."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "one day starts it"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "One series front and center, you pick which"
 msgstr "Una serie en primer plano, la que tú elijas"
 
@@ -5817,6 +7029,10 @@ msgstr "Opcional. Defínelo junto con la contraseña si el servidor requiere ini
 msgid "Optional. Set it together with the user."
 msgstr "Opcional. Defínela junto con el usuario."
 
+#: src/components/stats/sessions/SessionsPage.tsx
+msgid "Order"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Order: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive"
 msgstr "Orden: background, foreground, card, primary, primary-foreground, muted, muted-foreground, accent, border, destructive"
@@ -5841,9 +7057,17 @@ msgstr "Otros proveedores"
 msgid "Other volumes"
 msgstr "Otros volúmenes"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "over {days} days"
 msgstr "en {days} días"
+
+#: src/components/stats/habits/charts.tsx
+msgid "Over 2 hours"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "Over 2h"
+msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
 msgid "Overlaps another arc."
@@ -5857,9 +7081,14 @@ msgstr "Sustituir la consulta de búsqueda (opcional)…"
 msgid "Override search query…"
 msgstr "Sustituir la consulta de búsqueda…"
 
+#: src/components/stats/boards/BoardsView.tsx
 #: src/pages/StatsPage.tsx
 msgid "Overview"
 msgstr "Vista general"
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "Owned"
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Owner"
@@ -5869,15 +7098,20 @@ msgstr "Propietario"
 msgid "p. {page} of {totalPages}"
 msgstr "pág. {page} de {totalPages}"
 
+#: src/components/stats/habits/HabitsPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Pace"
 msgstr "Ritmo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Pace appears once reading days with page turns arrive."
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Pace by format"
 msgstr "Ritmo por formato"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Padding"
 msgstr "Márgenes"
 
@@ -5906,6 +7140,8 @@ msgstr "Miniaturas de páginas (T)"
 msgid "pages"
 msgstr "páginas"
 
+#: src/components/stats/library/Sections.tsx
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/insights.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/BookDetailPage.tsx
@@ -5914,24 +7150,32 @@ msgstr "páginas"
 msgid "Pages"
 msgstr "Páginas"
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "pages a minute · share of the time"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 #: src/lib/goals.ts
-#: src/pages/StatsPage.tsx
 msgid "Pages per day"
 msgstr "Páginas al día"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Pages per hour"
 msgstr "Páginas por hora"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Pages per minute over time"
 msgstr "Páginas por minuto a lo largo del tiempo"
+
+#: src/components/stats/habits/charts.tsx
+msgid "Pages per minute per reading day"
+msgstr ""
 
 #: src/lib/goals.ts
 msgid "Pages per week"
 msgstr "Páginas a la semana"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Pages turned"
 msgstr "Páginas pasadas"
 
@@ -6000,18 +7244,23 @@ msgstr "Hora punta: <0>{peak}:00-{peakEnd}:00</0> · {dur} en total"
 msgid "People"
 msgstr "Personas"
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Per reading day"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Per-file details"
 msgstr "Detalles por archivo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Period comparison"
 msgstr "Comparación de periodos"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Personal records"
 msgstr "Récords personales"
 
+#: src/components/stats/habits/HabitsPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "pg/min"
 msgstr "pág./min"
@@ -6028,7 +7277,7 @@ msgstr "Elegir"
 msgid "Pick a rhythm. Progress counts automatically."
 msgstr "Elige un ritmo. El progreso se cuenta solo."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "Pick a start and end"
 msgstr "Elige el inicio y el final"
 
@@ -6044,7 +7293,7 @@ msgstr "Vuelve a elegir el campo activo para invertir el orden."
 msgid "Pick which book to keep and an action per group (Merge, Delete others or Dismiss), then apply everything at once."
 msgstr "Elige qué libro conservar y una acción por grupo (Fusionar, Eliminar los demás o Descartar) y luego aplícalo todo de una vez."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Pick your own metric: avg session, pages per day, best day…"
 msgstr "Elige tu propia métrica: sesión media, páginas al día, mejor día…"
 
@@ -6119,8 +7368,8 @@ msgstr "Día anterior / siguiente"
 msgid "Previous book"
 msgstr "Libro anterior"
 
+#: src/components/stats/RangeControl.tsx
 #: src/pages/ReadingCalendarPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Previous month"
 msgstr "Mes anterior"
 
@@ -6174,6 +7423,10 @@ msgstr "Progreso {before} → {after}"
 msgid "Progress %"
 msgstr "Progreso (%)"
 
+#: src/components/stats/overview/Goals.tsx
+msgid "Progress counts automatically."
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Progress sync"
 msgstr "Sincronización del progreso"
@@ -6189,6 +7442,14 @@ msgstr "Estado de publicación"
 #: src/pages/AdminPage.tsx
 msgid "Publication year"
 msgstr "Año de publicación"
+
+#: src/components/stats/library/Sections.tsx
+msgid "Published"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "Published {a} to {b}"
+msgstr ""
 
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "publisher"
@@ -6281,17 +7542,25 @@ msgstr "Vista rápida de {title}"
 msgid "Quick look: {title}"
 msgstr "Vista rápida: {title}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/library/Sections.tsx
+msgid "Quickest <0>{qd}</0> ({qn}), slowest <1>{sd}</1>"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Range"
 msgstr "Periodo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Range follows the page's range picker; days show the newest slice of it."
 msgstr "La opción Periodo sigue el selector de periodo de la página; los días muestran su tramo más reciente."
 
 #: src/components/stats/widgets/taste.tsx
 msgid "Rate a few books to see a trend."
 msgstr "Valora unos cuantos libros para ver una tendencia."
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "Rate books you have read to see this."
+msgstr ""
 
 #: src/components/SeriesRating.tsx
 msgid "Rate the whole series"
@@ -6305,6 +7574,18 @@ msgstr "Valora este libro"
 msgid "Rated"
 msgstr "Valorados"
 
+#: src/components/stats/taste/TastePage.tsx
+msgid "Rated {d}"
+msgstr ""
+
+#: src/components/stats/taste/charts.tsx
+msgid "Rated {day}"
+msgstr ""
+
+#: src/components/stats/taste/charts.tsx
+msgid "Rated {day} · mean of the last five {m}"
+msgstr ""
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "rated {rating}"
 msgstr "valorado con {rating}"
@@ -6312,6 +7593,10 @@ msgstr "valorado con {rating}"
 #: src/components/BookCard.tsx
 msgid "Rated {rating} of 5"
 msgstr "Valorado con {rating} de 5"
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "Rated {s} of 5"
+msgstr ""
 
 #: src/components/StarRating.tsx
 msgid "Rated {value} of 5"
@@ -6329,17 +7614,29 @@ msgstr "Valoración: 5 estrellas"
 msgid "Rating"
 msgstr "Valoración"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Rating distribution"
 msgstr "Distribución de valoraciones"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Rating trend"
 msgstr "Evolución de las valoraciones"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Rating vs time spent"
 msgstr "Valoración frente a tiempo dedicado"
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "Ratings"
+msgstr ""
+
+#: src/components/stats/taste/TastePage.tsx
+msgid "Ratings over time"
+msgstr ""
+
+#: src/components/stats/taste/charts.tsx
+msgid "Ratings over time, one dot per rating, with the mean of the last five"
+msgstr ""
 
 #: src/components/HardcoverSync.tsx
 msgid "Ratings push shortly after you change them; progress goes out in batches."
@@ -6353,7 +7650,7 @@ msgstr "Volver a vincular"
 msgid "Re-match"
 msgstr "Volver a emparejar"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Re-reads"
 msgstr "Relecturas"
 
@@ -6361,6 +7658,7 @@ msgstr "Relecturas"
 msgid "read"
 msgstr "leído"
 
+#: src/components/stats/library/LibraryPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Read"
 msgstr "Leído"
@@ -6416,6 +7714,14 @@ msgstr "Lee el código QR que muestra un dispositivo KOReader sin conexión en T
 msgid "Read-only"
 msgstr "Solo lectura"
 
+#: src/components/stats/library/LibraryPage.tsx
+msgid "Read: finished books out of all you own. Finish rate: finished out of those you started."
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "Read: finished books out of all you own. Finish rate: finished out of those you started. Time: reading time in {rangePhrase}."
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Reader"
 msgstr "Lector"
@@ -6435,23 +7741,31 @@ msgstr "leyendo"
 msgid "Reading"
 msgstr "Leyendo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reading activity, last 365 days"
 msgstr "Actividad de lectura, últimos 365 días"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reading by category, last 12 months"
 msgstr "Lectura por categoría, últimos 12 meses"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reading by language"
 msgstr "Lectura por idioma"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reading by weekday"
 msgstr "Lectura por día de la semana"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Reading character"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Reading character traits"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reading clock"
 msgstr "Reloj de lectura"
 
@@ -6463,7 +7777,7 @@ msgstr "Días de lectura"
 msgid "Reading direction"
 msgstr "Dirección de lectura"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reading DNA"
 msgstr "ADN lector"
 
@@ -6471,15 +7785,21 @@ msgstr "ADN lector"
 msgid "Reading every week · Best {n} weeks"
 msgstr "Leyendo cada semana · Récord: {n} semanas"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/overview/Goals.tsx
 msgid "Reading goals"
 msgstr "Objetivos de lectura"
 
+#: src/components/stats/habits/charts.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Reading hours"
 msgstr "Horas de lectura"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/habits/charts.tsx
+msgid "Reading hours and books finished per month"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reading hours and books finished, last 12 months"
 msgstr "Horas de lectura y libros terminados, últimos 12 meses"
 
@@ -6487,15 +7807,20 @@ msgstr "Horas de lectura y libros terminados, últimos 12 meses"
 msgid "Reading intensity"
 msgstr "Intensidad de lectura"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reading intensity by hour and day"
 msgstr "Intensidad de lectura por hora y día"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "Reading now"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reading pace"
 msgstr "Ritmo de lectura"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/habits/HabitsPage.tsx
 msgid "Reading speed"
 msgstr "Velocidad de lectura"
 
@@ -6507,7 +7832,7 @@ msgstr "La velocidad de lectura baja un {down} %"
 msgid "Reading speed steady"
 msgstr "La velocidad de lectura se mantiene estable"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reading speed trend"
 msgstr "Evolución de la velocidad de lectura"
 
@@ -6521,7 +7846,7 @@ msgstr "La velocidad de lectura sube un {up} %"
 msgid "Reading stats"
 msgstr "Estadísticas de lectura"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "Reading stats appear once sessions arrive: synced from the TomeSync KOReader plugin, logged by hand on a book page, or imported from a KOReader statistics file."
 msgstr "Las estadísticas de lectura aparecen cuando llegan sesiones: sincronizadas desde el plugin TomeSync de KOReader, registradas a mano en la página de un libro o importadas desde un archivo de estadísticas de KOReader."
 
@@ -6529,20 +7854,40 @@ msgstr "Las estadísticas de lectura aparecen cuando llegan sesiones: sincroniza
 msgid "Reading the photo…"
 msgstr "Leyendo la foto…"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/library/LibraryPage.tsx
+msgid "reading time"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "Reading time"
 msgstr "Tiempo de lectura"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/habits/charts.tsx
+#: src/components/stats/overview/charts.tsx
+msgid "Reading time by hour and weekday"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/overview/charts.tsx
 msgid "Reading time per day"
 msgstr "Tiempo de lectura al día"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/overview/charts.tsx
+msgid "Reading time per day, last 365 days"
+msgstr ""
+
+#: src/components/stats/overview/charts.tsx
+msgid "Reading time per week"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reading time split by language"
 msgstr "Tiempo de lectura por idioma"
 
+#: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/TimelineRibbon.tsx
-#: src/pages/StatsPage.tsx
 msgid "Reading timeline"
 msgstr "Cronología de lectura"
 
@@ -6550,7 +7895,7 @@ msgstr "Cronología de lectura"
 msgid "Recent activity"
 msgstr "Actividad reciente"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Recent sessions"
 msgstr "Sesiones recientes"
 
@@ -6558,13 +7903,17 @@ msgstr "Sesiones recientes"
 msgid "Recently added"
 msgstr "Añadidos recientemente"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Recently finished"
 msgstr "Terminados recientemente"
 
 #: src/components/ReadingImport.tsx
 msgid "Recognized a <0>{dialect}</0> export: {matched} matched, {unmatched} not in your library, {skipped} to-read rows skipped."
 msgstr "Se ha reconocido una exportación de <0>{dialect}</0>: {matched} con coincidencia, {unmatched} no están en tu biblioteca y se han omitido {skipped} filas de libros por leer."
+
+#: src/components/stats/overview/Overview.tsx
+msgid "Records"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 #: src/pages/BinderyPage.tsx
@@ -6613,7 +7962,7 @@ msgstr "Quitar"
 msgid "Remove \"{name}\"?"
 msgstr "¿Quitar \"{name}\"?"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Remove {title}"
 msgstr "Quitar {title}"
 
@@ -6657,11 +8006,11 @@ msgstr "Eliminar la entrada que Tome creó en Hardcover y volver a emparejar aut
 msgid "Remove wish"
 msgstr "Eliminar deseo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Removed “{title}”"
 msgstr "Se ha quitado “{title}”"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Removed a tile? Add it back, or add another copy."
 msgstr "¿Has quitado una tarjeta? Vuelve a añadirla o añade otra copia."
 
@@ -6677,11 +8026,11 @@ msgstr "No se pudieron eliminar las entradas obsoletas"
 msgid "Removing..."
 msgstr "Eliminando..."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Rename {name}"
 msgstr "Cambiar el nombre de {name}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Rename board"
 msgstr "Cambiar el nombre del panel"
 
@@ -6725,7 +8074,7 @@ msgstr "Volver a escanear"
 msgid "Rescan the bindery folder"
 msgstr "Volver a escanear la carpeta de Bindery"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Reset"
 msgstr "Restablecer"
 
@@ -6833,6 +8182,10 @@ msgstr "Revocar token"
 msgid "Revoked"
 msgstr "Revocado"
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Right in the middle"
+msgstr ""
+
 #: src/pages/ReaderPage.tsx
 msgid "Right to left"
 msgstr "De derecha a izquierda"
@@ -6845,7 +8198,11 @@ msgstr "Rol"
 msgid "Roles guide"
 msgstr "Guía de roles"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "running"
+msgstr ""
+
+#: src/components/stats/RangeControl.tsx
 msgid "Sa"
 msgstr "S"
 
@@ -6865,10 +8222,19 @@ msgstr "Mismo volumen de la serie"
 msgid "Sans"
 msgstr "Sans"
 
+#: src/components/stats/habits/charts.tsx
 #: src/components/stats/HourDowHeatmap.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Sat"
 msgstr "sáb"
+
+#: src/components/stats/habits/charts.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "Saturdays"
+msgstr ""
 
 #: src/components/EntityModal.tsx
 #: src/components/ManageSeriesModal.tsx
@@ -6881,8 +8247,8 @@ msgid "Save"
 msgstr "Guardar"
 
 #: src/pages/StatsPage.tsx
-msgid "Save board as image"
-msgstr "Guardar panel como imagen"
+#~ msgid "Save board as image"
+#~ msgstr "Guardar panel como imagen"
 
 #: src/pages/DashboardPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -6894,8 +8260,8 @@ msgid "Save current filters as a shelf"
 msgstr "Guardar los filtros actuales como estantería"
 
 #: src/components/ManageSeriesModal.tsx
+#: src/components/stats/boards/BoardsView.tsx
 #: src/pages/BookDetailPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Save failed"
 msgstr "Error al guardar"
 
@@ -6903,6 +8269,10 @@ msgstr "Error al guardar"
 #: src/pages/HighlightsPage.tsx
 msgid "Save note"
 msgstr "Guardar nota"
+
+#: src/pages/StatsPage.tsx
+msgid "Save page as image"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Save restrictions"
@@ -6913,15 +8283,19 @@ msgid "Save the library first, then reopen it to share with users."
 msgstr "Guarda primero la biblioteca y vuelve a abrirla para compartirla con usuarios."
 
 #: src/pages/StatsPage.tsx
-msgid "Save this board as an image"
-msgstr "Guardar este panel como imagen"
+#~ msgid "Save this board as an image"
+#~ msgstr "Guardar este panel como imagen"
 
-#: src/pages/AdminPage.tsx
 #: src/pages/StatsPage.tsx
+msgid "Save this page as an image"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
+#: src/pages/AdminPage.tsx
 msgid "Saved"
 msgstr "Guardado"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Saving"
 msgstr "Guardando"
 
@@ -6929,7 +8303,7 @@ msgstr "Guardando"
 msgid "Saving never moves files. Changed layouts show as misplaced in Library health; use Dry run all and Reorganize all to move them."
 msgstr "Guardar nunca mueve archivos. Las estructuras modificadas aparecen como mal ubicadas en Estado de la biblioteca; usa Simular todo y Reorganizar todo para moverlos."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Saving to the server failed. Changes are kept locally."
 msgstr "Error al guardar en el servidor. Los cambios se conservan en local."
 
@@ -6984,8 +8358,8 @@ msgstr "Escaneando portadas…"
 msgid "Scanning…"
 msgstr "Escaneando…"
 
+#: src/components/stats/boards/BoardsView.tsx
 #: src/pages/SettingsPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Scope"
 msgstr "Ámbito"
 
@@ -7086,7 +8460,7 @@ msgstr "Buscar título, autor…"
 msgid "Search to find more icons"
 msgstr "Busca para encontrar más iconos"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Search widgets…"
 msgstr "Buscar widgets…"
 
@@ -7227,11 +8601,13 @@ msgstr "serie"
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
 #: src/components/Sidebar.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/taste/TastePage.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Series"
 msgstr "Series"
 
@@ -7249,7 +8625,7 @@ msgstr "Serie aplicada a {n} archivos"
 msgid "Series books in a folder per series, other books in a folder per author."
 msgstr "Los libros de series, en una carpeta por serie; el resto, en una carpeta por autor."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Series completion"
 msgstr "Progreso de las series"
 
@@ -7277,7 +8653,7 @@ msgstr "El nombre de la serie es obligatorio."
 msgid "Series name. Fill this alone to wish for the whole series."
 msgstr "Nombre de la serie. Rellena solo este campo para añadir la serie completa a tu lista de deseos."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Series ranked by your rating"
 msgstr "Series ordenadas por tu valoración"
 
@@ -7285,7 +8661,7 @@ msgstr "Series ordenadas por tu valoración"
 msgid "Series review"
 msgstr "Revisión de series"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Series spotlight"
 msgstr "Serie destacada"
 
@@ -7305,7 +8681,11 @@ msgstr "Serif"
 msgid "Server"
 msgstr "Servidor"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "Session length"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Session timeline"
 msgstr "Cronología de sesiones"
 
@@ -7314,6 +8694,10 @@ msgid "sessions"
 msgstr "sesiones"
 
 #: src/components/QuickLook.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/library/Sections.tsx
+#: src/components/stats/overview/Overview.tsx
 #: src/components/stats/widgets/insights.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/BookDetailPage.tsx
@@ -7329,6 +8713,14 @@ msgstr "Sesiones <0>({n})</0>"
 msgid "Sessions already known"
 msgstr "Sesiones ya conocidas"
 
+#: src/components/stats/library/Sections.tsx
+msgid "Sessions of the book"
+msgstr ""
+
+#: src/components/stats/library/BookSessions.tsx
+msgid "Sessions of this book"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Set <0>TOME_SMTP_HOST</0> and <1>TOME_SMTP_PORT</1>. Add <2>TOME_SMTP_USER</2> and <3>TOME_SMTP_PASSWORD</3> if the server needs a login, otherwise set <4>TOME_SMTP_FROM</4>."
 msgstr "Define <0>TOME_SMTP_HOST</0> y <1>TOME_SMTP_PORT</1>. Añade <2>TOME_SMTP_USER</2> y <3>TOME_SMTP_PASSWORD</3> si el servidor requiere autenticación; si no, define <4>TOME_SMTP_FROM</4>."
@@ -7338,6 +8730,7 @@ msgid "Set a goal"
 msgstr "Fijar un objetivo"
 
 #: src/components/stats/GoalWidget.tsx
+#: src/components/stats/overview/Goals.tsx
 msgid "Set a reading goal"
 msgstr "Fija un objetivo de lectura"
 
@@ -7447,7 +8840,8 @@ msgid "Shared shelf"
 msgstr "Estantería compartida"
 
 #: src/components/Sidebar.tsx
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/library/Sections.tsx
 msgid "Shelves"
 msgstr "Estanterías"
 
@@ -7462,6 +8856,10 @@ msgstr "Mostrar {title} aquí"
 #: src/components/stats/widgets/library.tsx
 msgid "Show all ({n} books)"
 msgstr "Mostrar todo ({n} libros)"
+
+#: src/components/stats/library/Sections.tsx
+msgid "Show all {total}"
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Show all books"
@@ -7479,9 +8877,21 @@ msgstr "Mostrar todos los subrayados"
 msgid "Show another highlight"
 msgstr "Mostrar otro subrayado"
 
+#: src/pages/SettingsPage.tsx
+msgid "Show Boards"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Show details"
 msgstr "Mostrar detalles"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "Show every read book in the library"
+msgstr ""
+
+#: src/components/stats/library/Sections.tsx
+msgid "Show fewer"
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 #: src/pages/HardcoverPage.tsx
@@ -7500,7 +8910,9 @@ msgstr "Mostrar menos"
 msgid "Show more"
 msgstr "Mostrar más"
 
+#: src/components/stats/library/BookSessions.tsx
 #: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
 msgid "Show more ({left} remaining)"
 msgstr "Mostrar más (quedan {left})"
 
@@ -7508,6 +8920,7 @@ msgstr "Mostrar más (quedan {left})"
 msgid "Show password"
 msgstr "Mostrar contraseña"
 
+#: src/components/stats/library/Sections.tsx
 #: src/components/stats/widgets/library.tsx
 msgid "Show sessions"
 msgstr "Mostrar sesiones"
@@ -7520,11 +8933,15 @@ msgstr "Mostrar el nuevo informe"
 msgid "Show the report"
 msgstr "Mostrar el informe"
 
+#: src/components/stats/library/Sections.tsx
+msgid "Show the sessions of {title}"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Show this help"
 msgstr "Mostrar esta ayuda"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Shrink or grow this tile to fit its content. Off: set the height yourself (content scrolls)."
 msgstr "Encoge o amplía esta tarjeta para que se ajuste a su contenido. Desactivado: tú eliges la altura (el contenido se desplaza)."
 
@@ -7564,6 +8981,18 @@ msgstr "Iniciando sesión…"
 msgid "Similar title"
 msgstr "Título similar"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "since {a}"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "since {since}"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "since {streakStart}"
+msgstr ""
+
 #: src/pages/ReaderPage.tsx
 msgid "Single"
 msgstr "Una página"
@@ -7580,6 +9009,14 @@ msgstr "Inicio de sesión único"
 msgid "Sittings"
 msgstr "Tandas"
 
+#: src/components/stats/habits/charts.tsx
+msgid "Sittings by length"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "Sittings in the last 14 reading days, 04:00 to 04:00"
+msgstr ""
+
 #: src/components/CoverAudit.tsx
 msgid "Size"
 msgstr "Tamaño"
@@ -7589,9 +9026,14 @@ msgstr "Tamaño"
 msgid "Skip"
 msgstr "Omitir"
 
+#: src/components/stats/habits/HabitsPage.tsx
 #: src/components/stats/widgets/wordstats.tsx
 msgid "Slowest"
 msgstr "Más lentos"
+
+#: src/components/stats/library/Sections.tsx
+msgid "Slowest: {title}"
+msgstr ""
 
 #: src/components/reader/ReaderChrome.tsx
 msgid "Smaller text"
@@ -7600,6 +9042,10 @@ msgstr "Texto más pequeño"
 #: src/pages/AdminPage.tsx
 msgid "SMTP status"
 msgstr "Estado de SMTP"
+
+#: src/components/stats/habits/charts.tsx
+msgid "so far"
+msgstr ""
 
 #: src/components/CoverAudit.tsx
 msgid "Some books had no usable candidate or failed to apply. Open them and use the cover picker."
@@ -7621,7 +9067,7 @@ msgstr "Ordenar por {current}"
 msgid "Sort order"
 msgstr "Orden"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Sortable table of every book"
 msgstr "Tabla ordenable de todos los libros"
 
@@ -7633,7 +9079,7 @@ msgstr "Origen"
 msgid "Speed"
 msgstr "Velocidad"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Speed by book format"
 msgstr "Velocidad por formato de libro"
 
@@ -7693,7 +9139,7 @@ msgstr "Empezar {volLabel}"
 msgid "Start a book and it shows up here"
 msgstr "Empieza un libro y aparecerá aquí"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Start from default"
 msgstr "Partir de un panel predeterminado"
 
@@ -7721,7 +9167,7 @@ msgstr "Empieza a escribir para buscar..."
 msgid "Started {l}"
 msgstr "Empezado: {l}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Started vs finished ratio"
 msgstr "Proporción de empezados frente a terminados"
 
@@ -7734,6 +9180,7 @@ msgid "Starts a new folder"
 msgstr "Empieza una carpeta nueva"
 
 #: src/components/Sidebar.tsx
+#: src/pages/SettingsPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Stats"
 msgstr "Estadísticas"
@@ -7741,6 +9188,10 @@ msgstr "Estadísticas"
 #: src/pages/StatsPage.tsx
 msgid "Stats docs"
 msgstr "Documentación de estadísticas"
+
+#: src/pages/StatsPage.tsx
+msgid "Stats pages"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -7764,7 +9215,8 @@ msgid "Stop sending"
 msgstr "Dejar de enviar"
 
 #: src/components/home/HomeTab.tsx
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
+#: src/components/stats/overview/Overview.tsx
 msgid "Streak"
 msgstr "Racha"
 
@@ -7772,7 +9224,7 @@ msgstr "Racha"
 msgid "Strong enough"
 msgstr "Suficientemente segura"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "Su"
 msgstr "D"
 
@@ -7781,14 +9233,23 @@ msgstr "D"
 msgid "Subtitle"
 msgstr "Subtítulo"
 
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionTools.tsx
 msgid "Suggested: {d}"
 msgstr "Sugerida: {d}"
 
+#: src/components/stats/habits/charts.tsx
 #: src/components/stats/HourDowHeatmap.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Sun"
 msgstr "dom"
+
+#: src/components/stats/habits/charts.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "Sundays"
+msgstr ""
 
 #: src/pages/ReaderPage.tsx
 msgid "Swapped"
@@ -7953,11 +9414,12 @@ msgstr "Zonas táctiles"
 msgid "Target"
 msgstr "Meta"
 
+#: src/components/stats/boards/BoardsView.tsx
 #: src/pages/StatsPage.tsx
 msgid "Taste"
 msgstr "Gustos"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Taste by genre"
 msgstr "Gustos por género"
 
@@ -7981,7 +9443,7 @@ msgstr "Probar"
 msgid "Test email sent successfully."
 msgstr "Correo de prueba enviado correctamente."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "Th"
 msgstr "J"
 
@@ -7989,7 +9451,7 @@ msgstr "J"
 msgid "Thank you to everyone who supports Tome"
 msgstr "Gracias a todas las personas que apoyan Tome"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "That file is not a Tome board export."
 msgstr "Ese archivo no es una exportación de panel de Tome."
 
@@ -8005,9 +9467,21 @@ msgstr "Ese código QR no es un código de sincronización de Tome."
 msgid "That SSO identity is already linked to another account."
 msgstr "Esa identidad SSO ya está vinculada a otra cuenta."
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "the {days} days"
+msgstr ""
+
+#: src/components/stats/library/charts.tsx
+msgid "The bar is not to scale: it is cut short so the other months stay readable."
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "The book type's own library is always added automatically."
 msgstr "La biblioteca propia del tipo de libro siempre se añade automáticamente."
+
+#: src/pages/SettingsPage.tsx
+msgid "The customisable grid from earlier versions, as an extra tab on Stats. Turning it off hides the tab; your boards are kept."
+msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "the device"
@@ -8017,9 +9491,44 @@ msgstr "el dispositivo"
 msgid "The device clock is off by {offset}; times were corrected."
 msgstr "El reloj del dispositivo tiene un desfase de {offset}; se han corregido las horas."
 
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "the last {days} days"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "the last 12 months"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "The last 12 months"
+msgstr ""
+
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "the last 7 reading days against {rangeWords}"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "The password KOReader's progress sync (KOSync) signs in with. It is separate from your Tome password."
 msgstr "La contraseña con la que inicia sesión la sincronización del progreso de KOReader (KOSync). Es distinta de tu contraseña de Tome."
+
+#: src/components/stats/overview/Overview.tsx
+msgid "the previous {days} days"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "the previous {span} days"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "the previous 12 months"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "The same as {prevPhrase}"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "The sender address. Required when there is no user; otherwise the user is used."
@@ -8028,6 +9537,10 @@ msgstr "La dirección del remitente. Obligatoria si no hay usuario; si lo hay, s
 #: src/components/stats/SessionLog.tsx
 msgid "The triangle marks an implausibly long session. Scissors shorten a session, the bin deletes it."
 msgstr "El triángulo marca una sesión de duración inverosímil. Las tijeras acortan una sesión y la papelera la elimina."
+
+#: src/components/stats/overview/Overview.tsx
+msgid "The year"
+msgstr ""
 
 #: src/components/reader/ReaderChrome.tsx
 #: src/components/Sidebar.tsx
@@ -8043,7 +9556,7 @@ msgstr "Nombre del tema"
 msgid "Theme name is required"
 msgstr "El nombre del tema es obligatorio"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "This board is empty."
 msgstr "Este panel está vacío."
 
@@ -8068,11 +9581,11 @@ msgid "This is the report"
 msgstr "Este es el informe"
 
 #: src/components/home/HomeTab.tsx
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "This month"
 msgstr "Este mes"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "This month, read days filled"
 msgstr "Este mes, con los días de lectura marcados"
 
@@ -8084,11 +9597,11 @@ msgstr "No se pudo mostrar esta página"
 msgid "This page is open at {host}, which your phone cannot reach: on the phone, localhost is the phone itself. Type the address your phone can reach this computer at, or open Tome at that address instead."
 msgstr "Esta página está abierta en {host}, a la que tu móvil no puede acceder: en el móvil, localhost es el propio móvil. Escribe la dirección con la que tu móvil puede llegar a este ordenador o abre Tome en esa dirección."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "This page is yours: every tile can be moved, resized, swapped or removed, per board. Hit <0>Edit</0> to start. Reset always brings the defaults back."
 msgstr "Esta página es tuya: en cada panel puedes mover, redimensionar, cambiar o quitar cualquier tarjeta. Pulsa <0>Editar</0> para empezar. Restablecer siempre recupera la configuración predeterminada."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "This period vs the last"
 msgstr "Este periodo frente al anterior"
 
@@ -8108,7 +9621,7 @@ msgstr "Esto sustituye <0>toda la base de datos</0> en el próximo reinicio. Esc
 msgid "This series has no volumes with a numeric index yet. Add volumes before defining arcs."
 msgstr "Esta serie aún no tiene volúmenes con número. Añade volúmenes antes de definir arcos."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "This tile uses a fixed window and ignores the range picker"
 msgstr "Esta tarjeta usa un periodo fijo e ignora el selector de periodo"
 
@@ -8124,26 +9637,37 @@ msgstr "esta semana"
 msgid "This wish covers the whole series and stays open as new volumes arrive."
 msgstr "Este deseo abarca toda la serie y sigue abierto a medida que llegan nuevos volúmenes."
 
+#: src/components/stats/habits/charts.tsx
 #: src/components/stats/HourDowHeatmap.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Thu"
 msgstr "jue"
 
+#: src/components/stats/habits/charts.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "Thursdays"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/library/Sections.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Time"
 msgstr "Tiempo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Time by format"
 msgstr "Tiempo por formato"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Time left on books in progress"
 msgstr "Tiempo restante de los libros en curso"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Time of day split"
 msgstr "Reparto por momento del día"
 
@@ -8155,7 +9679,7 @@ msgstr "Tiempo por capítulo"
 msgid "Time per chapter, line view"
 msgstr "Tiempo por capítulo, vista de línea"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Time per day"
 msgstr "Tiempo al día"
 
@@ -8169,14 +9693,19 @@ msgstr "Tiempo por volumen"
 msgid "Time reading"
 msgstr "Tiempo de lectura"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Time split across categories"
 msgstr "Reparto del tiempo entre categorías"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/library/Sections.tsx
+msgid "Time to finish"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Timeframe"
 msgstr "Intervalo"
 
+#: src/components/stats/boards/BoardsView.tsx
 #: src/pages/StatsPage.tsx
 msgid "Timeline"
 msgstr "Cronología"
@@ -8187,6 +9716,7 @@ msgstr "título"
 
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
+#: src/components/stats/library/Sections.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
@@ -8223,6 +9753,10 @@ msgstr "Hasta"
 #: src/pages/WishlistPage.tsx
 msgid "Today"
 msgstr "Hoy"
+
+#: src/components/stats/overview/charts.tsx
+msgid "today, still counting"
+msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Toggle metadata edit"
@@ -8281,11 +9815,15 @@ msgstr "Demasiados intentos fallidos. Espera un momento y vuelve a intentarlo."
 msgid "Took {dur}"
 msgstr "Duración: {dur}"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/taste/TastePage.tsx
+msgid "top {shownN} of {more}"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Top authors by reading time"
 msgstr "Autores con más tiempo de lectura"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Top books by reading time"
 msgstr "Libros con más tiempo de lectura"
 
@@ -8297,7 +9835,7 @@ msgstr "Género principal"
 msgid "Total hours"
 msgstr "Horas totales"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Total pages turned"
 msgstr "Total de páginas pasadas"
 
@@ -8309,7 +9847,7 @@ msgstr "Sesiones totales"
 msgid "Total time"
 msgstr "Tiempo total"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Total time read + avg session"
 msgstr "Tiempo total leído + sesión media"
 
@@ -8317,19 +9855,23 @@ msgstr "Tiempo total leído + sesión media"
 msgid "Total: {total}"
 msgstr "Total: {total}"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "Totals"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Translations are community-maintained. Anything not yet translated is shown in English."
 msgstr "Las traducciones las mantiene la comunidad. Lo que aún no está traducido se muestra en inglés."
 
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionTools.tsx
 msgid "Trim"
 msgstr "Recortar"
 
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionTools.tsx
 msgid "Trim session"
 msgstr "Recortar sesión"
 
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionTools.tsx
 msgid "Trimming only shortens this session's length and end time. Page turns, progress and every other session stay untouched, and the previous duration is kept in the audit log. The suggestion re-prices this session's page turns at your usual reading pace."
 msgstr "Recortar solo acorta la duración y la hora de fin de esta sesión. Las páginas pasadas, el progreso y el resto de sesiones no cambian, y la duración anterior se guarda en el registro de auditoría. La sugerencia recalcula el tiempo de las páginas pasadas en esta sesión según tu ritmo de lectura habitual."
 
@@ -8346,14 +9888,23 @@ msgstr "Reintentar"
 msgid "Try editing the title or series fields"
 msgstr "Prueba a editar los campos de título o serie"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "Tu"
 msgstr "M"
 
+#: src/components/stats/habits/charts.tsx
 #: src/components/stats/HourDowHeatmap.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Tue"
 msgstr "mar"
+
+#: src/components/stats/habits/charts.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "Tuesdays"
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Turn on when the background is dark, so the parts made for dark mode use their dark look."
@@ -8362,6 +9913,11 @@ msgstr "Actívalo si el fondo es oscuro, para que los elementos pensados para el
 #: src/pages/ReaderPage.tsx
 msgid "Turn pages by swipe only"
 msgstr "Pasa las páginas solo deslizando"
+
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "two-hour columns"
+msgstr ""
 
 #: src/pages/ReaderPage.tsx
 msgid "Two-page spread"
@@ -8372,6 +9928,7 @@ msgid "Two-page spread (S)"
 msgstr "Doble página (S)"
 
 #: src/components/MetadataManager.tsx
+#: src/components/stats/library/LibraryPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Type"
@@ -8397,12 +9954,32 @@ msgstr "Tipos"
 msgid "Unassigned"
 msgstr "Sin asignar"
 
+#: src/components/stats/overview/Overview.tsx
+msgid "under {a}"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "Under 15 minutes"
+msgstr ""
+
+#: src/components/stats/habits/charts.tsx
+msgid "Under 15m"
+msgstr ""
+
+#: src/components/stats/library/LibraryPage.tsx
+msgid "under 1m"
+msgstr ""
+
 #: src/lib/backlog.ts
 msgid "under a day"
 msgstr "menos de un día"
 
+#: src/components/stats/habits/charts.tsx
+msgid "Under a minute"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 #: src/pages/BookDetailPage.tsx
-#: src/pages/StatsPage.tsx
 msgid "Undo"
 msgstr "Deshacer"
 
@@ -8429,6 +10006,14 @@ msgstr "autor desconocido"
 #: src/pages/WishlistPage.tsx
 msgid "Unknown author"
 msgstr "Autor desconocido"
+
+#: src/components/stats/habits/charts.tsx
+msgid "Unknown book"
+msgstr ""
+
+#: src/components/stats/sessions/SessionsPage.tsx
+msgid "Unknown date"
+msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "unknown device"
@@ -8463,7 +10048,9 @@ msgstr "Archivo ilegible"
 msgid "Unserialized"
 msgstr "Sin serie"
 
+#: src/components/stats/library/BookSessions.tsx
 #: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
 msgid "Unusually long session"
 msgstr "Sesión inusualmente larga"
 
@@ -8541,7 +10128,7 @@ msgstr "Subido por: {filterUploaderName}"
 msgid "URL"
 msgstr "URL"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Use “Add tile” to build your {name} board."
 msgstr "Usa “Añadir tarjeta” para montar tu panel {name}."
 
@@ -8646,6 +10233,14 @@ msgstr "Volumen {n}, no está en la biblioteca"
 msgid "Volume {v}"
 msgstr "Volumen {v}"
 
+#: src/components/home/HomeTab.tsx
+msgid "Volume {v} · {series}"
+msgstr ""
+
+#: src/components/home/HomeTab.tsx
+msgid "Volume {v} · next in {series}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Volume number, as 01 or 10.5"
 msgstr "Número de volumen, como 01 o 10.5"
@@ -8653,6 +10248,10 @@ msgstr "Número de volumen, como 01 o 10.5"
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
 msgstr "Volúmenes"
+
+#: src/components/stats/overview/charts.tsx
+msgid "W"
+msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Waiting for a code…"
@@ -8674,12 +10273,14 @@ msgstr "Recorre el directorio de la biblioteca y añade los archivos de libros n
 msgid "want to read"
 msgstr "quiero leer"
 
+#: src/components/stats/library/LibraryPage.tsx
+#: src/components/stats/library/Sections.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Want to read"
 msgstr "Quiero leer"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Want to Read"
 msgstr "Quiero leer"
 
@@ -8687,7 +10288,7 @@ msgstr "Quiero leer"
 msgid "Warm"
 msgstr "Cálidos"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/RangeControl.tsx
 msgid "We"
 msgstr "X"
 
@@ -8696,7 +10297,7 @@ msgid "Web"
 msgstr "Web"
 
 #: src/components/PositionHistoryModal.tsx
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/actions.ts
 #: src/pages/BookDetailPage.tsx
 msgid "Web reader"
 msgstr "Lector web"
@@ -8705,10 +10306,19 @@ msgstr "Lector web"
 msgid "Webtoon"
 msgstr "Webtoon"
 
+#: src/components/stats/habits/charts.tsx
 #: src/components/stats/HourDowHeatmap.tsx
+#: src/components/stats/overview/charts.tsx
 #: src/components/stats/widgets/habits.tsx
 msgid "Wed"
 msgstr "mié"
+
+#: src/components/stats/habits/charts.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/charts.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "Wednesdays"
+msgstr ""
 
 #: src/lib/goals.ts
 msgid "Weekly minutes"
@@ -8718,7 +10328,7 @@ msgstr "Minutos semanales"
 msgid "Weekly pages"
 msgstr "Páginas semanales"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Weekly streak"
 msgstr "Racha semanal"
 
@@ -8758,7 +10368,12 @@ msgstr "Novedades de Tome {version}"
 msgid "When"
 msgstr "Cuándo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/habits/HabitsPage.tsx
+#: src/components/stats/overview/Overview.tsx
+msgid "When you read"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "When you read, by hour and weekday"
 msgstr "Cuándo lees, por hora y día de la semana"
 
@@ -8766,11 +10381,19 @@ msgstr "Cuándo lees, por hora y día de la semana"
 msgid "Where in the book your time went. Taller means more time spent on those pages."
 msgstr "En qué partes del libro has invertido tu tiempo. Cuanto más alta la barra, más tiempo dedicado a esas páginas."
 
+#: src/components/stats/overview/Overview.tsx
+msgid "Where the time went"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "Where you read"
 msgstr "Dónde lees"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/sessions/SessionsPage.tsx
+msgid "Which sessions"
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Which weekday you read most"
 msgstr "Qué día de la semana lees más"
 
@@ -8839,11 +10462,15 @@ msgstr "Recuentos de palabras"
 msgid "Words"
 msgstr "Palabras"
 
+#: src/components/stats/habits/HabitsPage.tsx
+msgid "words a minute"
+msgstr ""
+
 #: src/components/WordCount.tsx
 msgid "Words found"
 msgstr "Palabras encontradas"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Words read"
 msgstr "Palabras leídas"
 
@@ -8867,7 +10494,7 @@ msgstr "Año"
 msgid "Year challenge"
 msgstr "Reto anual"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Year in review"
 msgstr "Resumen del año"
 
@@ -8898,6 +10525,10 @@ msgstr "Lo has valorado con {rating}/5"
 msgid "you read ~{mpd} min a day (last {win} days)"
 msgstr "lees ~{mpd} min al día (últimos {win} días)"
 
+#: src/components/stats/library/Sections.tsx
+msgid "you read about {m} minutes a day (last {win} days)"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "You will have to sign in again here."
 msgstr "Tendrás que volver a iniciar sesión aquí."
@@ -8926,10 +10557,11 @@ msgstr "Tu día de más lectura del mes: {dur} con {mainTitle}."
 msgid "Your Hardcover token expired (they reset every January 1). Paste a fresh one to resume syncing."
 msgstr "Tu token de Hardcover ha caducado (se restablecen cada 1 de enero). Pega uno nuevo para reanudar la sincronización."
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Your highest & lowest rated books"
 msgstr "Tus libros mejor y peor valorados"
 
+#: src/components/stats/library/LibraryPage.tsx
 #: src/pages/SetupPage.tsx
 msgid "Your library"
 msgstr "Tu biblioteca"
@@ -8937,6 +10569,10 @@ msgstr "Tu biblioteca"
 #: src/pages/DashboardPage.tsx
 msgid "Your library is empty"
 msgstr "Tu biblioteca está vacía"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "your longest"
+msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Your note, syncs back to KOReader on the next sync"
@@ -8946,19 +10582,23 @@ msgstr "Tu nota; se enviará a KOReader en la próxima sincronización"
 msgid "Your note. It syncs back to KOReader on the next sync."
 msgstr "Tu nota. Se enviará a KOReader en la próxima sincronización."
 
-#: src/components/stats/SessionLog.tsx
+#: src/components/stats/sessions/SessionTools.tsx
 msgid "Your page turns at your usual reading pace"
 msgstr "Tus páginas pasadas, a tu ritmo de lectura habitual"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/taste/TastePage.tsx
+msgid "Your ratings appear here in the order you gave them."
+msgstr ""
+
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Your ratings over time"
 msgstr "Tus valoraciones a lo largo del tiempo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Your reading life, every book a bar in time"
 msgstr "Tu vida lectora: cada libro, una barra en el tiempo"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Your real reading speed: words ÷ time"
 msgstr "Tu velocidad de lectura real: palabras ÷ tiempo"
 
@@ -8986,7 +10626,7 @@ msgstr "Tus volúmenes tienen una media de {avg} ({rated} valorados)"
 msgid "Your wishlist is empty"
 msgstr "Tu lista de deseos está vacía"
 
-#: src/pages/StatsPage.tsx
+#: src/components/stats/boards/BoardsView.tsx
 msgid "Your year, at a glance (1y/All)"
 msgstr "Tu año de un vistazo (1 año/Todos)"
 
