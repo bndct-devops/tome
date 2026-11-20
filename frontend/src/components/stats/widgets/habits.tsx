@@ -247,7 +247,7 @@ export function CompletionEstimatesList({ estimates }: { estimates: CompletionEs
               <span className="w-9 shrink-0 text-right text-[12px] text-muted-foreground">{Math.round(est.progress)}%</span>
             </div>
             <p className={cn('text-[13px] mt-1.5', est.confidence === 'high' ? 'text-foreground' : est.confidence === 'medium' ? 'text-muted-foreground' : 'text-muted-foreground/60')}>
-              {est.progress >= 100 ? t`Finished` : est.estimated_days != null ? plural(est.estimated_days, { one: '~# day remaining', other: '~# days remaining' }) : t`Just started`}
+              {est.progress >= 100 ? t({ message: 'Finished', context: 'reading' }) : est.estimated_days != null ? plural(est.estimated_days, { one: '~# day remaining', other: '~# days remaining' }) : t`Just started`}
               {est.progress < 100 && est.confidence === 'low' && est.estimated_days != null && <span className="ml-1 text-muted-foreground/50"><Trans>(low confidence)</Trans></span>}
             </p>
           </div>
