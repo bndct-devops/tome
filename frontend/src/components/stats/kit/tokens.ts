@@ -18,7 +18,7 @@ export const UNDIM = 'transition-opacity duration-150'
 // straight line between the two, so the mid steps are a dimmer accent; mixed in
 // oklch they turned towards the ground's warm hue and read as brown.
 export const LEVELS = {
-  '--k-lv0': 'color-mix(in oklch, var(--foreground) 7%, var(--background))',
+  '--k-lv0': 'var(--heat-empty)',
   '--k-lv1': 'color-mix(in oklab, var(--chart-accent) 36%, var(--k-lv0))',
   '--k-lv2': 'color-mix(in oklab, var(--chart-accent) 54%, var(--k-lv0))',
   '--k-lv3': 'color-mix(in oklab, var(--chart-accent) 71%, var(--k-lv0))',

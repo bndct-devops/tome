@@ -40,7 +40,7 @@ export function Pending() {
  */
 export function Track({ pct, className, style, tip }: { pct: number; className?: string; style?: CSSProperties; tip?: { 'data-tip': string } }) {
   return (
-    <div className={cn('k-track k-bar h-[6px] flex-1 overflow-hidden rounded-full', className)} style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))', ...style }} {...tip}>
+    <div className={cn('k-track k-bar h-[6px] flex-1 overflow-hidden rounded-full', className)} style={{ background: 'var(--rail)', ...style }} {...tip}>
       <div className="k-grow-x h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
     </div>
   )

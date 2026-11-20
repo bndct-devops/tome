@@ -153,7 +153,7 @@ function monthKey(): string {
 function ProgressBar({ pct, className, steady }: { pct: number; className?: string; steady?: boolean }) {
   return (
     <div className={cn('flex items-center gap-3', className)}>
-      <div className="h-[6px] flex-1 rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
+      <div className="h-[6px] flex-1 rounded-full overflow-hidden" style={{ background: 'var(--rail)' }}>
         <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
       </div>
       {/* steady: the number keeps a minimum width, so "2%" and "64%" leave tracks of one length */}
@@ -532,7 +532,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                 {others.map(r => (
                   <div key={r.book_id} className="shrink-0 w-[104px]">
                     {readingCover(r, true)}
-                    <div className="mt-2 h-[3px] rounded-full overflow-hidden" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
+                    <div className="mt-2 h-[3px] rounded-full overflow-hidden" style={{ background: 'var(--rail)' }}>
                       <div className="h-full bg-primary" style={{ width: `${Math.min(100, r.progress)}%` }} />
                     </div>
                     <Link to={`/books/${r.book_id}`} className="mt-1.5 block text-[13px] truncate text-muted-foreground hover:text-primary transition-colors">{r.title}</Link>

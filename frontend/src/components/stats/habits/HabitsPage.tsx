@@ -598,7 +598,7 @@ function Character({ stats, desktop, sig }: { stats: StatsResponse | null; deskt
                 </div>
                 <div
                   className="relative h-1.5 rounded-full ring-offset-2 ring-offset-background group-data-[hot]:ring-2 group-data-[hot]:ring-primary/40"
-                  style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))', opacity: tr ? 1 : 0.4 }}
+                  style={{ background: 'var(--rail)', opacity: tr ? 1 : 0.4 }}
                 >
                   <i className="absolute -bottom-[3px] -top-[3px] left-1/2 block w-px bg-border" />
                   {tr && (
