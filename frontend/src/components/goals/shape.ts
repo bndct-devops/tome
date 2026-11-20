@@ -30,7 +30,9 @@ export function useShape(key: string) {
   useLayoutEffect(() => {
     if (!els.current.size) return
     const now: Record<string, number> = {}
-    for (const [name, el] of els.current) now[name] = Math.round(el.getBoundingClientRect().height)
+    // Kept to 1/64 px, as layout computes: a block 240.5 px high remembered as 241 put
+    // everything under it half a pixel lower on the next visit until the answer landed.
+    for (const [name, el] of els.current) now[name] = Math.round(el.getBoundingClientRect().height * 64) / 64
     const prev = load(key)
     if (prev && Object.keys(now).every((k) => prev[k] === now[k]) && Object.keys(prev).length === Object.keys(now).length) return
     try {

@@ -155,17 +155,28 @@ function GoalDetail({ goal, skeleton, desktop, rev, today, onEdit }: {
     <section ref={attach} data-box="goal-detail" aria-busy={!ready} aria-label={name || undefined}>
       {/* The kit's heading look (Heading), with a title that may be long (a series): one line with an
           ellipsis on a desktop, wrapping on the phone, never under the actions. */}
-      <div ref={ready ? shape.measure('head') : undefined} style={!ready ? { height: shape.h('head') } : undefined} className="mb-5 flex items-baseline justify-between gap-4">
-        <h2 className={cn('min-w-0 font-display text-[24px] font-bold text-foreground', desktop ? 'truncate leading-none' : 'leading-tight [overflow-wrap:anywhere]')} {...(goal && desktop ? tipAttrs({ title: name }) : {})}>
-          {goal ? name : <span className="inline-block h-6 w-56 rounded-[8px] bg-muted align-middle" aria-hidden="true" />}
+      <div ref={ready ? shape.measure('head') : undefined} style={!ready ? { height: shape.h('head') } : undefined} className={cn('mb-5 flex justify-between gap-4', desktop ? 'items-baseline' : 'items-start')}>
+        {/* A fixed line box (24 px on a desktop, 30 px a line on the phone), whatever the font and
+            whether the title is in yet: the placeholder sits top-aligned in that line (so it neither
+            grows the line nor changes the heading's baseline), not middle-aligned on the font's metrics. */}
+        <h2 className={cn('min-w-0 font-display text-[24px] font-bold text-foreground', desktop ? 'h-6 truncate leading-6' : 'min-h-[30px] leading-[30px] [overflow-wrap:anywhere]')} {...(goal && desktop ? tipAttrs({ title: name }) : {})}>
+          {goal ? name : <span className={cn('relative inline-block h-6 w-56 rounded-[8px] bg-muted align-top', !desktop && 'top-[3px]')} aria-hidden="true" />}
         </h2>
-        {goal && (
-          <span className="flex shrink-0 items-center gap-1 text-[14px] text-muted-foreground">
+        {goal ? (
+          // The phone's buttons (no text to share a baseline with) sit centred on the title's first
+          // 30 px line, whatever the font: a baseline row moved the title when the font came in.
+          <span className={cn('flex shrink-0 items-center gap-1 text-[14px] text-muted-foreground', !desktop && '-mt-[3px]')}>
             {desktop && <span className="mr-2 whitespace-nowrap">{t`the selected goal`} · {takes(goal, today)}</span>}
             {goal.kind !== 'finish_by' || goal.status !== 'completed' ? (
               <Pill variant="quiet" icon onClick={() => onEdit(goal)} aria-label={t`Edit goal`} {...tipAttrs({ title: t`Edit goal` })}><Pencil className="h-4 w-4" /></Pill>
             ) : null}
             <Pill variant="destructive" icon onClick={() => del(goal)} aria-label={t`Delete this goal`} {...tipAttrs({ title: t`Delete this goal` })}><Trash2 className="h-4 w-4" /></Pill>
+          </span>
+        ) : (
+          // Until the goal is in: the same row end, unseen, so the title sits on the baseline it will keep.
+          <span className={cn('invisible flex shrink-0 items-center gap-1 text-[14px]', !desktop && '-mt-[3px]')} aria-hidden="true">
+            {desktop && <span className="mr-2 whitespace-nowrap">{'\u00a0'}</span>}
+            <span className="inline-flex h-9 w-9" />
           </span>
         )}
       </div>

@@ -27,7 +27,9 @@ import { mediumDate, minutesText, monthName, perDayText, shortDate, weekdayShort
 
 function Sub({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
-    <div className="mb-3 flex items-baseline justify-between gap-3">
+    // One fixed line box (21 px a line) for the title and the legend, top-aligned: a baseline row of a
+    // 14 px and a 13 px text is as tall as the fonts' metrics make it, and changed when they loaded.
+    <div className="mb-3 flex items-start justify-between gap-3 leading-[21px]">
       <span className="text-[14px] font-semibold text-foreground">{children}</span>
       {right}
     </div>
