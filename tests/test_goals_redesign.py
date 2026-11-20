@@ -675,3 +675,71 @@ def test_upgrade_old_shape_table_in_place(tmp_path):
         assert row == (7, "books_per_year", 60, "2025-12-31 23:00:00", "2026-03-04")
         targets = c.execute(text("SELECT goal_id, target, changed_on FROM reading_goal_targets")).all()
         assert targets == [(7, 60, "2026-03-04")]
+
+
+# ── follow-ups: books suggestions from reading time, reading-days card history ──
+
+def _reader_with_minutes(db, make_book, user, today, minutes_for_day):
+    book = make_book(title="pace")
+    for i in range(1, 91):
+        d = today - timedelta(days=i)
+        m = minutes_for_day(i)
+        if m:
+            session(db, user.id, book.id, utc(f"{d.isoformat()} 12:00"), seconds=60 * m)
+
+
+def test_books_suggestions_come_from_reading_time_not_bulk_finish_dates(client, make_book, admin_user, db, now):
+    user, _ = admin_user
+    now.set("2026-11-20 12:00")
+    today = date(2026, 11, 20)
+    _reader_with_minutes(db, make_book, user, today, lambda i: i)  # 1..90 min a day
+    # Three timed books (300, 600, 900 min: median 600) read long ago...
+    for k, mins in enumerate((300, 600, 900)):
+        b = make_book(title=f"timed{k}")
+        session(db, user.id, b.id, utc("2025-01-0%d 12:00" % (k + 1)), seconds=60 * mins)
+        finish(db, user.id, b.id, utc("2026-06-28 12:00"))
+    # ...and forty books marked read on one day without any reading time.
+    for k in range(40):
+        b = make_book(title=f"bulk{k}")
+        finish(db, user.id, b.id, utc("2026-06-28 12:00"))
+    s = client.get("/api/goals/suggestions").json()
+    assert s["per_book"]["median_minutes"] == 600.0
+    month = s["kinds"]["books_per_month"]
+    # Minutes-a-day percentiles 23 / 46 / 68 (index q·90 of 1..90) × 30.44 ÷ 600.
+    assert [c["value"] for c in month["suggested"]] == [1, 2, 3]
+    assert month["over"] == "days" and month["suggested"][1]["minutes_per_day"] == round(2 * 600 / gs.DAYS_PER_MONTH, 1)
+    assert month["suggested"][1]["reached"] == sum(1 for m in range(1, 91) if m >= round(2 * 600 / gs.DAYS_PER_MONTH, 1))
+    year = s["kinds"]["books_per_year"]
+    # 23 / 46 / 68 × 365 ÷ 600 = 13.99 / 27.98 / 41.4: below 40 at the median, so whole books.
+    assert [c["value"] for c in year["suggested"]] == [13, 27, 41]
+    assert all(p["of"] == 90 for p in year["presets"])
+
+
+def test_books_suggestions_fall_back_to_presets_without_timed_books(client, make_book, admin_user, db, now):
+    user, _ = admin_user
+    now.set("2026-11-20 12:00")
+    today = date(2026, 11, 20)
+    _reader_with_minutes(db, make_book, user, today, lambda i: 40)
+    for k in range(10):  # finishes, but none with recorded reading
+        b = make_book(title=f"f{k}")
+        finish(db, user.id, b.id, utc(f"2026-0{1 + k % 9}-15 12:00"))
+    s = client.get("/api/goals/suggestions").json()
+    for kind in ("books_per_month", "books_per_year"):
+        assert s["kinds"][kind]["suggested"] is None
+        assert [p["value"] for p in s["kinds"][kind]["presets"]] == gs.PRESETS[kind]
+
+
+def test_reading_days_card_counts_the_last_twelve_weeks(client, make_book, admin_user, db, now):
+    user, _ = admin_user
+    now.set("2026-11-20 09:00", VIENNA)  # a Friday; this week starts Mon Nov 16
+    book = make_book(title="days")
+    week0 = date(2026, 11, 16)
+    # Five complete weeks of data: the last three with 5 reading days, two before with 2.
+    for w in range(1, 6):
+        start = week0 - timedelta(days=7 * w)
+        n = 5 if w <= 3 else 2
+        for i in range(n):
+            session(db, user.id, book.id, utc(f"{(start + timedelta(days=i)).isoformat()} 12:00", VIENNA), seconds=600)
+    g = create(client, "days_per_week", 5, tz=VIENNA)
+    assert g["recent_weeks"] == {"reached": 3, "of": 5}
+    assert goals(client, tz=VIENNA)["days_per_week"]["recent_weeks"] == {"reached": 3, "of": 5}

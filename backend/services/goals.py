@@ -108,6 +108,11 @@ RECENT_DAYS = 30
 BULK_MIN = 3
 # Average month length, for "N books a month".
 DAYS_PER_MONTH = 30.44
+# Books suggestions: the median time per finished book counts books with at least
+# this much recorded reading (a book marked read after a few minutes on the web is
+# not how long a book takes), and needs this many of them.
+MIN_BOOK_MINUTES = 30
+MIN_TIMED_BOOKS = 3
 
 MONTHS = ["January", "February", "March", "April", "May", "June", "July",
           "August", "September", "October", "November", "December"]
@@ -471,6 +476,20 @@ def goal_state(gd: GoalData, goal: ReadingGoal) -> dict:
     if goal.kind == "days_per_week":
         today_read = gd.today in gd.active_days()
         out["reachable"] = reached or (target - raw) <= days_left - (1 if today_read else 0)
+        # The card's "reached in N of the last 12 weeks": complete weeks since the
+        # first reading day, each against the target it had (as the history judges).
+        active = gd.active_days()
+        first = min(active) if active else None
+        hit, of = 0, 0
+        w1 = start - timedelta(days=1)
+        for _ in range(HISTORY_PERIODS["week"]):
+            w0 = w1 - timedelta(days=6)
+            if first is None or w1 < first:
+                break
+            of += 1
+            hit += sum(1 for d in _days(w0, w1) if d in active) >= target_for(rows, w1)
+            w1 = w0 - timedelta(days=1)
+        out["recent_weeks"] = {"reached": hit, "of": of}
     if period == "year":
         out["year"] = start.year
     return out
@@ -929,17 +948,14 @@ def suggestions(gd: GoalData, kinds: Optional[list[str]] = None) -> dict:
         p0, p1 = previous_period("month", p0)
         months.append((p0, p1))
     months.reverse()
-    first_fin = min(fin) if fin else None
-    month_counts = [sum(c for d, c in fin.items() if a <= d <= b) for a, b in months
-                    if first_fin is not None and b >= first_fin]
+    # Books goals are suggested from reading time, not from monthly finish counts:
+    # finish dates are often set in bulk (a shelf marked read on one day), so a
+    # month's count says when books were marked, not how fast the reader reads.
+    med_book = _median_book_minutes(gd)
 
     def books_a_month(v_per_day: float, metric: str) -> Optional[float]:
         pb = per_book[metric]
         return round(v_per_day * DAYS_PER_MONTH / pb, 2) if pb else None
-
-    def minutes_a_day(books: float, days: float) -> Optional[float]:
-        pb = per_book["minutes"]
-        return round(books * pb / days, 1) if pb else None
 
     window = {"from": days90[0].isoformat(), "to": days90[-1].isoformat(), "days": SUGGEST_DAYS,
               "weeks_from": weeks[0].isoformat(), "weeks": SUGGEST_WEEKS,
@@ -965,19 +981,11 @@ def suggestions(gd: GoalData, kinds: Optional[list[str]] = None) -> dict:
                     return {}
                 return {"books_per_month": books_a_month(v / 7, metric)}
             unit_count = "weeks"
-        elif kind == "books_per_month":
-            values = month_counts
-            have = len(values) >= 3 and sum(values) >= 3
-            def conseq(v):
-                return {"minutes_per_day": minutes_a_day(v, DAYS_PER_MONTH)}
-            unit_count = "months"
-        else:  # books_per_year: the months' rates, a year of them
-            values = [c * 12 for c in month_counts]
-            have = len(values) >= 3 and sum(month_counts) >= 3
-            def conseq(v):
-                return {"minutes_per_day": minutes_a_day(v, 365)}
-            unit_count = "months"
-            step = 5 if values and _pick(sorted(values), 0.5) >= 40 else 1
+        else:  # books_per_month, books_per_year: from minutes a day (_books_entry)
+            days_in = DAYS_PER_MONTH if kind == "books_per_month" else 365
+            have = med_book is not None and sum(1 for v in min90 if v > 0) >= 14
+            out[kind] = _books_entry(kind, min90, med_book, days_in, have)
+            continue
         avg = (sum(values) / len(values)) if values else None
         entry = {
             "kind": kind, "unit": UNITS[metric], "over": unit_count, "count": len(values),
@@ -995,6 +1003,58 @@ def suggestions(gd: GoalData, kinds: Optional[list[str]] = None) -> dict:
         out[kind] = entry
     return {"today": today.isoformat(), "window": window, "per_book": {
         "books": books90,
+        "median_minutes": round(med_book, 1) if med_book else None,
         "minutes": round(per_book["minutes"], 1) if per_book["minutes"] else None,
         "pages": round(per_book["pages"], 1) if per_book["pages"] else None,
     }, "kinds": out}
+
+
+def _median_book_minutes(gd: GoalData) -> Optional[float]:
+    """The reader's median reading time in minutes (Stats' reconciled counting)
+    per finished book, over finished books with at least ``MIN_BOOK_MINUTES`` of
+    recorded reading; None with fewer than ``MIN_TIMED_BOOKS`` of them."""
+    read_ids = {r[0] for r in gd.db.query(UserBookStatus.book_id)
+                .filter(UserBookStatus.user_id == gd.user.id, UserBookStatus.status == "read")}
+    if not read_ids:
+        return None
+    secs = rr.book_seconds(gd.db, gd.user.id, gd.day, gd.covered, None, None)
+    mins = [secs[b][0] / 60 for b in read_ids if b in secs and secs[b][0] / 60 >= MIN_BOOK_MINUTES]
+    if len(mins) < MIN_TIMED_BOOKS:
+        return None
+    return float(statistics.median(mins))
+
+
+def _books_entry(kind: str, min90: list[float], med_book: Optional[float], days_in: float,
+                 have: bool) -> dict:
+    """A books kind's suggestions from reading time: the 25th / 50th / 75th
+    percentile of minutes a day over the 90 days (zero days included) times the
+    days in the period, over the median minutes per finished book, rounded down
+    to the kind's step (books a year: 5 from 40 up). ``reached`` / ``of`` count
+    the 90 days read at least at the pace a target takes, ``minutes_per_day``
+    (the consequence line: books x median ÷ days in the period)."""
+    step = STEPS[kind]
+
+    def pace(books: float) -> Optional[float]:
+        return round(books * med_book / days_in, 1) if med_book else None
+
+    def counted(books: int) -> dict:
+        p = pace(books)
+        return {"reached": sum(1 for v in min90 if v >= p) if p is not None else None,
+                "of": len(min90), "minutes_per_day": p}
+
+    rates = sorted(v * days_in / med_book for v in min90) if med_book else []
+    if kind == "books_per_year" and rates and _pick(rates, 0.5) >= 40:
+        step = 5
+    entry: dict = {
+        "kind": kind, "unit": "books", "over": "days", "count": len(min90),
+        "average": round(sum(rates) / len(rates), 1) if rates else None,
+        "median": round(_pick(rates, 0.5), 1) if rates else None,
+        "suggested": None,
+        "presets": [{"value": p, **counted(p)} for p in PRESETS[kind]],
+    }
+    if have and rates:
+        entry["suggested"] = []
+        for label, q in (("steady", 0.25), ("keep_it_up", 0.5), ("stretch", 0.75)):
+            v = _floor_step(_pick(rates, q), step)
+            entry["suggested"].append({"label": label, "value": v, **counted(v)})
+    return entry
