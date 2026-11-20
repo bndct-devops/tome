@@ -15,6 +15,8 @@ const THEME = process.env.THEME ?? 'light'
 const r = await fetch(`${API}/api/auth/login`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ username: 'benedict', password: 'showcase' }) })
 const { access_token: token } = await r.json()
 const hdr = { authorization: `Bearer ${token}` }
+// Mark the server's current version as seen, so the "What's new" dialog never covers a shot.
+const seenVersion = (await (await fetch(`${API}/api/meta/whats-new`, { headers: hdr })).json())?.version ?? 'dev'
 const books = await (await fetch(`${API}/api/books?limit=200`, { headers: hdr })).json()
 const list = Array.isArray(books) ? books : (books.items ?? books.books ?? [])
 const pick = (pred) => list.find(pred)
@@ -24,7 +26,7 @@ console.log('book for detail:', berserk?.title, '| epub for reader:', epub?.titl
 const browser = await chromium.launch()
 async function ctx(w, h) {
   const c = await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: 1 })
-  await c.addInitScript(([t, th]) => { localStorage.setItem('tome_token', t); localStorage.setItem('tome_theme', th); localStorage.setItem('tome_sidebar', 'open'); localStorage.setItem('tome_seen_version', '1.0.0'); localStorage.setItem('tome_stats_hint', '1'); sessionStorage.setItem('tome_follows_disabled', '1') }, [token, THEME])
+  await c.addInitScript(([t, th, seen]) => { localStorage.setItem('tome_token', t); localStorage.setItem('tome_theme', th); localStorage.setItem('tome_sidebar', 'open'); localStorage.setItem('tome_seen_version', seen); localStorage.setItem('tome_stats_hint', '1'); sessionStorage.setItem('tome_follows_disabled', '1') }, [token, THEME, seenVersion])
   return c.newPage()
 }
 async function go(p, u, settle = 1200) { await p.goto(`${BASE}${u}`); await p.waitForLoadState('networkidle').catch(() => {}); await p.waitForTimeout(settle) }
