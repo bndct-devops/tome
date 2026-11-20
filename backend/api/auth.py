@@ -143,6 +143,8 @@ def me(current_user: User = Depends(get_current_user)):
 class UpdateProfileRequest(PydanticBaseModel):
     username: str | None = None
     email: str | None = None
+    # First day of the reader's week for calendar-week goals.
+    week_start: str | None = None
 
 
 @router.put("/me", response_model=UserOut)
@@ -159,6 +161,10 @@ def update_profile(
         if db.query(User).filter(User.email == body.email).first():
             raise HTTPException(status_code=409, detail="Email already taken")
         current_user.email = body.email
+    if body.week_start is not None:
+        if body.week_start not in ("monday", "sunday"):
+            raise HTTPException(status_code=422, detail="week_start must be monday or sunday")
+        current_user.week_start = body.week_start
     db.commit()
     db.refresh(current_user)
     return current_user

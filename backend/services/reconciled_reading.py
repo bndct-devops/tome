@@ -253,10 +253,17 @@ def totals(db, user_id, day, covered, cutoff, range_end) -> tuple[int, int, int]
 
 # ── Daily (per local-day) ───────────────────────────────────────────────────────
 
-def daily_map(db, user_id, day, covered, start_dt, end_dt) -> dict[str, tuple[int, int, int]]:
-    """day_str -> (seconds, sessions, pages). Caller fills the gaps."""
+def daily_map(db, user_id, day, covered, start_dt, end_dt,
+              book_ids: Optional[list[int]] = None) -> dict[str, tuple[int, int, int]]:
+    """day_str -> (seconds, sessions, pages). Caller fills the gaps.
+
+    ``book_ids`` narrows every source to those books (a book-type goal); None
+    is the whole library, exactly as Stats counts it."""
+    rs_q = _rs_filtered(db, user_id, covered, start_dt, end_dt)
+    if book_ids is not None:
+        rs_q = rs_q.filter(ReadingSession.book_id.in_(book_ids))
     rows = (
-        _rs_filtered(db, user_id, covered, start_dt, end_dt)
+        rs_q
         .with_entities(
             day.dt_day(ReadingSession.started_at).label("day"),
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("secs"),
@@ -270,8 +277,11 @@ def daily_map(db, user_id, day, covered, start_dt, end_dt) -> dict[str, tuple[in
         # seconds/pages stay allocated to the day each page was read; session
         # COUNTS come from gap-clusters, attributed to the cluster's start day
         # (a read across midnight is one session, like a live-recorded one).
+        ps_q = _ps_filtered(db, user_id, start_dt, end_dt)
+        if book_ids is not None:
+            ps_q = ps_q.filter(PageStat.book_id.in_(book_ids))
         day_groups = (
-            _ps_filtered(db, user_id, start_dt, end_dt)
+            ps_q
             .with_entities(
                 _ps_day(day).label("day"),
                 func.sum(PageStat.duration_seconds).label("secs"),
@@ -282,7 +292,10 @@ def daily_map(db, user_id, day, covered, start_dt, end_dt) -> dict[str, tuple[in
         for g in day_groups:
             e = out.setdefault(g.day, [0, 0, 0])
             e[0] += int(g.secs or 0); e[2] += int(g.pages or 0)
+        wanted = set(book_ids) if book_ids is not None else None
         for c in _cluster_rows(db, user_id, day, start_dt, end_dt):
+            if wanted is not None and c.book_id not in wanted:
+                continue
             e = out.setdefault(c.day, [0, 0, 0])
             e[1] += 1
     return {d: (v[0], v[1], v[2]) for d, v in out.items()}

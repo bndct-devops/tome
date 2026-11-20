@@ -54,6 +54,10 @@ class User(Base):
     # OPDS / TomeSync) via backend/services/download_quota.py.
     excluded_tags: Mapped[str | None] = mapped_column(Text, nullable=True)
     download_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # First day of the reader's week: "monday" (default, as the weekly streak
+    # and calendar count) or "sunday". Read by the server for calendar-week
+    # goals; the other week computations do not follow it yet.
+    week_start: Mapped[str] = mapped_column(String(8), nullable=False, default="monday")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False

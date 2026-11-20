@@ -1,365 +1,123 @@
-"""Reading goals API — generalized metric × period model.
+"""Reading goals API.
 
-Supported kinds (ALLOWED_KINDS):
-  books_per_year, books_per_month,
-  minutes_per_day, minutes_per_week,
-  pages_per_day, pages_per_week
+Router has no prefix and is included under /api (backend/main.py), so every
+path here is /api/goals...
 
-Each kind is parsed as {metric}_per_{period}:
-  metric ∈ books | minutes | pages
-  period ∈ day | week | month | year
+  GET    /goals                    all goals with their current period (cards)
+  POST   /goals                    create
+  PUT    /goals/{id}               change the target (count goals) or due date (finish-by)
+  DELETE /goals/{id}               soft delete, restorable for RESTORE_WINDOW
+  POST   /goals/{id}/restore       undo a delete
+  GET    /goals/{id}/history       past periods, met / missed, figures
+  GET    /goals/kinds              the dialog's kinds, with the ones the reader has
+  GET    /goals/suggestions        suggested targets from the reader's own reading
+  GET    /goals/finish-preview     what finishing a book or series by a day takes
 
-A goal may be scoped to a book type (book_type_id) so "20 books this year"
-and "20 manga this year" coexist as separate goals. Uniqueness per
-(user, kind, book_type_id) is enforced here, not in the DB (NULL semantics).
+Every endpoint that computes takes the client's zone like /api/stats: ``tz``
+(IANA name, DST-correct) and ``tz_offset`` (JS getTimezoneOffset, for older
+clients; used alone when ``tz`` is missing or unknown). All computation lives in
+backend/services/goals.py.
 
-Window semantics: day/month/year are local calendar windows; week is the
-last 7 local days inclusive of today (matches the stats heatmap/streak
-windows). goal_reached notifications are created lazily when progress is
-read, and only for month/year goals — day/week windows roll too often and
-would flood the bell.
+goal_reached notifications are still created lazily when goals are read.
 """
-from datetime import datetime, timedelta
-from typing import Literal, Optional
+from datetime import date, datetime
+from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from pydantic import BaseModel, field_validator
-from sqlalchemy import func
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
 from backend.core.security import get_current_user
 from backend.models.book import Book
 from backend.models.library import BookType
-from backend.models.notification import Notification
-from backend.models.reading_goal import ReadingGoal
-from backend.models.tome_sync import ReadingSession
+from backend.models.reading_goal import ReadingGoal, ReadingGoalTarget, live_goals
 from backend.models.user import User
-from backend.models.user_book_status import UserBookStatus
-from backend.services.reading_stats import finished_date_expr
+from backend.services import goals as gs
+from backend.services.reading_day import DayCtx
 
 router = APIRouter(tags=["goals"])
 
-ALLOWED_KINDS: set[str] = {
-    "books_per_year",
-    "books_per_month",
-    "minutes_per_day",
-    "minutes_per_week",
-    "pages_per_day",
-    "pages_per_week",
-}
-
-Metric = Literal["books", "minutes", "pages"]
-Period = Literal["day", "week", "month", "year"]
+# Kept for importers of the first goals build.
+ALLOWED_KINDS: set[str] = set(gs.KINDS)
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
 
 class GoalCreate(BaseModel):
     kind: str
-    target: int
+    target: Optional[int] = None
     book_type_id: Optional[int] = None
-
-    @field_validator("target")
-    @classmethod
-    def target_positive(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("target must be greater than 0")
-        return v
-
-    @field_validator("kind")
-    @classmethod
-    def kind_allowed(cls, v: str) -> str:
-        if v not in ALLOWED_KINDS:
-            raise ValueError(f"Invalid goal kind {v!r}. Allowed: {sorted(ALLOWED_KINDS)}")
-        return v
+    # finish_by: exactly one of series / book_id, and the day (inclusive).
+    series: Optional[str] = None
+    book_id: Optional[int] = None
+    due_date: Optional[date] = None
 
 
 class GoalUpdate(BaseModel):
-    target: int
-
-    @field_validator("target")
-    @classmethod
-    def target_positive(cls, v: int) -> int:
-        if v <= 0:
-            raise ValueError("target must be greater than 0")
-        return v
+    target: Optional[int] = None
+    due_date: Optional[date] = None
 
 
-# ── Kind parser ───────────────────────────────────────────────────────────────
-
-def _parse_kind(kind: str) -> tuple[Metric, Period]:
-    """Parse 'metric_per_period' into (metric, period). Raises ValueError on malformed kind."""
-    parts = kind.split("_per_", 1)
-    if len(parts) != 2:
-        raise ValueError(f"Cannot parse goal kind: {kind!r}")
-    metric, period = parts[0], parts[1]
-    if metric not in ("books", "minutes", "pages"):
-        raise ValueError(f"Unknown metric: {metric!r}")
-    if period not in ("day", "week", "month", "year"):
-        raise ValueError(f"Unknown period: {period!r}")
-    return metric, period  # type: ignore[return-value]
+def _err(msg: str):
+    raise HTTPException(status_code=422, detail=msg)
 
 
-# ── Window helpers ────────────────────────────────────────────────────────────
+# ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _local_now(tz_offset: int) -> datetime:
-    """Current local time. tz_offset is JS getTimezoneOffset (positive = west of UTC)."""
-    return datetime.utcnow() + timedelta(minutes=-tz_offset)
-
-
-def _tz_modifier(tz_offset: int) -> str:
-    """Convert JS getTimezoneOffset (positive=west) to SQLite datetime modifier."""
-    offset_hours = -(tz_offset // 60)
-    return f"{offset_hours:+d} hours"
+def _ctx(tz_offset: int, tz: Optional[str]) -> DayCtx:
+    return DayCtx(tz_offset, tz)
 
 
-def _window_bounds(period: Period, tz_offset: int) -> tuple[datetime, datetime]:
-    """Return (start, end) of the current local period window, both as UTC datetimes."""
-    local_offset = timedelta(minutes=-tz_offset)
-    now_local = _local_now(tz_offset)
-    today_local = datetime(now_local.year, now_local.month, now_local.day)
-
-    if period == "day":
-        start_local = today_local
-        end_local = start_local + timedelta(days=1)
-    elif period == "week":
-        # last 7 local days inclusive of today — match existing days_hit_this_week window
-        start_local = today_local - timedelta(days=6)
-        end_local = today_local + timedelta(days=1)
-    elif period == "month":
-        start_local = datetime(now_local.year, now_local.month, 1)
-        end_local = (
-            datetime(now_local.year + 1, 1, 1)
-            if now_local.month == 12
-            else datetime(now_local.year, now_local.month + 1, 1)
-        )
-    else:  # year
-        start_local = datetime(now_local.year, 1, 1)
-        end_local = datetime(now_local.year + 1, 1, 1)
-
-    return start_local - local_offset, end_local - local_offset
+def _data(db: Session, user: User, tz_offset: int, tz: Optional[str]) -> gs.GoalData:
+    return gs.GoalData(db, user, _ctx(tz_offset, tz), gs.utcnow())
 
 
-def _window_start(period: Period, tz_offset: int) -> datetime:
-    return _window_bounds(period, tz_offset)[0]
-
-
-def _expected_now(period: Period, target: int, tz_offset: int) -> Optional[float]:
-    """Target prorated to the elapsed fraction of the window — the "on pace" line.
-
-    Only meaningful for calendar windows that fill up over time (month/year);
-    day is too short to pace and week is a rolling window (always "full").
-    """
-    if period not in ("month", "year"):
-        return None
-    start, end = _window_bounds(period, tz_offset)
-    elapsed = (datetime.utcnow() - start).total_seconds()
-    total = (end - start).total_seconds()
-    return round(target * max(0.0, min(elapsed / total, 1.0)), 1)
-
-
-# ── Progress helpers ──────────────────────────────────────────────────────────
-
-def _compute_books_current(
-    db: Session, user_id: int, period: Period, tz_offset: int, book_type_id: Optional[int]
-) -> int:
-    """Count UserBookStatus rows with status='read' finished in the current period window."""
-    start = _window_start(period, tz_offset)
-    q = db.query(UserBookStatus).filter(
-        UserBookStatus.user_id == user_id,
-        UserBookStatus.status == "read",
-        finished_date_expr() >= start,
-    )
-    if book_type_id is not None:
-        q = q.join(Book, Book.id == UserBookStatus.book_id).filter(
-            Book.book_type_id == book_type_id
-        )
-    return q.count()
-
-
-def _session_sum(
-    db: Session,
-    user_id: int,
-    column,
-    period: Period,
-    tz_offset: int,
-    book_type_id: Optional[int],
-) -> int:
-    """Sum a ReadingSession column over the current period window."""
-    start = _window_start(period, tz_offset)
-    q = db.query(func.coalesce(func.sum(column), 0)).filter(
-        ReadingSession.user_id == user_id,
-        ReadingSession.started_at >= start,
-    )
-    if book_type_id is not None:
-        q = q.join(Book, Book.id == ReadingSession.book_id).filter(
-            Book.book_type_id == book_type_id
-        )
-    return int(q.scalar() or 0)
-
-
-def _compute_current(
-    db: Session, user_id: int, metric: Metric, period: Period, tz_offset: int,
-    book_type_id: Optional[int],
-) -> float:
-    if metric == "books":
-        return _compute_books_current(db, user_id, period, tz_offset, book_type_id)
-    if metric == "minutes":
-        seconds = _session_sum(
-            db, user_id, ReadingSession.duration_seconds, period, tz_offset, book_type_id
-        )
-        return round(seconds / 60, 1)
-    return _session_sum(
-        db, user_id, ReadingSession.pages_turned, period, tz_offset, book_type_id
-    )
-
-
-def _compute_days_hit(
-    db: Session,
-    user_id: int,
-    metric: Metric,
-    target: int,
-    tz_offset: int,
-    book_type_id: Optional[int],
-) -> int:
-    """
-    For daily goals: count days in the last 7 local days (including today)
-    where the user's total for the metric >= target.
-    """
-    modifier = _tz_modifier(tz_offset)
-    week_cutoff = datetime.utcnow() - timedelta(days=7)
-
-    if metric == "books":
-        q = db.query(
-            func.date(finished_date_expr(), modifier).label("day"),
-            func.count(UserBookStatus.id).label("total"),
-        ).filter(
-            UserBookStatus.user_id == user_id,
-            UserBookStatus.status == "read",
-            finished_date_expr() >= week_cutoff,
-        )
-        if book_type_id is not None:
-            q = q.join(Book, Book.id == UserBookStatus.book_id).filter(
-                Book.book_type_id == book_type_id
-            )
-        daily_rows = q.group_by(func.date(finished_date_expr(), modifier)).all()
-        daily_map = {row.day: int(row.total) for row in daily_rows}
-    else:
-        column = (
-            ReadingSession.duration_seconds
-            if metric == "minutes"
-            else ReadingSession.pages_turned
-        )
-        q = db.query(
-            func.date(ReadingSession.started_at, modifier).label("day"),
-            func.coalesce(func.sum(column), 0).label("total"),
-        ).filter(
-            ReadingSession.user_id == user_id,
-            ReadingSession.started_at >= week_cutoff,
-        )
-        if book_type_id is not None:
-            q = q.join(Book, Book.id == ReadingSession.book_id).filter(
-                Book.book_type_id == book_type_id
-            )
-        daily_rows = q.group_by(func.date(ReadingSession.started_at, modifier)).all()
-        if metric == "minutes":
-            daily_map = {row.day: int(row.total) // 60 for row in daily_rows}
-        else:
-            daily_map = {row.day: int(row.total) for row in daily_rows}
-
-    return sum(1 for v in daily_map.values() if v >= target)
-
-
-# ── Notification ──────────────────────────────────────────────────────────────
-
-def _goal_phrase(metric: Metric, period: Period, target: int, type_label: Optional[str], tz_offset: int) -> str:
-    """Human phrase for a goal, e.g. '20 books in 2026' or '300 minutes this week (Manga)'."""
-    noun = {"books": "books" if target != 1 else "book", "minutes": "minutes", "pages": "pages"}[metric]
-    when = {
-        "day": "today",
-        "week": "this week",
-        "month": "this month",
-        "year": f"in {_local_now(tz_offset).year}",
-    }[period]
-    phrase = f"{target} {noun} {when}"
-    if type_label:
-        phrase += f" ({type_label})"
-    return phrase
-
-
-def _maybe_notify_reached(
-    db: Session,
-    goal: ReadingGoal,
-    metric: Metric,
-    period: Period,
-    current: float,
-    type_label: Optional[str],
-    tz_offset: int,
-) -> bool:
-    """Create a goal_reached notification once per month/year window. Returns True if created."""
-    if period not in ("month", "year") or current < goal.target:
-        return False
-    window_start = _window_start(period, tz_offset)
-    if goal.notified_window_start == window_start:
-        return False
-    db.add(
-        Notification(
-            user_id=goal.user_id,
-            kind="goal_reached",
-            title="Reading goal reached",
-            body=f"You hit your goal of {_goal_phrase(metric, period, goal.target, type_label, tz_offset)}.",
-            link="/stats",
-        )
-    )
-    goal.notified_window_start = window_start
-    return True
-
-
-# ── Response builder ──────────────────────────────────────────────────────────
-
-def _build_goal_response(db: Session, goal: ReadingGoal, tz_offset: int) -> dict:
-    metric, period = _parse_kind(goal.kind)
-
-    type_label: Optional[str] = None
-    if goal.book_type_id is not None:
-        bt = db.query(BookType).filter(BookType.id == goal.book_type_id).first()
-        type_label = bt.label if bt else None
-
-    current = _compute_current(db, goal.user_id, metric, period, tz_offset, goal.book_type_id)
-    pct = round(current / goal.target * 100, 1) if goal.target > 0 else 0.0
-
-    result: dict = {
-        "id": goal.id,
-        "kind": goal.kind,
-        "metric": metric,
-        "period": period,
-        "target": goal.target,
-        "book_type_id": goal.book_type_id,
-        "book_type_label": type_label,
-        "current": current,
-        "pct": pct,
-        "expected": _expected_now(period, goal.target, tz_offset),
-    }
-
-    if period == "day":
-        result["days_hit_this_week"] = _compute_days_hit(
-            db, goal.user_id, metric, goal.target, tz_offset, goal.book_type_id
-        )
-    if period == "year":
-        result["year"] = _local_now(tz_offset).year
-
-    _maybe_notify_reached(db, goal, metric, period, current, type_label, tz_offset)
-    return result
+def _purge_deleted(db: Session, user_id: int) -> None:
+    cutoff = gs.utcnow() - gs.RESTORE_WINDOW
+    (db.query(ReadingGoal)
+       .filter(ReadingGoal.user_id == user_id, ReadingGoal.deleted_at.isnot(None),
+               ReadingGoal.deleted_at < cutoff)
+       .delete(synchronize_session=False))
 
 
 def _user_goals(db: Session, user_id: int) -> list[ReadingGoal]:
     return (
-        db.query(ReadingGoal)
+        live_goals(db.query(ReadingGoal))
         .filter(ReadingGoal.user_id == user_id)
         .order_by(ReadingGoal.created_at, ReadingGoal.id)
         .all()
     )
+
+
+def _own_goal(db: Session, user: User, goal_id: int, deleted: bool = False) -> ReadingGoal:
+    q = db.query(ReadingGoal).filter(ReadingGoal.id == goal_id, ReadingGoal.user_id == user.id)
+    q = q.filter(ReadingGoal.deleted_at.isnot(None)) if deleted else live_goals(q)
+    goal = q.first()
+    if goal is None:
+        raise HTTPException(status_code=404, detail="Goal not found")
+    return goal
+
+
+def _duplicate(db: Session, user_id: int, kind: str, book_type_id: Optional[int],
+               series: Optional[str], book_id: Optional[int], exclude: Optional[int] = None):
+    q = live_goals(db.query(ReadingGoal)).filter(ReadingGoal.user_id == user_id, ReadingGoal.kind == kind)
+    if kind == "finish_by":
+        q = q.filter(ReadingGoal.target_series == series) if series is not None else \
+            q.filter(ReadingGoal.target_series.is_(None), ReadingGoal.target_book_id == book_id)
+    elif book_type_id is None:
+        q = q.filter(ReadingGoal.book_type_id.is_(None))
+    else:
+        q = q.filter(ReadingGoal.book_type_id == book_type_id)
+    if exclude is not None:
+        q = q.filter(ReadingGoal.id != exclude)
+    return q.first()
+
+
+def _state(gd: gs.GoalData, goal: ReadingGoal) -> dict:
+    state = gs.goal_state(gd, goal)
+    gs.maybe_notify(gd, goal, state)
+    return state
 
 
 # ── Endpoints ─────────────────────────────────────────────────────────────────
@@ -367,54 +125,154 @@ def _user_goals(db: Session, user_id: int) -> list[ReadingGoal]:
 @router.get("/goals")
 def list_goals(
     tz_offset: int = Query(0, description="JS getTimezoneOffset() in minutes"),
+    tz: Optional[str] = Query(None, description="IANA timezone name (DST-correct reading days)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Return all goals for the current user with computed progress.
+    """All live goals with their current period. Also creates goal_reached
+    notifications (once per period) for goals reached now."""
+    _purge_deleted(db, current_user.id)
+    gd = _data(db, current_user, tz_offset, tz)
+    payload = [_state(gd, g) for g in _user_goals(db, current_user.id)]
+    db.commit()
+    return {"goals": payload, "week_start": gd.week_start, "today": gd.today.isoformat()}
 
-    Also lazily creates goal_reached notifications — this endpoint is hit from
-    the Home tab and the stats dashboard, so it's the natural evaluation point.
-    """
+
+@router.get("/goals/kinds")
+def list_kinds(
+    tz_offset: int = Query(0),
+    tz: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """What the create dialog offers: every kind with its name, unit, presets,
+    whether it can be limited to a book type, whether it is new, and the
+    reader's goals of that kind (by id; their progress is in GET /goals)."""
+    gd = _data(db, current_user, tz_offset, tz)
     goals = _user_goals(db, current_user.id)
-    payload = [_build_goal_response(db, g, tz_offset) for g in goals]
-    db.commit()  # persist any notifications / notified_window_start updates
-    return {"goals": payload}
+    out = []
+    for kind, (metric, period) in gs.KINDS.items():
+        start = gs.period_bounds(period, gd.today, gd.week_start)[0] if period != "deadline" else None
+        names = gs.goal_name(kind, start, None, gd.today, "", gd.today) if kind != "finish_by" else \
+            {"name": "Finish by a date", "name_key": "finish_by", "name_params": {}}
+        out.append({
+            "kind": kind, "metric": metric, "period": period, "unit": gs.UNITS[metric],
+            **names,
+            "presets": gs.PRESETS.get(kind, []),
+            "min": 1, "max": 7 if kind == "days_per_week" else None,
+            "book_type_scoped": kind in gs.TYPE_SCOPED_KINDS,
+            "new": kind in gs.NEW_KINDS,
+            "existing": [
+                {"goal_id": g.id, "book_type_id": g.book_type_id,
+                 "target_series": g.target_series, "target_book_id": g.target_book_id}
+                for g in goals if g.kind == kind
+            ],
+        })
+    return {"kinds": out, "week_start": gd.week_start}
+
+
+@router.get("/goals/suggestions")
+def get_suggestions(
+    kind: Optional[str] = Query(None, description="One kind; all count kinds when omitted"),
+    tz_offset: int = Query(0),
+    tz: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    if kind is not None and (kind not in gs.KINDS or kind == "finish_by"):
+        _err(f"No suggestions for kind {kind!r}")
+    gd = _data(db, current_user, tz_offset, tz)
+    return gs.suggestions(gd, [kind] if kind else None)
+
+
+@router.get("/goals/finish-preview")
+def finish_preview(
+    due: date = Query(..., description="The day to finish by (YYYY-MM-DD, local, inclusive)"),
+    series: Optional[str] = Query(None),
+    book_id: Optional[int] = Query(None),
+    tz_offset: int = Query(0),
+    tz: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """The finish-by figures for a book or series before a goal is set."""
+    if (series is None) == (book_id is None):
+        _err("Give either series or book_id")
+    gd = _data(db, current_user, tz_offset, tz)
+    est = gs.finish_estimate(gd, series, book_id, due)
+    if not est["volumes_total"]:
+        raise HTTPException(status_code=404, detail="Nothing to finish there")
+    return est
 
 
 @router.post("/goals", status_code=201)
 def create_goal(
     body: GoalCreate,
     tz_offset: int = Query(0),
+    tz: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Create a goal. 409 if the same (kind, book type) goal already exists."""
+    """Create a goal. 409 if the same goal already exists (same kind and book
+    type; finish-by: same series or book)."""
+    if body.kind not in gs.KINDS:
+        _err(f"Invalid goal kind {body.kind!r}. Allowed: {sorted(gs.KINDS)}")
+    gd = _data(db, current_user, tz_offset, tz)
     if body.book_type_id is not None:
-        bt = db.query(BookType).filter(BookType.id == body.book_type_id).first()
-        if bt is None:
-            raise HTTPException(status_code=422, detail="Unknown book type")
+        if body.kind not in gs.TYPE_SCOPED_KINDS:
+            _err("This kind of goal cannot be limited to a book type")
+        if db.get(BookType, body.book_type_id) is None:
+            _err("Unknown book type")
 
-    existing = (
-        db.query(ReadingGoal)
-        .filter(
-            ReadingGoal.user_id == current_user.id,
-            ReadingGoal.kind == body.kind,
-            ReadingGoal.book_type_id == body.book_type_id,
-        )
-        .first()
-    )
-    if existing is not None:
+    series = book_id = due = None
+    if body.kind == "finish_by":
+        if (body.series is None) == (body.book_id is None):
+            _err("A finish-by goal needs either series or book_id")
+        if body.due_date is None:
+            _err("A finish-by goal needs due_date")
+        if body.due_date < gd.today:
+            _err("due_date is in the past")
+        series, book_id, due = body.series, body.book_id, body.due_date
+        if book_id is not None and db.get(Book, book_id) is None:
+            _err("Unknown book")
+        est = gs.finish_estimate(gd, series, book_id, due)
+        if not est["volumes_total"]:
+            _err("Nothing to finish there")
+        target = est["volumes_total"]
+    else:
+        if body.target is None or body.target <= 0:
+            _err("target must be greater than 0")
+        if body.kind == "days_per_week" and body.target > 7:
+            _err("A week has 7 days")
+        target = body.target
+
+    if _duplicate(db, current_user.id, body.kind, body.book_type_id, series, book_id):
         raise HTTPException(status_code=409, detail="This goal already exists — edit it instead")
+    # A deleted twin waiting for undo gives way to the new goal.
+    for twin in db.query(ReadingGoal).filter(
+        ReadingGoal.user_id == current_user.id, ReadingGoal.kind == body.kind,
+        ReadingGoal.deleted_at.isnot(None),
+    ).all():
+        same = (twin.target_series == series and (series is not None or twin.target_book_id == book_id)) \
+            if body.kind == "finish_by" else twin.book_type_id == body.book_type_id
+        if same:
+            db.delete(twin)
 
     goal = ReadingGoal(
         user_id=current_user.id,
         kind=body.kind,
-        target=body.target,
+        target=target,
         book_type_id=body.book_type_id,
+        start_date=gd.today,
+        target_series=series,
+        target_book_id=book_id if series is None else None,
+        due_date=due,
     )
     db.add(goal)
     db.flush()
-    payload = _build_goal_response(db, goal, tz_offset)
+    db.add(ReadingGoalTarget(goal_id=goal.id, target=target, changed_on=gd.today))
+    db.flush()
+    payload = _state(gd, goal)
     db.commit()
     return payload
 
@@ -424,24 +282,35 @@ def update_goal(
     goal_id: int,
     body: GoalUpdate,
     tz_offset: int = Query(0),
+    tz: Optional[str] = Query(None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> dict:
-    """Update a goal's target. Clears the notified marker so a raised target can re-notify."""
-    goal = (
-        db.query(ReadingGoal)
-        .filter(ReadingGoal.id == goal_id, ReadingGoal.user_id == current_user.id)
-        .first()
-    )
-    if goal is None:
-        raise HTTPException(status_code=404, detail="Goal not found")
-
-    if body.target != goal.target:
-        goal.target = body.target
-        goal.notified_window_start = None
-        goal.updated_at = datetime.utcnow()
-
-    payload = _build_goal_response(db, goal, tz_offset)
+    """Change a count goal's target (it applies to the current period; past
+    periods keep theirs) or a finish-by goal's due date. A changed target or
+    date clears the notified marker so the goal can notify again."""
+    goal = _own_goal(db, current_user, goal_id)
+    gd = _data(db, current_user, tz_offset, tz)
+    if goal.kind == "finish_by":
+        if body.due_date is None:
+            _err("A finish-by goal changes by due_date")
+        if body.due_date != goal.due_date:
+            if body.due_date < gd.today:
+                _err("due_date is in the past")
+            goal.due_date = body.due_date
+            goal.updated_at = datetime.utcnow()
+    else:
+        if body.target is None or body.target <= 0:
+            _err("target must be greater than 0")
+        if goal.kind == "days_per_week" and body.target > 7:
+            _err("A week has 7 days")
+        if body.target != goal.target:
+            goal.target = body.target
+            goal.notified_window_start = None
+            goal.updated_at = datetime.utcnow()
+            db.add(ReadingGoalTarget(goal_id=goal.id, target=body.target, changed_on=gd.today))
+            db.flush()
+    payload = _state(gd, goal)
     db.commit()
     return payload
 
@@ -452,13 +321,48 @@ def delete_goal(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> None:
-    """Remove a goal. 404 if it doesn't exist or belongs to someone else."""
-    goal = (
-        db.query(ReadingGoal)
-        .filter(ReadingGoal.id == goal_id, ReadingGoal.user_id == current_user.id)
-        .first()
-    )
-    if goal is None:
-        raise HTTPException(status_code=404, detail="Goal not found")
-    db.delete(goal)
+    """Delete a goal. 404 if it doesn't exist or belongs to someone else.
+    It stays restorable (POST /goals/{id}/restore) for goals.RESTORE_WINDOW."""
+    goal = _own_goal(db, current_user, goal_id)
+    goal.deleted_at = gs.utcnow()
     db.commit()
+
+
+@router.post("/goals/{goal_id}/restore")
+def restore_goal(
+    goal_id: int,
+    tz_offset: int = Query(0),
+    tz: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    """Undo a delete: the goal comes back with its history. 404 once purged,
+    409 when an equal goal was created in the meantime."""
+    _purge_deleted(db, current_user.id)
+    goal = _own_goal(db, current_user, goal_id, deleted=True)
+    if _duplicate(db, current_user.id, goal.kind, goal.book_type_id, goal.target_series,
+                  goal.target_book_id, exclude=goal.id):
+        raise HTTPException(status_code=409, detail="This goal exists again")
+    goal.deleted_at = None
+    gd = _data(db, current_user, tz_offset, tz)
+    payload = _state(gd, goal)
+    db.commit()
+    return payload
+
+
+@router.get("/goals/{goal_id}/history")
+def goal_history(
+    goal_id: int,
+    periods: Optional[int] = Query(None, ge=1, le=120,
+                                   description="Past periods (day goals: weeks); default 12, years 5"),
+    tz_offset: int = Query(0),
+    tz: Optional[str] = Query(None),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+) -> dict:
+    goal = _own_goal(db, current_user, goal_id)
+    gd = _data(db, current_user, tz_offset, tz)
+    out = gs.goal_history(gd, goal, periods)
+    gs.maybe_notify(gd, goal, out["state"])
+    db.commit()
+    return out
