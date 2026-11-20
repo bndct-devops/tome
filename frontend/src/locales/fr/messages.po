@@ -861,6 +861,10 @@ msgstr ""
 msgid "{dur} with {mainTitle}."
 msgstr "{dur} avec {mainTitle}."
 
+#: src/components/SeriesCoverageStrip.tsx
+msgid "{extraCount} more with other numbering"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{failed, plural, one {# book could not be deleted} other {# books could not be deleted}}"
 msgstr "{failed, plural, one {# livre n’a pas pu être supprimé} other {# livres n’ont pas pu être supprimés}}"
@@ -951,6 +955,10 @@ msgstr "Il y a {h} h"
 #: src/components/stats/widgets/habits.tsx
 msgid "{h}h reading"
 msgstr "{h} h de lecture"
+
+#: src/components/SeriesCoverageStrip.tsx
+msgid "{have} of {slotCount} present"
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "{hidden, plural, one {Show # more} other {Show # more}}"
@@ -5726,6 +5734,10 @@ msgstr "Manquant"
 msgid "Missing: {filterMissingLabel}"
 msgstr "Manquant : {filterMissingLabel}"
 
+#: src/components/SeriesCoverageStrip.tsx
+msgid "Missing: {gapList}"
+msgstr ""
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "missing: {missingList}"
 msgstr "manquant : {missingList}"
@@ -8988,6 +9000,10 @@ msgstr ""
 msgid "Show {title} here"
 msgstr ""
 
+#: src/components/SeriesCoverageStrip.tsx
+msgid "Show all"
+msgstr ""
+
 #: src/components/stats/widgets/library.tsx
 msgid "Show all ({n} books)"
 msgstr "Tout afficher ({n} livres)"
@@ -9017,6 +9033,7 @@ msgstr "Afficher les détails"
 msgid "Show individual volumes"
 msgstr "Afficher les tomes individuellement"
 
+#: src/components/SeriesCoverageStrip.tsx
 #: src/components/stats/widgets/library.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -10374,6 +10391,10 @@ msgstr "Numéro de tome, sous la forme 01 ou 10.5"
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
 msgstr "Tomes"
+
+#: src/components/SeriesCoverageStrip.tsx
+msgid "Volumes {from} to {to}: {have} of {size} in the library"
+msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Waiting for a code…"
