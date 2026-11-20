@@ -17,7 +17,7 @@ export function HomeGoals({ answer }: { answer: GoalsAnswer }) {
     <>
     {/* Home has no Stats frame: the cards' tips need their own layer. */}
     <TipLayer />
-    <section ref={(el: HTMLElement | null) => { ref.current = el as HTMLDivElement | null; attach(el) }} aria-label={t`Reading goals`} data-box="home-goals" className="pt-3">
+    <section ref={(el: HTMLElement | null) => { ref.current = el as HTMLDivElement | null; attach(el) }} aria-label={t`Reading goals`} data-box="home-goals" className="pt-1">
       {width > 0 && (
         <GoalGrid
           goals={answer.goals}
