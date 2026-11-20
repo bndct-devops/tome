@@ -939,7 +939,27 @@ msgid "{bt}: {st} to {en} ({dur})"
 msgstr ""
 
 #: src/components/stats/overview/Overview.tsx
+msgid "{c} before"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
 msgid "{c} in {phrase}"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+#~ msgid "{c} the {days} days before"
+#~ msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{c} the {n} days before"
+msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+#~ msgid "{c} the {span} days before"
+#~ msgstr ""
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{c} the year before"
 msgstr ""
 
 #: src/pages/AdminPage.tsx

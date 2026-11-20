@@ -939,8 +939,28 @@ msgid "{bt}: {st} to {en} ({dur})"
 msgstr "{bt}: {st} to {en} ({dur})"
 
 #: src/components/stats/overview/Overview.tsx
+msgid "{c} before"
+msgstr "{c} before"
+
+#: src/components/stats/overview/Overview.tsx
 msgid "{c} in {phrase}"
 msgstr "{c} in {phrase}"
+
+#: src/components/stats/overview/Overview.tsx
+#~ msgid "{c} the {days} days before"
+#~ msgstr "{c} the {days} days before"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{c} the {n} days before"
+msgstr "{c} the {n} days before"
+
+#: src/components/stats/overview/Overview.tsx
+#~ msgid "{c} the {span} days before"
+#~ msgstr "{c} the {span} days before"
+
+#: src/components/stats/overview/Overview.tsx
+msgid "{c} the year before"
+msgstr "{c} the year before"
 
 #: src/pages/AdminPage.tsx
 #~ msgid "{clearResult} covers deleted."
