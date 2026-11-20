@@ -758,3 +758,15 @@ def test_reading_days_history_has_the_weeks_day_by_day(client, make_book, admin_
     assert days["2026-11-18"]["state"] == "before_goal" and days["2026-11-18"]["reached"] is False
     assert days["2026-11-20"]["state"] == "today" and days["2026-11-22"]["state"] == "future"
     assert h["weeks"][0]["days"][0]["state"] == "no_data"
+
+
+def test_weekly_streak_follows_the_week_start():
+    from backend.services.streaks import streak_summary_from_dates
+    # Read on Sun Nov 8 and Sun Nov 15, 2026 only; today Mon Nov 16.
+    days = {date(2026, 11, 8), date(2026, 11, 15)}
+    mon = streak_summary_from_dates(days, date(2026, 11, 16))
+    sun = streak_summary_from_dates(days, date(2026, 11, 16), "sunday")
+    # Monday weeks: Nov 2-8 and Nov 9-15, two weeks in a row. Sunday weeks: Nov 8-14 and Nov 15-21.
+    assert mon.current_weeks == 2 and mon.current_weeks_start == date(2026, 11, 2)
+    assert sun.current_weeks == 2 and sun.current_weeks_start == date(2026, 11, 8)
+    assert sun.longest_weeks_end == date(2026, 11, 21)
