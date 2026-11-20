@@ -155,8 +155,9 @@ import { withBase } from '../../lib/path'
     names your most active month of the twelve the chart shows, with its reading time.
   </p>
   <p>
-    If you have <strong>reading goals</strong>, they follow: each with its progress and pace, editable in place, with <strong>New goal</strong>
-    in the heading (without goals, a quiet line at the end of the page sets one up).
+    If you have <strong>reading goals</strong>, one row of up to four follows, each with its
+    progress and pace; <strong>All goals</strong> opens the <a href="#goals">Goals</a> page.
+    Without goals, a quiet line at the end of the page sets one up.
   </p>
   <p>
     The streak is in local-with-rollover days, with a one-day grace: if you haven't read yet
@@ -190,6 +191,62 @@ import { withBase } from '../../lib/path'
     leaving a stalled book cluttering your "reading" list and marking it <strong>Unread</strong>
     — which clears your progress entirely. Find shelved titles again with the <strong>Shelved</strong> filter in the library. Reading the book again on any device automatically moves it back to
     Reading.
+  </Callout>
+
+  <h2 id="goals">Goals</h2>
+  <p>
+    The "am I on track?" page. It does not follow the range: every goal counts its own calendar
+    period (this week, this month, this year, or up to the date of a finish-by goal), so the
+    header reads <strong>This week, month and year</strong>.
+  </p>
+  <p>
+    Each goal is a card: its name, how far you are against the target, and what it takes. Goals
+    of a month or a year show a bar with a tick where you should be today, and say how far
+    ahead or behind of that pace you are ("5 ahead of pace", "2 behind pace"), how many are to
+    go, how many days are left and, once a quarter of the period has passed, what you are on
+    course for. Day goals and reading days show the week as seven marks: a filled dot for a day
+    reached, a dim dot for a day missed, an outline for the days to come and a ring that fills
+    as you read today. The same cards are on Home.
+  </p>
+  <p>
+    Click a card to see the goal in detail under the cards (the page remembers your choice):
+  </p>
+  <ul>
+    <li><strong>Minutes or pages a day, reading days a week</strong>: this week large, the last
+      12 weeks day by day, and how often you reached it in the last 90 days, your best run and
+      your current one.</li>
+    <li><strong>Minutes or pages a week</strong>: this week day by day against an even share of
+      the target, and the last 12 weeks against the target.</li>
+    <li><strong>Books a month or a year</strong>: the period so far against the pace line, the
+      projection to its end, and past months or years. When most of a month's finish dates share
+      one day (books marked read in bulk), a note says so: those bars show when books were
+      marked read, not when they were read.</li>
+    <li><strong>Finish by a date</strong>: the volumes read and to go, the reading time left at
+      your own time per volume of that series (or the word count at your reading speed), the
+      minutes a day that takes against what you read a day over the last 30 days, and the road
+      to the date.</li>
+  </ul>
+  <p>
+    <strong>New goal</strong> offers eight kinds: books a year or a month, minutes or pages a day
+    or a week, <strong>reading days a week</strong> (a day counts as it does for your streak) and
+    <strong>finish by a date</strong> (a book or a series, by the end of the month, the end of the
+    year or any day you pick). The goals you already have show their progress and are not
+    offered twice; count goals can be limited to one book type under <strong>Counts</strong>.
+    Targets are suggested from your own reading: Steady, Keep it up and Stretch are what you
+    reached on three days in four, half your days and one day in four over the last 90 days (12
+    weeks for weekly goals), each with how often you reached it and what it means ("at 60 min a
+    day you'd finish about 3.7 books a month"). Book goals are suggested from your reading time
+    too, at your usual time per finished book, so books marked read in bulk do not inflate them.
+    Without enough history the dialog offers a few fixed targets.
+  </p>
+  <p>
+    Edit and delete sit beside the selected goal's name. A deleted goal can be brought back with
+    <strong>Undo</strong> for a little while. A goal's past periods are judged by the target it had
+    then; periods before you set it are shown but not counted as met or missed.
+  </p>
+  <Callout variant="info" title="When a week starts">
+    Weeks run Monday to Sunday unless you choose Sunday under <strong>Settings › Language ›
+    Week starts on</strong>. Goals follow it. Days are Tome's reading days: a day ends at 4 a.m., as it does for streaks.
   </Callout>
 
   <h2>Habits</h2>
