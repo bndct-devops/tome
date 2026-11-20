@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, useCallback } from 'react'
+import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, useCallback } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import { useSearchParams, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import {
@@ -46,13 +46,13 @@ import { SeriesReadingStats } from '@/components/SeriesReadingStats'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { QuickLook } from '@/components/QuickLook'
 import { SortMenu } from '@/components/library/SortMenu'
-import { PageBody, PageHeader, SectionTitle, Pill, Select, FormLabel, INPUT_CLASS } from '@/components/page'
+import { PageBody, PageHeader, SectionTitle, Pill, Select, Input, FormLabel, INPUT_CLASS } from '@/components/page'
 // Library / Series tab icons, kept apart from the shared import above.
 import { ArrowLeft, Eye, Upload } from 'lucide-react'
 import { coverSrc } from '@/lib/covers'
 import { preloadImages } from '@/lib/preload'
 
-type SortField = 'title' | 'author' | 'year' | 'added_at' | 'rating'
+type SortField = 'title' | 'author' | 'year' | 'added_at' | 'rating' | 'word_count'
 type SortOrder = 'asc' | 'desc'
 
 interface SeriesItem {
@@ -100,7 +100,7 @@ interface Facets {
 }
 
 const SORT_LABELS: Record<SortField, MessageDescriptor> = {
-  title: msg`Title`, author: msg`Author`, year: msg`Year`, added_at: msg`Date added`, rating: msg`My rating`,
+  title: msg`Title`, author: msg`Author`, year: msg`Year`, added_at: msg`Date added`, rating: msg`My rating`, word_count: msg`Length`,
 }
 
 // Reading-status + series-status display names, shared by filter buttons and chips.
@@ -488,6 +488,11 @@ export function DashboardPage() {
   const filterLibrary = searchParams.get('library_id') ? Number(searchParams.get('library_id')) : null
   const filterReadingStatus = searchParams.get('reading_status') ?? ''
   const filterMinRating = searchParams.get('min_rating') ? Number(searchParams.get('min_rating')) : null
+  const filterMinWords = searchParams.get('min_words') ?? ''
+  const filterMaxWords = searchParams.get('max_words') ?? ''
+  // Chips show the bound the way people write it (30,000), the URL keeps the plain number.
+  const minWords = filterMinWords ? Number(filterMinWords).toLocaleString(i18n.locale) : ''
+  const maxWords = filterMaxWords ? Number(filterMaxWords).toLocaleString(i18n.locale) : ''
   const filterMissing = searchParams.get('missing') ?? ''
   const filterOwnership = searchParams.get('ownership') ?? ''
   const filterAddedBy = searchParams.get('added_by') ? Number(searchParams.get('added_by')) : null
@@ -552,7 +557,7 @@ export function DashboardPage() {
     })
   }
 
-  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterLanguage || filterReadingStatus || filterMinRating || filterMissing || filterOwnership || filterAddedBy || filterOnDevice || filterNotOnDevice || contentTypeParam !== null)
+  const hasFilters = !!(search || filterSeries || filterNoSeries || filterAuthor || filterTag || filterFormat || filterLanguage || filterReadingStatus || filterMinRating || filterMinWords || filterMaxWords || filterMissing || filterOwnership || filterAddedBy || filterOnDevice || filterNotOnDevice || contentTypeParam !== null)
 
   // Grouping is bypassed while drilling into a specific series - the user
   // explicitly asked for that series' volumes, so a single stack is useless.
@@ -817,6 +822,8 @@ export function DashboardPage() {
     if (filterLibrary) params.set('library_id', String(filterLibrary))
     if (filterReadingStatus) params.set('reading_status', filterReadingStatus)
     if (filterMinRating) params.set('min_rating', String(filterMinRating))
+    if (filterMinWords) params.set('min_words', filterMinWords)
+    if (filterMaxWords) params.set('max_words', filterMaxWords)
     if (filterMissing) params.set('missing', filterMissing)
     if (contentType) params.set('content_type', contentType)
     if (filterOwnership) params.set('ownership', filterOwnership)
@@ -903,7 +910,7 @@ export function DashboardPage() {
           setLoadingMore(false)
         }
       })
-  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLanguage, filterLibrary, filterReadingStatus, filterMinRating, filterMissing, contentType, filterOwnership, filterAddedBy, filterOnDevice, filterNotOnDevice, groupActive])
+  }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLanguage, filterLibrary, filterReadingStatus, filterMinRating, filterMinWords, filterMaxWords, filterMissing, contentType, filterOwnership, filterAddedBy, filterOnDevice, filterNotOnDevice, groupActive])
 
   useEffect(() => {
     if (seededRef.current) {
@@ -1109,6 +1116,8 @@ export function DashboardPage() {
     ...(filterLanguage ? [{ label: t`Language: ${filterLanguageLabel}`, key: 'language' }] : []),
     ...(filterReadingStatus ? [{ label: t`Status: ${filterStatusLabel}`, key: 'reading_status' }] : []),
     ...(filterMinRating ? [{ label: filterMinRating === 5 ? t`Rated: 5 stars` : t`Rated: ${filterMinRating}+ stars`, key: 'min_rating' }] : []),
+    ...(filterMinWords ? [{ label: t`At least ${minWords} words`, key: 'min_words' }] : []),
+    ...(filterMaxWords ? [{ label: t`At most ${maxWords} words`, key: 'max_words' }] : []),
     ...(filterMissing ? [{ label: t`Missing: ${filterMissingLabel}`, key: 'missing' }] : []),
     ...(filterOwnership === 'mine' ? [{ label: t`My books`, key: 'ownership' }] : filterOwnership === 'shared' ? [{ label: t`Shared library`, key: 'ownership' }] : []),
     ...(filterAddedBy ? [{ label: t`Uploader: ${filterUploaderName}`, key: 'added_by' }] : []),
@@ -1850,6 +1859,31 @@ export function DashboardPage() {
                     {s === '' ? t`All` : i18n._(READING_STATUS_LABELS[s])}
                   </button>
                 ))}
+              </div>
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className={rowLabel}><Trans>Length</Trans></span>
+                <div className="flex items-center gap-2 flex-1 min-w-0 sm:flex-none">
+                {([['min_words', t`Minimum words`, t`Min words`, filterMinWords], ['max_words', t`Maximum words`, t`Max words`, filterMaxWords]] as const).map(([key, label, placeholder, value]) => (
+                  <Fragment key={key}>
+                    {key === 'max_words' && <span className="text-[13px] text-muted-foreground" aria-hidden>–</span>}
+                    {/* Commit on blur or Enter so typing doesn't refetch on every digit. */}
+                    <Input
+                      key={value}
+                      type="number" inputMode="numeric" min="0" step="1" defaultValue={value}
+                      aria-label={label}
+                      placeholder={placeholder}
+                      onBlur={e => {
+                        if (e.currentTarget.validity.valid) setFilter(key, e.currentTarget.value === '' ? '' : String(e.currentTarget.valueAsNumber))
+                      }}
+                      onKeyDown={e => { if (e.key === 'Enter') e.currentTarget.blur() }}
+                      className="w-auto min-w-0 flex-1 sm:flex-none sm:w-32 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
+                    />
+                  </Fragment>
+                ))}
+                </div>
+                {(filterMinWords || filterMaxWords) && (
+                  <span className="text-[13px] text-muted-foreground sm:ml-2"><Trans>Books without a word count are hidden.</Trans></span>
+                )}
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={rowLabel}><Trans>Rating</Trans></span>

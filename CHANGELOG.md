@@ -17,6 +17,19 @@ All notable changes to Tome are documented here. Format loosely follows
   settings ("Apply Tome reading status to this device"). Plugin build 54
   (1.20.0); the rules are in the KOReader plugin docs under "Reading status on
   the device". (#296)
+- **Sort and filter the library by length.** The sort menu has a new "Length"
+  option, shortest first; pick it again to reverse. Filters has a Length row
+  with a minimum and maximum word count. Books without a word count sort last
+  either way and are hidden once a bound is set. The bounds work with the
+  other filters, select-all and saved shelves, including shelves in the
+  KOReader plugin and the backlog estimate. Contributed by @cliophate (#313).
+- **Spanish translation.** The web UI is available in Spanish (Settings →
+  Language), with every string translated. Contributed by @PedroFlores199
+  (#314).
+- **Descriptions in the book list, on request.** `GET /api/books` accepts
+  `include=description` to add each book's description to the list items, so
+  a client that keeps an offline copy of the library needs no request per
+  book. Without it the reply is unchanged.
 
 ### Security
 - **The web server only serves files from its own interface folder.** A
@@ -101,6 +114,11 @@ All notable changes to Tome are documented here. Format loosely follows
   name.
 
 ### Fixed
+- **The "Read" button in Quick look is a verb in every language.** It shared
+  its text with the "Read" status, so in Spanish it said "Leído" where "Leer"
+  was meant.
+- **The sign-in-with-a-code hint points to the right place.** It sent you to
+  Settings → Security; Quick Connect is under Settings → Access.
 - **The API docs show the real version.** `/api/docs` reported 1.7.0 whatever
   release was running.
 - **Build tooling: minimatch 11 for the lint and build dependencies** that

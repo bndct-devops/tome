@@ -18,18 +18,14 @@ test.describe('preview reading', () => {
       return route.continue()
     })
 
-    // Control: the normal reader writes "reading" as soon as it opens. The
-    // reader does not wait for that write, so wait for the server's answer
-    // before reading the status back.
-    const written = page.waitForResponse(
-      r => r.request().method() === 'PUT' && r.url().endsWith(`/api/books/${normal.id}/status`),
-      { timeout: 10_000 },
-    )
+    // Control: the normal reader writes "reading" as soon as it opens.
     await page.goto(`/reader/${normal.id}`)
-    await written
-    expect(puts.length).toBeGreaterThan(0)
-    const after = await apiGet<{ status: string }>(request, token, `/api/books/${normal.id}/status`)
-    expect(after.body.status).toBe('reading')
+    await expect.poll(() => puts.length, { timeout: 10_000 }).toBeGreaterThan(0)
+    // The PUT is counted when it is sent, so poll until the server has stored it.
+    await expect.poll(
+      async () => (await apiGet<{ status: string }>(request, token, `/api/books/${normal.id}/status`)).body.status,
+      { timeout: 10_000 },
+    ).toBe('reading')
 
     // Preview: same reader, nothing written.
     puts.length = 0
