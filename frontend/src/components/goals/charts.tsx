@@ -3,7 +3,7 @@
 // of days. SVG at the width they are given, drawn once at their final size;
 // marks carry their tips (kit/tip.ts) and enter with the kit's motion classes.
 import { t, plural } from '@lingui/core/macro'
-import type { Goal, GoalHistory, HistoryDay, HistoryPeriod } from '@/lib/goals'
+import type { Goal, GoalHistory, HistoryDay, HistoryPeriod, YearMonth } from '@/lib/goals'
 import { addDays } from '@/lib/goalsModel'
 import { K, stagger } from '@/components/stats/kit/motion'
 import { tipAttrs } from '@/components/stats/kit/tip'
@@ -296,5 +296,72 @@ export function Timeline({ goal }: { goal: Goal }) {
         {at < 0.78 && <span className="absolute right-0">{mediumDate(due)}</span>}
       </div>
     </div>
+  )
+}
+
+/** A young year goal's months this year: each month's finishes against the monthly share of the
+    target (dashed), and the running total to the target as a line on its own scale (right edge). */
+export function YearMonths({ goal, months, h }: { goal: Goal; months: YearMonth[]; h: number }) {
+  const [ref, w] = useWidth<HTMLDivElement>()
+  const n = months.length
+  const share = months[0]?.share ?? goal.target / 12
+  const ymax = Math.max(share * 2, 1)
+  const B = 18, T = 8, R = 26
+  const gap = 8
+  const bw = n ? (w - R - gap * (n - 1)) / n : 0
+  const Y = (v: number) => T + (1 - Math.min(v, ymax) / ymax) * (h - T - B)
+  const cmax = Math.max(goal.target, ...months.map((m) => m.cumulative ?? 0))
+  const C = (v: number) => T + (1 - v / cmax) * (h - T - B)
+  const pts = months.filter((m) => m.cumulative != null).map((m, i) => `${(i * (bw + gap) + bw).toFixed(1)},${C(m.cumulative!).toFixed(1)}`)
+  const value = (v: number) => `${num(Math.round(v))} ${unitWord(goal.metric, Math.round(v))}`
+  const note = (m: YearMonth) => m.state === 'future' ? t`Still to come` : m.state === 'no_data' ? t`No finish dates yet` : m.state === 'current' ? t`Still open` : m.reached ? t`At the monthly share` : t`Under the monthly share`
+  return (
+    <div ref={ref} style={{ height: h }}>
+      {w > 0 && (
+        <svg width={w} height={h} className="k-bars block overflow-visible text-[11px]" role="img" aria-label={t`This year by month against the monthly share`}>
+          <line x1={0} x2={w - R} y1={h - B} y2={h - B} stroke="var(--border)" />
+          {months.map((m, i) => {
+            const x = i * (bw + gap)
+            const lab = monthShort(m.start)
+            const open = m.state === 'current'
+            const tip = tipAttrs({ title: monthName(m.start, true), value: m.state === 'future' || m.state === 'no_data' ? '' : value(m.value), note: m.cumulative != null && m.state !== 'no_data' ? `${note(m)} · ${(() => { const c = num(m.cumulative!); return t`${c} so far this year` })()}` : note(m) })
+            const labEl = <text x={x + bw / 2} y={h - 4} textAnchor="middle" fill={open ? 'var(--foreground)' : 'var(--muted-foreground)'} fontWeight={open ? 600 : 400}>{lab}</text>
+            if (m.state === 'future' || m.state === 'no_data') {
+              return (
+                <g key={m.start} className="k-col">
+                  <rect className="k-hit" x={x - gap / 2} y={0} width={bw + gap} height={h - B} {...tip} />
+                  {m.state === 'no_data'
+                    ? <rect className="k-nohit" x={x + 0.5} y={Y(share)} width={Math.max(0, bw - 1)} height={h - B - Y(share)} rx="3" fill="none" stroke="var(--muted-foreground)" strokeOpacity="0.4" strokeDasharray="3 3" />
+                    : <rect className="k-nohit" x={x + 0.5} y={h - B - 8} width={Math.max(0, bw - 1)} height={8} rx="3" fill="none" stroke={FUTURE} />}
+                  {labEl}
+                </g>
+              )
+            }
+            const y = Y(m.value)
+            return (
+              <g key={m.start} className="k-col">
+                <rect className="k-hit" x={x - gap / 2} y={0} width={bw + gap} height={h - B} {...tip} />
+                <rect className={cn('k-bar k-nohit', K.grow)} style={stagger(i, n)} x={x} y={Math.min(y, h - B - 3)} width={bw} height={Math.max(3, h - B - y)} rx="3" fill={m.reached ? 'var(--success)' : NEUTRAL} fillOpacity={open ? 0.6 : 1} />
+                {m.value > ymax && <text className="k-nohit" x={x + bw / 2} y={T + 12} textAnchor="middle" fill="var(--background)" fontWeight="700">{num(Math.round(m.value))}</text>}
+                {labEl}
+              </g>
+            )
+          })}
+          <line className="k-nohit" x1={0} x2={w - R} y1={Y(share)} y2={Y(share)} stroke="var(--foreground)" strokeOpacity="0.75" strokeDasharray="5 4" />
+          {pts.length > 0 && <polyline className={cn('k-nohit', K.draw)} pathLength={1} points={pts.join(' ')} fill="none" stroke="var(--primary)" strokeWidth="2" strokeLinejoin="round" />}
+          <line className="k-nohit" x1={w - R + 4} x2={w - R + 4} y1={C(goal.target)} y2={h - B} stroke="var(--primary)" strokeOpacity="0.35" />
+          <text className="k-nohit" x={w} y={C(goal.target) + 4} textAnchor="end" fill="var(--primary)">{num(goal.target)}</text>
+        </svg>
+      )}
+    </div>
+  )
+}
+
+/** The legend of YearMonths. */
+export function YearMonthsLegend() {
+  return (
+    <span className="text-[13px] text-muted-foreground">
+      <span className="mr-1 inline-block h-[9px] w-[9px] rounded-[2px] bg-success" />{t`at the share`} · <span className="mx-1 inline-block h-[9px] w-[9px] rounded-[2px]" style={{ background: NEUTRAL }} />{t`under it`} · <span className="mx-1 inline-block h-[2px] w-[12px] rounded-full bg-primary align-middle" />{t`the year so far`}
+    </span>
   )
 }

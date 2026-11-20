@@ -14,8 +14,8 @@ import { cn } from '@/lib/utils'
 
 // The Boards "Reading goals" tile (the older grid): every goal as a ring with its
 // one name, figures in the app language and its status, managed in place (edit,
-// delete with undo, new goal). The body scrolls inside the tile, so nothing is
-// cut off at the tile's default height whatever the number of goals.
+// delete with undo, new goal). The tile's body scrolls (BoardsView SCROLL_IDS), so
+// nothing is cut off at the tile's default height whatever the number of goals.
 
 function GoalRing({ goal }: { goal: Goal }) {
   return (
@@ -49,7 +49,7 @@ export function GoalWidgetBody({ goals, onChanged }: { goals: Goal[] | null; onC
   }
 
   return (
-    <div className="h-full overflow-y-auto overscroll-contain pr-0.5 [scrollbar-width:thin]">
+    <div>
       <div className="grid items-stretch gap-2" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(12.5rem, 1fr))' }}>
         {goals.map((goal) => {
           const name = goalName(goal)

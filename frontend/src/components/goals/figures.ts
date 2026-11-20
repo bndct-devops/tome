@@ -4,7 +4,7 @@ import { t, plural } from '@lingui/core/macro'
 import { formatDuration } from '@/lib/utils'
 import type { Goal, GoalHistory } from '@/lib/goals'
 import { addDays } from '@/lib/goalsModel'
-import { num } from '@/components/stats/kit/tokens'
+import { dec1, num } from '@/components/stats/kit/tokens'
 import { mediumDate, monthName, shortDate, unitWord, weekdayLong } from './text'
 
 export type DetailKind = 'days' | 'week' | 'period' | 'finish'
@@ -53,6 +53,18 @@ function periodWord(period: string, n: number) {
 export function periodFigures(goal: Goal, h: GoalHistory): Fig[] {
   const s = h.summary
   if (!s) return []
+  const ms = s.view === 'months' ? s.months_summary : null
+  if (ms) {
+    // A young year goal: its months this year against the monthly share of the target.
+    const sh = ms.share
+    const shareTxt = Number.isInteger(sh) ? num(sh) : dec1(sh)
+    const best = ms.best
+    return [
+      { label: t`Months at pace`, value: ms.at_share, text: ms.with_data > 0 ? (() => { const a = num(ms.at_share), b = num(ms.with_data); return t`${a} of ${b}` })() : '0', unit: plural(ms.with_data, { one: 'month', other: 'months' }), foot: (() => { const tg = num(goal.target); return t`${shareTxt} a month keeps pace for ${tg}` })() },
+      { label: t`Usual month`, value: Math.round(ms.usual ?? 0), text: ms.usual == null ? '–' : undefined, unit: unitWord(goal.metric, Math.round(ms.usual ?? 0)), foot: (() => { const k = num(ms.with_data); return t`median of the ${k} months with finish dates` })() },
+      { label: t`Best month`, value: best?.value ?? 0, text: best ? undefined : '–', unit: unitWord(goal.metric, best?.value ?? 0), foot: best ? monthName(best.start, true) : t`No month with finish dates yet` },
+    ]
+  }
   const books = goal.metric === 'books'
   const of = s.with_data
   const usual = s.usual

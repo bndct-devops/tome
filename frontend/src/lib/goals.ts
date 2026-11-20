@@ -127,6 +127,21 @@ export interface HistorySummary {
   window_start?: string
   window_end?: string
   yesterday_value?: number
+  /** Year goals: 'months' when fewer than two past years have data (the detail shows this year's months). */
+  view?: 'years' | 'months'
+  months?: YearMonth[]
+  months_summary?: { share: number; with_data: number; at_share: number; usual: number | null; best: { start: string; value: number } | null; bulk: { start: string; day: string; count: number; of: number }[] }
+}
+export interface YearMonth {
+  start: string
+  end: string
+  value: number
+  share: number
+  cumulative: number | null
+  state: 'met' | 'missed' | 'no_data' | 'current' | 'future'
+  reached: boolean | null
+  bulk_day?: string | null
+  bulk_count?: number
 }
 export interface GoalHistory {
   goal_id: number

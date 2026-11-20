@@ -31,6 +31,14 @@ function usePlace(open: boolean, trigger: RefObject<HTMLElement | null>, card: R
   }, [open, trigger, card])
   useEffect(() => {
     if (!open) return
+    // Escape closes the picker only (the dialog's own Escape steps aside while it is open).
+    const key = (e: globalThis.KeyboardEvent) => {
+      if (e.key !== 'Escape') return
+      e.preventDefault()
+      onClose()
+      trigger.current?.focus()
+    }
+    window.addEventListener('keydown', key)
     const down = (e: PointerEvent) => {
       const n = e.target as Node
       if (!card.current?.contains(n) && !trigger.current?.contains(n)) onClose()
@@ -38,7 +46,7 @@ function usePlace(open: boolean, trigger: RefObject<HTMLElement | null>, card: R
     const resize = () => onClose()
     document.addEventListener('pointerdown', down, true)
     window.addEventListener('resize', resize)
-    return () => { document.removeEventListener('pointerdown', down, true); window.removeEventListener('resize', resize) }
+    return () => { document.removeEventListener('pointerdown', down, true); window.removeEventListener('resize', resize); window.removeEventListener('keydown', key) }
   }, [open, trigger, card, onClose])
   return pos
 }
@@ -49,6 +57,7 @@ function Card({ cardRef, pos, children, label, wide }: { cardRef: RefObject<HTML
       ref={cardRef}
       role="dialog"
       aria-label={label}
+      data-escape-layer=""
       className="fixed z-[60] rounded-xl bg-card p-1.5 shadow-lg ring-1 ring-panel-ring"
       style={pos ? { left: pos.left, top: pos.top, width: wide ? pos.width : undefined } : { left: 0, top: 0, visibility: 'hidden' }}
     >

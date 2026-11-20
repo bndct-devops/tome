@@ -66,6 +66,9 @@ export function useEscape(open: boolean, onClose?: () => void) {
     if (!open || !onClose) return
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Escape' || e.defaultPrevented) return
+      // A menu or picker open over the dialog takes the first Escape itself (it carries
+      // data-escape-layer while open); the next one closes the dialog.
+      if (document.querySelector('[data-escape-layer]')) return
       e.preventDefault()
       e.stopPropagation()
       onClose()

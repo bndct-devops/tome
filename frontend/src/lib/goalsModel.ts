@@ -114,8 +114,11 @@ export type Tone = 'success' | 'warning' | 'plain' | 'muted'
 /** The status line's lead and its colour: "ahead"/"reached" success, "behind" warning. */
 export function lead(g: GoalLike): { lead: Lead; tone: Tone } {
   if (g.kind === 'finish_by') {
-    const status = (['completed', 'expired', 'on_pace', 'behind'].includes(g.status) ? g.status : 'open') as Extract<Lead, { k: 'finish' }>['status']
-    const tone: Tone = status === 'completed' ? 'success' : status === 'behind' ? 'warning' : status === 'expired' ? 'muted' : 'plain'
+    // Finished: the reached state, as on every card. Behind (needs more a day than the
+    // recent pace): the warning wording, as other cards' "behind".
+    if (g.status === 'completed') return { lead: { k: 'reached' }, tone: 'success' }
+    const status = (['expired', 'on_pace', 'behind'].includes(g.status) ? g.status : 'open') as Extract<Lead, { k: 'finish' }>['status']
+    const tone: Tone = status === 'behind' ? 'warning' : status === 'expired' ? 'muted' : 'plain'
     return { lead: { k: 'finish', status }, tone }
   }
   if (g.reached) return { lead: { k: 'reached' }, tone: 'success' }
@@ -140,12 +143,19 @@ export type Detail =
   | { k: 'recent_weeks'; reached: number; of: number }
   /** Finish by: volumes left and the minutes a day it needs ("2 left · needs about 29 min a day"). */
   | { k: 'finish'; left: number; minutes: number | null }
+  /** Finish by, behind: what it needs a day against what the reader reads ("needs about 95 min a day · you read 71"). */
+  | { k: 'finish_need'; minutes: number; recent: number; left: number }
+  /** Finish by, finished. */
+  | { k: 'finish_done' }
   | { k: 'none' }
 
 export function detail(g: GoalLike): Detail {
   if (g.kind === 'finish_by') {
     const need = g.finish?.needed_seconds_per_day
-    return { k: 'finish', left: g.finish?.volumes_left ?? Math.max(0, g.to_go), minutes: g.status === 'completed' || g.status === 'expired' || need == null ? null : Math.max(1, Math.round(need / 60)) }
+    const left = g.finish?.volumes_left ?? Math.max(0, g.to_go)
+    if (g.status === 'completed') return { k: 'finish_done' }
+    if (g.status === 'behind' && need != null && g.finish) return { k: 'finish_need', minutes: Math.max(1, Math.round(need / 60)), recent: Math.round(g.finish.recent_seconds_per_day / 60), left }
+    return { k: 'finish', left, minutes: g.status === 'expired' || need == null ? null : Math.max(1, Math.round(need / 60)) }
   }
   if (g.kind === 'days_per_week') {
     const r = g.recent_weeks
@@ -153,7 +163,8 @@ export function detail(g: GoalLike): Detail {
   }
   if (g.period === 'day') return { k: 'week_days', hit: g.days_hit_this_week ?? 0 }
   if (g.reached) return { k: 'left', left: g.days_left }
-  return { k: 'togo', toGo: g.to_go, left: g.days_left, projection: g.projection }
+  // "On course for" is for month and year goals only: a week is too short to project.
+  return { k: 'togo', toGo: g.to_go, left: g.days_left, projection: g.period === 'month' || g.period === 'year' ? g.projection : null }
 }
 
 /** Where the pace tick sits on the bar (0..1), or null: no tick for day goals, finish-by, or a reached goal. */
@@ -210,4 +221,22 @@ export function parseTarget(raw: string, min: number, max: number | null): { ok:
   const v = Number(s)
   if (v < min || (max != null && v > max)) return { ok: false, why: 'range' }
   return { ok: true, value: v }
+}
+
+// ── One line, never wrapped ───────────────────────────────────────────────────
+
+/**
+ * The clauses of a card line that fit `width` px: the first clause always, then
+ * each following one while the whole line still fits; the rest are dropped (the
+ * last clause goes first: on course for, then days left). `measure` gives a
+ * string's width in the line's font.
+ */
+export function fitClauses(clauses: string[], width: number, measure: (s: string) => number, sep = ' · '): string[] {
+  if (!clauses.length || width <= 0) return clauses.slice(0, 1)
+  const out = [clauses[0]]
+  for (let i = 1; i < clauses.length; i++) {
+    if (measure([...out, clauses[i]].join(sep)) > width) break
+    out.push(clauses[i])
+  }
+  return out
 }

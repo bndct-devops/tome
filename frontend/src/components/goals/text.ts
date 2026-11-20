@@ -129,7 +129,7 @@ export function leadWords(l: Lead): { lead: string; rest: string } {
     }
     case 'finish':
       switch (l.status) {
-        case 'completed': return { lead: t`Finished`, rest: '' }
+        case 'completed': return { lead: t`Reached`, rest: '' }
         case 'expired': return { lead: t`The date has passed`, rest: '' }
         case 'on_pace': return { lead: t`On pace`, rest: '' }
         case 'behind': return { lead: t`Behind`, rest: t` at your recent pace` }
@@ -138,25 +138,45 @@ export function leadWords(l: Lead): { lead: string; rest: string } {
   }
 }
 
-/** The quiet line under the status. */
-export function detailWords(d: Detail): string {
+/** The quiet line under the status, as clauses (a card drops trailing ones that do not fit its width). */
+export function detailClauses(d: Detail): string[] {
   switch (d.k) {
     case 'togo': {
       const n = num(d.toGo)
-      const base = `${t`${n} to go`} · ${daysLeft(d.left)}`
-      if (d.projection == null) return base
-      const p = num(d.projection)
-      return `${base} · ${t`on course for ${p}`}`
+      const out = [t`${n} to go`, daysLeft(d.left)]
+      if (d.projection != null) { const p = num(d.projection); out.push(t`on course for ${p}`) }
+      return out
     }
-    case 'left': return daysLeft(d.left)
-    case 'week_days': { const n = num(d.hit); return t`${n} of 7 days this week` }
-    case 'recent_weeks': { const r = num(d.reached), o = num(d.of); return d.of === 12 ? t`Reached in ${r} of the last 12 weeks` : t`Reached in ${r} of ${o} weeks so far` }
+    case 'left': return [daysLeft(d.left)]
+    case 'week_days': { const n = num(d.hit); return [t`${n} of 7 days this week`] }
+    case 'recent_weeks': { const r = num(d.reached), o = num(d.of); return [d.of === 12 ? t`Reached in ${r} of the last 12 weeks` : t`Reached in ${r} of ${o} weeks so far`] }
     case 'finish': {
       const left = plural(d.left, { one: '# left', other: '# left' })
-      if (d.minutes == null) return left
+      if (d.minutes == null) return [left]
       const m = num(d.minutes)
-      return `${left} · ${t`needs about ${m} min a day`}`
+      return [left, t`needs about ${m} min a day`]
     }
-    case 'none': return t`No full week yet`
+    case 'finish_need': { const m = num(d.minutes), r = num(d.recent); return [t`needs about ${m} min a day`, t`you read ${r}`] }
+    case 'finish_done': return [t`All read`]
+    case 'none': return [t`No full week yet`]
   }
+}
+
+/** A shorter wording of a quiet line's first clause, for a card too narrow for it (null: none). */
+export function detailShort(d: Detail): string | null {
+  switch (d.k) {
+    case 'recent_weeks': { const r = num(d.reached), o = num(d.of); return t`${r} of ${o} weeks reached` }
+    case 'week_days': { const n = num(d.hit); return t`${n} of 7 days` }
+    case 'finish_need': { const m = num(d.minutes); return t`needs ${m} min a day` }
+    default: return null
+  }
+}
+
+/** The quiet line in one string (tips, the Boards tile). */
+export const detailWords = (d: Detail) => detailClauses(d).join(' · ')
+
+/** A finish-by card's label: "Finish by Dec 31" (the goal's one name is the title plus the date). */
+export function finishLabel(g: Pick<Goal, 'due_date' | 'period_end'>, today?: string): string {
+  const due = shortDate(g.due_date ?? g.period_end, today)
+  return t`Finish by ${due}`
 }

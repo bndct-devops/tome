@@ -125,6 +125,7 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
       onClose={onClose}
       size="md"
       title={editing ? t`Edit goal` : t`New goal`}
+      aria-label={editing ? t`Edit goal` : t`New goal`}
       subtitle={editing ? goalName(editing, today) : t`Progress counts by itself, from the reading Tome records.`}
       footer={
         <>

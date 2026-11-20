@@ -20,7 +20,7 @@ import { K, stagger, type Entry } from '@/components/stats/kit/motion'
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { HAIR, num } from '@/components/stats/kit/tokens'
 import { type Fig } from './figures'
-import { BurnUp, MarkLegend, PeriodBars, PeriodLegend, Timeline, WeekBars, WeekGrid } from './charts'
+import { BurnUp, MarkLegend, PeriodBars, PeriodLegend, Timeline, WeekBars, WeekGrid, YearMonths, YearMonthsLegend } from './charts'
 import { Dot } from './GoalCard'
 import { markTip } from './marks'
 import { mediumDate, monthName, shortDate, weekdayShort } from './text'
@@ -113,11 +113,12 @@ export function WeekTop({ goal, history, desktop }: { goal: Goal; history: GoalH
 
 /** "Finish dates set on one day: 15 of May's 15 on May 23, … These bars show when books were marked read, not when they were read." */
 export function BulkNote({ goal, history }: { goal: Goal; history: GoalHistory }) {
-  const bulk = history.summary?.bulk ?? []
+  const months = history.summary?.view === 'months'
+  const bulk = (months ? history.summary?.months_summary?.bulk : history.summary?.bulk) ?? []
   if (!bulk.length || goal.metric !== 'books') return null
   const parts = bulk.map((b) => {
     const c = num(b.count), o = num(b.of), d = shortDate(b.day, history.today)
-    const p = goal.period === 'year' ? b.start.slice(0, 4) : monthName(b.start)
+    const p = goal.period === 'year' && !months ? b.start.slice(0, 4) : monthName(b.start)
     return t`${c} of ${p}'s ${o} on ${d}`
   })
   const list = parts.join(', ')
@@ -126,6 +127,7 @@ export function BulkNote({ goal, history }: { goal: Goal; history: GoalHistory }
 
 export function PeriodTop({ goal, history, desktop }: { goal: Goal; history: GoalHistory; desktop: boolean }) {
   const year = goal.period === 'year'
+  const months = year && history.summary?.view === 'months' ? history.summary.months ?? null : null
   return (
     <div className={cn(desktop ? 'grid grid-cols-2 gap-12' : 'flex flex-col gap-7')}>
       <div>
@@ -133,8 +135,18 @@ export function PeriodTop({ goal, history, desktop }: { goal: Goal; history: Goa
         <BurnUp goal={goal} history={history} h={150} />
       </div>
       <div>
-        <Sub right={<PeriodLegend books={goal.metric === 'books'} />}>{year ? (() => { const n = num(history.periods.length); return t`Last ${n} years` })() : t`Last 12 months`}</Sub>
-        <PeriodBars goal={goal} history={history} h={desktop ? 150 : 120} />
+        {months ? (
+          // Fewer than two past years with data: this year's months, not empty years.
+          <>
+            <Sub right={<YearMonthsLegend />}>{t`This year by month`}</Sub>
+            <YearMonths goal={goal} months={months} h={desktop ? 150 : 120} />
+          </>
+        ) : (
+          <>
+            <Sub right={<PeriodLegend books={goal.metric === 'books'} />}>{year ? (() => { const n = num(history.periods.length); return t`Last ${n} years` })() : t`Last 12 months`}</Sub>
+            <PeriodBars goal={goal} history={history} h={desktop ? 150 : 120} />
+          </>
+        )}
         <BulkNote goal={goal} history={history} />
       </div>
     </div>

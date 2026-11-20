@@ -9,21 +9,22 @@ import { Check } from 'lucide-react'
 import { t } from '@lingui/core/macro'
 import { cn } from '@/lib/utils'
 import type { Goal } from '@/lib/goals'
-import { detail, lead, markKind, stripMarks, tick, type Mark } from '@/lib/goalsModel'
+import { detail, fitClauses, lead, markKind, stripMarks, tick, type Mark } from '@/lib/goalsModel'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { stagger, type Entry } from '@/components/stats/kit/motion'
 import { tipAttrs } from '@/components/stats/kit/tip'
-import { HAIR, num } from '@/components/stats/kit/tokens'
-import { detailWords, goalName, leadWords, unitWord, weekdayLetter } from './text'
+import { HAIR, num, useWidth } from '@/components/stats/kit/tokens'
+import { detailClauses, detailShort, finishLabel, goalName, leadWords, unitWord, weekdayLetter } from './text'
+import { textWidth, useFontsReady } from './measure'
 import { useShape } from './shape'
 import { gridCols, markTip } from './marks'
 
 export const TRACK = 'color-mix(in oklch, var(--primary) 28%, var(--background))'
 export const TRACK_OK = 'color-mix(in oklch, var(--success) 28%, var(--background))'
 /** A missed day: a dim neutral filled dot. */
-export const MISS = 'color-mix(in oklch, var(--foreground) 26%, var(--background))'
+export const MISS = 'color-mix(in oklch, var(--foreground) var(--goal-miss-mix, 26%), var(--background))'
 /** A day still to come: a thin faint outline. */
-export const FUTURE = 'color-mix(in oklch, var(--foreground) 22%, var(--background))'
+export const FUTURE = 'color-mix(in oklch, var(--foreground) var(--goal-future-mix, 22%), var(--background))'
 
 const toneClass = { success: 'text-success', warning: 'text-warning', plain: 'text-foreground', muted: 'text-muted-foreground' } as const
 
@@ -76,19 +77,52 @@ export function PaceBar({ goal, thin, today }: { goal: Goal; thin?: boolean; tod
   )
 }
 
-/** The status line: a coloured lead ("5 ahead", "Reached") and the plain rest. */
-export function LeadLine({ goal, className }: { goal: Goal; className?: string }) {
+/** The status line: a coloured lead ("5 ahead", "Reached") and the plain rest. With `width`
+    (cards four across) a clause-like rest ("· 3 days left") is dropped when the line would wrap. */
+export function LeadLine({ goal, className, width, px = 14 }: { goal: Goal; className?: string; width?: number; px?: number }) {
   const l = lead(goal)
   const w = leadWords(l.lead)
+  let rest = w.rest
+  if (width && rest.startsWith(' · ') && textWidth(w.lead, px, 600) + textWidth(rest, px) > width) rest = ''
   return (
     <span className={className}>
-      {l.lead.k === 'reached' || (l.lead.k === 'finish' && l.lead.status === 'completed')
+      {l.lead.k === 'reached'
         // The check sits inside the line's own height (an inline-flex box taller than the line would push it down).
         ? <span className="font-semibold text-success"><Check className="mr-1 inline-block h-[0.95em] w-[0.95em] align-[-0.12em]" strokeWidth={2.5} aria-hidden="true" />{w.lead}</span>
         : <span className={cn('font-semibold', toneClass[l.tone])}>{w.lead}</span>}
-      {w.rest && <span className="text-foreground">{w.rest}</span>}
+      {rest && <span className="text-foreground">{rest}</span>}
     </span>
   )
+}
+
+/** A finish-by card's strong line: the book or series (truncated with a tip), after the status when it is not plainly on pace. */
+function FinishLine({ goal }: { goal: Goal }) {
+  const l = lead(goal)
+  const w = leadWords(l.lead)
+  const title = goal.finish?.title ?? goal.name_params?.title ?? ''
+  const plain = l.lead.k === 'finish' && (l.lead.status === 'on_pace' || l.lead.status === 'open')
+  return (
+    <span className="block truncate" {...tipAttrs({ title, value: plain ? w.lead : undefined })}>
+      {!plain && (l.lead.k === 'reached'
+        ? <span className="font-semibold text-success"><Check className="mr-1 inline-block h-[0.95em] w-[0.95em] align-[-0.12em]" strokeWidth={2.5} aria-hidden="true" />{w.lead}</span>
+        : <span className={cn('font-semibold', toneClass[l.tone])}>{w.lead}</span>)}
+      {!plain && <span className="text-muted-foreground"> · </span>}
+      <span className="font-semibold text-foreground">{title}</span>
+    </span>
+  )
+}
+
+/** The quiet line: on a card four across, trailing clauses that would wrap are dropped (fitClauses). */
+function DetailLine({ goal, width, px }: { goal: Goal; width?: number; px: number }) {
+  const d = detail(goal)
+  const all = detailClauses(d)
+  if (!width) return <>{all.join(' · ')}</>
+  const measure = (s: string) => textWidth(s, px)
+  const shown = fitClauses(all, width, measure)
+  // A first clause too long on its own takes its shorter wording.
+  const short = detailShort(d)
+  if (shown.length === 1 && measure(shown[0]) > width && short) shown[0] = short
+  return <>{shown.join(' · ')}</>
 }
 
 /** The figure against the target ("58 / 60 books"); the unit wraps under the figure where the cell is narrow. */
@@ -103,17 +137,31 @@ function Figure({ goal, entry, desktop }: { goal: Goal; entry: Entry; desktop: b
   )
 }
 
-export function GoalCard({ goal, entry, desktop, today }: { goal: Goal; entry: Entry; desktop: boolean; today?: string }) {
+export function GoalCard({ goal, entry, desktop, today, lineWidth }: {
+  goal: Goal
+  entry: Entry
+  desktop: boolean
+  today?: string
+  /** Cards four across: the width the status and detail lines must fit on one line. */
+  lineWidth?: number
+}) {
   const name = goalName(goal, today)
+  const finish = goal.kind === 'finish_by'
+  // A finish-by card is labelled by its date ("Finish by Dec 31", never cut); the goal's one name is in the tip.
+  const label = finish ? finishLabel(goal, today) : name
   return (
     <div className="min-w-0 text-left">
-      <div className={cn('truncate text-muted-foreground', desktop ? 'text-[14px]' : 'text-[13px] leading-snug')} {...tipAttrs({ title: name })}>{name}</div>
+      <div className={cn(finish ? 'whitespace-nowrap' : 'truncate', 'text-muted-foreground', desktop ? 'text-[14px]' : 'text-[13px] leading-snug')} {...tipAttrs({ title: name })}>{label}</div>
       <div className="mt-1.5"><Figure goal={goal} entry={entry} desktop={desktop} /></div>
       <div className="mt-3 flex h-[30px] items-start">
         {markKind(goal) === 'strip' ? <DayStrip goal={goal} /> : <div className="w-full pt-2"><PaceBar goal={goal} today={today} /></div>}
       </div>
-      <div className={cn('mt-1 leading-[1.4]', desktop ? 'text-[14px]' : 'text-[13px]')}><LeadLine goal={goal} /></div>
-      <div className={cn('mt-0.5 leading-[1.4] text-muted-foreground', desktop ? 'text-[13px]' : 'text-[12px]')}>{detailWords(detail(goal))}</div>
+      <div className={cn('mt-1 leading-[1.4]', desktop ? 'text-[14px]' : 'text-[13px]', lineWidth && 'whitespace-nowrap')}>
+        {finish ? <FinishLine goal={goal} /> : <LeadLine goal={goal} width={lineWidth} px={desktop ? 14 : 13} />}
+      </div>
+      <div className={cn('mt-0.5 leading-[1.4] text-muted-foreground', desktop ? 'text-[13px]' : 'text-[12px]', lineWidth && 'whitespace-nowrap')}>
+        <DetailLine goal={goal} width={lineWidth} px={desktop ? 13 : 12} />
+      </div>
     </div>
   )
 }
@@ -154,15 +202,20 @@ export function GoalGrid({ goals, count, desktop, entry, shapeKey, pick, selecte
   const rows = Math.ceil(n / cols)
   const shape = useShape(`${shapeKey}:${cols}:${n}`)
   const cells: (Goal | null)[] = goals ?? Array.from({ length: n }, () => null)
+  const [gridRef, width] = useWidth<HTMLDivElement>()
+  useFontsReady()
+  // Four across: each card's lines stay on one line within its column's content box (the first
+  // column has no left padding; the others 24 px either side).
+  const lineWidth = (col: number) => (desktop && width > 0 ? Math.floor(width / cols) - (col === 0 ? 24 : 48) : undefined)
   return (
-    <div className={cn('grid', desktop ? 'grid-cols-4' : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)]')} role="list" aria-label={label}>
+    <div ref={gridRef} className={cn('grid', desktop ? 'grid-cols-4' : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)]')} role="list" aria-label={label}>
       {cells.map((g, i) => {
         const col = i % cols
         const row = Math.floor(i / cols)
         const lastRow = row === rows - 1
         const sel = !!g && selected === g.id
         const rowH = !g ? shape.h(`row${row}`) : undefined
-        const cell: ReactNode = g ? <GoalCard goal={g} entry={entry} desktop={desktop} today={today} /> : <CardSkeleton desktop={desktop} />
+        const cell: ReactNode = g ? <GoalCard goal={g} entry={entry} desktop={desktop} today={today} lineWidth={lineWidth(col)} /> : <CardSkeleton desktop={desktop} />
         return (
           <div
             key={g ? g.id : `s${i}`}
