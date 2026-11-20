@@ -450,6 +450,31 @@ test('A year goal\'s years: a year without data says so and is never "missed"', 
   await expect(detail(page)).not.toContainText(`${year - 1} missed`)
 })
 
+test('Burn-up legend: each mark is drawn exactly as its line in the plot', async ({ page }) => {
+  // The year chart falls back to its legend once "today" leaves no room at the end (late in the year).
+  test.skip(new Date().getMonth() < 9, 'the year chart only falls back to its legend late in the year')
+  seed('goals')
+  await login(page)
+  await openTab(page, 'Goals')
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: 900 })
+    await card(page, 'Comics').getByRole('button').click()
+    await expect(detail(page)).toHaveAttribute('aria-busy', 'false')
+    const chart = detail(page).locator('svg[aria-label="This period so far against the pace"]')
+    await expect(chart.locator('[data-legend] [data-mark]').first()).toBeAttached()
+    const styles = await chart.evaluate((svg) => {
+      const look = (el: Element) => { const cs = getComputedStyle(el); return [cs.stroke, cs.strokeWidth, cs.strokeDasharray, cs.strokeOpacity, cs.strokeLinecap].join(' | ') }
+      return [...svg.querySelectorAll('[data-legend] [data-mark]')].map((m) => {
+        const mark = m.getAttribute('data-mark')!
+        const line = [...svg.querySelectorAll(`[data-mark="${mark}"]`)].find((l) => !l.closest('[data-legend]'))!
+        return { mark, legend: look(m), plot: look(line) }
+      })
+    })
+    expect(styles.length).toBeGreaterThan(0)
+    for (const s of styles) expect(s.legend, `${s.mark} at ${width}`).toBe(s.plot)
+  }
+})
+
 test('Dialog: Escape closes an open picker first, the dialog only on the next Escape', async ({ page }) => {
   seed('goals')
   await login(page)

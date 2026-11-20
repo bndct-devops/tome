@@ -31,6 +31,13 @@ function niceMax(v: number): { max: number; step: number } {
 // eslint-disable-next-line lingui/no-unlocalized-strings -- ISO time suffix
 const dayCount = (a: string, b: string) => Math.round((Date.parse(b + 'T00:00:00Z') - Date.parse(a + 'T00:00:00Z')) / 86_400_000)
 
+/** The burn-up's two lines, drawn from this one definition in the plot and in its legend
+    (an e2e test compares the computed styles of both). */
+const BURN_LINE = {
+  pace: { stroke: 'var(--muted-foreground)', strokeWidth: 1, strokeDasharray: '5 4' },
+  proj: { stroke: 'var(--primary)', strokeOpacity: 0.75, strokeWidth: 2, strokeDasharray: '2 4', strokeLinecap: 'round' as const },
+}
+
 /** The period so far: the reader's line, the pace to the target, the projection to the period's end.
     The two end labels go where they touch no line, point, the "today" marker or each other
     (goalsModel.placeEndLabels); with no such place they move to a small legend under the plot. */
@@ -110,11 +117,12 @@ export function BurnUp({ goal, history, h }: { goal: Goal; history: GoalHistory;
             </g>
           ))}
           {ticks.map((k) => <text key={k.i} x={X(k.i)} y={tickY} textAnchor={k.i === 0 ? 'start' : 'middle'} fill="var(--muted-foreground)">{k.label}</text>)}
-          <line className={K.wipe} x1={X(0)} y1={Y(0)} x2={X(total)} y2={Y(target)} stroke="var(--muted-foreground)" strokeDasharray="5 4" />
+          {/* Wiped in as a group: on the line itself the kit's reduced-motion rule would drop its dashes. */}
+          <g className={K.wipe}><line data-mark="pace" x1={X(0)} y1={Y(0)} x2={X(total)} y2={Y(target)} {...BURN_LINE.pace} /></g>
           {paceAt && <text data-label="pace" x={paceAt.x} y={paceAt.y} textAnchor="end" fill="var(--muted-foreground)">{paceText}</text>}
           {showProj && (
             <g className={K.wipe}>
-              <line x1={todayX} y1={Y(last)} x2={X(total)} y2={Y(proj!)} stroke="var(--primary)" strokeOpacity="0.75" strokeWidth="2" strokeDasharray="2 4" strokeLinecap="round" />
+              <line data-mark="proj" x1={todayX} y1={Y(last)} x2={X(total)} y2={Y(proj!)} {...BURN_LINE.proj} />
               {projAt && <text data-label="proj" x={projAt.x} y={projAt.y} textAnchor="end" fill="var(--primary)">{projText}</text>}
             </g>
           )}
@@ -135,11 +143,11 @@ export function BurnUp({ goal, history, h }: { goal: Goal; history: GoalHistory;
           <text x={todayX} y={T - 9} textAnchor="middle" fill="var(--foreground)" fontWeight="600">{t`today`}</text>
           {legend && (
             <g data-legend="" transform={`translate(0 ${h - 3})`}>
-              <line x1={L} x2={L + 16} y1={-4} y2={-4} stroke="var(--muted-foreground)" strokeDasharray="5 4" />
+              <line data-mark="pace" x1={L} x2={L + 16} y1={-4} y2={-4} {...BURN_LINE.pace} />
               <text x={L + 22} y={0} fill="var(--muted-foreground)">{paceText}</text>
               {showProj && (
                 <>
-                  <line x1={legendProjX} x2={legendProjX + 16} y1={-4} y2={-4} stroke="var(--primary)" strokeOpacity="0.75" strokeWidth="2" strokeDasharray="2 4" strokeLinecap="round" />
+                  <line data-mark="proj" x1={legendProjX} x2={legendProjX + 16} y1={-4} y2={-4} {...BURN_LINE.proj} />
                   <text x={legendProjX + 22} y={0} fill="var(--primary)">{projText}</text>
                 </>
               )}
