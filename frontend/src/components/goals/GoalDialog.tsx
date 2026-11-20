@@ -25,7 +25,7 @@ import {
 import { KIND_ORDER, booksAMonth, minutesADay, parseTarget, type WeekStart } from '@/lib/goalsModel'
 import { DayPicker, FinishTargetPicker } from './pickers'
 import { dateChips, targetKey, type FinishTarget } from './pickerModel'
-import { goalName, kindLabel, kindNote, longDate, shortDate, targetUnit } from './text'
+import { goalName, kindLabel, kindNote, longDate, minutesText, perDayText, shortDate, targetUnit } from './text'
 
 export type DialogMode =
   | { kind: 'create'; preset?: { kind: GoalKind; target?: number } }
@@ -280,10 +280,10 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter }: {
     } else if (kind === 'books_per_month' || kind === 'books_per_year') {
       const m = minutesADay(value, kind === 'books_per_month' ? 'month' : 'year', sug.per_book.median_minutes ?? null)
       if (m != null) {
-        const v = num(value), mm = num(Math.round(m))
+        const v = num(value), mm = minutesText(m)
         consequence = kind === 'books_per_month'
-          ? <Trans>{v} books a month take about <b className="font-semibold">{mm} min a day</b> at your usual time per book.</Trans>
-          : <Trans>{v} books a year take about <b className="font-semibold">{mm} min a day</b> at your usual time per book.</Trans>
+          ? <Trans>{v} books a month take about <b className="font-semibold">{mm} a day</b> at your usual time per book.</Trans>
+          : <Trans>{v} books a year take about <b className="font-semibold">{mm} a day</b> at your usual time per book.</Trans>
       }
     } else if (kind === 'days_per_week') {
       consequence = <Trans>A day counts as it does for your streak: any reading on a device, or a minute or more in the web reader.</Trans>
@@ -428,8 +428,8 @@ function Preview({ p, today }: { p: FinishEstimate; today: string }) {
     what = unstarted > 0 ? (() => { const more = plural(unstarted, { one: '# more volume', other: '# more volumes' }); return t`the rest of volume ${v} (${pc}%) and ${more}` })() : t`the rest of volume ${v} (${pc}%)`
   } else what = plural(p.volumes_left, { one: '# volume', other: '# volumes' })
   const left = p.remaining_seconds != null ? formatDuration(p.remaining_seconds) : null
-  const per = p.needed_seconds_per_day != null ? num(Math.max(1, Math.round(p.needed_seconds_per_day / 60))) : null
-  const recent = num(Math.round(p.recent_seconds_per_day / 60))
+  const per = p.needed_seconds_per_day != null ? perDayText(p.needed_seconds_per_day) : null
+  const recent = minutesText(p.recent_seconds_per_day / 60)
   const recentDays = num(p.recent_days)
   return (
     <>
@@ -438,10 +438,10 @@ function Preview({ p, today }: { p: FinishEstimate; today: string }) {
       ) : (
         <p className="text-[14px] leading-snug text-foreground"><Trans>Left to read: {what}. Some of it has no estimate yet.</Trans></p>
       )}
-      {per && <p className="mt-1 text-[14px] leading-snug text-foreground"><Trans>That is about <b className="font-semibold">{per} min a day</b> for the {days} days to {due}.</Trans></p>}
+      {per && <p className="mt-1 text-[14px] leading-snug text-foreground"><Trans>That is about <b className="font-semibold">{per} a day</b> for the {days} days to {due}.</Trans></p>}
       <p className="mt-1.5 text-[12px] leading-snug text-muted-foreground">
         {p.basis === 'series' && p.per_volume_seconds ? (() => { const v = formatDuration(p.per_volume_seconds); return <Trans>At your {v} a volume in this series.</Trans> })() : <Trans>From the word count at your reading speed.</Trans>}{' '}
-        <Trans>You've read {recent} min a day over the last {recentDays} days.</Trans>
+        <Trans>You've read {recent} a day over the last {recentDays} days.</Trans>
       </p>
     </>
   )

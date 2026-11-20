@@ -23,7 +23,7 @@ import { type Fig } from './figures'
 import { BurnUp, MarkLegend, PeriodBars, PeriodLegend, Timeline, WeekBars, WeekGrid, YearMonths, YearMonthsLegend } from './charts'
 import { Dot } from './GoalCard'
 import { markTip } from './marks'
-import { mediumDate, monthName, shortDate, weekdayShort } from './text'
+import { mediumDate, minutesText, monthName, perDayText, shortDate, weekdayShort } from './text'
 
 function Sub({ children, right }: { children: ReactNode; right?: ReactNode }) {
   return (
@@ -155,9 +155,10 @@ export function PeriodTop({ goal, history, desktop }: { goal: Goal; history: Goa
 
 // ── Finish by a date ──────────────────────────────────────────────────────────
 
-function perDay(secs: number | null): string {
+/** A need a day is at least a minute; a recent pace can be none. */
+function perDay(secs: number | null, need: boolean): string {
   if (secs == null) return '–'
-  return num(Math.max(1, Math.round(secs / 60)))
+  return need ? perDayText(secs) : minutesText(secs / 60)
 }
 
 export function FinishTop({ goal, desktop }: { goal: Goal; desktop: boolean }) {
@@ -212,9 +213,9 @@ export function FinishTop({ goal, desktop }: { goal: Goal; desktop: boolean }) {
               <div key={r.k}>
                 <div className="flex items-baseline justify-between gap-3 text-[13px]">
                   <span className="text-muted-foreground">{r.label}</span>
-                  <span className="font-semibold tabular-nums text-foreground">{(() => { const m = perDay(r.secs); return t`${m} min` })()}</span>
+                  <span className="font-semibold tabular-nums text-foreground">{perDay(r.secs, r.k === 'need')}</span>
                 </div>
-                <div className="k-track mt-1.5 h-[6px] overflow-hidden rounded-full" style={{ background: 'color-mix(in oklch, var(--foreground) 10%, var(--background))' }} {...tipAttrs({ title: r.label, value: (() => { const m = perDay(r.secs); return t`${m} min` })() })}>
+                <div className="k-track mt-1.5 h-[6px] overflow-hidden rounded-full" style={{ background: 'color-mix(in oklch, var(--foreground) 10%, var(--background))' }} {...tipAttrs({ title: r.label, value: perDay(r.secs, r.k === 'need') })}>
                   <div className={cn('k-grow-x h-full rounded-full', r.cls)} style={{ width: `${r.secs == null ? 0 : Math.min(100, (r.secs / max) * 100)}%`, ...stagger(i, 2) }} />
                 </div>
               </div>

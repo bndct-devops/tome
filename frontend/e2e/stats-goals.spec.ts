@@ -359,6 +359,31 @@ test('Overview: a reader without goals starts one from the end of the page', asy
   expect((await goalsFromApi(request)).goals.map((g) => g.kind)).toEqual(['books_per_month'])
 })
 
+test('Finish by, far behind: an hour or more a day reads in hours and minutes', async ({ page }) => {
+  seed('goals')
+  await login(page)
+  await page.route(GOALS_LIST_RE, async (route) => {
+    const res = await route.fetch()
+    const body = await res.json()
+    for (const g of body.goals) {
+      if (g.kind !== 'finish_by') continue
+      g.status = 'behind'
+      g.reached = false
+      g.finish = { ...g.finish, volumes_left: 2, volumes_read: Math.max(0, g.finish.volumes_total - 2), needed_seconds_per_day: 23280, recent_seconds_per_day: 4380, remaining_seconds: 69840, days_left: 3 }
+    }
+    await route.fulfill({ response: res, json: body })
+  })
+  await openTab(page, 'Goals')
+  const saga = card(page, /Finish by/)
+  await expect(saga).toContainText('needs about 6h 28m a day')
+  await expect(saga).not.toContainText('388')
+  await saga.getByRole('button').click()
+  await expect(detail(page)).toHaveAttribute('aria-busy', 'false')
+  await expect(detail(page)).toContainText('6h 28m')
+  await expect(detail(page)).toContainText('1h 13m')
+  await expect(detail(page)).not.toContainText('388')
+})
+
 test('Dialog: Escape closes an open picker first, the dialog only on the next Escape', async ({ page }) => {
   seed('goals')
   await login(page)

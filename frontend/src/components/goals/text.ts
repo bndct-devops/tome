@@ -8,8 +8,19 @@ import type { MessageDescriptor } from '@lingui/core'
 import type { Goal, GoalKind } from '@/lib/goals'
 import type { Detail, Lead } from '@/lib/goalsModel'
 import { num } from '@/components/stats/kit/tokens'
+import { formatDuration } from '@/lib/utils'
 
 const loc = () => i18n.locale || 'en'
+
+/** A time a day, from minutes: under an hour "28 min", an hour or more the app's
+    hours and minutes ("6h 28m", formatDuration). Every per-day need and recent pace. */
+export function minutesText(min: number): string {
+  const m = Math.max(0, Math.round(min))
+  if (m < 60) { const n = num(m); return t`${n} min` }
+  return formatDuration(m * 60)
+}
+/** The same from seconds a day; at least a minute ("needs about 1 min a day"). */
+export const perDayText = (secs: number) => minutesText(Math.max(1, Math.round(secs / 60)))
 const noon = (iso: string) => new Date(iso + 'T12:00:00')
 
 /** "Dec 31" (with the year when it is not this year's). */
@@ -153,10 +164,10 @@ export function detailClauses(d: Detail): string[] {
     case 'finish': {
       const left = plural(d.left, { one: '# left', other: '# left' })
       if (d.minutes == null) return [left]
-      const m = num(d.minutes)
-      return [left, t`needs about ${m} min a day`]
+      const m = minutesText(d.minutes)
+      return [left, t`needs about ${m} a day`]
     }
-    case 'finish_need': { const m = num(d.minutes), r = num(d.recent); return [t`needs about ${m} min a day`, t`you read ${r}`] }
+    case 'finish_need': { const m = minutesText(d.minutes), r = minutesText(d.recent); return [t`needs about ${m} a day`, t`you read ${r}`] }
     case 'finish_done': return [t`All read`]
     case 'none': return [t`No full week yet`]
   }
@@ -167,7 +178,7 @@ export function detailShort(d: Detail): string | null {
   switch (d.k) {
     case 'recent_weeks': { const r = num(d.reached), o = num(d.of); return t`${r} of ${o} weeks reached` }
     case 'week_days': { const n = num(d.hit); return t`${n} of 7 days` }
-    case 'finish_need': { const m = num(d.minutes); return t`needs ${m} min a day` }
+    case 'finish_need': { const m = minutesText(d.minutes); return t`needs ${m} a day` }
     default: return null
   }
 }

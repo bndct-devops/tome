@@ -5,7 +5,7 @@ import { formatDuration } from '@/lib/utils'
 import type { Goal, GoalHistory } from '@/lib/goals'
 import { addDays } from '@/lib/goalsModel'
 import { dec1, num } from '@/components/stats/kit/tokens'
-import { mediumDate, monthName, shortDate, unitWord, weekdayLong } from './text'
+import { mediumDate, minutesText, monthName, shortDate, unitWord, weekdayLong } from './text'
 
 export type DetailKind = 'days' | 'week' | 'period' | 'finish'
 export function detailKind(g: Pick<Goal, 'kind' | 'period'>): DetailKind {
@@ -90,6 +90,11 @@ export function periodFigures(goal: Goal, h: GoalHistory): Fig[] {
   ]
 }
 
+function perDayFig(label: string, min: number | null, foot: string): Fig {
+  if (min == null) return { label, value: 0, text: '–', unit: t`min a day`, foot }
+  return min < 60 ? { label, value: min, unit: t`min a day`, foot } : { label, value: 0, text: minutesText(min), unit: t`a day`, foot }
+}
+
 export function finishFigures(goal: Goal, today: string): Fig[] {
   const f = goal.finish
   if (!f) return []
@@ -97,7 +102,8 @@ export function finishFigures(goal: Goal, today: string): Fig[] {
   const left = f.days_left
   return [
     { label: t`Time left`, value: 0, text: f.remaining_seconds == null ? '–' : formatDuration(f.remaining_seconds), unit: '', foot: plural(f.volumes_left, { one: '# volume to go', other: '# volumes to go' }) },
-    { label: t`Needs`, value: f.needed_seconds_per_day == null ? 0 : Math.max(1, Math.round(f.needed_seconds_per_day / 60)), text: f.needed_seconds_per_day == null ? '–' : undefined, unit: t`min a day`, foot: (() => { const n = num(left); return t`for the ${n} days to ${due}` })() },
-    { label: t`Recent pace`, value: Math.round(f.recent_seconds_per_day / 60), unit: t`min a day`, foot: (() => { const n = num(f.recent_days); return t`over the last ${n} days` })() },
+    // An hour or more a day in hours and minutes ("6h 28m a day"), as the card says it.
+    perDayFig(t`Needs`, f.needed_seconds_per_day == null ? null : Math.max(1, Math.round(f.needed_seconds_per_day / 60)), (() => { const n = num(left); return t`for the ${n} days to ${due}` })()),
+    perDayFig(t`Recent pace`, Math.round(f.recent_seconds_per_day / 60), (() => { const n = num(f.recent_days); return t`over the last ${n} days` })()),
   ]
 }
