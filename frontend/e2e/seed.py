@@ -64,7 +64,7 @@ def reset(db) -> int:
     ):
         db.execute(text(f"DELETE FROM {table}"))
 
-    # The week start is the reader's own setting (Settings › Language): back to Monday.
+    # The week start is the reader's own setting (Settings › Language and region): back to Monday.
     db.execute(text("UPDATE users SET week_start = 'monday'"))
 
     shutil.rmtree(LIBRARY, ignore_errors=True)

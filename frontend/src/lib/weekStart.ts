@@ -1,4 +1,4 @@
-// The first day of the reader's week (Settings › Language › Week starts on), for
+// The first day of the reader's week (Settings › Language and region › Week starts on), for
 // every web display laid out by weekday: the calendar, the stats grids and charts,
 // the date pickers. Set from the signed-in user (AuthContext); Monday until known.
 // Kept free of React and of path aliases so it runs under plain Node for its tests.

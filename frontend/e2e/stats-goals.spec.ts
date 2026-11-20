@@ -222,7 +222,9 @@ test('Week start Sunday: the strip starts on Sunday and a weekly goal\'s week wi
   }
   expect((await letters())[0]).toBe('M')
   await page.goto('/settings/language')
-  const put = page.waitForResponse((r) => /\/api\/auth\/me$/.test(r.url()) && r.request().method() === 'PUT')
+  // The setting sits under Language and region (the language sets dates and numbers; the week start goes with them).
+  await expect(page.getByRole('heading', { level: 1, name: 'Language and region' })).toBeVisible()
+  const put = page.waitForResponse((r) => /\/api\/auth\/me(\?|$)/.test(r.url()) && r.request().method() === 'PUT')
   await page.getByRole('radiogroup', { name: 'Week starts on' }).getByRole('radio', { name: 'Sunday' }).click()
   expect((await put).ok()).toBeTruthy()
   await expect(page.getByRole('radio', { name: 'Sunday' })).toHaveAttribute('aria-checked', 'true')

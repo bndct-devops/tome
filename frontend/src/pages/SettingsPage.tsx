@@ -114,7 +114,8 @@ export function SettingsPage() {
     account: t`Account and security`,
     access: t`Access`,
     appearance: t`Appearance`,
-    language: t`Language`,
+    // The language also sets how dates and numbers are written, and the week start lives here.
+    language: t`Language and region`,
     // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
     koreader: 'KOReader',
     'send-to-device': t`Send to device`,
@@ -1044,7 +1045,7 @@ function StatsBoardsSetting() {
   )
 }
 
-// ── Language ─────────────────────────────────────────────────────────────
+// ── Language and region ─────────────────────────────────────────────────────────
 
 function LanguageSection() {
 
@@ -1060,7 +1061,10 @@ function LanguageSection() {
         {/* Pills work up to roughly a dozen locales; if the list outgrows a
         row or two, swap back to a (styled) select. Labels are the
         language's own name and stay untranslated on purpose. */}
-        <PanelSection>
+        <PanelSection
+          title={<Trans>Language</Trans>}
+          description={<Trans>The app's words, and how it writes dates and numbers.</Trans>}
+        >
           <div className="flex flex-wrap gap-2">
             {LOCALES.map(l => {
               const active = activeLocale === l.code
