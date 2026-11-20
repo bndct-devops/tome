@@ -5,7 +5,7 @@ so writing from a second process while uvicorn is up is fine). Every scenario
 starts from a clean slate: all book data, libraries and shelves wiped, library
 dir recreated, the `e2e` admin and one member and one guest ensured.
 
-Usage: seed.py <orphans|duplicates|many|race|shelves|reset> [count]
+Usage: seed.py <orphans|duplicates|many|race|shelves|sessions|reset> [count]
 """
 import sys
 from pathlib import Path
@@ -29,6 +29,7 @@ from backend.core.database import SessionLocal  # noqa: E402
 from backend.core.security import hash_password  # noqa: E402
 from backend.models.book import Book, BookFile  # noqa: E402
 from backend.models.library import Library, SavedFilter  # noqa: E402
+from backend.models.tome_sync import ReadingSession  # noqa: E402
 from backend.models.user import User  # noqa: E402
 
 LIBRARY = E2E_DATA / "library"
@@ -54,6 +55,7 @@ def reset(db) -> int:
         "book_files",
         "duplicate_dismissals",
         "books_fts",
+        "reading_sessions",
         "books",
     ):
         db.execute(text(f"DELETE FROM {table}"))
@@ -197,6 +199,28 @@ def scenario_shelves(db, admin_id):
     db.add(SavedFilter(name="Seeded Shelf", owner_id=admin_id, params="{}"))
 
 
+def scenario_sessions(db, admin_id):
+    """Three books and 24 live reading sessions of the admin over the last two
+    weeks, grouped unevenly by day (more than one page of the Sessions tab)."""
+    from datetime import datetime, timedelta, timezone
+    books = []
+    for i in range(1, 4):
+        b = _add_book(db, admin_id, f"Session Book {i}", author="Seed Author",
+                      path=f"Sessions/Session Book {i}.epub", content=f"session {i}".encode(), fmt="epub")
+        books.append(b)
+    db.flush()
+    today = datetime.now(timezone.utc).replace(tzinfo=None, hour=12, minute=0, second=0, microsecond=0)
+    n = 0
+    for day, count in enumerate([3, 1, 2, 1, 4, 1, 1, 2, 3, 1, 2, 1, 2]):
+        for k in range(count):
+            start = today - timedelta(days=day + 1) + timedelta(minutes=40 * k)
+            secs = 600 + 300 * ((n * 7) % 5)
+            db.add(ReadingSession(user_id=admin_id, book_id=books[n % 3].id, started_at=start,
+                                  ended_at=start + timedelta(seconds=secs), duration_seconds=secs,
+                                  pages_turned=10 + n, device="web"))
+            n += 1
+
+
 def main():
     scenario = sys.argv[1] if len(sys.argv) > 1 else "orphans"
     db = SessionLocal()
@@ -212,6 +236,8 @@ def main():
             scenario_many(db, admin_id, int(sys.argv[2]) if len(sys.argv) > 2 else 134)
         elif scenario == "shelves":
             scenario_shelves(db, admin_id)
+        elif scenario == "sessions":
+            scenario_sessions(db, admin_id)
         elif scenario == "reset":
             pass
         else:

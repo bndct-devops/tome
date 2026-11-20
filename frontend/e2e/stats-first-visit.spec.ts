@@ -24,9 +24,16 @@ function moved(before: Record<string, Box>, after: Record<string, Box>) {
     .map((k) => `${k}: ${before[k].x},${before[k].y} -> ${after[k].x},${after[k].y}`)
 }
 
-for (const tab of ['Library', 'Sessions']) {
-  test(`Stats ${tab}: nothing drawn moves when the data lands on a first visit`, async ({ page }) => {
-    seed('many', 40)
+const CASES = [
+  { tab: 'Library', reader: 'a library of 40 books', scenario: 'many' },
+  { tab: 'Sessions', reader: 'a reader without sessions', scenario: 'many' },
+  { tab: 'Sessions', reader: 'a reader with sessions on many days', scenario: 'sessions' },
+] as const
+
+for (const { tab, reader, scenario } of CASES) {
+  test(`Stats ${tab}, ${reader}: nothing drawn moves when the data lands on a first visit`, async ({ page }) => {
+    if (scenario === 'many') seed('many', 40)
+    else seed(scenario)
     await login(page)
     await page.evaluate(() => {
       for (const k of Object.keys(localStorage)) if (k.startsWith('tome_stats_')) localStorage.removeItem(k)
