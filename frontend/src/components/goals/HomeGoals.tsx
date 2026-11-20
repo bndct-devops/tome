@@ -7,12 +7,16 @@ import type { GoalsAnswer } from '@/lib/goals'
 import { ONCE, useEntryRef } from '@/components/stats/kit/motion'
 import { DESKTOP_MIN, useWidth } from '@/components/stats/kit/tokens'
 import { GoalGrid } from './GoalCard'
+import { TipLayer } from '@/components/stats/kit/TipLayer'
 
 export function HomeGoals({ answer }: { answer: GoalsAnswer }) {
   const navigate = useNavigate()
   const [ref, width] = useWidth<HTMLDivElement>()
   const [e, attach] = useEntryRef('home/goals', ONCE)
   return (
+    <>
+    {/* Home has no Stats frame: the cards' tips need their own layer. */}
+    <TipLayer />
     <section ref={(el: HTMLElement | null) => { ref.current = el as HTMLDivElement | null; attach(el) }} aria-label={t`Reading goals`} data-box="home-goals" className="pt-3">
       {width > 0 && (
         <GoalGrid
@@ -27,5 +31,6 @@ export function HomeGoals({ answer }: { answer: GoalsAnswer }) {
         />
       )}
     </section>
+    </>
   )
 }
