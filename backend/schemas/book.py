@@ -59,6 +59,15 @@ class BookOut(BaseModel):
         from_attributes = True
 
 
+class BookWithDescriptionOut(BookOut):
+    """List item for GET /books?include=description.
+
+    The default list item leaves the description out (the largest text field);
+    a client that keeps an offline copy of the library asks for it.
+    """
+    description: Optional[str] = None
+
+
 class BookDetailOut(BookOut):
     isbn: Optional[str] = None
     publisher: Optional[str] = None
