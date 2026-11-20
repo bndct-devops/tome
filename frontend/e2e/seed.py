@@ -5,7 +5,7 @@ so writing from a second process while uvicorn is up is fine). Every scenario
 starts from a clean slate: all book data, libraries and shelves wiped, library
 dir recreated, the `e2e` admin and one member and one guest ensured.
 
-Usage: seed.py <orphans|duplicates|many|race|shelves|sessions|stats|goals|lengths|reset> [count]
+Usage: seed.py <orphans|duplicates|many|race|shelves|sessions|stats|goals|goals-history|lengths|reset> [count]
 """
 import sys
 from pathlib import Path
@@ -57,11 +57,15 @@ def reset(db) -> int:
         "duplicate_dismissals",
         "books_fts",
         "reading_sessions",
+        "reading_goal_targets",
         "reading_goals",
         "notifications",
         "books",
     ):
         db.execute(text(f"DELETE FROM {table}"))
+
+    # The week start is the reader's own setting (Settings › Language): back to Monday.
+    db.execute(text("UPDATE users SET week_start = 'monday'"))
 
     shutil.rmtree(LIBRARY, ignore_errors=True)
     LIBRARY.mkdir(parents=True)
@@ -341,10 +345,50 @@ def scenario_stats(db, admin_id, goals=False):
         ("books_per_year", ahead + 1, "comic"),
         ("books_per_year", 40, "light_novel"),
         ("minutes_per_week", 300, None),
+        ("days_per_week", 3, None),
     )):
         db.add(ReadingGoal(user_id=admin_id, kind=kind, target=target,
                            book_type_id=types[slug] if slug else None,
                            created_at=t0 + timedelta(seconds=j), updated_at=t0))
+    # Finish by a date: "Done Saga" (both volumes read: completed) by the end of next month.
+    for i in (1, 2):
+        b = _add_book(db, admin_id, f"Done Saga {i}", author="Saga Author", series="Done Saga",
+                      series_index=float(i), path=f"Saga/Done Saga {i}.epub", content=f"done saga {i}".encode(), fmt="epub")
+        b.book_type_id = types["book"]
+        _status(db, admin_id, b, "read", progress=1.0, finished_at=now - timedelta(days=3 + i))
+    due = (datetime(local.year + (local.month == 12), local.month % 12 + 1, 28)).date()
+    db.add(ReadingGoal(user_id=admin_id, kind="finish_by", target=2, target_series="Done Saga", due_date=due,
+                       created_at=t0 + timedelta(seconds=9), updated_at=t0))
+
+
+def scenario_goals_history(db, admin_id):
+    """A reader with three months of reading (40-80 minutes on most days) and three
+    timed finished books, so the goal dialog suggests targets from their own days."""
+    from datetime import datetime, timedelta
+    types = _type_ids(db)
+    now = datetime.utcnow()
+    daily = _add_book(db, admin_id, "Daily Novel", author="Day Reader",
+                      path="Novels/Daily Novel.epub", content=b"daily bytes", fmt="epub")
+    daily.book_type_id = types["book"]
+    _status(db, admin_id, daily, "reading", progress=0.4, updated_at=now - timedelta(hours=2))
+    noon = now.replace(hour=12, minute=0, second=0, microsecond=0)
+    for d in range(1, 91):
+        if d % 7 == 3:
+            continue  # a day off a week
+        minutes = 40 + (d * 13) % 41
+        start = noon - timedelta(days=d)
+        db.add(ReadingSession(user_id=admin_id, book_id=daily.id, started_at=start,
+                              ended_at=start + timedelta(minutes=minutes), duration_seconds=minutes * 60,
+                              pages_turned=minutes, device="web"))
+    for i in range(1, 4):
+        b = _add_book(db, admin_id, f"Timed Novel {i}", author="Day Reader",
+                      path=f"Novels/Timed Novel {i}.epub", content=f"timed {i}".encode(), fmt="epub")
+        b.book_type_id = types["book"]
+        _status(db, admin_id, b, "read", progress=1.0, finished_at=now - timedelta(days=100 + i))
+        start = noon - timedelta(days=110 + i)
+        db.add(ReadingSession(user_id=admin_id, book_id=b.id, started_at=start,
+                              ended_at=start + timedelta(minutes=300), duration_seconds=300 * 60,
+                              pages_turned=300, device="web"))
 
 
 def scenario_lengths(db, admin_id):
@@ -373,6 +417,8 @@ def main():
             scenario_stats(db, admin_id)
         elif scenario == "goals":
             scenario_stats(db, admin_id, goals=True)
+        elif scenario == "goals-history":
+            scenario_goals_history(db, admin_id)
         elif scenario == "lengths":
             scenario_lengths(db, admin_id)
         elif scenario == "reset":
