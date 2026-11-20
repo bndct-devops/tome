@@ -17,7 +17,8 @@ import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
 import { SectionLayout, SectionNav, SectionSidebar, PanelSection } from '@/components/SectionNav'
 import { AppShell } from '@/components/AppShell'
-import { Pill, Input, Select, Checkbox, FormLabel, Textarea } from '@/components/page'
+import { Pill, PillGroup, Input, Select, Checkbox, FormLabel, Textarea } from '@/components/page'
+import { saveWeekStart, type WeekStart } from '@/lib/goals'
 import { ModalShell } from '@/components/ModalShell'
 import { api } from '@/lib/api'
 import { SUPPORTERS } from '@/lib/supporters'
@@ -1055,9 +1056,10 @@ function LanguageSection() {
   }
 
   return (
-        // Pills work up to roughly a dozen locales; if the list outgrows a
-        // row or two, swap back to a (styled) select. Labels are the
-        // language's own name and stay untranslated on purpose.
+      <div className="space-y-10">
+        {/* Pills work up to roughly a dozen locales; if the list outgrows a
+        row or two, swap back to a (styled) select. Labels are the
+        language's own name and stay untranslated on purpose. */}
         <PanelSection>
           <div className="flex flex-wrap gap-2">
             {LOCALES.map(l => {
@@ -1084,6 +1086,45 @@ function LanguageSection() {
             <Trans>Translations are community-maintained. Anything not yet translated is shown in English.</Trans>
           </p>
         </PanelSection>
+        <WeekStartSetting />
+      </div>
+  )
+}
+
+/** The first day of the reader's week: goals' weeks, their marks and grids follow it. */
+function WeekStartSetting() {
+  const { user, refreshUser } = useAuth()
+  const { i18n } = useLingui()
+  const [saving, setSaving] = useState<WeekStart | null>(null)
+  const [failed, setFailed] = useState(false)
+  const value: WeekStart = saving ?? (user?.week_start === 'sunday' ? 'sunday' : 'monday')
+  // The day names in the app's language (Nov 16 and 15, 2026 are a Monday and a Sunday).
+  const day = (iso: string) => new Date(iso + 'T12:00:00').toLocaleDateString(i18n.locale, { weekday: 'long' })
+  const pick = (next: WeekStart) => {
+    if (next === value) return
+    setSaving(next)
+    setFailed(false)
+    saveWeekStart(next)
+      .then(() => refreshUser())
+      .catch(() => setFailed(true))
+      .finally(() => setSaving(null))
+  }
+  return (
+    <PanelSection
+      title={<Trans>Week starts on</Trans>}
+      description={<Trans>Your reading goals count weeks from this day: weekly goals, reading days a week and the marks of the week.</Trans>}
+    >
+      <PillGroup
+        aria-label={t`Week starts on`}
+        value={value}
+        onChange={pick}
+        options={[
+          { value: 'monday', label: day('2026-11-16') },
+          { value: 'sunday', label: day('2026-11-15') },
+        ]}
+      />
+      {failed && <p role="alert" className="mt-3 text-[13px] text-destructive"><Trans>Could not save the week start. Try again.</Trans></p>}
+    </PanelSection>
   )
 }
 

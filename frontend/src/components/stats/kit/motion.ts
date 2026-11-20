@@ -160,6 +160,17 @@ export function useEntry(scope: string, sig: string | null): Entry {
   return entry
 }
 
+/**
+ * useEntry plus the section's callback ref as a separate value, for a component
+ * that also hands the entry to children (the hooks lint reads `entry.ref` used in
+ * render as a ref object read once the entry is passed on as a prop).
+ */
+export function useEntryRef(scope: string, sig: string | null): [Entry, (el: Element | null) => void] {
+  const entry = useEntry(scope, sig)
+  const [attach] = useState(() => (el: Element | null) => entry.ref(el))
+  return [entry, attach]
+}
+
 /** End every running or waiting entry at once (before an image export of the page). */
 export function finishEntries() {
   for (const e of live) e.finish()

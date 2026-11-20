@@ -24,7 +24,7 @@ import { ReadingDNABody } from '@/components/stats/ReadingDNACard'
 import { TimelineRibbon } from '@/components/stats/TimelineRibbon'
 import { FullBleedTimeline } from '@/components/stats/FullBleedTimeline'
 import { GoalWidgetBody } from '@/components/stats/GoalWidget'
-import { listGoals, type Goal } from '@/lib/goals'
+import { useGoals, type Goal } from '@/lib/goals'
 import {
   type ChartKind,
   HeadlineStatBody,
@@ -1685,8 +1685,8 @@ export function DefaultBoard({ id, stats, estimates }: { id: string; stats: Stat
     const def = TAB_DEFS.find((d) => d.id === id)
     return def ? buildTab(def) : null
   }, [id])
-  const [goals, setGoals] = useState<Goal[] | null>(null)
-  const reloadGoals = useCallback(() => { listGoals().then(setGoals).catch(() => {}) }, [])
+  const goals: Goal[] | null = useGoals().data?.goals ?? null
+  const reloadGoals = useCallback(() => {}, [])
   if (!tab) return null
   return (
     <>
@@ -1737,7 +1737,7 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
   const [editMode, setEditMode] = useState(false)
   const [pad, setPadState] = useState<PadWidth>(dashboard.pad ?? 'lot')
   const [addOpen, setAddOpen] = useState(false)
-  const [goals, setGoals] = useState<Goal[] | null>(null)
+  const goals: Goal[] | null = useGoals().data?.goals ?? null
   const [tabs, setTabsState] = useState<TabState[]>(() => {
     const saved = sanitizePersisted(dashboard)?.tabs ?? []
     return showAll ? withMissingDefaults(saved) : saved
@@ -1798,10 +1798,7 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
   // genuinely no reading history (not just a quiet range): full onboarding state
   const neverRead = stats.headline.total_sessions === 0 && stats.heatmap_daily.every((d) => d.seconds === 0)
 
-  const reloadGoals = useCallback(() => {
-    listGoals().then(setGoals).catch(() => {})
-  }, [])
-  useEffect(reloadGoals, [reloadGoals])
+  const reloadGoals = useCallback(() => {}, [])
 
   const pushUndo = useCallback((label: string, restore: () => void) => {
     if (undoTimer.current) clearTimeout(undoTimer.current)

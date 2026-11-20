@@ -31,6 +31,8 @@ export interface AuthUser {
   role: 'admin' | 'member' | 'guest'
   auth_source?: 'local' | 'oidc'
   oidc_linked?: boolean
+  /** First day of the reader's week for goals. */
+  week_start?: 'monday' | 'sunday'
   /** Instance flag TOME_RELEASE_DETECTION (series follows). */
   release_detection?: boolean
 }

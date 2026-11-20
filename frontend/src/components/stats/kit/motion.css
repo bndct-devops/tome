@@ -101,3 +101,7 @@
    cursor (no text cursor over a label); only what acts shows a pointer. */
 .k-bars, .k-track, [data-tips], [data-guide-host], [data-stats-controls] { -webkit-user-select: none; user-select: none; }
 [data-tips], [data-guide-host], .k-bars, .k-track { cursor: default; }
+
+/* Goal marks (a day's dot, a volume): a quiet ring around the mark. */
+.k-dot[data-hot] { outline: 2px solid color-mix(in oklch, var(--foreground) 45%, transparent); outline-offset: 2px; }
+.k-dot { cursor: default; }

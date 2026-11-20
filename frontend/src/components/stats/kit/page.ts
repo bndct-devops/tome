@@ -1,7 +1,7 @@
 import type { StatsResponse } from '@/components/stats/shared'
 import type { CustomRange } from '@/components/stats/range'
 
-export type StatsTab = 'overview' | 'habits' | 'library' | 'taste' | 'timeline' | 'sessions' | 'boards'
+export type StatsTab = 'overview' | 'goals' | 'habits' | 'library' | 'taste' | 'timeline' | 'sessions' | 'boards'
 
 /** What the Stats frame hands each designed page. */
 export type DesignedPageProps = {
