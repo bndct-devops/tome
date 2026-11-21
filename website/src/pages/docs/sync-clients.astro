@@ -26,7 +26,7 @@ import { withBase } from '../../lib/path'
 
   <h2>Setup</h2>
   <Steps>
-    <li>In Tome, open <strong>Settings → KOReader</strong> and set a sync password under <strong>KOSync</strong>. This creates your sync account (same username as your Tome login).</li>
+    <li>In Tome, open <strong>Settings → Access</strong> and set a <strong>sync password</strong>. This creates your sync account (same username as your Tome login).</li>
     <li>In the client, configure a custom sync server pointing at <code>https://your-server/api/v1</code>.
       In KOReader that's <strong>Tools → Progress sync → Custom sync server</strong>;
       in Readest it's under <strong>Settings → Sync</strong>.</li>
@@ -115,7 +115,7 @@ import { withBase } from '../../lib/path'
 
   <h2>Troubleshooting</h2>
   <ul>
-    <li><strong>"401 Unauthorized"</strong> — the sync password doesn't match. Set it again in <strong>Settings → KOReader</strong>; re-saving overwrites the old credential.</li>
+    <li><strong>"401 Unauthorized"</strong> — the sync password doesn't match. Set it again in <strong>Settings → Access</strong>; re-saving overwrites the old credential.</li>
     <li><strong>Progress lands in the app but not in Tome</strong> — the document isn't linked
       to a book yet. Open the book's page and use <em>Link KOReader sync</em>.</li>
     <li><strong>The app doesn't jump to the web position</strong> — some clients only apply a
