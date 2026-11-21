@@ -6,6 +6,10 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.1.0] - 2026-11-21 - "Tally"
+
+Feedback: https://github.com/bndct-devops/tome/discussions/323
+
 ### Added
 - **KOReader shows the reading status from Tome.** A book you finish on one
   device, or mark read in the web UI or the app, now shows as finished in
@@ -24,8 +28,9 @@ All notable changes to Tome are documented here. Format loosely follows
   other filters, select-all and saved shelves, including shelves in the
   KOReader plugin and the backlog estimate. Contributed by @cliophate (#313).
 - **Spanish translation.** The web UI is available in Spanish (Settings →
-  Language and region), with every string translated. Contributed by
-  @PedroFlores199 (#314).
+  Language and region), with every string translated when it was contributed;
+  strings added later in this release show in English for now. Contributed
+  by @PedroFlores199 (#314).
 - **Descriptions in the book list, on request.** `GET /api/books` accepts
   `include=description` to add each book's description to the list items, so
   a client that keeps an offline copy of the library needs no request per
