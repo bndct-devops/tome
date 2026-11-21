@@ -6,7 +6,10 @@
 // without history. Finish by a date: a book or series, a day (End of November,
 // End of the year, or any day) and what it takes, live from
 // /api/goals/finish-preview. Editing: the target, or a finish-by goal's date.
-import { useMemo, useState, type ReactNode } from 'react'
+// From a series or a book page the dialog comes small: that title, the day and
+// what it takes (no kinds, no search). Focus goes into the dialog when it opens
+// and back to whatever opened it when it closes.
+import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarDays, Check, ChevronDown } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
@@ -14,6 +17,7 @@ import { t, plural } from '@lingui/core/macro'
 import { cn, formatDuration } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
 import { Input, Pill } from '@/components/page'
+import { Cover } from '@/components/stats/kit/Kit'
 import { ChoiceMenu } from '@/components/stats/kit/Menu'
 import { dec1, num } from '@/components/stats/kit/tokens'
 import { useStatsGet } from '@/components/stats/kit/useStatsGet'
@@ -29,6 +33,8 @@ import { goalName, kindLabel, kindNote, longDate, minutesText, perDayText, short
 
 export type DialogMode =
   | { kind: 'create'; preset?: { kind: GoalKind; target?: number } }
+  /** Finish this series or book by a day (its page's "Finish by…"): only the day and what it takes. */
+  | { kind: 'finish'; target: FinishTarget }
   | { kind: 'edit'; goal: Goal }
 
 const NEW_KINDS = new Set<GoalKind>(['days_per_week', 'finish_by'])
@@ -49,6 +55,7 @@ const progress = (g: Goal) => `${num(Math.round(g.current))} / ${num(g.target)}`
 
 export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode; goals: Goal[]; onClose: () => void; onSaved?: (g: Goal) => void }) {
   const editing = mode.kind === 'edit' ? mode.goal : null
+  const fixed = mode.kind === 'finish' ? mode.target : null
   const types = useBookTypes()
   const { data: kinds } = useStatsGet<{ kinds: KindInfo[]; week_start: WeekStart }>(kindsUrl())
   const { data: sug } = useStatsGet<Suggestions>(suggestionsUrl())
@@ -62,10 +69,10 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
   const taken = (k: GoalKind) => k !== 'finish_by' && freeScopes(k).length === 0
 
   const firstFree = KIND_ORDER.find((k) => k !== 'finish_by' && !has(k, null)) ?? KIND_ORDER.find((k) => !taken(k)) ?? 'finish_by'
-  const [kind, setKind] = useState<GoalKind>(editing?.kind ?? (mode.kind === 'create' && mode.preset?.kind ? mode.preset.kind : firstFree))
+  const [kind, setKind] = useState<GoalKind>(editing?.kind ?? (fixed ? 'finish_by' : mode.kind === 'create' && mode.preset?.kind ? mode.preset.kind : firstFree))
   const [scope, setScope] = useState<number | null>(() => editing?.book_type_id ?? (freeScopes(kind)[0] ?? null))
   const [raw, setRaw] = useState<string | null>(editing && editing.kind !== 'finish_by' ? String(editing.target) : mode.kind === 'create' && mode.preset?.target ? String(mode.preset.target) : null)
-  const [finish, setFinish] = useState<FinishTarget | null>(null)
+  const [finish, setFinish] = useState<FinishTarget | null>(fixed)
   const [due, setDue] = useState<string | null>(editing?.due_date ?? null)
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -117,16 +124,32 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
     }
   }
 
+  // Focus: into the dialog on open, back to the opener on close (when it is still there).
+  const body = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
+    const id = requestAnimationFrame(() => {
+      body.current?.querySelector<HTMLElement>('[aria-checked="true"], [aria-pressed="true"], button:not([disabled]), input')?.focus({ preventScroll: true })
+    })
+    return () => {
+      cancelAnimationFrame(id)
+      if (opener?.isConnected) opener.focus({ preventScroll: true })
+    }
+  }, [])
+
   const typeLabel = (id: number | null) => (id == null ? t`All books` : (() => { const l = types.find((x) => x.id === id)?.label ?? ''; return t`${l} only` })())
 
   return createPortal(
     <ModalShell
       open
       onClose={onClose}
-      size="md"
-      title={editing ? t`Edit goal` : t`New goal`}
-      aria-label={editing ? t`Edit goal` : t`New goal`}
-      subtitle={editing ? goalName(editing, today) : t`Progress counts by itself, from the reading Tome records.`}
+      size={fixed ? 'sm' : 'md'}
+      // The small dialog: the two day chips and "Pick a day" on one line.
+      className={fixed ? 'max-w-[500px]' : undefined}
+      eyebrow={fixed ? kindLabel('finish_by') : undefined}
+      title={fixed ? <FixedTitle x={fixed} /> : editing ? t`Edit goal` : t`New goal`}
+      aria-label={fixed ? (() => { const n = targetName(fixed); return t`Finish ${n} by a date` })() : editing ? t`Edit goal` : t`New goal`}
+      subtitle={fixed ? undefined : editing ? goalName(editing, today) : t`Progress counts by itself, from the reading Tome records.`}
       footer={
         <>
           <Pill variant="quiet" onClick={onClose}><Trans>Cancel</Trans></Pill>
@@ -134,8 +157,8 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
         </>
       }
     >
-      <div className="space-y-5">
-        {!editing && (
+      <div ref={body} className="space-y-5">
+        {!editing && !fixed && (
           <div>
             <Label><Trans>Goal</Trans></Label>
             <div role="radiogroup" aria-label={t`Goal`} className="grid grid-cols-2 gap-2">
@@ -192,6 +215,7 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
         {kind === 'finish_by' ? (
           <FinishBody
             editing={editing}
+            fixed={!!fixed}
             today={today}
             weekStart={weekStart}
             target={finish}
@@ -361,8 +385,22 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter }: {
 
 // ── Finish by a date ──────────────────────────────────────────────────────────
 
-function FinishBody({ editing, today, weekStart, target, setTarget, taken, due, setDue, preview, previewFailed }: {
+const targetName = (x: FinishTarget) => ('series' in x ? x.series : x.title)
+
+/** The small dialog's title: the cover and the name of what is to be finished. */
+function FixedTitle({ x }: { x: FinishTarget }) {
+  return (
+    <span className="flex items-center gap-3">
+      <Cover id={x.cover} h={42} className="rounded-[5px]" />
+      <span className="min-w-0">{targetName(x)}</span>
+    </span>
+  )
+}
+
+function FinishBody({ editing, fixed, today, weekStart, target, setTarget, taken, due, setDue, preview, previewFailed }: {
   editing: Goal | null
+  /** The book or series came with the dialog: no picker. */
+  fixed: boolean
   today: string
   weekStart: WeekStart
   target: FinishTarget | null
@@ -379,7 +417,7 @@ function FinishBody({ editing, today, weekStart, target, setTarget, taken, due, 
   const showFor = editing || target
   return (
     <div className="space-y-5">
-      {!editing && (
+      {!editing && !fixed && (
         <div>
           <Label><Trans>Book or series</Trans></Label>
           <FinishTargetPicker value={target} onPick={setTarget} taken={new Set([...taken].filter((k) => !target || k !== targetKey(target)))} />

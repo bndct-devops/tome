@@ -5,7 +5,7 @@ so writing from a second process while uvicorn is up is fine). Every scenario
 starts from a clean slate: all book data, libraries and shelves wiped, library
 dir recreated, the `e2e` admin and one member and one guest ensured.
 
-Usage: seed.py <orphans|duplicates|many|race|shelves|sessions|stats|goals|goals-history|lengths|reset> [count]
+Usage: seed.py <orphans|duplicates|many|race|shelves|sessions|stats|goals|goals-history|goal-entry|lengths|reset> [count]
 """
 import sys
 from pathlib import Path
@@ -391,6 +391,29 @@ def scenario_goals_history(db, admin_id):
                               pages_turned=300, device="web"))
 
 
+def scenario_goal_entry(db, admin_id):
+    """The `stats` reader plus what the ways into a finish-by goal need: "Long Road",
+    a series of three with the first volume in progress (a series and a book to
+    finish), and "Read Saga", a series of two already read (nothing left to finish)."""
+    from datetime import datetime, timedelta
+    scenario_stats(db, admin_id)
+    types = _type_ids(db)
+    now = datetime.utcnow()
+    for i, wc in enumerate((60_000, 70_000, 80_000), start=1):
+        b = _add_book(db, admin_id, f"Long Road {i}", author="Road Author", series="Long Road",
+                      series_index=float(i), path=f"Road/Long Road {i}.epub", content=f"long road {i}".encode(), fmt="epub")
+        b.book_type_id = types["book"]
+        b.word_count = wc
+        if i == 1:
+            _status(db, admin_id, b, "reading", progress=0.3, updated_at=now - timedelta(hours=5))
+            _sessions(db, admin_id, b, [2, 3], minutes=30, pages=20)
+    for i in (1, 2):
+        b = _add_book(db, admin_id, f"Read Saga {i}", author="Saga Author", series="Read Saga",
+                      series_index=float(i), path=f"ReadSaga/Read Saga {i}.epub", content=f"read saga {i}".encode(), fmt="epub")
+        b.book_type_id = types["book"]
+        _status(db, admin_id, b, "read", progress=1.0, finished_at=now - timedelta(days=20 + i))
+
+
 def scenario_lengths(db, admin_id):
     for title, words in (("Short", 20000), ("Medium", 50000), ("Long", 120000), ("Unknown", None)):
         _add_book(db, admin_id, title, path=f"Lengths/{title}.epub", fmt="epub").word_count = words
@@ -419,6 +442,8 @@ def main():
             scenario_stats(db, admin_id, goals=True)
         elif scenario == "goals-history":
             scenario_goals_history(db, admin_id)
+        elif scenario == "goal-entry":
+            scenario_goal_entry(db, admin_id)
         elif scenario == "lengths":
             scenario_lengths(db, admin_id)
         elif scenario == "reset":

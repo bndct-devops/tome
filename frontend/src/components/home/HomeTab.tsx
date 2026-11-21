@@ -18,7 +18,7 @@ import { useTilt } from '@/lib/tilt'
 import { HScrollRow } from '@/components/HScrollRow'
 import { QuickLook } from '@/components/QuickLook'
 import { TelemetryConsentCard } from '@/components/TelemetryConsentCard'
-import { HomeGoals } from '@/components/goals/HomeGoals'
+import { HomeGoalStart, HomeGoals } from '@/components/goals/HomeGoals'
 import { PageBody, PageHeader, Pill, SectionTitle, Stat, StatStrip } from '@/components/page'
 
 // ── Data ────────────────────────────────────────────────────────────────────
@@ -608,7 +608,8 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
           />
         </StatStrip>
 
-        {goalsAnswer && goalsAnswer.goals.length > 0 && <HomeGoals answer={goalsAnswer} />}
+        {/* The goals, or the way to a first one: both come with the page's one paint. */}
+        {goalsAnswer && (goalsAnswer.goals.length > 0 ? <HomeGoals answer={goalsAnswer} /> : <HomeGoalStart goals={goalsAnswer.goals} />)}
       </div>
 
       {/* ── Recently added ───────────────────────────────────────────────── */}
