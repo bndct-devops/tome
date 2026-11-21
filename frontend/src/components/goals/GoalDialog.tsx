@@ -10,7 +10,7 @@
 // From a series or a book page the dialog comes small: that title, the day and
 // what it takes (no kinds, no search). Focus goes into the dialog when it opens
 // and back to whatever opened it when it closes.
-import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarDays, ChevronDown } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
@@ -122,6 +122,8 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
 
   // Focus: into the dialog on open, back to the opener on close (when it is still there).
   const body = useRef<HTMLDivElement>(null)
+  // How far the panel is moved down so its top stays where it opened while its height changes.
+  const [shift, setShift] = useState<{ y: number; animate: boolean }>({ y: 0, animate: false })
   useEffect(() => {
     const opener = document.activeElement instanceof HTMLElement ? document.activeElement : null
     const id = requestAnimationFrame(() => {
@@ -142,6 +144,7 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
       size={fixed ? 'sm' : 'md'}
       // The small dialog: the two day chips and "Pick a day" on one line.
       className={fixed ? 'max-w-[500px]' : undefined}
+      panelStyle={{ translate: shift.y ? shiftBy(shift.y) : undefined, transition: shift.animate ? STEP_TRANSLATE : undefined }}
       eyebrow={fixed ? kindLabel('finish_by') : undefined}
       title={fixed ? <FixedTitle x={fixed} /> : editing ? t`Edit goal` : t`New goal`}
       aria-label={fixed ? (() => { const n = targetName(fixed); return t`Finish ${n} by a date` })() : editing ? t`Edit goal` : t`New goal`}
@@ -190,9 +193,22 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
           </div>
         )}
 
-        {/* What the kind needs. Creating, the area keeps one height for every kind (the tallest),
-            so switching kinds never moves the footer. */}
-        <div className={cn('space-y-3', !editing && !fixed && 'min-h-[var(--goal-body)] [--goal-body:318px] sm:[--goal-body:256px]')}>
+        {/* What the kind needs. Creating, the seven count kinds share one height and Finish by a
+            date has its own: switching between the two changes the dialog's height once (Stepped). */}
+        <Stepped
+          on={!editing && !fixed}
+          finish={kind === 'finish_by'}
+          onShift={setShift}
+          ruler={!editing && !fixed ? KIND_ORDER.filter((k) => k !== 'finish_by').map((k) => {
+            const ks = sug?.kinds[k]
+            const v = ks?.suggested?.[1]?.value ?? ks?.presets?.[1]?.value ?? info.get(k)?.presets?.[1] ?? 1
+            return (
+              <div key={k} className="col-start-1 row-start-1">
+                <TargetBody kind={k} s={ks} sug={sug} text={String(v)} setText={() => {}} parsed={parseTarget(String(v), BOUNDS[k].min, BOUNDS[k].max)} onEnter={() => {}} counts={null} ruler />
+              </div>
+            )
+          }) : null}
+        >
           {kind === 'finish_by' ? (
             <FinishBody
               editing={editing}
@@ -235,10 +251,102 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
             <p className="text-[14px] text-muted-foreground"><Trans>You already have this goal. Edit it from its card instead.</Trans></p>
           )}
           {error && <p role="alert" className="text-[14px] text-destructive">{error}</p>}
-        </div>
+        </Stepped>
       </div>
     </ModalShell>,
     document.body,
+  )
+}
+
+// ── The area under the kinds ──────────────────────────────────────────────────
+
+/* eslint-disable lingui/no-unlocalized-strings -- CSS values and a media query */
+const STEP_TRANSLATE = 'translate 200ms ease-out'
+const STEP_HEIGHT = 'height 200ms ease-out'
+const shiftBy = (y: number) => `0 ${y}px`
+const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+/* eslint-enable lingui/no-unlocalized-strings */
+
+/**
+ * Creating: the area under the kinds at one of two heights, the count kinds' (all seven
+ * alike, as short as they need) or Finish by a date's. A switch between them animates the
+ * height once (at once with reduced motion); `onShift` moves the panel, which is centred on
+ * the screen, by half the change, so its top edge (the title and the kinds) stays put and
+ * the dialog grows or shrinks at the bottom only. Elsewhere (editing, the small dialog) a
+ * plain column.
+ */
+function Stepped({ on, finish, onShift, ruler, children }: {
+  on: boolean
+  finish: boolean
+  onShift: (s: { y: number; animate: boolean }) => void
+  /** Every count kind's body, unseen in one grid cell: its height is the count kinds' height. */
+  ruler: ReactNode
+  children: ReactNode
+}) {
+  const outer = useRef<HTMLDivElement>(null)
+  const inner = useRef<HTMLDivElement>(null)
+  const rulerRef = useRef<HTMLDivElement>(null)
+  const [countH, setCountH] = useState<number | null>(null)
+  useLayoutEffect(() => {
+    if (!on || !rulerRef.current) return
+    const el = rulerRef.current
+    // Layout sizes (offsetHeight): the panel is scaled while it opens.
+    const read = () => setCountH(el.offsetHeight)
+    read()
+    const ro = new ResizeObserver(read)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [on])
+  const [h, setH] = useState<number | null>(null)
+  const [moving, setMoving] = useState(false)
+  const last = useRef<number | null>(null)
+  const y = useRef(0)
+  useLayoutEffect(() => {
+    if (!on || !inner.current) return
+    const el = inner.current
+    const apply = () => {
+      const next = el.offsetHeight
+      const prev = last.current
+      last.current = next
+      if (prev === next) return
+      if (prev != null) {
+        const delta = next - prev
+        const panel = el.closest('[role="dialog"]')?.getBoundingClientRect()
+        // Centred, the panel's top would move up by half the change: move it down as much, so the
+        // top stays; growing, never so far that its bottom leaves the screen.
+        const room = panel ? window.innerHeight - 16 - (panel.bottom + delta / 2) : Infinity
+        y.current += Math.min(delta / 2, room)
+        const animate = !reducedMotion()
+        setMoving(animate)
+        onShift({ y: y.current, animate })
+      }
+      setH(next)
+    }
+    apply()
+    const ro = new ResizeObserver(apply)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [on, onShift])
+  if (!on) return <div className="space-y-3">{children}</div>
+  return (
+    <div
+      ref={outer}
+      style={h != null ? { height: h, transition: moving ? STEP_HEIGHT : undefined } : undefined}
+      // Clipped only while it moves (focus rings at its edges show otherwise).
+      className={cn('relative', moving && 'overflow-hidden')}
+      onTransitionEnd={(e) => { if (e.target === outer.current) setMoving(false) }}
+    >
+      <div
+        ref={inner}
+        style={!finish && countH != null ? { minHeight: countH } : undefined}
+        className={cn('space-y-3', finish && 'min-h-[296px] sm:min-h-[220px]')}
+      >
+        {children}
+      </div>
+      <div ref={rulerRef} className="pointer-events-none invisible absolute inset-x-0 top-0 grid" aria-hidden="true" inert>
+        {ruler}
+      </div>
+    </div>
   )
 }
 
@@ -252,7 +360,7 @@ function chipNote(s: KindSuggestion, c: Chip): string {
 
 const CHIP_TITLE = { steady: () => t`Steady`, keep_it_up: () => t`Keep it up`, stretch: () => t`Stretch` } as const
 
-function TargetBody({ kind, s, sug, text, setText, parsed, onEnter, counts }: {
+function TargetBody({ kind, s, sug, text, setText, parsed, onEnter, counts, ruler }: {
   kind: GoalKind
   s: KindSuggestion | undefined
   sug: Suggestions | null
@@ -262,9 +370,14 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter, counts }: {
   onEnter: () => void
   /** The book type it counts ("All books"), beside the number; null where it does not apply. */
   counts: ReactNode
+  /** An unseen copy that only measures (no id). */
+  ruler?: boolean
 }) {
   const value = parsed.ok ? parsed.value : null
-  const chips = s?.suggested ?? null
+  // The server's three can share a number (steady reading, rounding to a step, a 7-day cap):
+  // each number is offered once, under the first of its names (Steady before Keep it up before
+  // Stretch); a lone one keeps no name.
+  const chips = s?.suggested ? s.suggested.filter((c, i, all) => all.findIndex((o) => o.value === c.value) === i) : null
   const presets = s?.presets ?? []
   const bounds = BOUNDS[kind]
   const unit = targetUnit(kind, value ?? 2)
@@ -317,7 +430,7 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter, counts }: {
               >
                 {/* Nothing in a chip is cut: a long note wraps and the chip grows (the three stay one height). */}
                 <span className="block text-[17px] font-bold leading-6 tabular-nums [overflow-wrap:anywhere]">{num(c.value)}</span>
-                <span className="block text-[13px] font-semibold leading-5">{CHIP_TITLE[c.label ?? 'keep_it_up']()}</span>
+                {chips.length > 1 && <span className="block text-[13px] font-semibold leading-5">{CHIP_TITLE[c.label ?? 'keep_it_up']()}</span>}
                 <span className={cn('block text-[12px] leading-snug [overflow-wrap:anywhere]', on ? 'text-background/75' : 'text-muted-foreground')}>{chipNote(s!, c)}</span>
               </button>
             )
@@ -344,7 +457,7 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter, counts }: {
       )}
       <div className="flex items-center gap-2.5">
         <Input
-          id="goal-target"
+          id={ruler ? undefined : 'goal-target'}
           inputMode="numeric"
           autoComplete="off"
           aria-label={t`Target`}

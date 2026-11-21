@@ -182,7 +182,10 @@ test('Dialog: suggested targets from the reader\'s own days, presets without his
     for (const kind of ['Books a month', 'Minutes a day', 'Pages a week']) {
       await dialog(page).getByRole('radio', { name: new RegExp('^' + kind) }).click()
       const group = dialog(page).getByRole('radiogroup', { name: 'Suggested targets' })
-      await expect(group.getByRole('radio')).toHaveCount(3)
+      // Up to three, each number once (this reader's pages a week come out the same three times).
+      await expect(group.getByRole('radio').first()).toBeVisible()
+      const values = await group.getByRole('radio').evaluateAll((els) => els.map((e) => e.querySelector('span')?.textContent))
+      expect(new Set(values).size, `${kind}: ${values}`).toBe(values.length)
       const cut = await group.evaluate((g) => [...g.querySelectorAll('[role="radio"] span')]
         .filter((el) => el.scrollWidth > el.clientWidth + 0.5 || getComputedStyle(el).textOverflow === 'ellipsis' ||
           el.getBoundingClientRect().right > el.closest('[role="radio"]')!.getBoundingClientRect().right + 0.5)

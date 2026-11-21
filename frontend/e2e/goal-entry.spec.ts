@@ -269,7 +269,7 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'phone'
 }
 
 for (const vp of [{ name: 'desktop', width: 1440, height: 900 }, { name: 'phone', width: 390, height: 844 }]) {
-  test(`New goal dialog, ${vp.name}: every kind fits without scrolling, and switching kinds keeps its height`, async ({ page }) => {
+  test(`New goal dialog, ${vp.name}: every kind fits without scrolling; the count kinds share one height, Finish by a date another, the top never moves`, async ({ page }) => {
     seed('goals-history')
     await page.setViewportSize({ width: vp.width, height: vp.height })
     await login(page)
@@ -283,10 +283,10 @@ for (const vp of [{ name: 'desktop', width: 1440, height: 900 }, { name: 'phone'
       const d = document.querySelector('[role="dialog"][aria-modal="true"]') as HTMLElement
       const body = d.querySelector('.overflow-y-auto') as HTMLElement
       const save = [...d.querySelectorAll('button')].find((b) => b.textContent === 'Set goal')!.getBoundingClientRect()
-      return { h: Math.round(d.getBoundingClientRect().height), scrolls: body.scrollHeight > body.clientHeight + 1, saveVisible: save.bottom <= window.innerHeight && save.top >= 0 }
+      return { h: Math.round(d.getBoundingClientRect().height), title: Math.round(d.querySelector('h2')!.getBoundingClientRect().top), scrolls: body.scrollHeight > body.clientHeight + 1, saveVisible: save.bottom <= window.innerHeight && save.top >= 0 }
     })
-    const seen: number[] = []
-    for (const k of kinds) {
+    const seen: { k: string; h: number; title: number }[] = []
+    for (const k of [...kinds, 'Minutes a day']) {
       await dialog(page).getByRole('radio', { name: new RegExp('^' + k) }).click()
       if (k.startsWith('Finish')) {
         await dialog(page).getByRole('button', { name: 'Book or series' }).click()
@@ -299,8 +299,59 @@ for (const vp of [{ name: 'desktop', width: 1440, height: 900 }, { name: 'phone'
       const s = await shape()
       expect(s.scrolls, k).toBe(false)
       expect(s.saveVisible, k).toBe(true)
-      seen.push(s.h)
+      // Let the one step (200 ms) finish before the next kind.
+      await page.waitForTimeout(350)
+      const t = await shape()
+      seen.push({ k, h: t.h, title: t.title })
     }
-    expect(Math.max(...seen) - Math.min(...seen), seen.join(',')).toBeLessThanOrEqual(1)
+    const counts = seen.filter((x) => !x.k.startsWith('Finish')).map((x) => x.h)
+    const finish = seen.find((x) => x.k.startsWith('Finish'))!.h
+    const desc = JSON.stringify(seen)
+    expect(Math.max(...counts) - Math.min(...counts), desc).toBeLessThanOrEqual(1)
+    expect(finish, desc).toBeGreaterThan(Math.max(...counts))
+    expect(new Set(seen.map((x) => x.title)).size, desc).toBe(1)
   })
 }
+
+test('Suggestions that share a number are offered once, and only the one in the field is selected', async ({ page }) => {
+  seed('goals-history')
+  await login(page)
+  await page.route(/\/api\/goals\/suggestions/, async (route) => {
+    const res = await route.fetch()
+    const body = await res.json()
+    const k = body.kinds.pages_per_week
+    k.suggested = k.suggested.map((c: { value: number }) => ({ ...c, value: 350 }))
+    const m = body.kinds.minutes_per_day
+    m.suggested = [m.suggested[0], { ...m.suggested[1], value: m.suggested[0].value }, m.suggested[2]]
+    await route.fulfill({ response: res, json: body })
+  })
+  await page.goto('/stats?tab=goals')
+  await settled(page)
+  await page.getByRole('button', { name: 'New goal' }).first().click()
+  const group = dialog(page).getByRole('radiogroup', { name: 'Suggested targets' })
+  await dialog(page).getByRole('radio', { name: /^Pages a week/ }).click()
+  await expect(group.getByRole('radio')).toHaveCount(1)
+  await expect(group.getByRole('radio')).toHaveText(/^350in \d+ of 12 weeks$/)
+  await expect(group.getByRole('radio')).toHaveAttribute('aria-checked', 'true')
+  await dialog(page).getByRole('radio', { name: /^Minutes a day/ }).click()
+  await expect(group.getByRole('radio')).toHaveCount(2)
+  await expect(group.getByRole('radio', { name: /Steady/ })).toBeVisible()
+  await expect(group.getByRole('radio', { name: /Stretch/ })).toBeVisible()
+  await expect(group.locator('[aria-checked="true"]')).toHaveCount(1)
+})
+
+test('New goal dialog with reduced motion: the height changes at once, no transition', async ({ page }) => {
+  seed('goals-history')
+  await page.emulateMedia({ reducedMotion: 'reduce' })
+  await login(page)
+  await page.goto('/stats?tab=goals')
+  await settled(page)
+  await page.getByRole('button', { name: 'New goal' }).first().click()
+  await dialog(page).getByRole('radio', { name: /^Minutes a day/ }).click()
+  await dialog(page).getByRole('radio', { name: /^Finish by a date/ }).click()
+  const style = await page.evaluate(() => {
+    const ruler = document.querySelector('[role="dialog"][aria-modal="true"] [inert]') as HTMLElement
+    return { transition: (ruler.parentElement as HTMLElement).style.transition, panel: (document.querySelector('[role="dialog"][aria-modal="true"]') as HTMLElement).style.transition }
+  })
+  expect(style).toEqual({ transition: '', panel: '' })
+})

@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode } from 'react'
 import { AnimatePresence, m } from 'motion/react'
 import { X } from 'lucide-react'
 import { useLingui } from '@lingui/react/macro'
@@ -114,6 +114,8 @@ interface Props {
   /** Padding and scroll live on the body; pass `p-0` for edge-to-edge lists. */
   bodyClassName?: string
   'aria-label'?: string
+  /** Extra style for the panel (a dialog that keeps its top edge while its height changes moves it with `translate`). */
+  panelStyle?: CSSProperties
 }
 
 /** Shared dialog scaffold: full-viewport veil, panel centred over the content
@@ -125,7 +127,7 @@ interface Props {
     own markup is the card. */
 export function ModalShell({
   open, onClose, className, children, title, eyebrow, subtitle, headerActions, footer,
-  size = 'md', hideClose, closeOnBackdrop, bodyClassName, 'aria-label': ariaLabel,
+  size = 'md', hideClose, closeOnBackdrop, bodyClassName, 'aria-label': ariaLabel, panelStyle,
 }: Props) {
   const { t } = useLingui()
   const inset = useShellInset()
@@ -163,6 +165,7 @@ export function ModalShell({
               role={refreshed ? 'dialog' : undefined}
               aria-modal={refreshed ? true : undefined}
               aria-label={ariaLabel}
+              style={panelStyle}
               className={cn(
                 'pointer-events-auto',
                 refreshed && cn(
