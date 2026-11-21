@@ -1,0 +1,327 @@
+---
+import BaseLayout from '../../layouts/BaseLayout.astro'
+import SiteHeader from '../../components/SiteHeader.astro'
+
+const media = (name: string) => `/blog/2026-11-reader-0.3.0/${name}`
+const badge = '/blog/2026-10-ios-testflight/testflight-badge.png'
+const testflight = 'https://testflight.apple.com/join/JrHyntNU'
+---
+<BaseLayout
+  title="Tome Reader 0.3.0: iPad and offline reading — Tome"
+  description="Tome Reader 0.3.0 is on TestFlight with a real iPad layout and a library that works without a connection."
+>
+  <SiteHeader />
+
+  <article class="blog-article">
+    <header class="relative max-w-3xl mx-auto px-6 pt-32 pb-12 text-center">
+      <div class="accent-glow"></div>
+      <a href="/blog" class="blog-back">&larr; Blog</a>
+      <h1 class="text-3xl md:text-5xl font-bold tracking-tight mb-4 leading-[1.1]">
+        Tome Reader 0.3.0: iPad and offline reading
+      </h1>
+      <div class="blog-meta">
+        <time class="blog-date">2026-11-22</time>
+        <span class="blog-date">&middot;</span>
+        <span class="blog-date">2 min read</span>
+      </div>
+    </header>
+
+    <div class="blog-body">
+
+      <p>
+        The last post ended its list of known limits with "iPhone only. No iPad layout yet." That
+        was the most asked-for thing since, so Tome Reader 0.3.0 is mostly that, plus the other
+        thing a reading app should do: work when the server is out of reach. It is on TestFlight
+        now; the beta stays free through the end of 2026.
+      </p>
+
+      <p class="blog-badge">
+        <a href={testflight}><img src={badge} alt="Available on TestFlight" height="60" /></a>
+      </p>
+
+      <p>
+        Every picture and clip below is the sample library built into the app, which now includes
+        two episodes of the webcomic Pepper&amp;Carrot. No server at hand? "Try a sample library"
+        on the first screen gets you the same.
+      </p>
+
+      <div class="blog-clip">
+        <video controls muted playsinline preload="none" poster={media('clip-home-fan-poster.jpg')} width="1600" height="1044" aria-label="The cover fan on Home on iPad">
+          <source src={media('clip-home-fan.mp4')} type="video/mp4" />
+        </video>
+      </div>
+      <p class="blog-caption">Home on an iPad.</p>
+
+
+      <!-- ── PAGE CURL ── -->
+
+      <h2 id="page-curl">Page curl</h2>
+
+      <div class="blog-clip">
+        <video controls muted playsinline preload="none" poster={media('clip-page-curl-poster.jpg')} width="1600" height="1044" aria-label="Turning comic pages with a curl on iPad">
+          <source src={media('clip-page-curl.mp4')} type="video/mp4" />
+        </video>
+      </div>
+
+      <ul>
+        <li>Pages turn with a curl in EPUB books and comics. It is the default on iPad and a setting on iPhone.</li>
+        <li>Sideways, a comic shows two pages at a time.</li>
+      </ul>
+
+      <!-- ── IPAD ── -->
+
+      <h2 id="ipad">iPad</h2>
+
+      <div class="blog-clip">
+        <video controls muted playsinline preload="none" poster={media('clip-series-split-poster.jpg')} width="1600" height="1044" aria-label="The Series tab on iPad, list and series side by side">
+          <source src={media('clip-series-split.mp4')} type="video/mp4" />
+        </video>
+      </div>
+
+      <ul>
+        <li>The app fills the iPad screen in both orientations instead of running as a stretched phone app.</li>
+        <li>Turned sideways, the Series tab shows the list and the series you picked side by side.</li>
+        <li>Stats uses the wider screen, and the reader's column width and text size are set for large screens.</li>
+        <li>Home shows the cover fan or a banner; the choice is in Settings.</li>
+      </ul>
+
+      <!-- ── OFFLINE ── -->
+
+      <h2 id="offline">Offline</h2>
+
+      <div class="blog-shot blog-shot-row">
+        <img src={media('04-offline-library.webp')} alt="The Library without a connection, with the number of books on the device" width="368" height="800" loading="lazy" />
+        <img src={media('07-downloads-on-phone.webp')} alt="Settings listing the downloaded books with their sizes" width="368" height="800" loading="lazy" />
+      </div>
+
+      <ul>
+        <li>The library is kept on the device in the background. Library, Series, book pages, Home and Stats open without a connection.</li>
+        <li>The Library says how many books are on the device, and Settings lists them with their sizes.</li>
+        <li>What you read offline is kept and sent when the server is reachable again. If you read further on another device in the meantime, the newer position wins.</li>
+        <li>A whole series can be downloaded at once, and downloads wait for a connection instead of failing.</li>
+      </ul>
+
+      <!-- ── SERIES ZOOM ── -->
+
+      <h2 id="series-zoom">Series open from their cover</h2>
+
+      <div class="blog-clip blog-clip-upright">
+        <video controls muted playsinline preload="none" poster={media('clip-series-zoom-poster.jpg')} width="1044" height="1600" aria-label="A series zooming out of its cover">
+          <source src={media('clip-series-zoom.mp4')} type="video/mp4" />
+        </video>
+      </div>
+
+      <p>
+        Tapping a series in the Library or the Series tab zooms it out of its cover, and closing
+        it zooms back in.
+      </p>
+
+      <!-- ── WIDGETS ── -->
+
+      <h2 id="widgets">Widgets</h2>
+
+      <div class="blog-shot blog-shot-single"><img src={media('05-widgets.webp')} alt="Tome widgets on the Home Screen" width="368" height="800" loading="lazy" /></div>
+
+      <ul>
+        <li>Home Screen widgets in every size, including the extra-large one on iPad: continue reading, the week, streak, today and what is in rotation.</li>
+        <li>Lock Screen widgets for the current book and the streak.</li>
+        <li>They follow the theme you picked in the app.</li>
+      </ul>
+
+      <!-- ── ALSO NEW ── -->
+
+      <h2 id="also-new">Also new</h2>
+
+      <ul>
+        <li>The book page shows your progress first for a book you are reading and the description first for one you have not started.</li>
+        <li>New Stats pages, with Tome 3.1.0 or later on the server.</li>
+        <li>The sample library has a comic: "The Potion Contest" and "The Magic Contest" from Pepper&amp;Carrot.</li>
+      </ul>
+
+      <!-- ── KNOWN LIMITS ── -->
+
+      <h2 id="known-limits">Known limits</h2>
+
+      <ul>
+        <li>On 13-inch iPads a few pages do not use the full width yet.</li>
+        <li>Widgets follow the app's theme, not the system's light and dark setting.</li>
+        <li>You need your own Tome server, or the sample library. TestFlight builds expire after 90 days; new builds replace them before that.</li>
+      </ul>
+
+      <!-- ── FEEDBACK ── -->
+
+      <h2 id="feedback">Feedback</h2>
+
+      <p>
+        Bugs, ideas and questions go to the <a href="https://github.com/bndct-devops/tome/discussions/categories/tome-reader-ios">Tome Reader (iOS)</a> category
+        in GitHub Discussions; Settings in the app has a link to it. If you would rather not
+        post publicly, mail <a href="mailto:tome@bndct.dev">tome@bndct.dev</a>. Please mention the
+        version and build number from Settings &rsaquo; About.
+      </p>
+
+      <p class="blog-badge">
+        <a href={testflight}><img src={badge} alt="Available on TestFlight" height="60" /></a>
+      </p>
+
+      <p class="blog-credit">
+        Pepper&amp;Carrot by David Revoy, licensed under <a href="https://creativecommons.org/licenses/by/4.0/">Creative Commons Attribution 4.0</a>, from <a href="https://www.peppercarrot.com">www.peppercarrot.com</a>. Pages resized. David Revoy is not affiliated with Tome and does not endorse it.
+      </p>
+
+      <div class="blog-footer-links">
+        <a href={testflight}>Join the beta</a>
+        <a href="/why">Why Tome?</a>
+        <a href="https://github.com/bndct-devops/tome">GitHub</a>
+      </div>
+    </div>
+  </article>
+</BaseLayout>
+
+<style>
+  .blog-back {
+    display: inline-block;
+    font-size: 0.85rem;
+    color: var(--muted);
+    text-decoration: none;
+    margin-bottom: 16px;
+    transition: color 0.15s;
+  }
+  .blog-back:hover { color: var(--accent); }
+  .blog-meta {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+  }
+  .blog-date {
+    font-size: 0.82rem;
+    color: var(--muted);
+    font-family: 'JetBrains Mono', monospace;
+  }
+  .blog-body {
+    max-width: 680px;
+    margin: 0 auto;
+    padding: 0 24px 80px;
+    font-size: 1.05rem;
+    line-height: 1.8;
+  }
+  .blog-body p {
+    margin-bottom: 18px;
+    color: var(--fg);
+  }
+  .blog-body h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-top: 56px;
+    margin-bottom: 16px;
+  }
+  .blog-body h3 {
+    font-size: 1.15rem;
+    font-weight: 600;
+    margin-top: 32px;
+    margin-bottom: 8px;
+  }
+  .blog-body a {
+    color: var(--accent);
+    text-decoration: underline;
+    text-decoration-color: var(--accent-soft);
+    text-underline-offset: 2px;
+    transition: text-decoration-color 0.15s;
+  }
+  .blog-body a:hover {
+    text-decoration-color: var(--accent);
+  }
+  .blog-body ul {
+    list-style: disc;
+    padding-left: 1.5em;
+    margin-bottom: 18px;
+  }
+  .blog-body li {
+    margin-bottom: 6px;
+  }
+  .blog-body li::marker {
+    color: var(--accent);
+  }
+  .blog-body code {
+    font-size: 0.85em;
+    padding: 2px 6px;
+    border-radius: 4px;
+    background: var(--card);
+    border: 1px solid var(--border);
+  }
+  .blog-body em {
+    font-style: italic;
+  }
+  .blog-shot {
+    margin: 28px 0;
+  }
+  .blog-caption {
+    font-size: 0.82rem !important;
+    color: var(--muted) !important;
+    text-align: center;
+    margin-top: -8px !important;
+    margin-bottom: 32px !important;
+  }
+  .blog-shot img {
+    display: block;
+    width: 100%;
+    height: auto;
+  }
+  .blog-shot-single {
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .blog-badge {
+    text-align: center;
+    margin: 28px 0 !important;
+  }
+  .blog-badge img {
+    display: inline-block;
+    height: 60px;
+    width: auto;
+  }
+  .blog-body .blog-badge a {
+    text-decoration: none;
+  }
+  .blog-footer-links {
+    margin-top: 48px;
+    padding-top: 24px;
+    border-top: 1px solid var(--border);
+    display: flex;
+    gap: 20px;
+    font-size: 0.9rem;
+  }
+  .blog-shot-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+  }
+  .blog-clip {
+    margin: 28px 0;
+  }
+  .blog-clip video {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-radius: 8px;
+    background: var(--card);
+  }
+  .blog-clip-upright {
+    max-width: 320px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .blog-credit {
+    font-size: 0.82rem !important;
+    color: var(--muted) !important;
+    line-height: 1.6;
+    margin-top: 48px;
+  }
+  .blog-credit + .blog-footer-links {
+    margin-top: 16px;
+  }
+  @media (max-width: 640px) {
+    .blog-body h2 { font-size: 1.35rem; }
+  }
+</style>
