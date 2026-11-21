@@ -402,7 +402,7 @@ export function SharePage() {
                     <span><Plural value={data.totals.books} one="# volume" other="# volumes" /></span>
                   </p>
                   <div className="mt-2 flex items-center gap-3">
-                    <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}>
+                    <div className="h-1.5 flex-1 overflow-hidden rounded-full" style={{ background: 'var(--rail)' }}>
                       <div className="h-full rounded-full bg-primary" style={{ width: `${readPct}%` }} />
                     </div>
                     <span className="text-[14px] font-bold tabular-nums text-foreground">{Math.round(readPct)}%</span>

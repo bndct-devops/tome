@@ -90,6 +90,18 @@ def _add_session(
     return s
 
 
+# A Friday noon (UTC): calendar-week tests below pin "now" here, so Monday
+# 2026-11-16 .. Sunday 2026-11-22 is the current week whatever day CI runs.
+FRIDAY = datetime(2026, 11, 20, 12, 0)
+
+
+@pytest.fixture()
+def pinned_now(monkeypatch):
+    from backend.services import goals as gs
+    monkeypatch.setattr(gs, "utcnow", lambda: FRIDAY)
+    return FRIDAY
+
+
 # ── tests — CRUD ──────────────────────────────────────────────────────────────
 
 def test_create_and_list_goal(client: TestClient):
@@ -333,7 +345,9 @@ def test_books_per_month_response_fields(client: TestClient):
 # ── tests — pace (expected) ───────────────────────────────────────────────────
 
 def test_expected_present_for_calendar_windows(client: TestClient):
-    """expected is the prorated target for month/year, None for day/week."""
+    """expected is the prorated target for week/month/year, None for day.
+    (The first goals build had None for week: its week was the rolling last
+    seven days. Weeks are calendar weeks now, so they have a pace.)"""
     year_goal = _create_goal(client, "books_per_year", 365)
     assert year_goal["expected"] is not None
     # prorated target can never exceed the target itself
@@ -343,7 +357,8 @@ def test_expected_present_for_calendar_windows(client: TestClient):
     assert day_goal["expected"] is None
 
     week_goal = _create_goal(client, "pages_per_week", 350)
-    assert week_goal["expected"] is None
+    assert week_goal["expected"] is not None
+    assert 0 <= week_goal["expected"] <= 350
 
 
 # ── tests — minutes_per_day progress ─────────────────────────────────────────
@@ -369,12 +384,14 @@ def test_minutes_per_day_today_calculation(
 
 
 def test_minutes_per_day_days_hit_this_week(
-    client: TestClient, make_book, admin_user, db: Session
+    client: TestClient, make_book, admin_user, db: Session, pinned_now
 ):
-    """days_hit_this_week counts days in the last 7 where goal was met."""
+    """days_hit_this_week counts days of the calendar week (Monday on) where the
+    goal was met. Friday: 3 days ago is Tuesday (counts); 5 days ago is last
+    Sunday (outside this week, counted by the old rolling rule)."""
     user, _ = admin_user
     book = make_book(title="Week Book")
-    now = datetime.utcnow()
+    now = pinned_now
     target_minutes = 20
     target_seconds = target_minutes * 60
 
@@ -386,24 +403,24 @@ def test_minutes_per_day_days_hit_this_week(
     _add_session(db, user.id, book.id, now - timedelta(days=1), duration_seconds=600)
 
     result = _create_goal(client, "minutes_per_day", target_minutes)
-    assert result["days_hit_this_week"] == 2
+    assert result["days_hit_this_week"] == 1
 
 
 # ── tests — minutes_per_week progress ────────────────────────────────────────
 
-def test_minutes_per_week_sums_last_7_days(
-    client: TestClient, make_book, admin_user, db: Session
+def test_minutes_per_week_sums_calendar_week(
+    client: TestClient, make_book, admin_user, db: Session, pinned_now
 ):
-    """minutes_per_week sums sessions from the last 7 local days."""
+    """minutes_per_week sums the calendar week so far (Friday: from Monday)."""
     user, _ = admin_user
     book = make_book(title="Week Minutes Book")
-    now = datetime.utcnow()
+    now = pinned_now
 
     # 1 day ago: 30 min
     _add_session(db, user.id, book.id, now - timedelta(days=1), duration_seconds=1800)
     # 4 days ago: 60 min
     _add_session(db, user.id, book.id, now - timedelta(days=4), duration_seconds=3600)
-    # 8 days ago: 45 min — outside 7-day window
+    # 8 days ago: 45 min — last week
     _add_session(db, user.id, book.id, now - timedelta(days=8), duration_seconds=2700)
 
     result = _create_goal(client, "minutes_per_week", 120)
@@ -417,12 +434,12 @@ def test_minutes_per_week_sums_last_7_days(
 
 
 def test_minutes_per_week_pct(
-    client: TestClient, make_book, admin_user, db: Session
+    client: TestClient, make_book, admin_user, db: Session, pinned_now
 ):
     """minutes_per_week pct is computed correctly."""
     user, _ = admin_user
     book = make_book(title="Pct Week Book")
-    now = datetime.utcnow()
+    now = pinned_now
 
     # 60 min in window
     _add_session(db, user.id, book.id, now - timedelta(days=2), duration_seconds=3600)
@@ -456,12 +473,13 @@ def test_pages_per_day_today_calculation(
 
 
 def test_pages_per_day_days_hit_this_week(
-    client: TestClient, make_book, admin_user, db: Session
+    client: TestClient, make_book, admin_user, db: Session, pinned_now
 ):
-    """days_hit_this_week counts days in the last 7 where pages goal was met."""
+    """days_hit_this_week counts days of the calendar week where the pages goal
+    was met (Friday: 2 and 4 days ago are Wednesday and Monday)."""
     user, _ = admin_user
     book = make_book(title="Pages Week Book")
-    now = datetime.utcnow()
+    now = pinned_now
     target_pages = 50
 
     # 2 days ago — hit (60 pages)
@@ -477,13 +495,14 @@ def test_pages_per_day_days_hit_this_week(
 
 # ── tests — pages_per_week progress ──────────────────────────────────────────
 
-def test_pages_per_week_sums_last_7_days(
-    client: TestClient, make_book, admin_user, db: Session
+def test_pages_per_week_sums_calendar_week(
+    client: TestClient, make_book, admin_user, db: Session, pinned_now
 ):
-    """pages_per_week sums pages_turned from the last 7 local days."""
+    """pages_per_week sums the calendar week (Friday: 2 days ago is Wednesday,
+    5 days ago is last Sunday — counted by the old rolling rule, not now)."""
     user, _ = admin_user
     book = make_book(title="Pages Per Week Book")
-    now = datetime.utcnow()
+    now = pinned_now
 
     # 80 pages 2 days ago
     _add_session(db, user.id, book.id, now - timedelta(days=2), pages_turned=80)
@@ -496,8 +515,8 @@ def test_pages_per_week_sums_last_7_days(
     assert result["kind"] == "pages_per_week"
     assert result["metric"] == "pages"
     assert result["period"] == "week"
-    # In-window: 80 + 100 = 180
-    assert result["current"] == 180
+    # This week: 80 (the 100 pages were last Sunday)
+    assert result["current"] == 80
     assert "days_hit_this_week" not in result
 
 
@@ -538,7 +557,7 @@ def test_unreached_goal_does_not_notify(client: TestClient, db: Session):
 def test_daily_goal_does_not_notify(
     client: TestClient, make_book, admin_user, db: Session
 ):
-    """Day/week goals never create notifications (rolling windows would flood)."""
+    """Day goals never create notifications (a bell a day would flood)."""
     user, _ = admin_user
     book = make_book(title="Daily Notify Book")
     now = datetime.utcnow()

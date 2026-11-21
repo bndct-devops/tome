@@ -202,6 +202,13 @@ def _first_reading_day(db: Session, user_id: int, day: DayCtx) -> Optional[date]
     return min(cands) if cands else None
 
 
+def _week_start_of(db: Session, user_id: int) -> str:
+    """The reader's week start (Settings › Week starts on) for the weekly streak."""
+    from backend.models.user import User
+    ws = db.query(User.week_start).filter(User.id == user_id).scalar()
+    return ws if ws in ("monday", "sunday") else "monday"
+
+
 def month_view(db: Session, user_id: int, day: DayCtx, year: int, month: int) -> dict:
     first = date(year, month, 1)
     last = date(year, month, calendar.monthrange(year, month)[1])
@@ -253,7 +260,8 @@ def month_view(db: Session, user_id: int, day: DayCtx, year: int, month: int) ->
             "best_day": _unique_best({d["date"]: d["seconds"] for d in in_month}),
         },
         "scale_seconds": _shade_scale(db, user_id, day),
-        "streaks": reconciled_streak_summary(db, user_id, day.tz_offset_minutes, tz_name=day.tz_name).as_dict(),
+        "streaks": reconciled_streak_summary(db, user_id, day.tz_offset_minutes, tz_name=day.tz_name,
+                                             week_start=_week_start_of(db, user_id)).as_dict(),
     }
 
 

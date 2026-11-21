@@ -5,6 +5,7 @@ import { i18n } from '@lingui/core'
 import { createPortal } from 'react-dom'
 import { useChartColors } from '@/lib/useChartAccent'
 import { HScrollRow } from '@/components/HScrollRow'
+import { firstJsDay, rowOfJsDay } from '@/lib/weekStart'
 
 interface HourDowCell {
   dow: number
@@ -79,7 +80,7 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
           ) : null
         ))}
 
-        {DOW_LABELS.map((label, d) => (
+        {DOW_LABELS.map((_, k) => DOW_LABELS[(k + firstJsDay()) % 7]).map((label, d) => (
           <text
             key={d}
             x={LEFT_PAD - 4}
@@ -96,7 +97,7 @@ export function HourDowHeatmap({ data }: { data: HourDowCell[] }) {
           <rect
             key={`${cell.dow}-${cell.hour}`}
             x={LEFT_PAD + cell.hour * (CELL + GAP)}
-            y={TOP_PAD + cell.dow * (CELL + GAP)}
+            y={TOP_PAD + rowOfJsDay(cell.dow) * (CELL + GAP)}
             width={CELL}
             height={CELL}
             rx={2}

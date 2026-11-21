@@ -81,6 +81,12 @@
      --muted are the same colour, so a secondary pill hovering to muted did
      not change at all. */
   --surface-hover: oklch(0.89 0.006 85);
+  /* The empty track behind a progress or bar fill, and the empty cell of a heat
+     map. Built from each theme's own colours; a theme only changes the share. */
+  --rail-mix: 28%;
+  --rail: color-mix(in oklch, var(--primary) var(--rail-mix), var(--background));
+  --heat-empty-mix: 7%;
+  --heat-empty: color-mix(in oklch, var(--foreground) var(--heat-empty-mix), var(--background));
 }
 
 /* Dark — near-neutral with a trace of warmth (not zinc, not espresso)
@@ -140,6 +146,10 @@
    Class is applied alongside .dark, so it only needs to override surfaces. */
 .theme-black {
   --background: oklch(0 0 0);
+  /* Goal marks: on true black the dim mixes vanish; missed and to-come marks mix in more of
+     the foreground so they read as Dark's do (contrast against the page at least Dark's). */
+  --goal-miss-mix: 37%;
+  --goal-future-mix: 34%;
   --card: oklch(0.145 0.003 60);
   --popover: oklch(0.145 0.003 60);
   --secondary: oklch(0.20 0.004 60);
@@ -154,6 +164,10 @@
   --frame: oklch(0 0 0);
   --panel-ring: oklch(1 0 0 / 12%);
   --surface-hover: oklch(0.27 0.005 60);
+  /* On true black the shared shares nearly vanish: lifted to about the
+     contrast Dark has against its page (rail 1.39, empty cell 1.10). */
+  --rail-mix: 41%;
+  --heat-empty-mix: 18%;
 }
 
 /* Amber (warm parchment) theme */

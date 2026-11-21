@@ -25,8 +25,10 @@ import { useChartColors } from '@/lib/useChartAccent'
 import { useChartPalette } from '@/lib/useChartPalette'
 import { HourDowHeatmap } from '@/components/stats/HourDowHeatmap'
 import { ChartTooltip, type StatsResponse, type CompletionEstimate } from '@/components/stats/shared'
+import { dec1, fig, num } from '@/components/stats/kit/tokens'
 import { axisDuration, dayIso, evenDateTicks, isoDay, niceDurationTicks } from '@/components/stats/axis'
 import { coverSrc } from '@/lib/covers'
+import { firstJsDay } from '@/lib/weekStart'
 
 export function HourDowCard({ data }: { data: StatsResponse['hour_dow_heatmap'] }) {
   const { accent } = useChartColors()
@@ -156,7 +158,7 @@ function PaceArea({ days }: { days: PaceDay[] }) {
           axisLine={false}
           tickLine={false}
         />
-        <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => v.toFixed(1)} />
+        <YAxis tick={{ fontSize: 10, fill: tick }} width={36} axisLine={false} tickLine={false} tickFormatter={(v: number) => dec1(v)} />
         <Tooltip
           cursor={cursor}
           wrapperStyle={{ outline: 'none' }}
@@ -167,8 +169,8 @@ function PaceArea({ days }: { days: PaceDay[] }) {
             return (
               <ChartTooltip>
                 <div className="font-medium">{formatDate(d.date)}</div>
-                {(() => { const ppm = d.ppm; return <div><Trans>{ppm} pg/min</Trans></div> })()}
-                {(() => { const pages = d.pages; const dur = formatDuration(d.seconds); return <div className="text-muted-foreground"><Trans>{pages} pages in {dur}</Trans></div> })()}
+                {(() => { const ppm = fig(d.ppm); return <div><Trans>{ppm} pg/min</Trans></div> })()}
+                {(() => { const pages = num(d.pages); const dur = formatDuration(d.seconds); return <div className="text-muted-foreground"><Trans>{pages} pages in {dur}</Trans></div> })()}
                 <div className="text-muted-foreground">{plural(d.sessions, { one: '# session', other: '# sessions' })}</div>
               </ChartTooltip>
             )
@@ -188,7 +190,7 @@ export function ReadingPaceChart({ pace }: { pace: StatsResponse['reading_pace']
       <div className="min-h-0 flex-1">
         <PaceArea days={paceByDay(pace)} />
       </div>
-      {(() => { const a = avg.toFixed(1); return <p className="text-[13px] text-muted-foreground text-center shrink-0"><Trans>avg {a} pg/min</Trans></p> })()}
+      {(() => { const a = dec1(avg); return <p className="text-[13px] text-muted-foreground text-center shrink-0"><Trans>avg {a} pg/min</Trans></p> })()}
     </div>
   )
 }
@@ -209,7 +211,7 @@ export function ReadingSpeedTrend({ pace }: { pace: StatsResponse['reading_pace'
         <span className={cn('text-sm font-semibold', trending === 'up' ? 'text-success' : trending === 'down' ? 'text-destructive' : 'text-muted-foreground')}>
           {(() => { const up = pctDiff; const down = Math.abs(pctDiff); return trending === 'up' ? t`Reading speed up ${up}%` : trending === 'down' ? t`Reading speed down ${down}%` : t`Reading speed steady` })()}
         </span>
-        {(() => { const a = secondAvg.toFixed(1); const b = firstAvg.toFixed(1); return <span className="text-[13px] text-muted-foreground ml-1"><Trans>({a} vs {b} pg/min)</Trans></span> })()}
+        {(() => { const a = dec1(secondAvg); const b = dec1(firstAvg); return <span className="text-[13px] text-muted-foreground ml-1"><Trans>({a} vs {b} pg/min)</Trans></span> })()}
       </div>
       <div className="min-h-0 flex-1">
         <PaceArea days={paceByDay(pace)} />
@@ -370,11 +372,11 @@ export function DayOfWeekBar({ data }: { data: StatsResponse['hour_dow_heatmap']
     byDow[c.dow] += c.seconds
     sessions[c.dow] += c.sessions
   }
-  // dow 0 = Sunday - rotate to Mon-first
-  const LABELS = [msg`Mon`, msg`Tue`, msg`Wed`, msg`Thu`, msg`Fri`, msg`Sat`, msg`Sun`]
-  const rows = LABELS.map((label, i) => {
-    const dow = (i + 1) % 7
-    return { label: i18n._(label), seconds: byDow[dow], sessions: sessions[dow] }
+  // dow 0 = Sunday: rotate to the reader's week (Settings › Week starts on)
+  const LABELS = [msg`Sun`, msg`Mon`, msg`Tue`, msg`Wed`, msg`Thu`, msg`Fri`, msg`Sat`]
+  const rows = LABELS.map((_, i) => {
+    const dow = (i + firstJsDay()) % 7
+    return { label: i18n._(LABELS[dow]), seconds: byDow[dow], sessions: sessions[dow] }
   })
   if (rows.every((r) => r.seconds === 0)) {
     return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No session data.</Trans></p>

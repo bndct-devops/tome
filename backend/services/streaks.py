@@ -67,8 +67,11 @@ def _runs(days: list[date], step: int) -> list[tuple[date, date]]:
     return runs
 
 
-def _week_start(d: date) -> date:
-    return d - timedelta(days=d.weekday())  # Monday
+def _week_start(d: date, week_start: str = "monday") -> date:
+    """First day of ``d``'s week: Monday, or Sunday for a reader whose week starts
+    on Sunday (users.week_start, Settings › Week starts on)."""
+    first = 6 if week_start == "sunday" else 0
+    return d - timedelta(days=(d.weekday() - first) % 7)
 
 
 @dataclass
@@ -107,7 +110,7 @@ class StreakSummary:
         }
 
 
-def streak_summary_from_dates(day_set: set[date], today: date) -> StreakSummary:
+def streak_summary_from_dates(day_set: set[date], today: date, week_start: str = "monday") -> StreakSummary:
     s = StreakSummary()
     if not day_set:
         return s
@@ -120,9 +123,9 @@ def streak_summary_from_dates(day_set: set[date], today: date) -> StreakSummary:
     s.longest_days = (best[1] - best[0]).days + 1
     s.longest_start, s.longest_end = best
 
-    week_runs = _runs(sorted({_week_start(d) for d in day_set}), 7)
+    week_runs = _runs(sorted({_week_start(d, week_start) for d in day_set}), 7)
     wlast = week_runs[-1]
-    if (_week_start(today) - wlast[1]).days <= 7:
+    if (_week_start(today, week_start) - wlast[1]).days <= 7:
         s.current_weeks = (wlast[1] - wlast[0]).days // 7 + 1
         s.current_weeks_start = wlast[0]
     wbest = max(reversed(week_runs), key=lambda r: (r[1] - r[0]).days)
@@ -191,9 +194,11 @@ def reconciled_streak_summary(
     tz_offset_minutes: int,
     covered: list[int] | None = None,
     tz_name: str | None = None,
+    week_start: str = "monday",
 ) -> StreakSummary:
     """Daily + weekly streaks with dates, over the same reconciled day set as
-    ``reconciled_user_streaks`` (its current/longest day counts always agree)."""
+    ``reconciled_user_streaks`` (its current/longest day counts always agree).
+    Weeks start on ``week_start`` (the web passes the reader's setting)."""
     from backend.services import reconciled_reading as rr
 
     day = DayCtx(tz_offset_minutes, tz_name)
@@ -209,4 +214,4 @@ def reconciled_streak_summary(
             .all()
         )
         day_set = {date.fromisoformat(r.d) for r in rows if r.d}
-    return streak_summary_from_dates(_with_reader_days(db, user_id, day_set), day.today())
+    return streak_summary_from_dates(_with_reader_days(db, user_id, day_set), day.today(), week_start)

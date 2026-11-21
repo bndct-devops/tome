@@ -6,6 +6,7 @@ import {
 import { FileText } from 'lucide-react'
 import { useChartColors } from '@/lib/useChartAccent'
 import { ChartTooltip, type StatsResponse } from '@/components/stats/shared'
+import { dec1, num } from '@/components/stats/kit/tokens'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { coverSrc } from '@/lib/covers'
@@ -16,9 +17,9 @@ function Empty({ text }: { text?: string }) {
 
 // Compact number: 1_240_000 -> "1.2M", 84_300 -> "84k", 932 -> "932".
 function compact(n: number): string {
-  if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(n >= 10_000_000 ? 0 : 1)}M`
-  if (n >= 1_000) return `${(n / 1_000).toFixed(n >= 10_000 ? 0 : 1)}k`
-  return String(n)
+  if (n >= 1_000_000) return `${n >= 10_000_000 ? num(n / 1_000_000) : dec1(n / 1_000_000)}M`
+  if (n >= 1_000) return `${n >= 10_000 ? num(n / 1_000) : dec1(n / 1_000)}k`
+  return num(n)
 }
 
 function Cover({ id, has, alt }: { id: number | null; has: boolean; alt: string }) {
@@ -77,7 +78,7 @@ function WpmRow({ b }: { b: StatsResponse['wpm']['books'][number] }) {
         <a href={`/books/${b.book_id}`} className="line-clamp-1 text-sm font-medium text-foreground transition-colors hover:text-primary">{b.title}</a>
         {b.author && <p className="truncate text-[13px] text-muted-foreground">{b.author}</p>}
       </div>
-      <span className="shrink-0 text-sm font-bold text-foreground">{Math.round(b.wpm).toLocaleString()}<span className="ml-0.5 text-[12px] font-normal text-muted-foreground">wpm</span></span>
+      <span className="shrink-0 text-sm font-bold text-foreground">{num(Math.round(b.wpm))}<span className="ml-0.5 text-[12px] font-normal text-muted-foreground">wpm</span></span>
     </div>
   )
 }
@@ -93,7 +94,7 @@ export function TrueWpm({ data }: { data: StatsResponse['wpm'] }) {
   return (
     <div className="@container flex flex-col gap-3">
       <div className="flex items-baseline gap-2">
-        <span className="text-3xl font-bold leading-none text-foreground">{Math.round(data.overall).toLocaleString()}</span>
+        <span className="text-3xl font-bold leading-none text-foreground">{num(Math.round(data.overall))}</span>
         <span className="text-[13px] text-muted-foreground">{plural(data.books_counted, { one: 'words/min · across # book', other: 'words/min · across # books' })}</span>
       </div>
       <div className="grid grid-cols-1 gap-x-8 gap-y-2.5 @md:grid-cols-2">
@@ -125,7 +126,7 @@ export function ReReads({ data }: { data: StatsResponse['rereads'] }) {
             {b.author && <p className="truncate text-[13px] text-muted-foreground">{b.author}</p>}
           </div>
           <span className="shrink-0 text-right text-sm font-bold text-foreground">
-            {b.reread_pages.toLocaleString()}
+            {num(b.reread_pages)}
             <span className="ml-0.5 text-[12px] font-normal text-muted-foreground">pages{b.pct ? ` · ${b.pct}%` : ''}</span>
           </span>
         </div>
@@ -150,7 +151,7 @@ export function BookLength({ data }: { data: StatsResponse['book_lengths'] }) {
               content={({ active, payload }) => {
                 if (!active || !payload?.length) return null
                 const d = payload[0].payload
-                return <ChartTooltip><div className="font-medium">{d.label} words</div><div className="text-muted-foreground">{d.count} book{d.count !== 1 ? 's' : ''}</div></ChartTooltip>
+                return <ChartTooltip><div className="font-medium">{d.label} words</div><div className="text-muted-foreground">{num(d.count)} book{d.count !== 1 ? 's' : ''}</div></ChartTooltip>
               }}
             />
             <Bar dataKey="count" fill={accent} radius={[4, 4, 0, 0]} isAnimationActive={false} />

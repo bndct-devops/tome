@@ -1817,7 +1817,7 @@ export function BinderyPage() {
                   </div>
                   <div
                     className="h-[6px] rounded-full overflow-hidden flex"
-                    style={{ background: 'color-mix(in oklch, var(--primary) 28%, var(--background))' }}
+                    style={{ background: 'var(--rail)' }}
                   >
                     {done > 0 && (
                       <div className="h-full bg-primary transition-all duration-300" style={{ width: `${(done / total) * 100}%` }} />

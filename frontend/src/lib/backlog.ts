@@ -1,4 +1,5 @@
 import { t } from '@lingui/core/macro'
+import { i18n } from '@lingui/core'
 
 // Backlog completion estimates (#187) - shared types + formatting for the
 // book page cell, the series header line and the Stats "Backlog" tile.
@@ -47,7 +48,8 @@ export interface BacklogScope {
 /** "~45 min" / "~11 h" - coarse on purpose, these are estimates. */
 export function formatEstimateHours(seconds: number): string {
   if (seconds < 3600) { const m = Math.max(1, Math.round(seconds / 60)); return t`~${m} min` }
-  const h = Math.round(seconds / 3600)
+  // Grouped in the app language ("~1,117 h"), as the Stats pages' figures.
+  const h = i18n.number(Math.round(seconds / 3600))
   return t`~${h} h`
 }
 

@@ -12,7 +12,8 @@
     "screenshots:showcase": "node scripts/screenshots.mjs --showcase",
     "test:e2e": "playwright test",
     "i18n:extract": "lingui extract",
-    "i18n:compile": "lingui compile"
+    "i18n:compile": "lingui compile",
+    "test:unit": "node --experimental-strip-types --no-warnings=ExperimentalWarning --test tests/*.test.ts"
   },
   "dependencies": {
     "@lingui/core": "^6.6.0",

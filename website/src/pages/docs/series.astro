@@ -61,6 +61,12 @@ const detectionSvg = fs.readFileSync(path.resolve(process.cwd(), 'public/diagram
     <li>A status badge — <strong>ongoing</strong>, <strong>finished</strong>, <strong>hiatus</strong>, or <strong>unknown</strong> — pulled from <code>SeriesMeta</code></li>
     <li>If arcs are defined, volumes group into arc sections with a per-arc description</li>
   </ul>
+  <p>
+    <strong>Finish by…</strong> in the header sets a <a href={withBase("/docs/stats#goals")}>reading goal</a> for
+    the series: pick a day, and the dialog shows what it takes at your own pace. With a goal set,
+    the button shows its day and opens the goal to change it. Once every volume is read, the button
+    is gone.
+  </p>
 
   <h2>Arcs</h2>
   <p>

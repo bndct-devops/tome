@@ -2,6 +2,7 @@ import { ProgressRow } from './ProgressRow'
 import { useChartAccent } from '@/lib/useChartAccent'
 import { Trans } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
+import { fig, num } from '@/components/stats/kit/tokens'
 
 interface FormatPace {
   format: string
@@ -27,9 +28,9 @@ export function PaceByFormat({ data }: { data: FormatPace[] }) {
         <ProgressRow
           key={f.format}
           label={f.format.toUpperCase()}
-          value={`${f.pages_per_min} pg/min`}
+          value={`${fig(f.pages_per_min)} pg/min`}
           pct={(f.pages_per_min / maxPpm) * 100}
-          sub={(() => { const pages = f.pages; return plural(f.sessions, { one: `# session · ${pages} pages`, other: `# sessions · ${pages} pages` }) })()}
+          sub={(() => { const pages = num(f.pages); return plural(f.sessions, { one: `# session · ${pages} pages`, other: `# sessions · ${pages} pages` }) })()}
           color={accent}
         />
       ))}

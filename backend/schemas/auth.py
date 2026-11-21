@@ -67,6 +67,7 @@ class UserOut(BaseModel):
     must_change_password: bool = False
     auth_source: str = "local"  # "local" | "oidc" — drives "signed in via SSO" UI
     oidc_linked: bool = False   # an IdP identity is attached (can sign in via SSO)
+    week_start: str = "monday"  # first day of the reader's week for goals: monday | sunday
     created_at: datetime
     permissions: Optional[PermissionsOut] = None
 

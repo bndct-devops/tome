@@ -6,7 +6,7 @@ import Callout from '../../components/Callout.astro'
 import { ThemedShot } from '../../components/ThemedShot'
 import { withBase } from '../../lib/path'
 ---
-<DocsLayout title="Reading stats" description="A fully customisable stats dashboard — streaks, heatmaps, reading pace, completion estimates, and a year-in-review built from real session data.">
+<DocsLayout title="Reading stats" description="Designed stats pages — reading time, habits, your library, your ratings and every session — plus your own boards, built from real session data.">
   <SectionHero section="features" />
   <h1>Reading stats</h1>
   <p>
@@ -15,41 +15,46 @@ import { withBase } from '../../lib/path'
     fudge factors, no guessing. If a chart is empty, it's because the data isn't there yet.
   </p>
   <p>
-    The page itself is a dashboard: every chart on it is a tile on a drag-and-resize grid, and
-    the three boards it ships with — Overview, Habits, and Library — are just the defaults.
+    Hover (or tap) any bar, cell, dot or row for its exact value; books, series and authors are
+    links. The page has eight tabs: <strong>Overview</strong>, <strong>Goals</strong>, <strong>Habits</strong>, <strong>Library</strong>, <strong>Taste</strong>, <strong>Timeline</strong>, <strong>Sessions</strong>, and — when
+    you have any — <strong>Boards</strong>, your own layouts from the earlier customisable
+    dashboard. The range pills (7d, 30d, 90d, 1y, All, or a custom range) apply to every tab that
+    depends on a period (Goals counts its own periods); sections that are all-time say so in their heading.
   </p>
   <DocsMeta />
 
-  <h2>Make it yours</h2>
+  <h2>How the pages behave</h2>
   <p>
-    Hit <strong>Edit</strong> and the grid opens up: drag tiles by their header, resize them by
-    the corner handle, remove or duplicate them, and undo a removal straight from the toast. <strong>Add tile</strong> opens a gallery of 50 widgets with live previews — everything
-    documented below, plus extras like a paginated session log, reading by weekday, a
-    time-of-day split, time by format, recently finished, a monthly streak calendar, and the
-    word-count tiles (words read, reading speed, book length).
-  </p>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-add-tile" alt="The add-widget gallery: live previews of all 50 widgets, with search and on-board filters" />
-  </div>
-  <p>
-    Tiles are individually configurable where it makes sense: chart tiles switch between bar,
-    line, and area; time-series tiles can follow the page's range picker or pin their own
-    window; the Custom Stat tile counts whichever metric you pick; Series Spotlight focuses on
-    one series of your choice.
-  </p>
-  <p>
-    Tabs are boards. Create new ones — empty, duplicated from the current board, or from the
-    built-in defaults — rename them with a double-click, and delete the ones you don't want
-    (undo included). Layouts are saved per-user <em>on the server</em>, so your boards follow
-    you to every device; a board can also be exported as JSON to share and imported on another
-    account, and the camera button saves any board as a PNG image.
+    Each page has a fixed layout. It draws its outline before the numbers arrive and fills it in
+    place, so nothing jumps around while it loads. Changing the range keeps the current numbers
+    on screen, dimmed, with a thin line under the header until the new ones are there. The tab
+    and range you were on are remembered in this browser; looking around never changes anything
+    you saved. The image button next to the range saves the page you are looking at as a PNG.
   </p>
 
-  <Callout variant="tip" title="Reset is always safe">
-    The default boards replicate everything documented on this page. If you edit one of them
-    into a corner, <strong>Reset</strong> in the edit toolbar brings it back to its stock
-    layout — your other boards aren't touched.
-  </Callout>
+  <h2>Your own boards</h2>
+  <p>
+    Before the designed pages, Stats was a dashboard of tiles on a drag-and-resize grid. Every
+    board you saved there is kept, unchanged, in the same place on the server. Boards you
+    customised (moved, resized, added or removed tiles, changed a tile's settings, renamed) appear
+    under the <strong>Boards</strong> tab and work exactly as before: <strong>Edit</strong> on the
+    board row, drag and resize, the tile gallery, duplicate, import and export as JSON, Reset.
+  </p>
+  <p>
+    A saved board that is still exactly one of the default boards a Tome release shipped is not
+    listed — the designed pages replace it. It is only hidden, never deleted or rewritten. If none
+    of your boards differs from a default, the Boards tab is not shown at all; <strong>New
+    board</strong> in the page's <strong>⋯</strong> menu creates one and brings the tab back. Boards
+    are saved only when you edit them, so they still follow you to every device.
+  </p>
+  <p>
+    To use the grid without customising anything first, turn on <strong>Show Boards</strong> under
+    Settings › Appearance. The Boards tab is then always there and lists every board, the defaults
+    included, editable as before; the setting follows your account. Turned off, the Boards tab and
+    the <strong>⋯</strong> menu are hidden, even if you have boards of your own; your boards are kept
+    and are back when you turn it on again. Until you first touch the switch, it shows on exactly
+    when you have a board of your own.
+  </p>
 
   <h2>Where the data comes from</h2>
   <p>
@@ -105,11 +110,11 @@ import { withBase } from '../../lib/path'
     session to what you actually read, while delete removes it entirely. The trim editor
     pre-fills a suggestion — the session's own page turns priced at your median seconds-per-page,
     computed from your recent plausible sessions so the runaways can't skew their own baseline.
-    It's only ever a pre-fill; nothing is changed until you confirm. Session lists live in three
-    places: the <strong>Recent sessions</strong> tile (sortable longest-first), the per-book
-    time table on the Library board, and a collapsible <strong>Sessions</strong> section under
-    Reading Stats on every book page — so they stay reachable even if you've removed the tiles
-    from your dashboard.
+    It's only ever a pre-fill; nothing is changed until you confirm. Session lists live in
+    the <strong>Sessions</strong> tab (sortable longest-first), in each row of the Library page's book
+    table, and in a
+    collapsible <strong>Sessions</strong> section under Reading Stats on every book page;
+    a <strong>Recent sessions</strong> tile on one of your own boards works the same way.
   </p>
 
   <Callout variant="info" title="Nothing else is touched">
@@ -149,38 +154,49 @@ import { withBase } from '../../lib/path'
     not re-imported on the next connection. New reading syncs and counts as normal.
   </Callout>
 
-  <h2>Overview board</h2>
-  <p>
-    The "where am I right now?" board. Designed to be glanceable. Like every section below,
-    each chart here is a tile — what follows describes the default layout.
-  </p>
-
-  <h3>Totals + streak</h3>
+  <h2>Overview</h2>
   <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-totals" alt="Six top-level metric cards" />
+    <ThemedShot client:load name="stats-overview" alt="The Stats Overview: reading time with the change against the previous period, four figures, weekly bars, books in progress and finished" />
   </div>
   <p>
-    Six counters across the top, scoped to the period selector (default 30d, options 7d / 30d /
-    90d / 365d / all). Sum of <code>duration_seconds</code>, count of session rows, finished books,
-    current streak, pages turned, completion rate. Average session length is shown under
-    Reading Time.
+    The "where am I right now?" page. At the top, your <strong>reading time</strong> in the
+    range with the change against the period just before it, and four figures beside it:
+    sessions (with the average length), pages (with the daily average), books finished (with the
+    count for the previous period) and your current streak (since when, and whether it is your
+    longest). Under them, the reading time as bars: one per day for ranges up to 31 days, one
+    per week above that, with the running week lighter, your average marked and your best day of
+    the range noted in the corner. At <strong>1y</strong> and <strong>All</strong> the corner also
+    names your most active month of the twelve the chart shows, with its reading time.
   </p>
   <p>
-    Streak is in local-with-rollover days, with a one-day grace: if you haven't read yet today,
-    the streak still shows yesterday's value instead of dropping to zero. Once midnight (plus
-    rollover) passes without a session, the streak breaks.
+    If you have <strong>reading goals</strong>, one row of up to four follows, each with its
+    progress and pace; <strong>All goals</strong> opens the <a href="#goals">Goals</a> page.
+    Without goals, a quiet line at the end of the page sets one up.
   </p>
-
-  <h3>Currently reading</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-currently-reading" alt="Currently reading books with progress bars" />
-  </div>
   <p>
-    Books with <code>UserBookStatus.status = "reading"</code>, ordered by most-recently-read.
-    Progress comes from <code>TomeSyncPosition.percentage</code> when KOReader has reported in,
-    else <code>UserBookStatus.progress_pct</code> from the web reader.
+    The streak is in local-with-rollover days, with a one-day grace: if you haven't read yet
+    today, the streak still shows yesterday's value instead of dropping to zero. Once midnight
+    (plus rollover) passes without a session, the streak breaks.
   </p>
-
+  <ul>
+    <li><strong>Reading now</strong> — the books you're reading (up to three, with a link to all of
+      them in the library when there are more), with cover, progress, an estimate of the days left
+      at your recent pace, and when you last read them. At 99 %
+      a <strong>Mark as read</strong> button appears. Progress is the furthest
+      of your synced position and the furthest page in imported KOReader history; the same value
+      is used everywhere in Stats.</li>
+    <li><strong>Finished</strong> — the covers of the books you finished in the range, newest first.</li>
+    <li><strong>Where the time went</strong> — your top five books by reading time; <strong>All
+      books</strong> jumps to the full table on Library.</li>
+    <li><strong>When you read</strong> — your reading by hour and weekday, with the peak in words.</li>
+    <li><strong>The year</strong> — a 365-day grid of daily reading time. Its five shades are cut at
+      your own quantiles, and the legend prints where each step starts.</li>
+    <li><strong>All time</strong> — the end of the page is your lifetime: first the totals (reading
+      time with the average per reading day, sessions with their average length, pages, books
+      finished out of those you started, and active days, the days with any reading), then the
+      records: longest session, biggest reading day, most pages in a day, longest daily streak and
+      longest weekly streak.</li>
+  </ul>
   <Callout variant="tip" title="Shelving a book you've set aside">
     Every book has reading-status pills — <strong>Unread / Reading / Read</strong>, plus a fourth
     set slightly apart: <strong>Shelved</strong>. Shelving a book pulls it off Currently Reading,
@@ -191,153 +207,117 @@ import { withBase } from '../../lib/path'
     Reading.
   </Callout>
 
-  <h3>Reading time per day</h3>
+  <h2 id="goals">Goals</h2>
   <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-time-per-day" alt="Bar chart: reading time per day" />
+    <ThemedShot client:load name="stats-goals" alt="The Goals page: four goal cards (books this year behind pace, minutes this week ahead, reading days reached, a series to finish by a date) and the selected books goal in detail" />
   </div>
   <p>
-    One bar per day in the selected period. Tallest spike is your biggest session day. Useful
-    to spot binges (single tall bar) vs steady consistency (many short bars).
-  </p>
-
-  <h3>Top books</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-top-books" alt="Top 10 books by reading time" />
-  </div>
-  <p>
-    Top 10 books by total reading time in the period. Joins <code>reading_sessions</code> against <code>books</code> and groups by book_id. The big numbers usually surface a book you've been
-    chewing on for weeks.
-  </p>
-
-  <h3>365-day activity grid</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-activity-grid" alt="GitHub-style 365-day reading activity grid" />
-  </div>
-  <p>
-    GitHub-style annual heatmap of daily reading minutes. Cells go from empty (no session) to
-    full accent (1h+ in a day). Useful to spot patterns — vacation blocks, work-week droughts,
-    weekend regulars.
-  </p>
-
-  <h2>Habits board</h2>
-  <p>The "when and how do I read?" board.</p>
-
-  <h3>Reading DNA</h3>
-  <p>
-    Your
-    reading personality as an archetype plus the trait spectrums that produced it (short reads vs.
-    long epics, focused vs. eclectic, early bird vs. night owl, …). Add it from <strong>Add tile</strong> under Habits.
-  </p>
-
-  <h3>Hour × day-of-week heatmap</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-heatmap" alt="Hour-by-day-of-week reading intensity heatmap" />
-  </div>
-  <p>
-    A 7×24 grid. Each cell is "minutes read in this hour of this weekday, summed across the
-    selected period." The colour scale is per-user: the darkest cell is your peak, everything
-    else is relative to it.
+    The "am I on track?" page. It does not follow the range: every goal counts its own calendar
+    period (this week, this month, this year, or up to the date of a finish-by goal), so the
+    header reads <strong>This week, month and year</strong>.
   </p>
   <p>
-    The interpretation: find your reading windows. If Monday 21:00 lights up but Monday 09:00 is
-    blank, you read at night, not before work. If Saturday morning blooms after a few months of
-    use, you read more on weekends than you thought. The point isn't the absolute numbers, it's
-    the <em>shape</em>.
-  </p>
-
-  <h3>Session timeline</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-session-timeline" alt="Recent session timeline on a 24h axis per day" />
-  </div>
-  <p>
-    Recent sessions plotted as horizontal bars on a time axis — start time on the x-axis,
-    duration as bar length, one row per date. Lets you see binge sessions (long bars) vs nibble
-    sessions (short bars), and at a glance whether you read in one big block or many small ones.
-  </p>
-
-  <h3>Reading pace</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-pace" alt="Pages-per-minute over recent sessions" />
-  </div>
-  <p>
-    Pages per minute, computed per-session from sessions with <code>duration_seconds &gt; 60</code> and <code>pages_turned &gt; 0</code>.
+    Each goal is a card: its name, how far you are against the target, and what it takes. Goals
+    of a month or a year show a bar with a tick where you should be today, and say how far
+    ahead or behind of that pace you are ("5 ahead of pace", "2 behind pace"), how many are to
+    go, how many days are left and, once a quarter of the period has passed, what you are on
+    course for. Day goals and reading days show the week as seven marks: a filled dot for a day
+    reached, a dim dot for a day missed, an outline for the days to come and a ring that fills
+    as you read today. The same cards are on Home.
   </p>
   <p>
-    Two things this catches: format effects (manga clocks 5+ ppm, dense literary fiction
-    sometimes 1 ppm) and tiredness (your evening pace usually drops below your morning pace).
-    Don't compare your number to anyone else's — pace is a fingerprint, not a benchmark.
+    Click a card to see the goal in detail under the cards (the page remembers your choice):
   </p>
-
-  <h3>Monthly comparison</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-monthly-comparison" alt="Bar chart of reading hours and books finished per month" />
-  </div>
+  <ul>
+    <li><strong>Minutes or pages a day, reading days a week</strong>: this week large, the last
+      12 weeks day by day, and how often you reached it in the last 90 days, your best run and
+      your current one.</li>
+    <li><strong>Minutes or pages a week</strong>: this week day by day against an even share of
+      the target, and the last 12 weeks against the target.</li>
+    <li><strong>Books a month or a year</strong>: the period so far against the pace line, the
+      projection to its end, and past months or years. When most of a month's finish dates share
+      one day (books marked read in bulk), a note says so: those bars show when books were
+      marked read, not when they were read.</li>
+    <li><strong>Finish by a date</strong>: the volumes read and to go, the reading time left at
+      your own time per volume of that series (or the word count at your reading speed), the
+      minutes a day that takes against what you read a day over the last 30 days, and the road
+      to the date.</li>
+  </ul>
   <p>
-    Reading hours + books finished by month, last 12 months. Smooths out the day-to-day noise —
-    month-on-month is more legible than week-on-week.
+    <strong>New goal</strong> offers eight kinds: books a year or a month, minutes or pages a day
+    or a week, <strong>reading days a week</strong> (a day counts as it does for your streak)
+    and <strong>finish by a date</strong> (a book or a series, by the end of the month, the end of the
+    year or any day you pick), as one row of choices. The goals you already have are dimmed with
+    their progress and are not offered twice; count goals can be limited to one book type with
+    the <strong>All books</strong> menu beside the number.
+    The same dialog opens from Home, and a series or a book page
+    has <strong>Finish by…</strong> among its actions: a smaller dialog for that title with just the day and what it takes (with
+    a goal already set there, the button shows its day and opens it to change it).
+    Targets are suggested from your own reading: Steady, Keep it up and Stretch are what you
+    reached on three days in four, half your days and one day in four over the last 90 days (12
+    weeks for weekly goals), each with how often you reached it and what it means ("at 60 min a
+    day you'd finish about 3.7 books a month"). Book goals are suggested from your reading time
+    too, at your usual time per finished book, so books marked read in bulk do not inflate them.
+    Without enough history the dialog offers a few fixed targets.
   </p>
-
-  <h2>Library board</h2>
-  <p>The "what have I been reading?" board. Focused on books, not on time.</p>
-
-  <h3>Series completion ladder</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-series-completion" alt="Series completion cards with per-series progress bars" />
-  </div>
   <p>
-    For every series you have at least one volume in, a card showing volumes you own vs volumes
-    you've finished. Standalones are skipped — they're not a ladder.
+    Edit and delete sit beside the selected goal's name. A deleted goal can be brought back
+    with <strong>Undo</strong> for a little while. A goal's past periods are judged by the target it had
+    then; periods before you set it are shown but not counted as met or missed.
   </p>
-
-  <Callout variant="tip" title="The natural to-read queue">
-    Sort by "owned but unread" and it doubles as a "what should I read next?" list — series
-    you're partway through, with the next volume already on the shelf.
+  <Callout variant="info" title="When a week starts">
+    Weeks run Monday to Sunday unless you choose Sunday under <strong>Settings › Language and region ›
+    Week starts on</strong>. Goals follow it, and so do the weekly streak, the calendar
+    and the charts by weekday on the web. Days are Tome's reading days: a day ends at 4 a.m., as it does for streaks.
   </Callout>
 
-  <h3>Author affinity</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-author-affinity" alt="Top authors by total reading time" />
-  </div>
-  <p>
-    Authors ranked by total minutes spent in their books. Distinct from "most books read" — an
-    author you've read three short novels by ranks lower than one whose 1500-page tome you've
-    finished.
-  </p>
+  <h2>Habits</h2>
+  <p>The "when and how do I read?" page.</p>
+  <ul>
+    <li><strong>When you read</strong> — the hour × weekday grid at full width, the weekday totals in
+      its right margin and the hour totals under it. The shades are per reader: your darkest cell
+      is your peak.</li>
+    <li><strong>Last 14 days</strong> — one row per reading day, including days without reading, on a
+      track from 04:00 to 04:00 so a late-night sitting sits at the end of the evening it belongs
+      to. Each bar is a sitting at its start time; the day's total is on the right.</li>
+    <li><strong>Sessions</strong> — the average sitting, sittings per reading day, and the longest
+      sitting in the range. <strong>Session length</strong> sorts the range's sittings into five
+      lengths, from under 15 minutes to over two hours.</li>
+    <li><strong>Pace</strong> — pages per minute, a dot per reading day and a 7-day mean, with a
+      sentence comparing your last seven reading days to the whole range. Both come from the same
+      daily pages and minutes, so the sentence and the chart always agree; the
+      change between the two ("up 27 %") is worked out from the two printed figures. Under the
+      chart, one line gives each format's pages a minute and its share of the time once you read
+      in more than one format.</li>
+    <li><strong>Reading speed</strong> — all time: your words per minute (word count over the time
+      actually recorded, from finished books with a word count and at least five minutes of
+      reading) with your fastest and slowest books. A second line adds up the words in every
+      finished book that has a word count.</li>
+    <li><strong>The last 12 months</strong> — reading hours and books finished per month, as two
+      aligned rows.</li>
+    <li><strong>Reading character</strong> — your reading personality as an archetype plus the trait
+      spectrums that produced it (short reads vs. long epics, focused vs. eclectic, early bird
+      vs. night owl, …).</li>
+  </ul>
 
-  <h3>Completion by type</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-completion-by-type" alt="Finish rate per book type" />
-  </div>
-  <p>
-    For each <code>BookType</code> (Novels, Manga, Comics, etc.) — total books started vs finished.
-    Quick way to see "I'm a manga reader who pretends to read novels" or vice versa.
-  </p>
-
-  <h3>Category breakdown</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-category-breakdown" alt="Pie chart of reading time per book type" />
-  </div>
-  <p>
-    Reading time split by book type — pie chart format. Pairs with completion-by-type to show
-    not just how much you finish but how much time you sink in each format.
-  </p>
-
-  <h3>Library growth</h3>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-library-growth" alt="Cumulative books added over time, split by book type" />
-  </div>
-  <p>
-    A cumulative line chart of <code>books.added_at</code> grouped by month and split by book
-    type. Not about reading — about hoarding. Goes up and to the right. Useful for noticing
-    acquisition sprees you'd otherwise forget about.
-  </p>
-
-  <h3>Backlog</h3>
-  <p>
-    How long the pile would take at your own pace. The tile sums an estimate for every book you
-    haven't started in its scope and shows the total in hours and in days, with a per-type
-    breakdown underneath. The scope is picked in the tile's edit-mode settings: your <strong>Want to read</strong> queue (the default), everything unread, a library, or a shelf.
-  </p>
+  <h2>Library</h2>
+  <p>The "what is on my shelves, and what have I made of it?" page. Mostly all time.</p>
+  <ul>
+    <li><strong>Your library</strong> — books owned, read, in progress and wanted. Under In
+      progress: how many books you have started (marked reading or read) and the share of them
+      you have finished.</li>
+    <li><strong>Series</strong> — the series you've started, how far you are, and the next volume:
+      the volume after the highest one you've read or are reading, and whether it is on your
+      shelf. Finished series collapse to a row of covers.</li>
+    <li><strong>By type</strong> — per book type: owned, read (out of everything you own), finish
+      rate (out of what you started) and reading time in the range.</li>
+    <li><strong>Languages</strong> — reading time per language, all time, once you read in at least
+      two.</li>
+    <li><strong>Authors</strong> — your ten most-read authors in the range by reading time.</li>
+    <li><strong>Backlog</strong> — how long a pile would take at your own pace, in total and per
+      type. The pile is chosen in the heading: your want-to-read list (the default), everything
+      unread, a library, or a shelf; the choice is remembered in this browser.</li>
+  </ul>
   <ul>
     <li><strong>Hours</strong> come from the book's word count at your measured words per minute.
       Books without a word count — CBZ and PDF — fall back to your average time per finished
@@ -346,18 +326,35 @@ import { withBase } from '../../lib/path'
     <li><strong>Days</strong> come from your minutes per day over the last 30 days, or the last
       90 when the past month was quiet. No recent reading, no day figure.</li>
   </ul>
-  <p>
-    The same estimate appears in two other places: the book page shows an <strong>Est. read
-    time</strong> cell in Details (hover it to see which pace was used), and the series page puts
-    "left in this series" over the unstarted volumes.
-  </p>
+  <ul>
+    <li><strong>Book length</strong>, <strong>Published</strong> and <strong>Time to finish</strong> —
+      how long the books you finish are, when they were published, and how many days finishing
+      usually takes. Time to finish counts from a book's first reading day to its finish, and
+      stops at the last reading day when the book was marked read later (a bulk "mark as read"
+      doesn't stretch it).</li>
+    <li><strong>Added to the library</strong> — books added per month by type. A bulk import shows as
+      a broken bar with its number instead of flattening every other month.</li>
+    <li><strong>All books by reading time</strong> — every book you read in the range, sortable by
+      time, sessions or pages. The arrow at the end of a row opens that book's sessions in place,
+      with the same trim and delete actions as the Sessions tab.</li>
+  </ul>
 
-  <Callout variant="info" title="It needs a couple of finished books first">
-    The pace is measured, not assumed. Until you have finished a few word-counted books of a type
-    the tile asks you to, instead of inventing a number.
-  </Callout>
+  <h2>Taste</h2>
+  <p>Your ratings, all time.</p>
+  <ul>
+    <li><strong>Ratings</strong> — your average rating and how many books you rated, beside the
+      distribution of stars.</li>
+    <li><strong>Highest rated</strong> as a shelf of covers, and the lowest rated as a short list.</li>
+    <li><strong>Series</strong> — the series you rated, with how many books each has.</li>
+    <li><strong>Does time spent match the rating?</strong> — reading time against stars, one lane per
+      star value, with the median time of your 5-star and 4-star books in a sentence.</li>
+    <li><strong>Ratings over time</strong> — every rating as a dot (identical ratings on one day are
+      one dot with a count) and the mean of your last five as a step line.</li>
+    <li><strong>By type</strong> appears once books of at least two types are rated,
+      and <strong>Highlights</strong> once you have five highlights.</li>
+  </ul>
 
-  <h2>Timeline board</h2>
+  <h2>Timeline</h2>
   <p>
     Your reading life as a Gantt chart. One lane per series (standalones get their own),
     named in a frozen rail on the left; every book is a bar spanning its first to last
@@ -378,35 +375,20 @@ import { withBase } from '../../lib/path'
     inspects while a second tap navigates.
   </p>
   <p>
-    Timeline is its own board and renders full-bleed — edge to edge, viewport-tall. The
-    ribbon is also available as a regular tile from the gallery for any other board.
+    Timeline is its own tab and renders full-bleed — edge to edge, viewport-tall. It ignores
+    the range. The ribbon is also available as a tile for your own boards.
   </p>
 
-  <h2>Word-count &amp; page insights</h2>
+  <h2>Sessions</h2>
   <p>
-    Once Tome knows your books' <a href={withBase("/docs/admin#word-counts")}>word counts</a> and has
-    imported your <a href={withBase("/docs/koreader")}>KOReader reading history</a>, a few tiles turn
-    that into things you can't get from session timing alone. All are in the tile gallery.
+    Every reading session, grouped by calendar day with the day's counted total, newest first.
+    It opens on <strong>Counted</strong> — one row per sitting, exactly what the totals count. <strong>Not counted</strong> lists
+    the live device sessions whose sitting imported KOReader
+    history also describes, and <strong>All</strong> shows both. Each row can be trimmed or deleted
+    as described above. The log ignores the range, so the range pills are hidden on this tab.
   </p>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-words-read" alt="Words read tile: lifetime word count and a per-year breakdown" />
-  </div>
-  <p>
-    <strong>Words read</strong> totals the words in every book you've finished, and <strong>Reading speed</strong> is your true words-per-minute — word count divided by the time
-    KOReader actually recorded — with your fastest and slowest books.
-  </p>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-reading-speed" alt="Reading speed tile: overall words-per-minute with fastest and slowest books" />
-  </div>
-  <p>
-    <strong>Book length</strong> shows how long the books you finish tend to be, and <strong>Re-reads</strong> ranks the books whose pages you keep coming back to.
-  </p>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-book-length" alt="Book length tile: a word-count distribution of finished books" />
-  </div>
-  <div class="docs-shot-bare">
-    <ThemedShot client:load name="stats-rereads" alt="Re-reads tile: books ranked by how many of their pages you've revisited" />
-  </div>
+
+  <h2>Page insights on a book</h2>
   <p>
     On each book's page, a <strong>Reading intensity</strong> strip shows where your time went across
     the book — page by page — with a real &ldquo;X of Y pages&rdquo; read and a note when you've
@@ -437,10 +419,12 @@ import { withBase } from '../../lib/path'
   <ul>
     <li><code>GET /api/stats?days=30&amp;tz_offset=-120</code> — the main bundle (everything on this page).</li>
     <li><code>GET /api/stats/completion-estimates</code> — projected finish dates for in-progress books.</li>
-    <li><code>GET /api/stats/sessions</code> — paged session list, oldest first.</li>
-    <li><code>GET /api/stats/timeline</code> — lifetime per-book reading spans and active days (the Timeline board).</li>
+    <li><code>GET /api/stats/habits</code>, <code>/api/stats/library</code>, <code>/api/stats/highlights</code> — what the Habits, Library and Taste pages add to the main bundle.</li>
+    <li><code>GET /api/stats/sessions</code> — paged session list, newest first (or longest first); <code>counted=counted|not_counted|all</code> filters it and <code>day_totals=true</code> adds each calendar day's counted total.</li>
+    <li><code>GET /api/stats/timeline</code> — lifetime per-book reading spans and active days (the Timeline tab).</li>
     <li><code>DELETE /api/stats/sessions/{`{id}`}</code> — delete a misfire.</li>
-    <li><code>GET /api/stats/dashboard</code> / <code>PUT /api/stats/dashboard</code> — your saved boards (opaque JSON, 256&nbsp;KB cap). This is what syncs layouts across devices.</li>
+    <li><code>GET /api/goals</code> — your goals with their current period; the rest of the goals endpoints are in the <a href={withBase("/docs/api#goals")}>API reference</a>.</li>
+    <li><code>GET /api/stats/dashboard</code> / <code>PUT /api/stats/dashboard</code> — your saved boards (opaque JSON, 256&nbsp;KB cap), written only when you edit a board or flip Show Boards.</li>
   </ul>
   <p>
     Authenticate with an <a href={withBase("/docs/api-tokens")}>API token</a> or a JWT. Times are UTC in the

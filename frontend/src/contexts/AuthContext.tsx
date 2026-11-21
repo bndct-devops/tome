@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useState, type ReactNode } from 'react'
 import { api } from '@/lib/api'
 import { setFollowsAvailable } from '@/lib/follows'
+import { setWeekStart } from '@/lib/weekStart'
 
 interface Permissions {
   can_upload: boolean
@@ -31,6 +32,8 @@ export interface AuthUser {
   role: 'admin' | 'member' | 'guest'
   auth_source?: 'local' | 'oidc'
   oidc_linked?: boolean
+  /** First day of the reader's week for goals. */
+  week_start?: 'monday' | 'sunday'
   /** Instance flag TOME_RELEASE_DETECTION (series follows). */
   release_detection?: boolean
 }
@@ -71,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   // any page renders with the user (child effects run before ours would).
   const setUser = useCallback((next: AuthUser | null) => {
     setFollowsAvailable(next ? next.release_detection === true && isMember(next) : undefined)
+    setWeekStart(next?.week_start)
     setUserState(next)
   }, [])
   const [loading, setLoading] = useState(true)
