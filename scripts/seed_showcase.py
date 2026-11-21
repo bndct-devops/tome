@@ -57,6 +57,7 @@ from backend.models.library import BookType, Library, SavedFilter  # noqa: E402
 from backend.models.user_book_status import UserBookStatus  # noqa: E402
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition  # noqa: E402
 from backend.models.series_meta import Arc, SeriesMeta  # noqa: E402
+from backend.models.reading_goal import ReadingGoal, ReadingGoalTarget  # noqa: E402
 
 # Import remaining models so create_all picks them up
 import backend.models.audit_log  # noqa: E402,F401
@@ -186,6 +187,15 @@ SERIES_STATUS = {
 ARCS = [
     ("Berserk", "Black Swordsman", 1.0, 3.0, "A scarred mercenary hunts apostles across a plague-ridden land, driven by a branded mark that draws evil spirits nightly."),
     ("Berserk", "Golden Age",      3.0, 14.0, "Flashback to young Guts joining Griffith's Band of the Hawk, their rise through a hundred-year war, and the catastrophic Eclipse betrayal."),
+]
+
+# Reading goals: (kind, target, set how many days ago or "jan1", extra).
+# A finish-by goal's target is the series' volume count, as the API sets it.
+GOALS = [
+    ("books_per_year",   20,  "jan1", None),
+    ("minutes_per_week", 300, 84,     None),
+    ("days_per_week",    5,   84,     None),
+    ("finish_by",        0,   20,     {"series": "The Good Guys", "due_in_days": 160}),
 ]
 
 USER = {
@@ -610,6 +620,31 @@ def main():
         ))
         db.commit()
 
+        # 7. Reading goals: one behind, one ahead, one reached and a series to
+        # finish by a date. Set weeks to months ago, so their past periods are judged.
+        print(f"Adding {len(GOALS)} reading goals")
+        today = date.today()
+        for kind, target, set_days_ago, extra in GOALS:
+            start = (date(today.year, 1, 1) if set_days_ago == "jan1"
+                     else today - timedelta(days=set_days_ago))
+            created = datetime.combine(start, datetime.min.time()) + timedelta(hours=19)
+            goal = ReadingGoal(user_id=user.id, kind=kind, target=target, start_date=start,
+                               created_at=created, updated_at=created)
+            if kind == "finish_by":
+                goal.target_series = extra["series"]
+                goal.target = db.query(Book).filter(Book.series == extra["series"]).count()
+                goal.due_date = today + timedelta(days=extra["due_in_days"])
+            else:
+                # The current week and year count as notified already, so the
+                # seeded goals never ring the bell in a screenshot.
+                period_start = (today - timedelta(days=today.weekday()) if kind.endswith("_week")
+                                else date(today.year, 1, 1))
+                goal.notified_window_start = datetime.combine(period_start, datetime.min.time())
+            db.add(goal)
+            db.flush()
+            db.add(ReadingGoalTarget(goal_id=goal.id, target=goal.target, changed_on=start))
+        db.commit()
+
         # Summary
         print()
         print(f"  Books:    {db.query(Book).count()}")
@@ -617,6 +652,7 @@ def main():
         print(f"  Status:   {db.query(UserBookStatus).count()}  (reading={db.query(UserBookStatus).filter_by(status='reading').count()}, read={db.query(UserBookStatus).filter_by(status='read').count()})")
         print(f"  Series:   {db.query(SeriesMeta).count()}  Arcs: {db.query(Arc).count()}")
         print(f"  Shelves:  {db.query(SavedFilter).count()}")
+        print(f"  Goals:    {db.query(ReadingGoal).count()}")
         print()
         print(f"Done. DB at {SHOWCASE_DIR/'tome.db'}")
         print(f"User: {USER['username']} / {USER['password']}  (admin)")
