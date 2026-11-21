@@ -4,9 +4,10 @@
 // status line and what it takes. Cards sit on hairlines as the Stats pages'
 // figures do. GoalGrid lays them out (four columns on a desktop, two on the
 // phone) and reserves their remembered heights while the goals are on their way.
-// A card's five lines are rows of the grid itself (subgrid), so the cards of a
-// row share each line's height: a status or sub line, a figure whose unit wraps,
-// or a finish-by title on two lines sits level with its neighbours'.
+// A card's lines are rows of the grid itself (subgrid), so the cards of a row
+// share each line's height: a figure whose unit wraps sits level with its
+// neighbours'. The status and sub line are one row together: statuses start
+// level, and a finish-by title on two lines pushes only its own sub line down.
 import type { CSSProperties, ReactNode } from 'react'
 import { Check } from 'lucide-react'
 import { t } from '@lingui/core/macro'
@@ -159,11 +160,14 @@ export function GoalCard({ goal, entry, desktop, today, lineWidth }: {
       <div className="mt-3 flex h-[30px] items-start">
         {markKind(goal) === 'strip' ? <DayStrip goal={goal} /> : <div className="w-full pt-2"><PaceBar goal={goal} today={today} /></div>}
       </div>
-      <div className={cn('mt-1 leading-[1.4]', desktop ? 'text-[14px]' : 'text-[13px]', lineWidth && !finish && 'whitespace-nowrap')}>
-        {finish ? <FinishLine goal={goal} /> : <LeadLine goal={goal} width={lineWidth} px={desktop ? 14 : 13} />}
-      </div>
-      <div className={cn('mt-0.5 leading-[1.4] text-muted-foreground', desktop ? 'text-[13px]' : 'text-[12px]', lineWidth && 'whitespace-nowrap')}>
-        <DetailLine goal={goal} width={lineWidth} px={desktop ? 13 : 12} />
+      {/* The status and the sub line share one row: the statuses of a row start level, and each sub line follows its own status. */}
+      <div className="mt-1">
+        <div data-line="status" className={cn('leading-[1.4]', desktop ? 'text-[14px]' : 'text-[13px]', lineWidth && !finish && 'whitespace-nowrap')}>
+          {finish ? <FinishLine goal={goal} /> : <LeadLine goal={goal} width={lineWidth} px={desktop ? 14 : 13} />}
+        </div>
+        <div data-line="sub" className={cn('mt-0.5 leading-[1.4] text-muted-foreground', desktop ? 'text-[13px]' : 'text-[12px]', lineWidth && 'whitespace-nowrap')}>
+          <DetailLine goal={goal} width={lineWidth} px={desktop ? 13 : 12} />
+        </div>
       </div>
     </div>
   )
@@ -182,10 +186,12 @@ function CardSkeleton({ desktop }: { desktop: boolean }) {
   )
 }
 
-/** A card's five lines (name, figure, marks, status, sub line) as rows of the grid it sits in. */
-const SUB = 'grid row-span-5 grid-rows-subgrid'
-/** Grid rows a row of cards takes: its five lines and the hairline under it. */
-const ROW_SPAN = 6
+/** A card's four rows (name, figure, marks, status with its sub line) as rows of the grid it sits in. */
+const SUB = 'grid row-span-4 grid-rows-subgrid'
+/** Grid rows a card takes. */
+const CARD_SPAN = 4
+/** Grid rows a row of cards takes: the card's rows and the hairline under it. */
+const ROW_SPAN = CARD_SPAN + 1
 
 /**
  * The cards on hairlines (four columns on a desktop, two on the phone). `goals`
@@ -237,7 +243,7 @@ export function GoalGrid({ goals, count, desktop, entry, shapeKey, pick, selecte
             role="listitem"
             data-box={`goal-${i}`}
             ref={g && col === 0 ? shape.measure(`row${row}`) : undefined}
-            style={{ gridColumn: col + 1, gridRow: `${row * ROW_SPAN + 1} / span 5`, ...(rowH ? { height: rowH } : {}) }}
+            style={{ gridColumn: col + 1, gridRow: `${row * ROW_SPAN + 1} / span ${CARD_SPAN}`, ...(rowH ? { height: rowH } : {}) }}
             className={cn(
               'relative min-w-0',
               g && SUB,

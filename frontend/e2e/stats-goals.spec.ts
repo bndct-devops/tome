@@ -307,19 +307,39 @@ for (const vp of [{ name: 'desktop', width: 1440, height: 900, cols: 4 }, { name
     expect(labels.slice(0, 2)).toEqual([`Books in ${year} · Light Novels`, 'Reading days a week'])
     expect(labels.slice(2)).toEqual(['Minutes a day', expect.stringMatching(/^Books in \w+$/)])
     await expect(home.getByRole('link', { name: 'See all 8 goals' })).toHaveAttribute('href', '/stats?tab=goals')
-    // A long series title takes two lines before it is cut, and the cards of its row keep their status and sub lines level.
+    // A long series title takes two lines before it is cut. The cards of its row start their status
+    // lines level, and each card's sub line follows its own status with no gap (the wrapped title's
+    // card simply ends a line lower). On Home and on the Goals tab.
     await routeGoals(page, 6)
-    await page.goto('/')
-    const finishCard = home.getByRole('listitem').filter({ hasText: LONG_SERIES })
-    await expect(finishCard).toBeVisible()
-    const cut = await finishCard.locator('.line-clamp-2').evaluate((el) => el.scrollHeight > el.clientHeight + 1)
-    expect(cut, 'the series title is whole on two lines').toBe(false)
-    const levels = await home.getByRole('listitem').evaluateAll((els) => els.map((e) => {
-      const lines = e.querySelectorAll(':scope > button > div > div')
-      return [3, 4].map((k) => Math.round(lines[k].getBoundingClientRect().top))
-    }))
-    const rowsOf = (vp.cols === 4 ? [levels] : [levels.slice(0, 2), levels.slice(2)])
-    for (const r of rowsOf) for (const l of r) expect(l).toEqual(r[0])
+    for (const where of ['home', 'tab'] as const) {
+      if (where === 'home') await page.goto('/')
+      else {
+        await page.evaluate(() => localStorage.setItem('tome_stats_view', JSON.stringify({ tab: 'goals', days: 30, board: null })))
+        await page.goto('/stats')
+        await expect(now(page)).toHaveAttribute('aria-busy', 'false')
+      }
+      const items = where === 'home' ? home.getByRole('listitem') : cards(page)
+      const finishCard = items.filter({ hasText: LONG_SERIES })
+      await expect(finishCard).toBeVisible()
+      const cut = await finishCard.locator('.line-clamp-2').evaluate((el) => el.scrollHeight > el.clientHeight + 1)
+      expect(cut, `${where}: the series title is whole on two lines`).toBe(false)
+      const lines = await items.evaluateAll((els) => els.map((e) => {
+        const status = e.querySelector('[data-line="status"]')!, sub = e.querySelector('[data-line="sub"]')!
+        const st = status.getBoundingClientRect(), sb = sub.getBoundingClientRect()
+        const lh = parseFloat(getComputedStyle(status).lineHeight)
+        return { top: e.getBoundingClientRect().top, status: st.top, statusLines: Math.round(st.height / lh), gap: sb.top - st.bottom }
+      }))
+      // The normal spacing: the gap under a one-line status on a card without the long title.
+      const normal = lines.find((l) => l.statusLines === 1)!.gap
+      expect(normal, `${where}: the normal gap`).toBeLessThan(6)
+      expect(lines.some((l) => l.statusLines === 2), `${where}: one status on two lines`).toBe(true)
+      const rows = new Map<number, typeof lines>()
+      for (const l of lines) rows.set(Math.round(l.top), [...(rows.get(Math.round(l.top)) ?? []), l])
+      for (const r of rows.values()) for (const l of r) {
+        expect(Math.abs(l.status - r[0].status), `${where}: status tops level`).toBeLessThanOrEqual(0.5)
+        expect(Math.abs(l.gap - normal), `${where}: sub line directly under its own status`).toBeLessThanOrEqual(0.5)
+      }
+    }
   })
 }
 
