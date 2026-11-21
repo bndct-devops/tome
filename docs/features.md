@@ -205,7 +205,7 @@ Reading time in the range with the change against the period before, sessions, p
 
 ### Goals
 
-Your reading goals, each as a card: how far you are against the target, how far ahead of or behind pace, and what it takes. Goals count calendar periods (this week, this month, this year, or up to the date of a finish-by goal) with the same numbers as the rest of Stats, so this page ignores the range pills. The same cards are on Home.
+Your reading goals, each as a card: how far you are against the target, how far ahead of or behind pace, and what it takes. Goals count calendar periods (this week, this month, this year, or up to the date of a finish-by goal) with the same numbers as the rest of Stats, so this page ignores the range pills. Home shows one row of up to four of the same cards, the goals that need attention first.
 
 Click a card for the goal in detail: the period so far day by day, past periods against the target that applied then, and your best and current runs. Periods before you set the goal are shown but not counted as met or missed.
 

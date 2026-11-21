@@ -35,8 +35,9 @@ All notable changes to Tome are documented here. Format loosely follows
   behind pace, and what it takes. Click a card for the goal in detail: the
   period so far, past periods against the target, and your best and current
   runs. Overview keeps one row of up to four goals.
-- **Goal cards on Home.** Home shows the same cards under its four numbers.
-  Click one to open it on the Goals tab.
+- **Goal cards on Home.** Home shows the same cards under its four numbers,
+  one row of up to four: the goals behind pace first, reached ones last. Click
+  one to open it on the Goals tab; with more goals, "See all" opens the tab.
 - **Two new kinds of goal.** "Reading days a week" counts the days you read,
   as the streak does. "Finish by a date" takes a book or a series and a date,
   and shows the minutes a day that takes at your own pace next to what you
