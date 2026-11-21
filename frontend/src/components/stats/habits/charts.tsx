@@ -13,6 +13,7 @@ import { guideHost, useTips } from '@/components/stats/kit/tip'
 import { Guide, type GuideSlot } from '@/components/stats/kit/Guide'
 import { dec1, num } from '@/components/stats/kit/tokens'
 import { HEAT_GAP, heatRadius, type HourGrid } from '@/components/stats/overview/model'
+import { inWeekOrder } from '@/lib/weekStart'
 import {
   TL_PITCH, TL_PITCH_PHONE, TL_TRACK, TL_TRACK_PHONE, TL_ROWS, MONTH_ROW,
   monthsHeight, rhythmGeom, timelineHeight, type PaceDay, type PaceDot, type TlBar, type TlRow,
@@ -35,7 +36,7 @@ const dayLabel = (iso: string) => {
 const fmtLong = (iso: string) => dateOf(iso).toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
 // Onest at 11 px with tabular figures: at most about 0.6 em per character.
 const textW = (s: string, px = 11) => Math.ceil(s.length * px * 0.6)
-const daysLong = () => [t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`]
+const daysLong = () => inWeekOrder([t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`])
 const sessionsLine = (n: number) => plural(n, { one: '# session', other: '# sessions' })
 /** A tip's duration: a few seconds read as "Under a minute", not "0m". */
 const dur = (s: number) => (s > 0 && s < 60 ? t`Under a minute` : formatDuration(s))
@@ -133,7 +134,7 @@ export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
     return { title: daysLong()[r], value: s > 0 ? dur(s) : t`No reading`, note: s > 0 ? t`${sessions} · ${pct}% of the reading` : undefined }
   }, { x: 1, y: ncol })
   if (loading) return <Placeholder W={W} H={H} x={labelW} h={heatH} />
-  const days = [t`Mon`, t`Tue`, t`Wed`, t`Thu`, t`Fri`, t`Sat`, t`Sun`]
+  const days = inWeekOrder([t`Mon`, t`Tue`, t`Wed`, t`Thu`, t`Fri`, t`Sat`, t`Sun`])
   const maxDow = Math.max(1, ...byDow.s)
   const barX = heatR + 24
   const barMax = W - 64 - barX

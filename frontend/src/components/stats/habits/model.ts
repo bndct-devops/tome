@@ -2,6 +2,7 @@
 // Pure functions, no React; nothing here is a figure the server computes itself.
 import type { HabitsResponse, StatsResponse } from '@/components/stats/shared'
 import { HEAT_GAP, tiles } from '@/components/stats/overview/model'
+import { rowOfJsDay } from '@/lib/weekStart'
 
 // ── fixed geometry (see the mockup's NOTES "Heights") ─────────────────────────
 export const TL_PITCH = 38
@@ -31,13 +32,13 @@ export const MONTH_ROW = 110
 export const monthsHeight = (phone: boolean) => (phone ? 22 : 0) + MONTH_ROW + (phone ? 40 + 22 : 24) + MONTH_ROW + 22
 
 // ── When you read: weekday totals beside the grid ─────────────────────────────
-/** Seconds and sessions per weekday, Monday first (the server counts from Sunday = 0). */
+/** Seconds and sessions per weekday in the reader's week order (the server counts from Sunday = 0). */
 export function byWeekday(cells: StatsResponse['hour_dow_heatmap']) {
   const s = Array<number>(7).fill(0)
   const n = Array<number>(7).fill(0)
   for (const c of cells) {
-    s[(c.dow + 6) % 7] += c.seconds
-    n[(c.dow + 6) % 7] += c.sessions
+    s[rowOfJsDay(c.dow)] += c.seconds
+    n[rowOfJsDay(c.dow)] += c.sessions
   }
   return { s, n }
 }

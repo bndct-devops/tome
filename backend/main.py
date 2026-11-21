@@ -62,7 +62,7 @@ from backend.models.series_meta import Arc, SeriesMeta  # noqa: F401
 from backend.models.user_device import UserDevice  # noqa: F401
 from backend.models.wish import Wish  # noqa: F401
 from backend.models.notification import Notification  # noqa: F401
-from backend.models.reading_goal import ReadingGoal  # noqa: F401
+from backend.models.reading_goal import ReadingGoal, ReadingGoalTarget  # noqa: F401
 from backend.models.book import BookChapter  # noqa: F401
 
 
@@ -183,6 +183,11 @@ async def lifespan(app: FastAPI):
             conn.commit()
         if "download_limit" not in user_cols:
             conn.execute(text("ALTER TABLE users ADD COLUMN download_limit INTEGER"))
+            conn.commit()
+        # First day of the reader's week for calendar-week goals (Monday as the
+        # weekly streak counts; "sunday" is the per-user option).
+        if "week_start" not in user_cols:
+            conn.execute(text("ALTER TABLE users ADD COLUMN week_start VARCHAR(8) NOT NULL DEFAULT 'monday'"))
             conn.commit()
         # Migrate api_keys.key (plaintext) → key_hash (sha256) + key_prefix (display)
         # so a DB leak doesn't compromise any KOReader plugin install. One-way: existing
@@ -401,6 +406,7 @@ async def lifespan(app: FastAPI):
         ))
         conn.commit()
     ReadingGoal.__table__.create(bind=engine, checkfirst=True)
+    upgrade_reading_goals(engine)
     init_fts(engine)
     backfill_fts(engine)
     settings.ensure_dirs()
@@ -480,6 +486,50 @@ async def lifespan(app: FastAPI):
                 await task
             except asyncio.CancelledError:
                 pass
+
+
+def upgrade_reading_goals(engine) -> None:
+    """Bring an existing reading_goals table up to the redesigned goals (2026-11):
+    start date, finish-by target and due date, completed and soft-delete stamps,
+    and the target history table. Idempotent: every step checks first, and a
+    goal only gets its first history row when it has none.
+
+    Existing goals start on the UTC date they were created (the reader's zone
+    is not known here; at most the day around midnight differs) and get one
+    history row with their current target from that day — so a target changed
+    before this upgrade applies to every past period, which is all the old
+    table could say."""
+    from sqlalchemy import text
+    from backend.models.reading_goal import ReadingGoalTarget
+
+    ReadingGoalTarget.__table__.create(bind=engine, checkfirst=True)
+    with engine.connect() as conn:
+        cols = {r[1] for r in conn.execute(text("PRAGMA table_info(reading_goals)")).fetchall()}
+        if not cols:
+            return
+        for name, ddl in (
+            ("start_date", "DATE"),
+            ("target_series", "VARCHAR(512)"),
+            ("target_book_id", "INTEGER REFERENCES books(id) ON DELETE SET NULL"),
+            ("due_date", "DATE"),
+            ("completed_at", "DATETIME"),
+            ("deleted_at", "DATETIME"),
+            ("quiet_before", "DATETIME"),
+        ):
+            if name not in cols:
+                conn.execute(text(f"ALTER TABLE reading_goals ADD COLUMN {name} {ddl}"))
+        conn.execute(text(
+            "CREATE INDEX IF NOT EXISTS ix_reading_goals_deleted_at ON reading_goals (deleted_at)"
+        ))
+        conn.execute(text(
+            "UPDATE reading_goals SET start_date = date(created_at) WHERE start_date IS NULL"
+        ))
+        conn.execute(text(
+            "INSERT INTO reading_goal_targets (goal_id, target, changed_on, created_at) "
+            "SELECT g.id, g.target, g.start_date, g.created_at FROM reading_goals g "
+            "WHERE NOT EXISTS (SELECT 1 FROM reading_goal_targets t WHERE t.goal_id = g.id)"
+        ))
+        conn.commit()
 
 
 def _shorten_opds_pin_previews(conn) -> None:

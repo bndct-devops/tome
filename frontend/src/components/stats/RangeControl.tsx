@@ -8,6 +8,7 @@ import { i18n } from '@lingui/core'
 import { Pill } from '@/components/page'
 import { cn } from '@/lib/utils'
 import { RANGES, fmtDay, type CustomRange } from './range'
+import { inWeekOrder, rowOfJsDay } from '@/lib/weekStart'
 
 const isoOf = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 
@@ -17,7 +18,7 @@ function RangeCalendar({ from, to, onPick }: { from: string; to: string; onPick:
   const [view, setView] = useState(() => (from ? new Date(from + 'T00:00:00') : new Date()))
   const y = view.getFullYear()
   const m = view.getMonth()
-  const firstDow = (new Date(y, m, 1).getDay() + 6) % 7 // Mon = 0
+  const firstDow = rowOfJsDay(new Date(y, m, 1).getDay()) // the reader's first weekday = 0
   const daysInMonth = new Date(y, m + 1, 0).getDate()
   const cells: (Date | null)[] = [...Array(firstDow).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => new Date(y, m, i + 1))]
   const monthLabel = view.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
@@ -34,7 +35,7 @@ function RangeCalendar({ from, to, onPick }: { from: string; to: string; onPick:
         </button>
       </div>
       <div className="grid grid-cols-7 gap-0.5">
-        {[t`Mo`, t`Tu`, t`We`, t`Th`, t`Fr`, t`Sa`, t`Su`].map((w) => (
+        {inWeekOrder([t`Mo`, t`Tu`, t`We`, t`Th`, t`Fr`, t`Sa`, t`Su`]).map((w) => (
           <div key={w} className="py-1 text-center text-[12px] font-medium text-muted-foreground">{w}</div>
         ))}
         {cells.map((d, i) => {

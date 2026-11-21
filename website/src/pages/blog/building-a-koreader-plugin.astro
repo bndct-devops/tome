@@ -192,8 +192,8 @@ end`
       <h3 id="json">JSON</h3>
 
       <p>
-        KOReader bundles <code>rapidjson</code>. Standard <code>encode</code> /
-        <code>decode</code>. One quirk: empty Lua tables are ambiguous (array or object?). <code>rapidjson.encode({})</code> produces <code>[]</code>, not <code>{}</code>.
+        KOReader bundles <code>rapidjson</code>. Standard <code>encode</code> / <code>decode</code>.
+        One quirk: empty Lua tables are ambiguous (array or object?). <code>rapidjson.encode({})</code> produces <code>[]</code>, not <code>{}</code>.
         If your API expects an empty JSON object, you need <code>rapidjson.encode(rapidjson.object())</code> or just send the literal string <code>"{}"</code>.
       </p>
 

@@ -10,6 +10,7 @@ import { t, plural } from '@lingui/core/macro'
 import { K, stagger } from '@/components/stats/kit/motion'
 import { useTips } from '@/components/stats/kit/tip'
 import { HEAT_GAP, columns, heatRadius, tiles, type Bar, type HourGrid, type YearModel } from './model'
+import { inWeekOrder } from '@/lib/weekStart'
 
 const fmtShort = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short', day: 'numeric' })
 const fmtLong = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' })
@@ -204,7 +205,7 @@ export function BarsChart({ W, H, bars, avg, monthStarts, nDays, weekly, best, m
 }
 
 // ── Hour by weekday, with the time per hour under it on the same columns ──────
-const daysLong = () => [t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`]
+const daysLong = () => inWeekOrder([t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`])
 
 export function HourHeat({ W, grid, byCol, colN, two, histH, loading }: { W: number; grid: HourGrid; byCol: number[]; colN: number[]; two: boolean; histH: number; loading?: boolean }) {
   const ncol = two ? 12 : 24
@@ -214,7 +215,7 @@ export function HourHeat({ W, grid, byCol, colN, two, histH, loading }: { W: num
   const heatH = 7 * rp - gap
   const hy = heatH + 12
   const H = hy + histH + 20
-  const days = [t`Mon`, t`Tue`, t`Wed`, t`Thu`, t`Fri`, t`Sat`, t`Sun`]
+  const days = inWeekOrder([t`Mon`, t`Tue`, t`Wed`, t`Thu`, t`Fri`, t`Sat`, t`Sun`])
   const span = two ? 2 : 1
   // Marks in DOM order: the 7 rows of cells, then one column of the histogram per hour.
   const tips = useTips((i) => {

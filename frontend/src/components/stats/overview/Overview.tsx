@@ -22,9 +22,11 @@ import { K, ONCE, rangeSig, stagger, useEntry } from '@/components/stats/kit/mot
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
 import { BarsChart, HourHeat, YearGrid } from './charts'
-import { Goals, GoalsStart } from './Goals'
-import { goalCountKnown, useGoals } from './goalsData'
+import { GoalsStart } from './Goals'
+import { CompactRow } from '@/components/goals/CompactRow'
+import { rememberedGoalCount, useGoals } from '@/lib/goals'
 import { bestDay, busiestMonth, dayDiff, emptyYear, heroBars, hourHeatHeight, hourModel, readingDayOf, yearHeight, yearModel } from './model'
+import { inWeekOrder } from '@/lib/weekStart'
 
 
 const HERO_CHART_H = 180
@@ -75,9 +77,11 @@ export type OverviewProps = {
   onAllBooks: () => void
   /** Ask for the stats again, keeping this answer on screen until the new one lands (after a book is marked read). */
   onRefresh: () => void
+  /** Open the Goals tab (on one goal). */
+  onGoals: (goalId?: number) => void
 }
 
-export function Overview({ stats, estimates, pending, days, custom, onAllBooks, onRefresh }: OverviewProps) {
+export function Overview({ stats, estimates, pending, days, custom, onAllBooks, onRefresh, onGoals }: OverviewProps) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const desktop = width >= DESKTOP_MIN
   const loading = !stats
@@ -94,14 +98,16 @@ export function Overview({ stats, estimates, pending, days, custom, onAllBooks, 
   // What the entries key on: the range the answer is for (sections that follow it), or once.
   const sig = stats ? rangeSig(days, custom) : null
   const once = stats ? ONCE : null
-  const { goals, reload: reloadGoals } = useGoals()
+  const { data: goalsAnswer } = useGoals()
+  const goals = goalsAnswer?.goals ?? null
   // A first visit (nothing remembered in this browser): sections whose size is not
   // known yet are not drawn as a skeleton, and nothing under them is drawn either
   // until the answer that sizes them lands, so what is drawn never moves. Whether
   // there are goals (their own quick request) decides everything under the hero;
   // on the phone, the number of books in progress (the cards stack) decides what
   // comes after Reading now. With the shape remembered, the whole skeleton is drawn.
-  const [goalsKnown] = useState(goalCountKnown)
+  const [goalCount] = useState(rememberedGoalCount)
+  const goalsKnown = goalCount != null
   const [nowKnown] = useState(nowCountKnown)
   const holdGoals = !goals && !goalsKnown
   const holdNow = !stats && !desktop && !nowKnown
@@ -113,7 +119,7 @@ export function Overview({ stats, estimates, pending, days, custom, onAllBooks, 
         <>
           <Hero stats={stats} desktop={desktop} width={width} loading={loading} neverRead={neverRead} prevPhrase={prevPhrase} rangePhrase={rangePhrase} days={days} custom={custom} dim={dim} sig={sig} />
           {holdGoals && <Pending />}
-          {!holdGoals && <Goals goals={goals} reload={reloadGoals} desktop={desktop} />}
+          {!holdGoals && <CompactRow goals={goals} count={goalCount ?? 0} today={goalsAnswer?.today} desktop={desktop} open={onGoals} />}
           {!holdGoals && <ReadingNow stats={stats} estimates={estimates} desktop={desktop} loading={loading} sig={once} onRefresh={onRefresh} />}
           {!holdGoals && holdNow && <Pending />}
           {!holdGoals && !holdNow && <>
@@ -124,7 +130,7 @@ export function Overview({ stats, estimates, pending, days, custom, onAllBooks, 
           </div>
           <TheYear stats={stats} loading={loading} width={width} desktop={desktop} sig={once} />
           <AllTime stats={stats} loading={loading} desktop={desktop} sig={once} />
-          <GoalsStart goals={goals} reload={reloadGoals} />
+          <GoalsStart goals={goals} remembered={goalCount ?? 0} />
           </>}
         </>
       )}
@@ -691,7 +697,7 @@ function WhenYouRead({ stats, loading, width, desktop, dim, sig }: { stats: Stat
   const two = !desktop
   const histH = desktop ? 86 : 48
   const m = useMemo(() => hourModel(stats?.hour_dow_heatmap ?? [], two), [stats, two])
-  const plural7 = [t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`]
+  const plural7 = inWeekOrder([t`Mondays`, t`Tuesdays`, t`Wednesdays`, t`Thursdays`, t`Fridays`, t`Saturdays`, t`Sundays`])
   let sentence: ReactNode
   if (loading) sentence = <Ph on>{PH.when}</Ph>
   else if (m.peakHour == null || m.peakDow == null) sentence = t`No reading in this range yet.`

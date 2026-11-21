@@ -24,12 +24,49 @@ All notable changes to Tome are documented here. Format loosely follows
   other filters, select-all and saved shelves, including shelves in the
   KOReader plugin and the backlog estimate. Contributed by @cliophate (#313).
 - **Spanish translation.** The web UI is available in Spanish (Settings →
-  Language), with every string translated. Contributed by @PedroFlores199
-  (#314).
+  Language and region), with every string translated. Contributed by
+  @PedroFlores199 (#314).
 - **Descriptions in the book list, on request.** `GET /api/books` accepts
   `include=description` to add each book's description to the list items, so
   a client that keeps an offline copy of the library needs no request per
   book. Without it the reply is unchanged.
+- **A Goals tab in Stats.** It comes after Overview and shows each reading
+  goal as a card: how far you are against the target, how far ahead of or
+  behind pace, and what it takes. Click a card for the goal in detail: the
+  period so far, past periods against the target, and your best and current
+  runs. Overview keeps one row of up to four goals.
+- **Goal cards on Home.** Home shows the same cards under its four numbers,
+  one row of up to four: the goals behind pace first, reached ones last. Click
+  one to open it on the Goals tab; with more goals, "See all" opens the tab.
+- **Set a goal where you are.** Home offers "Set a reading goal" under its
+  numbers when you have none, and "New goal" under the goal cards when you do;
+  both open the goal dialog right on Home. A series page and a book page have
+  "Finish by…" among their actions: it opens a small dialog for that title
+  with just the day and what it takes a day. When the title already has a
+  finish-by goal the button shows its day and opens the goal to change it; a
+  series or book you have read offers none.
+- **Two new kinds of goal.** "Reading days a week" counts the days you read,
+  as the streak does. "Finish by a date" takes a book or a series and a date,
+  and shows the minutes a day that takes at your own pace next to what you
+  have read a day lately.
+- **A shorter goal dialog.** The eight kinds are one row of choices, the target
+  comes right under them with the book type beside the number, and the dialog
+  fits on one screen on a phone. Its top stays put when you switch kinds; only
+  "Finish by a date" makes it taller. Suggested targets that come out the same
+  are offered once.
+- **Suggested targets.** The new goal dialog suggests three targets from your
+  own reading over the last 90 days (12 weeks for weekly goals), each with
+  how often you reached it. Without enough history it offers fixed targets.
+- **Undo for a deleted goal.** A deleted goal can be brought back for 30
+  minutes, with its history.
+- **Week starts on.** Settings → Language and region (formerly Language) has
+  a "Week starts on" setting, Monday or Sunday. Weekly goals follow it, and
+  so do the Calendar, the weekly streak and the Stats charts by weekday.
+- **Goals API for other clients.** `/api/goals` has new fields (name, status,
+  pace, projection, the week's days), takes `tz` (an IANA zone) next to
+  `tz_offset`, and adds `/history`, `/kinds`, `/suggestions`,
+  `/finish-preview` and `/{id}/restore`. `DELETE` is now a soft delete that
+  `/restore` can undo for 30 minutes. `week_start` is on `/api/auth/me`.
 
 ### Security
 - **The web server only serves files from its own interface folder.** A
@@ -80,9 +117,10 @@ All notable changes to Tome are documented here. Format loosely follows
   self-update.
 
 ### Changed
-- **Stats has six fixed pages.** Overview shows reading time, sessions,
+- **Stats has seven fixed pages.** Overview shows reading time, sessions,
   pages, books finished and your streak, your reading goals, the books you are
-  reading now, the year as a grid, and all-time totals and records. Habits
+  reading now, the year as a grid, and all-time totals and records. Goals
+  shows each goal's pace, its history and what it takes. Habits
   shows when you read, the last 14 days, session lengths, pace, reading speed,
   the last 12 months and your reading character. Library shows your library,
   series with their next volume, book types, languages, authors, the backlog,
@@ -93,6 +131,13 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Boards are no longer the default Stats view.** The rearrangeable boards
   remain available through Settings → Appearance → Stats → Show Boards.
   Anyone who customised a board keeps seeing the Boards tab automatically.
+- **Reading goals count the way Stats does.** A goal counts its calendar
+  period (this week, month or year), with the same reading time, pages and
+  reading days as Stats and the same 4 a.m. day boundary. Weekly goals used
+  to count the last seven days and now count the calendar week, so their
+  numbers can differ from before. Reaching a weekly goal now also sends a
+  notification. Existing goals are kept; on first start Tome adds the new
+  goal columns and a table for target changes to the database.
 - **Tome's own log lines now reach the container log.** Informational
   messages (auto-import, Hardcover sync, restore) were dropped before, and
   warnings came without a time or level. Every line now has both. Set

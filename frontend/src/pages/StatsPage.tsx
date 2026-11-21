@@ -20,6 +20,8 @@ import { HabitsPage } from '@/components/stats/habits/HabitsPage'
 import { LibraryPage } from '@/components/stats/library/LibraryPage'
 import { TastePage } from '@/components/stats/taste/TastePage'
 import { SessionsPage } from '@/components/stats/sessions/SessionsPage'
+import { GoalsTab } from '@/components/goals/GoalsTab'
+import { saveSelection } from '@/components/goals/actions'
 import type { StatsTab } from '@/components/stats/kit/page'
 import { dropStatsCache, statsCacheGet, statsFetch } from '@/components/stats/kit/useStatsGet'
 import { TipLayer } from '@/components/stats/kit/TipLayer'
@@ -43,6 +45,7 @@ type TabId = StatsTab
 const NEEDS_STATS = new Set<TabId>(['overview', 'habits', 'library', 'taste', 'boards'])
 const PAGES: { id: TabId; label: MessageDescriptor }[] = [
   { id: 'overview', label: msg`Overview` },
+  { id: 'goals', label: msg`Goals` },
   { id: 'habits', label: msg`Habits` },
   { id: 'library', label: msg`Library` },
   { id: 'taste', label: msg`Taste` },
@@ -65,13 +68,20 @@ const statsCache = {
 const VIEW_KEY = 'tome_stats_view'
 type ViewState = { tab: TabId; days: number; board: string | null }
 function loadView(): ViewState {
+  // A link into a tab (Home's goal cards: /stats?tab=goals&goal=3) wins over the remembered view.
+  const q = new URLSearchParams(window.location.search)
+  const linked = q.get('tab')
+  const goal = Number(q.get('goal'))
+  if (Number.isInteger(goal) && goal > 0) saveSelection({ id: goal, kind: q.get('kind') ?? '' })
+  // Followed once: a reload later shows the view the reader has moved on to.
+  if (linked) window.history.replaceState(window.history.state, '', window.location.pathname)
   let saved: Partial<ViewState> = {}
   try {
     saved = JSON.parse(localStorage.getItem(VIEW_KEY) ?? '{}') ?? {}
   } catch {
     saved = {}
   }
-  const tab = PAGES.some((p) => p.id === saved.tab) ? (saved.tab as TabId) : 'overview'
+  const tab = PAGES.some((p) => p.id === linked) ? (linked as TabId) : PAGES.some((p) => p.id === saved.tab) ? (saved.tab as TabId) : 'overview'
   // First visit with this key: keep the range the previous page remembered here.
   const days = typeof saved.days === 'number' ? saved.days : loadLocalDashboard()?.days ?? 30
   return { tab, days: typeof days === 'number' ? days : 30, board: typeof saved.board === 'string' ? saved.board : null }
@@ -267,6 +277,8 @@ export function StatsPage() {
   // Library is all time too, except three sections that carry the range as a chip; it keeps the range control.
   const rangeless = shownTab === 'sessions'
   const allTime = shownTab === 'taste'
+  // Goals follow calendar periods, not the range.
+  const periods = shownTab === 'goals'
 
   const tabs = useMemo(() => PAGES.filter((p) => p.id !== 'boards' || boardsShown), [boardsShown])
 
@@ -274,7 +286,9 @@ export function StatsPage() {
   if (failed && !data) {
     content = <p className="py-32 text-center text-[14px] text-muted-foreground"><Trans>Couldn’t load stats.</Trans></p>
   } else if (shownTab === 'overview') {
-    content = <Overview stats={data} estimates={estimates} pending={pending} days={stats?.days ?? days} custom={stats ? stats.custom : custom} requested={{ days, custom }} onAllBooks={() => goto('library', 'stats-all-books')} onRefresh={refresh} />
+    content = <Overview stats={data} estimates={estimates} pending={pending} days={stats?.days ?? days} custom={stats ? stats.custom : custom} requested={{ days, custom }} onAllBooks={() => goto('library', 'stats-all-books')} onRefresh={refresh} onGoals={(id) => { if (id != null) saveSelection({ id, kind: '' }); goto('goals') }} />
+  } else if (shownTab === 'goals') {
+    content = <GoalsTab />
   } else if (shownTab === 'timeline') {
     content = <FullBleedTimeline />
   } else if (shownTab === 'sessions') {
@@ -313,7 +327,7 @@ export function StatsPage() {
         <div className="flex flex-col gap-5">
           <div className="relative">
             <PageHeader
-              eyebrow={rangeless ? <Trans>All sessions</Trans> : allTime || shownTab === 'library' ? <Trans>All time</Trans> : rangeLabel}
+              eyebrow={rangeless ? <Trans>All sessions</Trans> : periods ? <Trans>This week, month and year</Trans> : allTime || shownTab === 'library' ? <Trans>All time</Trans> : rangeLabel}
               title={
                 <span className="inline-flex items-center gap-2">
                   <Trans>Stats</Trans>
@@ -331,7 +345,7 @@ export function StatsPage() {
               }
               actions={
                 <div className="flex max-w-[calc(100vw-2.5rem)] flex-wrap items-center gap-1" data-stats-controls="">
-                  {!rangeless && !allTime && (
+                  {!rangeless && !allTime && !periods && (
                     <RangeControl
                       days={days}
                       custom={custom}

@@ -181,7 +181,7 @@ def build_report(db: Session) -> dict:
             "opds": _count(db, OpdsPin) > 0,
             "sso_users": _count(db, User, User.auth_source == "oidc") > 0,
             "api_tokens": _count(db, ApiToken) > 0,
-            "reading_goals": _count(db, ReadingGoal) > 0,
+            "reading_goals": db.query(ReadingGoal.id).filter(ReadingGoal.deleted_at.is_(None)).first() is not None,
             "series_ratings": _count(db, UserSeriesRating) > 0,
             "arcs": _count(db, Arc) > 0,
         },

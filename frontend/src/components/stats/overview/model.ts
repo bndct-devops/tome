@@ -1,6 +1,7 @@
 // Shapes the /api/stats answer into what the Overview draws. Everything here is
 // computed from the response; nothing is invented. Pure functions, no React.
 import type { StatsResponse } from '@/components/stats/shared'
+import { rowOfJsDay } from '@/lib/weekStart'
 
 export type Bar = { start: string; end: string; days: number; seconds: number; sessions: number; pages: number; current: boolean }
 export type HourCell = { s: number; n: number; lv: number }
@@ -15,7 +16,8 @@ export const addDays = (iso: string, n: number) => {
   return d.toISOString().slice(0, 10)
 }
 /** Monday = 0. */
-export const dowOf = (iso: string) => (new Date(iso + 'T12:00:00Z').getUTCDay() + 6) % 7
+/** A day's row in the reader's week (0 = the first day, Settings › Week starts on). */
+export const dowOf = (iso: string) => rowOfJsDay(new Date(iso + 'T12:00:00Z').getUTCDay())
 export const dayDiff = (a: string, b: string) => Math.round((new Date(b + 'T12:00:00Z').getTime() - new Date(a + 'T12:00:00Z').getTime()) / DAY_MS)
 const isoLocal = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 /** The reading day of a moment: local time with the app's 4 h rollover (a 1 am session belongs to the evening before). */
@@ -68,7 +70,7 @@ export function hourModel(cells: StatsResponse['hour_dow_heatmap'], two: boolean
   const hd = Array.from({ length: 7 }, () => Array<number>(24).fill(0))
   const hn = Array.from({ length: 7 }, () => Array<number>(24).fill(0))
   // The server counts weekdays from Sunday = 0; rows here start on Monday.
-  for (const c of cells) { hd[(c.dow + 6) % 7][c.hour] += c.seconds; hn[(c.dow + 6) % 7][c.hour] += c.sessions ?? 0 }
+  for (const c of cells) { hd[rowOfJsDay(c.dow)][c.hour] += c.seconds; hn[rowOfJsDay(c.dow)][c.hour] += c.sessions ?? 0 }
   const byHour = Array.from({ length: 24 }, (_, h) => hd.reduce((a, row) => a + row[h], 0))
   const byDow = hd.map((row) => row.reduce((a, v) => a + v, 0))
   const total = byHour.reduce((a, v) => a + v, 0)

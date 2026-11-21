@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi import Response
 from pydantic import BaseModel as PydanticBaseModel
 from sqlalchemy.orm import Session
@@ -143,11 +143,15 @@ def me(current_user: User = Depends(get_current_user)):
 class UpdateProfileRequest(PydanticBaseModel):
     username: str | None = None
     email: str | None = None
+    # First day of the reader's week for calendar-week goals.
+    week_start: str | None = None
 
 
 @router.put("/me", response_model=UserOut)
 def update_profile(
     body: UpdateProfileRequest,
+    tz_offset: int | None = Query(None, description="JS getTimezoneOffset() in minutes (week_start changes)"),
+    tz: str | None = Query(None, description="IANA timezone name (week_start changes)"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -159,6 +163,18 @@ def update_profile(
         if db.query(User).filter(User.email == body.email).first():
             raise HTTPException(status_code=409, detail="Email already taken")
         current_user.email = body.email
+    if body.week_start is not None:
+        if body.week_start not in ("monday", "sunday"):
+            raise HTTPException(status_code=422, detail="week_start must be monday or sunday")
+        if body.week_start != current_user.week_start:
+            current_user.week_start = body.week_start
+            # A settings change never sends "goal reached": weekly goals already
+            # reached in the week under the new rule count as notified for it.
+            from backend.services import goals as goals_service
+            # Without a zone the change still stays quiet, for the week in progress in any zone.
+            zone_known = tz is not None or tz_offset is not None
+            goals_service.settle_week_start_change(
+                db, current_user, goals_service.day_ctx(tz_offset or 0, tz) if zone_known else None)
     db.commit()
     db.refresh(current_user)
     return current_user

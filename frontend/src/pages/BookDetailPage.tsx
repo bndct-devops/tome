@@ -8,6 +8,7 @@ import {
 } from 'lucide-react'
 import { useAuth, isAdmin, isMember } from '@/contexts/AuthContext'
 import { useToast } from '@/contexts/ToastContext'
+import { FinishByPill } from '@/components/goals/FinishByPill'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { MetadataFetchModal } from '@/components/MetadataFetchModal'
@@ -219,6 +220,7 @@ function BookDetailView() {
   // optimistic local library_ids so UI updates instantly
   const [localLibIds, setLocalLibIds] = useState<number[]>([])
   const [bookStatus, setBookStatus] = useState<ReadingStatus>('unread')
+  const [statusKnown, setStatusKnown] = useState(false)
   const [progressPct, setProgressPct] = useState<number | null>(null)
   const [cfi, setCfi] = useState<string | null>(null)
   const [progressAnimated, setProgressAnimated] = useState(false)
@@ -398,7 +400,7 @@ function BookDetailView() {
       .catch(() => setError(t`Book not found`))
       .finally(() => setLoading(false))
     api.get<LibraryType[]>('/libraries').then(setLibraries).catch(() => toast.error(t`Failed to load libraries`))
-    api.get<BookStatus>(`/books/${id}/status`).then(s => { setBookStatus(s.status); setProgressPct(s.progress_pct); setCfi(s.cfi ?? null); setProgressAnimated(false); setRating(s.rating ?? null); setReview(s.review ?? ''); setEditingReview(false) }).catch(() => {})
+    api.get<BookStatus>(`/books/${id}/status`).then(s => { setBookStatus(s.status); setStatusKnown(true); setProgressPct(s.progress_pct); setCfi(s.cfi ?? null); setProgressAnimated(false); setRating(s.rating ?? null); setReview(s.review ?? ''); setEditingReview(false) }).catch(() => setStatusKnown(true))
     api.get<typeof adjacent>(`/books/${id}/adjacent`).then(setAdjacent).catch(() => {})
     api.get<KosyncStatus>(`/books/${id}/kosync-progress`)
       .then(r => {
@@ -733,8 +735,12 @@ function BookDetailView() {
         {deleting ? t`Deleting…` : t`Delete`}
       </Pill>
     </div>
-  ) : member ? (
+  ) : (
     <div className="-mr-2 flex flex-wrap items-center justify-end gap-0.5">
+      {/* First, so its late arrival or longer label ("Finish by Dec 31") moves nothing to its right. */}
+      {book.content_type !== 'chapter' && (
+        <FinishByPill target={{ bookId: book.id, title: book.title, cover: book.cover_path ? book.id : null }} done={bookStatus === 'read'} pending={!statusKnown} iconOnPhone />
+      )}
       {canEdit && (
         <Pill variant="quiet" onClick={startEdit} aria-label={t`Edit`}>
           <Edit2 className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Edit</Trans></span>
@@ -801,7 +807,7 @@ function BookDetailView() {
         </Pill>
       )}
     </div>
-  ) : null
+  )
 
   // ── Rail: cover, files, details, genres ─────────────────────────────────────
 

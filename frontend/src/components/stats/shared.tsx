@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { formatDate, formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
+import { inWeekOrder, rowOfJsDay } from '@/lib/weekStart'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -202,7 +203,7 @@ export function HeatmapChart({ data }: { data: { date: string; seconds: number }
     days.push(localIso(d))
   }
 
-  const padBefore = firstDow === 0 ? 6 : firstDow - 1
+  const padBefore = rowOfJsDay(firstDow)
 
   const weeks: (string | null)[][] = []
   let week: (string | null)[] = Array(padBefore).fill(null)
@@ -251,7 +252,7 @@ export function HeatmapChart({ data }: { data: { date: string; seconds: number }
         {monthLabels.map(({ x, label }) => (
           <text key={label + x} x={x} y={10} fontSize={9} fill={tick}>{label}</text>
         ))}
-        {['M', '', 'W', '', 'F', '', ''].map((d, i) =>
+        {inWeekOrder(['M', '', 'W', '', 'F', '', '']).map((d, i) =>
           d ? <text key={i} x={0} y={20 + i * (CELL + GAP) + CELL - 1} fontSize={9} fill={tick}>{d}</text> : null,
         )}
         {weeks.map((wk, wi) =>

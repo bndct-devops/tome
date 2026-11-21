@@ -25,6 +25,7 @@ import { api } from '@/lib/api'
 import { cn, formatDuration } from '@/lib/utils'
 import type { StreakSummary } from '@/components/stats/shared'
 import { coverSrc } from '@/lib/covers'
+import { firstJsDay, rowOfJsDay } from '@/lib/weekStart'
 
 interface BookRef {
   book_id: number
@@ -280,7 +281,8 @@ function Headline({ data, month }: { data: MonthResponse; month: string }) {
 // The desktop day card paints its own frame only once it has something to show.
 // No fade: it appears whole, and a switch only dims what is there.
 const CARD = 'rounded-[22px] bg-card'
-const WEEKDAYS = Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(undefined, { weekday: 'short' })) // Monday-first (2024-01-01 is a Monday)
+// The reader's week order (Settings › Week starts on); 2024-01-01 is a Monday, Dec 31, 2023 a Sunday.
+const weekdays = () => Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i - (firstJsDay() === 0 ? 1 : 0)).toLocaleDateString(undefined, { weekday: 'short' }))
 const CELL = 'min-h-14 p-1.5 sm:min-h-24 sm:p-2'
 // Weekends shaded, as on a desktop calendar. Opaque on purpose: the grid's
 // backdrop is the hairline colour, so a translucent tint would show that
@@ -301,7 +303,7 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
   // Cell contents appear with the month; nothing fades in from zero.
   const land = ''
   const first = parseDay(`${month}-01`)
-  const lead = (first.getDay() + 6) % 7 // Monday-first, like the weekly streak
+  const lead = rowOfJsDay(first.getDay()) // the reader's week, like the weekly streak
   const count = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate()
   const prevMonth = shiftMonth(month, -1), nextMonth = shiftMonth(month, 1)
   const prevCount = new Date(first.getFullYear(), first.getMonth(), 0).getDate()
@@ -320,7 +322,7 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
   return (
     <div>
       <div className="mb-1.5 grid grid-cols-7">
-        {WEEKDAYS.map(w => <div key={w} className="pl-1.5 text-[11px] uppercase tracking-wide text-muted-foreground sm:pl-2">{w}</div>)}
+        {weekdays().map(w => <div key={w} className="pl-1.5 text-[11px] uppercase tracking-wide text-muted-foreground sm:pl-2">{w}</div>)}
       </div>
       <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border">
         {Array.from({ length: lead }, (_, i) => { const n = prevCount - lead + 1 + i; return outside(`${prevMonth}-${String(n).padStart(2, '0')}`, n, i) })}

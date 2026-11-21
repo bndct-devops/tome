@@ -39,8 +39,11 @@ const MY_BOARD = {
 export const scenes = [
   // Landing and docs: the Overview from the header through the "Where the time went" /
   // "When you read" row, cut 44 px under it so no part of "The year" heading shows
-  // (on the showcase seed that row ends at 1503 and The year starts at 1555).
-  page('stats-overview', 'overview', 90, { maxHeight: 1555 }),
+  // (on the showcase seed, with its goals row, that row ends at 1678 and The year starts at 1730).
+  page('stats-overview', 'overview', 90, { maxHeight: 1730 }),
+  // Docs: the Goals page with the showcase seed's four goals (one behind, one ahead,
+  // one reached, a series to finish by a date) and the first goal open under the cards.
+  page('stats-goals', 'goals', 90),
   page('stats-habits', 'habits', 90),
   page('stats-library', 'library', 0),
   page('stats-taste', 'taste', 90),

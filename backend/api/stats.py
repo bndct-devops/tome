@@ -237,7 +237,8 @@ def get_stats(
     books_finished_count = finished_query.count()
 
     # Streaks (all time, local-day with 4h rollover). Reconciled: page-stat days count too.
-    streaks = reconciled_streak_summary(db, current_user.id, tz_offset, covered, tz_name=tz)
+    streaks = reconciled_streak_summary(db, current_user.id, tz_offset, covered, tz_name=tz,
+                                        week_start=getattr(current_user, "week_start", None) or "monday")
     current_streak, longest_streak = streaks.current_days, streaks.longest_days
 
     # Daily aggregation (for selected range) — reconciled (page-stats win per book).

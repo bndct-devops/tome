@@ -9,7 +9,7 @@ import { Eye, Play, RefreshCw, Shuffle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn, formatDate, shortAgo } from '@/lib/utils'
 import { coverSrc } from '@/lib/covers'
-import { listGoals, goalMeta, goalTitle, goalSubtext, type Goal } from '@/lib/goals'
+import { useGoals } from '@/lib/goals'
 import { getFollows, type FollowOut } from '@/lib/follows'
 import { useTelemetry } from '@/lib/useTelemetry'
 import type { Book } from '@/lib/books'
@@ -18,7 +18,7 @@ import { useTilt } from '@/lib/tilt'
 import { HScrollRow } from '@/components/HScrollRow'
 import { QuickLook } from '@/components/QuickLook'
 import { TelemetryConsentCard } from '@/components/TelemetryConsentCard'
-import { ProgressRing } from '@/components/stats/ProgressRing'
+import { HomeGoalStart, HomeGoals } from '@/components/goals/HomeGoals'
 import { PageBody, PageHeader, Pill, SectionTitle, Stat, StatStrip } from '@/components/page'
 
 // ── Data ────────────────────────────────────────────────────────────────────
@@ -84,7 +84,6 @@ interface HomeState {
   recent: Book[]
   activity: ActivityEntry[]
   spotlight: HighlightSpotlight | null
-  goals: Goal[]
   upcoming: FollowOut[]
 }
 
@@ -256,7 +255,6 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
   const [recent, setRecent] = useState<Book[]>(seed?.recent ?? [])
   const [activity, setActivity] = useState<ActivityEntry[]>(seed?.activity ?? [])
   const [spotlight, setSpotlight] = useState<HighlightSpotlight | null>(seed?.spotlight ?? null)
-  const [goals, setGoals] = useState<Goal[]>(seed?.goals ?? [])
   const [upcoming, setUpcoming] = useState<FollowOut[]>(seed?.upcoming ?? [])
   const [switching, setSwitching] = useState(false)
   const [peek, setPeek] = useState<number | null>(null)
@@ -267,6 +265,8 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
   const [settled, setSettled] = useState(seed ? GATED : 0)
   const hydrated = settled >= GATED && telemetry.settled
   const countSettled = () => setSettled(n => n + 1)
+  // The goals are the shared copy (lib/goals): its first answer counts towards the gate.
+  const { data: goalsAnswer } = useGoals(countSettled)
 
   useEffect(() => {
     const tz = new Date().getTimezoneOffset()
@@ -282,7 +282,6 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
     api.get<Book[]>('/books?sort=added_at&order=desc&limit=12').finally(countSettled).then(setRecent).catch(() => {})
     api.get<ActivityEntry[]>('/home/activity').finally(countSettled).then(setActivity).catch(() => {})
     api.get<HighlightSpotlight>('/annotations/spotlight').finally(countSettled).then(setSpotlight).catch(() => {})
-    listGoals().finally(countSettled).then(setGoals).catch(() => {})
     getFollows().finally(countSettled).then(all => {
       setUpcoming((all ?? [])
         .filter(f => f.latest_release_date != null && f.latest_release_date >= today)
@@ -294,8 +293,8 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
 
   useEffect(() => {
     if (!hydrated) return
-    homeCache = { focusId, focus, stats, month, total, recent, activity, spotlight, goals, upcoming }
-  }, [hydrated, focusId, focus, stats, month, total, recent, activity, spotlight, goals, upcoming])
+    homeCache = { focusId, focus, stats, month, total, recent, activity, spotlight, upcoming }
+  }, [hydrated, focusId, focus, stats, month, total, recent, activity, spotlight, upcoming])
 
   // Switching the hero: the old book stays, dimmed, until the new one is in.
   // Aborted on re-fire, so a slower earlier answer can never land last.
@@ -609,32 +608,13 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
           />
         </StatStrip>
 
-        {goals.length > 0 && (
-          <div className="flex flex-wrap gap-x-8 gap-y-3">
-            {goals.map(goal => (
-              <button
-                key={goal.id}
-                type="button"
-                onClick={() => navigate('/stats')}
-                title={goalSubtext(goal)}
-                className="flex items-center gap-3 text-left rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              >
-                <ProgressRing pct={goal.pct} size={28} stroke={4} />
-                <span>
-                  <span className="block text-[13px] text-muted-foreground">{goalTitle(goal)}</span>
-                  <span className="block text-[15px] font-semibold text-foreground">
-                    {Math.round(goal.current)}<span className="text-muted-foreground font-medium">/{goal.target}{goalMeta(goal.kind).unit}</span>
-                  </span>
-                </span>
-              </button>
-            ))}
-          </div>
-        )}
+        {/* The goals, or the way to a first one: both come with the page's one paint. */}
+        {goalsAnswer && (goalsAnswer.goals.length > 0 ? <HomeGoals answer={goalsAnswer} /> : <HomeGoalStart goals={goalsAnswer.goals} />)}
       </div>
 
       {/* ── Recently added ───────────────────────────────────────────────── */}
       {recent.length > 0 && (
-        <section>
+        <section data-box="home-recent">
           <SectionTitle action={<SeeAll onClick={onSeeAllRecent} />}><Trans>Recently added</Trans></SectionTitle>
           <HScrollRow className="gap-4 px-2 pt-5 pb-3" wrapClassName="-mx-2 -mt-1" controlsTop="top-[128px]">
             {recent.map(book => { const title = book.title; return (

@@ -28,6 +28,7 @@ import { ChartTooltip, type StatsResponse, type CompletionEstimate } from '@/com
 import { dec1, fig, num } from '@/components/stats/kit/tokens'
 import { axisDuration, dayIso, evenDateTicks, isoDay, niceDurationTicks } from '@/components/stats/axis'
 import { coverSrc } from '@/lib/covers'
+import { firstJsDay } from '@/lib/weekStart'
 
 export function HourDowCard({ data }: { data: StatsResponse['hour_dow_heatmap'] }) {
   const { accent } = useChartColors()
@@ -371,11 +372,11 @@ export function DayOfWeekBar({ data }: { data: StatsResponse['hour_dow_heatmap']
     byDow[c.dow] += c.seconds
     sessions[c.dow] += c.sessions
   }
-  // dow 0 = Sunday - rotate to Mon-first
-  const LABELS = [msg`Mon`, msg`Tue`, msg`Wed`, msg`Thu`, msg`Fri`, msg`Sat`, msg`Sun`]
-  const rows = LABELS.map((label, i) => {
-    const dow = (i + 1) % 7
-    return { label: i18n._(label), seconds: byDow[dow], sessions: sessions[dow] }
+  // dow 0 = Sunday: rotate to the reader's week (Settings › Week starts on)
+  const LABELS = [msg`Sun`, msg`Mon`, msg`Tue`, msg`Wed`, msg`Thu`, msg`Fri`, msg`Sat`]
+  const rows = LABELS.map((_, i) => {
+    const dow = (i + firstJsDay()) % 7
+    return { label: i18n._(LABELS[dow]), seconds: byDow[dow], sessions: sessions[dow] }
   })
   if (rows.every((r) => r.seconds === 0)) {
     return <p className="py-2 text-[14px] text-muted-foreground"><Trans>No session data.</Trans></p>

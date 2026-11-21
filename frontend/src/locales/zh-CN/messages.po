@@ -156,8 +156,28 @@ msgstr ""
 msgid " {n} had no confident match."
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid " at your recent pace"
+msgstr ""
+
 #: src/components/LibraryHealth.tsx
 msgid " in {n} folders"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid " of pace"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid " pace"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid " this week"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid " today"
 msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
@@ -490,6 +510,11 @@ msgstr ""
 msgid "{0, plural, one {# language} other {# languages}}"
 msgstr ""
 
+#. placeholder {0}: d.left
+#: src/components/goals/text.ts
+msgid "{0, plural, one {# left} other {# left}}"
+msgstr ""
+
 #. placeholder {0}: rest.length
 #: src/components/stats/library/LibraryPage.tsx
 msgid "{0, plural, one {# more complete series} other {# more complete series}}"
@@ -510,6 +535,11 @@ msgstr ""
 #. placeholder {0}: openWishes.length
 #: src/pages/WishlistPage.tsx
 msgid "{0, plural, one {# open} other {# open}}"
+msgstr ""
+
+#. placeholder {0}: l.n
+#: src/components/goals/text.ts
+msgid "{0, plural, one {# page to go} other {# pages to go}}"
 msgstr ""
 
 #. placeholder {0}: b.pages
@@ -632,8 +662,15 @@ msgstr ""
 msgid "{0, plural, one {# user} other {# users}}"
 msgstr ""
 
+#. placeholder {0}: f.volumes_left
+#: src/components/goals/figures.ts
+msgid "{0, plural, one {# volume to go} other {# volumes to go}}"
+msgstr ""
+
 #. placeholder {0}: data.totals.books
+#. placeholder {0}: p.volumes_left
 #. placeholder {0}: s.total
+#: src/components/goals/GoalDialog.tsx
 #: src/components/WishlistModal.tsx
 #: src/pages/SharePage.tsx
 msgid "{0, plural, one {# volume} other {# volumes}}"
@@ -730,9 +767,15 @@ msgstr ""
 msgid "{0, plural, one {Confirm: remove # entry} other {Confirm: remove # entries}}"
 msgstr ""
 
+#. placeholder {0}: s.best_run
+#: src/components/goals/figures.ts
+msgid "{0, plural, one {day} other {days in a row}}"
+msgstr ""
+
 #. placeholder {0}: h.streaks.current_days
+#. placeholder {0}: s.current_run
 #. placeholder {0}: s.longest_days
-#. placeholder {0}: stats.headline.current_streak_days
+#: src/components/goals/figures.ts
 #: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "{0, plural, one {day} other {days}}"
@@ -763,6 +806,11 @@ msgstr ""
 #~ msgid "{0, plural, one {Edit Metadata for # Book} other {Edit Metadata for # Books}}"
 #~ msgstr ""
 
+#. placeholder {0}: d.value
+#: src/components/goals/charts.tsx
+msgid "{0, plural, one {Finished # book} other {Finished # books}}"
+msgstr ""
+
 #. placeholder {0}: h.count
 #: src/components/stats/taste/TastePage.tsx
 msgid "{0, plural, one {highlight} other {highlights}}"
@@ -786,6 +834,11 @@ msgstr ""
 #. placeholder {0}: Math.max(1, Math.round(total / 60))
 #: src/components/stats/library/Sections.tsx
 msgid "{0, plural, one {minute} other {minutes}}"
+msgstr ""
+
+#. placeholder {0}: ms.with_data
+#: src/components/goals/figures.ts
+msgid "{0, plural, one {month} other {months}}"
 msgstr ""
 
 #. placeholder {0}: r.most_pages_day
@@ -828,8 +881,15 @@ msgstr ""
 msgid "{0, plural, one {Updated metadata for # book} other {Updated metadata for # books}}"
 msgstr ""
 
+#. placeholder {0}: s.best_run
+#: src/components/goals/figures.ts
+msgid "{0, plural, one {week} other {weeks in a row}}"
+msgstr ""
+
 #. placeholder {0}: month!.streaks.current_weeks
+#. placeholder {0}: s.current_run
 #. placeholder {0}: s.longest_weeks
+#: src/components/goals/figures.ts
 #: src/components/home/HomeTab.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "{0, plural, one {week} other {weeks}}"
@@ -843,6 +903,10 @@ msgstr ""
 #. placeholder {0}: data.books_counted
 #: src/components/stats/widgets/wordstats.tsx
 msgid "{0, plural, one {words/min · across # book} other {words/min · across # books}}"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "{a} of {b}"
 msgstr ""
 
 #: src/components/stats/library/Sections.tsx
@@ -907,8 +971,8 @@ msgid "{base} · Vol. {idx}"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "{behind} behind pace"
-msgstr ""
+#~ msgid "{behind} behind pace"
+#~ msgstr ""
 
 #: src/pages/HighlightsPage.tsx
 msgid "{books, plural, one {{total} from # book} other {{total} from # books}}"
@@ -934,12 +998,32 @@ msgstr ""
 msgid "{bt}: {st} to {en} ({dur})"
 msgstr ""
 
+#: src/components/goals/charts.tsx
+msgid "{c} {u} this month"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "{c} {u} this year"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "{c} already reached"
+msgstr ""
+
 #: src/components/stats/overview/Overview.tsx
 msgid "{c} before"
 msgstr ""
 
 #: src/components/stats/overview/Overview.tsx
 msgid "{c} in {phrase}"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "{c} of {p}'s {o} on {d}"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "{c} so far this year"
 msgstr ""
 
 #: src/components/stats/overview/Overview.tsx
@@ -1060,8 +1144,8 @@ msgid "{diff, plural, one {last read # day ago} other {last read # days ago}}"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "{diff} ahead of pace"
-msgstr ""
+#~ msgid "{diff} ahead of pace"
+#~ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "{diffDays}d ago"
@@ -1225,8 +1309,8 @@ msgid "{hidden, plural, one {Show # more} other {Show # more}}"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "{hit}/7 days this week"
-msgstr ""
+#~ msgid "{hit}/7 days this week"
+#~ msgstr ""
 
 #: src/components/stats/library/Sections.tsx
 msgid "{hours, plural, one {hour} other {hours}}"
@@ -1267,9 +1351,21 @@ msgstr ""
 msgid "{inc, plural, one {# file waiting for review} other {# files waiting for review}}"
 msgstr ""
 
-#: src/components/stats/GoalWidget.tsx
-msgid "{label} only"
+#: src/components/goals/figures.ts
+msgid "{l} met, {c} still open"
 msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "{l} missed"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "{l} only"
+msgstr ""
+
+#: src/components/stats/GoalWidget.tsx
+#~ msgid "{label} only"
+#~ msgstr ""
 
 #: src/components/stats/library/Sections.tsx
 msgid "{label} words"
@@ -1291,6 +1387,8 @@ msgstr ""
 msgid "{m, plural, one {# minute} other {# minutes}}"
 msgstr ""
 
+#: src/components/goals/charts.tsx
+#: src/components/goals/Detail.tsx
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/stats/library/Sections.tsx
 msgid "{m} min"
@@ -1368,6 +1466,10 @@ msgstr ""
 msgid "{n, plural, one {# book} other {# books}}"
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "{n, plural, one {# day left} other {# days left}}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "{n, plural, one {# matching volume currently in the library.} other {# matching volumes currently in the library.}}"
 msgstr ""
@@ -1392,6 +1494,10 @@ msgstr ""
 msgid "{n, plural, one {# unstarted book, none estimated yet.} other {# unstarted books, none estimated yet.}}"
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "{n, plural, one {A reading day or more in a week} other {# reading days or more in a week}}"
+msgstr ""
+
 #: src/components/stats/overview/Overview.tsx
 msgid "{n, plural, one {about a day left} other {about # days left}}"
 msgstr ""
@@ -1404,12 +1510,48 @@ msgstr ""
 msgid "{n, plural, one {Accepted # volume} other {Accepted # volumes}}"
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "{n, plural, one {book a month} other {books a month}}"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n, plural, one {book a year} other {books a year}}"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n, plural, one {book} other {books}}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 #~ msgid "{n, plural, one {Confirm — apply # decision} other {Confirm — apply # decisions}}"
 #~ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "{n, plural, one {Confirm: apply # decision} other {Confirm: apply # decisions}}"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n, plural, one {day a week} other {days a week}}"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n, plural, one {day} other {days}}"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "{n, plural, one {month} other {months}}"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n, plural, one {page a day} other {pages a day}}"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n, plural, one {page a week} other {pages a week}}"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n, plural, one {page} other {pages}}"
 msgstr ""
 
 #: src/components/AppShell.tsx
@@ -1433,12 +1575,32 @@ msgstr ""
 msgid "{n, plural, one {This upload satisfies # wish.} other {This upload satisfies # wishes.}}"
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "{n, plural, one {volume} other {volumes}}"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "{n, plural, one {week} other {weeks}}"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "{n, plural, one {year} other {years}}"
+msgstr ""
+
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "{n} %"
 msgstr ""
 
 #: src/components/stats/overview/Overview.tsx
 msgid "{n} a reading day"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n} ahead"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n} behind"
 msgstr ""
 
 #: src/components/stats/taste/charts.tsx
@@ -1465,12 +1627,44 @@ msgstr ""
 msgid "{n} finished {when}, the only finishes in this range."
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "{n} min"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "{n} min or more on a reading day"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n} min to go"
+msgstr ""
+
+#: src/components/goals/GoalsTab.tsx
+msgid "{n} min to go today"
+msgstr ""
+
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "{n} more formats"
 msgstr ""
 
 #: src/components/MetadataManager.tsx
 msgid "{n} of {total} books would change"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n} of 7 days"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n} of 7 days this week"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "{n} pages or more on a reading day"
+msgstr ""
+
+#: src/components/goals/GoalsTab.tsx
+msgid "{n} pages to go today"
 msgstr ""
 
 #: src/pages/SharePage.tsx
@@ -1496,6 +1690,14 @@ msgstr ""
 
 #: src/components/HardcoverSync.tsx
 msgid "{n} synced"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{n} to go"
+msgstr ""
+
+#: src/components/goals/GoalsTab.tsx
+msgid "{n} to go by {d}"
 msgstr ""
 
 #: src/components/stats/library/LibraryPage.tsx
@@ -1562,6 +1764,10 @@ msgstr ""
 msgid "{nOpen, plural, one {# in progress} other {# in progress}}"
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "{of, plural, one {of # week} other {of the last # weeks}}"
+msgstr ""
+
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "{ok} of {total} approved"
 msgstr ""
@@ -1572,6 +1778,11 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "{othersCount, plural, one {Delete # other} other {Delete # others}}"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+#: src/components/goals/Detail.tsx
+msgid "{p} pages"
 msgstr ""
 
 #: src/components/stats/taste/TastePage.tsx
@@ -1593,6 +1804,10 @@ msgstr ""
 
 #: src/components/stats/widgets/habits.tsx
 msgid "{pages} pages in {dur}"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "{pc}% read"
 msgstr ""
 
 #: src/components/stats/habits/HabitsPage.tsx
@@ -1631,7 +1846,7 @@ msgstr ""
 msgid "{pct}% of the finished books with a year"
 msgstr ""
 
-#: src/components/stats/overview/Goals.tsx
+#: src/components/goals/GoalCard.tsx
 msgid "{pct}% of the goal"
 msgstr ""
 
@@ -1690,6 +1905,14 @@ msgstr ""
 #: src/components/stats/taste/charts.tsx
 #: src/components/stats/taste/TastePage.tsx
 msgid "{r, plural, one {# star} other {# stars}}"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "{r} of {n} read"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "{r} of {o} weeks reached"
 msgstr ""
 
 #: src/components/stats/library/LibraryPage.tsx
@@ -1764,6 +1987,10 @@ msgstr ""
 msgid "{rest, plural, one {{st}: {names} and # more} other {{st}: {names} and # more}}"
 msgstr ""
 
+#: src/components/goals/charts.tsx
+msgid "{s} a day keeps pace"
+msgstr ""
+
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "{s} of 100"
 msgstr ""
@@ -1821,6 +2048,10 @@ msgstr ""
 msgid "{share}% of your highlights"
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "{shareTxt} a month keeps pace for {tg}"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 #~ msgid "{shown, plural, one {# book} other {# books}}"
 #~ msgstr ""
@@ -1845,6 +2076,10 @@ msgstr ""
 msgid "{skipped, plural, one {Nothing to upload, # file is already in your library} other {Nothing to upload, # files are already in your library}}"
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "{span}, since your data starts ({from})"
+msgstr ""
+
 #: src/components/stats/library/LibraryPage.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "{started, plural, one {of # book started} other {of # books started}}"
@@ -1866,6 +2101,10 @@ msgstr ""
 #~ msgid "{title} — {dur} between {from} and {to}"
 #~ msgstr ""
 
+#: src/components/goals/text.ts
+msgid "{title} by {due}"
+msgstr ""
+
 #: src/components/home/HomeTab.tsx
 msgid "{title}, {author}"
 msgstr ""
@@ -1879,8 +2118,8 @@ msgid "{title}, {stars}"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "{toGo} to go"
-msgstr ""
+#~ msgid "{toGo} to go"
+#~ msgstr ""
 
 #: src/components/stats/library/LibraryPage.tsx
 msgid "{tot} of {tot} read"
@@ -1914,8 +2153,28 @@ msgstr ""
 msgid "{unloaded, plural, one {# selected book is not loaded yet. Scroll down to load it, or select fewer, to send.} other {# selected books are not loaded yet. Scroll down to load them, or select fewer, to send.}}"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "{unstarted, plural, one {# more volume} other {# more volumes}}"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{updatedText}. {skippedText}."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "{v} books a month take about <0>{mm} a day</0> at your usual time per book."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "{v} books a year take about <0>{mm} a day</0> at your usual time per book."
+msgstr ""
+
+#: src/components/goals/marks.ts
+msgid "{v} min"
+msgstr ""
+
+#: src/components/goals/marks.ts
+msgid "{v} pages"
 msgstr ""
 
 #. Hours on a chart axis
@@ -1953,12 +2212,24 @@ msgstr ""
 
 #: src/components/stats/GoalWidget.tsx
 #: src/components/stats/overview/Goals.tsx
-msgid "{y} challenge"
-msgstr ""
+#~ msgid "{y} challenge"
+#~ msgstr ""
 
 #: src/components/stats/GoalWidget.tsx
 #~ msgid "{y} Challenge"
 #~ msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "{yday} had {m} min"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "{yday} had {p} pages"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "{yday} had {sec} seconds"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 #: src/pages/WishlistPage.tsx
@@ -2210,9 +2481,29 @@ msgstr ""
 msgid "A board of your own, with tiles you place yourself."
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "A book or a series, by a day you pick"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "A browser that is not used for {webIdleDays} days is signed out on its own."
 msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "a day"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "A day counts as it does for your streak: any reading on a device, or a minute or more in the web reader."
+#~ msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "A day counts as it does for your streak."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "A few to start with. Once Tome has a few weeks of your reading, targets come from your own days."
+#~ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "A folder per author, with a folder per series inside it."
@@ -2240,6 +2531,11 @@ msgstr ""
 
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "a reading day"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+#: src/components/goals/marks.ts
+msgid "A reading day"
 msgstr ""
 
 #: src/components/ShareShelfModal.tsx
@@ -2270,6 +2566,10 @@ msgstr ""
 msgid "A short visit. {p} pages still count."
 msgstr ""
 
+#: src/components/goals/GoalsTab.tsx
+msgid "a start"
+msgstr ""
+
 #: src/components/HardcoverSync.tsx
 #: src/pages/HardcoverPage.tsx
 msgid "A sync is already running"
@@ -2293,6 +2593,10 @@ msgstr ""
 
 #: src/components/stats/BacklogEstimate.tsx
 msgid "about <0>{d}</0> at your pace"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "About <0>{left}</0> of reading left: {what}."
 msgstr ""
 
 #: src/components/stats/habits/HabitsPage.tsx
@@ -2564,6 +2868,10 @@ msgstr ""
 msgid "All"
 msgstr ""
 
+#: src/components/goals/CompactRow.tsx
+msgid "All {k} goals"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "All {loadedCount} books loaded"
 msgstr ""
@@ -2589,9 +2897,9 @@ msgid "All actions"
 msgstr ""
 
 #: src/components/CommandPalette.tsx
+#: src/components/goals/GoalDialog.tsx
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/components/Sidebar.tsx
-#: src/components/stats/GoalWidget.tsx
 #: src/components/stats/overview/Overview.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
@@ -2624,6 +2932,10 @@ msgstr ""
 msgid "All files are correctly placed."
 msgstr ""
 
+#: src/components/goals/CompactRow.tsx
+msgid "All goals"
+msgstr ""
+
 #: src/components/stats/taste/TastePage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "All highlights"
@@ -2643,6 +2955,10 @@ msgstr ""
 
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "All of it read as {f}."
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "All read"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -2730,6 +3046,10 @@ msgstr ""
 #: src/components/Sidebar.tsx
 #: src/components/ThemeToggle.tsx
 msgid "Amber"
+msgstr ""
+
+#: src/components/goals/actions.ts
+msgid "An equal goal exists now, so this one cannot come back."
 msgstr ""
 
 #: src/components/stats/library/Languages.tsx
@@ -2939,6 +3259,22 @@ msgstr ""
 msgid "Assign type to new books"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "At {v} min a day you'd finish about <0>{bm} books a month</0>."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "At {v} min a week you'd finish about <0>{bm} books a month</0>."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "At {v} pages a day you'd finish about <0>{bm} books a month</0>."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "At {v} pages a week you'd finish about <0>{bm} books a month</0>."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 #~ msgid "At least {filterMinWords} words"
 #~ msgstr ""
@@ -2954,6 +3290,27 @@ msgstr ""
 #: src/pages/DashboardPage.tsx
 msgid "At most {maxWords} words"
 msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "At the monthly share"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "at the share"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+#: src/components/goals/GoalDialog.tsx
+msgid "At your {v} a volume in this series."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "At your average day's reading over the last 90 days you'd finish about <0>{a} books a year</0>."
+#~ msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "At your average day's reading over the last 90 days you'd finish about <0>{b} books a month</0>."
+#~ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Attach progress synced from a KOReader-compatible app to this book"
@@ -3194,6 +3551,30 @@ msgstr ""
 #~ msgid "Batch Fetch ({n})"
 #~ msgstr ""
 
+#: src/components/goals/charts.tsx
+msgid "Before the goal: it would have been met"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "Before the goal: it would have been missed"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "Before the goal: missed"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "Before the goal: reached"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "Before your data starts"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Behind"
+msgstr ""
+
 #: src/components/home/HomeTab.tsx
 msgid "Best {n} days"
 msgstr ""
@@ -3225,6 +3606,14 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Best match applied to all {matched} files"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "Best month"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "Best run"
 msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
@@ -3294,6 +3683,7 @@ msgstr ""
 msgid "Boards are your own layouts from the previous Stats page. They keep working as before."
 msgstr ""
 
+#: src/components/goals/pickers.tsx
 #: src/pages/BinderyPage.tsx
 msgid "book"
 msgstr ""
@@ -3304,6 +3694,10 @@ msgstr ""
 #: src/components/WishlistModal.tsx
 #: src/pages/AdminPage.tsx
 msgid "Book"
+msgstr ""
+
+#: src/components/goals/pickers.tsx
+msgid "book · has a goal"
 msgstr ""
 
 #: src/components/MetadataManager.tsx
@@ -3347,6 +3741,10 @@ msgstr ""
 msgid "Book not found."
 msgstr ""
 
+#: src/components/goals/pickers.tsx
+msgid "Book or series"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "Book rejected and removed"
 msgstr ""
@@ -3380,14 +3778,23 @@ msgid "Book types sort the library into categories. Each type has its own librar
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "books"
-msgstr ""
+#~ msgid "books"
+#~ msgstr ""
 
 #: src/components/CommandPalette.tsx
+#: src/components/goals/pickers.tsx
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Books"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Books a month"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Books a year"
 msgstr ""
 
 #: src/components/stats/library/charts.tsx
@@ -3418,6 +3825,14 @@ msgstr ""
 #~ msgid "Books Finished"
 #~ msgstr ""
 
+#: src/components/goals/text.ts
+msgid "Books in {m}"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Books in {y}"
+msgstr ""
+
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Books in progress, with covers"
 msgstr ""
@@ -3435,12 +3850,12 @@ msgstr ""
 #~ msgstr ""
 
 #: src/lib/goals.ts
-msgid "Books this month"
-msgstr ""
+#~ msgid "Books this month"
+#~ msgstr ""
 
 #: src/lib/goals.ts
-msgid "Books this year"
-msgstr ""
+#~ msgid "Books this year"
+#~ msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Books whose pages you revisit"
@@ -3464,6 +3879,18 @@ msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Books without a word count are hidden."
+msgstr ""
+
+#: src/components/goals/pickers.tsx
+msgid "Books you are reading"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Books you finish each month"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Books you finish this year"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
@@ -3492,6 +3919,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "By"
 msgstr ""
 
 #: src/components/stats/library/Sections.tsx
@@ -3532,6 +3963,7 @@ msgstr ""
 #: src/components/BulkMetadataReviewModal.tsx
 #: src/components/CoverPickerModal.tsx
 #: src/components/EntityModal.tsx
+#: src/components/goals/GoalDialog.tsx
 #: src/components/InstanceBackup.tsx
 #: src/components/LibraryHealth.tsx
 #: src/components/ManageSeriesModal.tsx
@@ -3541,7 +3973,6 @@ msgstr ""
 #: src/components/SendToDeviceModal.tsx
 #: src/components/ShareShelfModal.tsx
 #: src/components/Sidebar.tsx
-#: src/components/stats/GoalWidget.tsx
 #: src/components/stats/sessions/SessionTools.tsx
 #: src/components/TelemetryConsentCard.tsx
 #: src/components/UploadModal.tsx
@@ -3974,7 +4405,11 @@ msgstr ""
 #~ msgstr ""
 
 #: src/components/stats/GoalWidget.tsx
-msgid "Could not create the goal. It may already exist."
+#~ msgid "Could not create the goal. It may already exist."
+#~ msgstr ""
+
+#: src/components/goals/actions.ts
+msgid "Could not delete the goal."
 msgstr ""
 
 #: src/components/DeviceInventoryList.tsx
@@ -4025,6 +4460,14 @@ msgstr ""
 msgid "Could not resolve this series on Hardcover"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "Could not save the goal. Try again."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Could not save the week start. Try again."
+msgstr ""
+
 #: src/pages/HardcoverPage.tsx
 msgid "Could not set match"
 msgstr ""
@@ -4047,8 +4490,8 @@ msgid "Could not update sync setting"
 msgstr ""
 
 #: src/components/stats/GoalWidget.tsx
-msgid "Could not update the goal."
-msgstr ""
+#~ msgid "Could not update the goal."
+#~ msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Couldn’t load stats."
@@ -4071,7 +4514,7 @@ msgstr ""
 msgid "Counting… {done} / {total}"
 msgstr ""
 
-#: src/components/stats/GoalWidget.tsx
+#: src/components/goals/GoalDialog.tsx
 msgid "Counts"
 msgstr ""
 
@@ -4164,6 +4607,10 @@ msgstr ""
 msgid "Current password"
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "Current run"
+msgstr ""
+
 #: src/components/WordCount.tsx
 msgid "Current:"
 msgstr ""
@@ -4193,12 +4640,12 @@ msgid "Custom URL"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "Daily minutes"
-msgstr ""
+#~ msgid "Daily minutes"
+#~ msgstr ""
 
 #: src/lib/goals.ts
-msgid "Daily pages"
-msgstr ""
+#~ msgid "Daily pages"
+#~ msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Daily sessions on a 24h track"
@@ -4279,6 +4726,10 @@ msgstr ""
 msgid "days with any reading"
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "Days you read at all"
+msgstr ""
+
 #: src/components/LibraryHealth.tsx
 msgid "Dead entries removed"
 msgstr ""
@@ -4351,8 +4802,8 @@ msgstr ""
 msgid "Delete this book from the library? The file will be removed and this cannot be undone."
 msgstr ""
 
+#: src/components/goals/GoalsTab.tsx
 #: src/components/stats/GoalWidget.tsx
-#: src/components/stats/overview/Goals.tsx
 msgid "Delete this goal"
 msgstr ""
 
@@ -4363,6 +4814,10 @@ msgstr ""
 
 #: src/components/stats/sessions/SessionTools.tsx
 msgid "Delete this imported sitting"
+msgstr ""
+
+#: src/components/goals/actions.ts
+msgid "Deleted {name}"
 msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
@@ -4699,8 +5154,9 @@ msgstr ""
 msgid "Edit {label}"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+#: src/components/goals/GoalsTab.tsx
 #: src/components/stats/GoalWidget.tsx
-#: src/components/stats/overview/Goals.tsx
 msgid "Edit goal"
 msgstr ""
 
@@ -4785,6 +5241,22 @@ msgstr ""
 msgid "End"
 msgstr ""
 
+#: src/components/goals/pickerModel.ts
+msgid "End of {month}"
+msgstr ""
+
+#: src/components/goals/pickerModel.ts
+msgid "End of the year"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "Enter a whole number from {lo} to {hi}."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "Enter a whole number of at least {lo}."
+msgstr ""
+
 #: src/pages/ReaderPage.tsx
 msgid "EPUB failed to open: {msg2}"
 msgstr ""
@@ -4823,6 +5295,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Est. remaining"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "Estimated from the word count at your reading speed."
 msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
@@ -4871,6 +5347,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Everything that can sign in to your account besides your password: devices, the KOReader plugin, OPDS readers, KOReader's progress sync and scripts."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "Everything there is read already."
 msgstr ""
 
 #: src/components/InstanceBackup.tsx
@@ -5286,9 +5766,41 @@ msgstr ""
 msgid "Filters"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "Finish {n} by a date"
+msgstr ""
+
+#: src/components/goals/GoalsTab.tsx
+msgid "Finish a book or a series by a day you pick"
+msgstr ""
+
 #: src/components/stats/BacklogEstimate.tsx
 #: src/components/stats/library/Sections.tsx
 msgid "Finish a couple of books of each type so Tome can measure your pace."
+msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+#~ msgid "Finish by {d}"
+#~ msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+msgid "Finish by {day}"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Finish by {due}"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Finish by a date"
+msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+msgid "Finish by…"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "Finish dates set on one day: {list}. These bars show when books were marked read, not when they were read."
 msgstr ""
 
 #: src/components/stats/library/LibraryPage.tsx
@@ -5307,6 +5819,7 @@ msgstr ""
 #~ msgid "Finish Rate per Book Category"
 #~ msgstr ""
 
+#: src/components/goals/GoalsTab.tsx
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/SeriesReadingStats.tsx
 #: src/pages/DashboardPage.tsx
@@ -5374,6 +5887,10 @@ msgstr ""
 
 #: src/components/stats/library/Sections.tsx
 msgid "Finished books by length in words"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "Finished on {d}."
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -5470,6 +5987,10 @@ msgstr ""
 msgid "For precise series tracking, use the <0>Series</0> tab instead."
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "for the {n} days to {due}"
+msgstr ""
+
 #: src/components/DeviceInventoryList.tsx
 msgid "Forget"
 msgstr ""
@@ -5516,6 +6037,10 @@ msgstr ""
 
 #: src/components/stats/library/Sections.tsx
 msgid "From the first reading day to the finish · {pct}%"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "From the word count at your reading speed."
 msgstr ""
 
 #: src/components/home/HomeTab.tsx
@@ -5586,16 +6111,24 @@ msgstr ""
 msgid "Go to Settings"
 msgstr ""
 
-#: src/components/stats/GoalWidget.tsx
+#: src/components/goals/GoalDialog.tsx
 msgid "Goal"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "Goal reached"
-msgstr ""
+#~ msgid "Goal reached"
+#~ msgstr ""
 
 #: src/lib/goals.ts
-msgid "Goal reached today"
+#~ msgid "Goal reached today"
+#~ msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+msgid "Goal set. It shows on Home and in Stats."
+msgstr ""
+
+#: src/pages/StatsPage.tsx
+msgid "Goals"
 msgstr ""
 
 #: src/components/WhatsNewPanel.tsx
@@ -5907,6 +6440,10 @@ msgstr ""
 msgid "Importing…"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "in {r} of {o} weeks"
+msgstr ""
+
 #: src/components/stats/overview/Overview.tsx
 msgid "in {rangePhrase}"
 msgstr ""
@@ -6046,6 +6583,10 @@ msgstr ""
 msgid "Keep existing"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "Keep it up"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Keep this one"
 msgstr ""
@@ -6137,6 +6678,10 @@ msgstr ""
 msgid "Language"
 msgstr "语言"
 
+#: src/pages/SettingsPage.tsx
+msgid "Language and region"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Language: {filterLanguageLabel}"
 msgstr ""
@@ -6154,9 +6699,18 @@ msgstr ""
 msgid "Last {days} days"
 msgstr ""
 
+#: src/components/goals/Detail.tsx
+msgid "Last {n} years"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
 #: src/components/stats/library/LibraryPage.tsx
 #: src/pages/StatsPage.tsx
 msgid "Last 12 months"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "Last 12 weeks"
 msgstr ""
 
 #: src/components/stats/habits/HabitsPage.tsx
@@ -6217,6 +6771,18 @@ msgstr ""
 msgid "Last used"
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "last week"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "Last week"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "Last week missed"
+msgstr ""
+
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Latest finishes, newest first"
 msgstr ""
@@ -6237,6 +6803,10 @@ msgstr ""
 #: src/pages/SettingsPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Learn more"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "Left to read: {what}. Some of it has no estimate yet."
 msgstr ""
 
 #: src/pages/ReaderPage.tsx
@@ -6402,6 +6972,10 @@ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Loading icons"
+msgstr ""
+
+#: src/components/goals/pickers.tsx
+msgid "Loading series and books…"
 msgstr ""
 
 #: src/pages/StatsPage.tsx
@@ -6650,6 +7224,14 @@ msgstr ""
 msgid "mean of the last five"
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "median of the {k} months with finish dates"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "median of the {k} with data"
+msgstr ""
+
 #: src/components/stats/library/Sections.tsx
 msgid "median, first day to finish"
 msgstr ""
@@ -6664,6 +7246,15 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Merge"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "met"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+#: src/components/goals/figures.ts
+msgid "Met"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -6686,10 +7277,21 @@ msgstr ""
 msgid "Metric"
 msgstr ""
 
+#: src/components/goals/CompactRow.tsx
+#: src/components/goals/figures.ts
+#: src/components/goals/text.ts
 #: src/components/stats/sessions/SessionTools.tsx
-#: src/lib/goals.ts
 #: src/pages/BookDetailPage.tsx
 msgid "min"
+msgstr ""
+
+#: src/components/goals/figures.ts
+#: src/components/goals/text.ts
+msgid "min a day"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "min a week"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -6708,16 +7310,33 @@ msgstr ""
 msgid "Minutes"
 msgstr ""
 
-#: src/lib/goals.ts
-msgid "Minutes per day"
+#: src/components/goals/text.ts
+msgid "Minutes a day"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Minutes a week"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "Minutes per week"
-msgstr ""
+#~ msgid "Minutes per day"
+#~ msgstr ""
+
+#: src/lib/goals.ts
+#~ msgid "Minutes per week"
+#~ msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Minutes read per day"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "missed"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+#: src/components/goals/marks.ts
+msgid "Missed"
 msgstr ""
 
 #: src/components/stats/overview/Overview.tsx
@@ -6764,7 +7383,11 @@ msgid "Mondays"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "Monthly goal"
+#~ msgid "Monthly goal"
+#~ msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "Months at pace"
 msgstr ""
 
 #: src/components/stats/overview/Overview.tsx
@@ -6889,6 +7512,22 @@ msgstr ""
 msgid "Native KOReader plugin. Tracks reading sessions and syncs by book ID. More reliable than KOSync."
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "Needs"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "needs {m} a day"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "Needs a day"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "needs about {m} a day"
+msgstr ""
+
 #: src/lib/deviceBooks.ts
 #: src/pages/SettingsPage.tsx
 msgid "Never"
@@ -6918,6 +7557,10 @@ msgstr ""
 msgid "never used"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "New"
+#~ msgstr ""
+
 #: src/components/stats/boards/BoardsView.tsx
 #: src/pages/StatsPage.tsx
 msgid "New board"
@@ -6939,8 +7582,10 @@ msgstr ""
 msgid "New duration in minutes"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+#: src/components/goals/GoalsTab.tsx
+#: src/components/goals/HomeGoals.tsx
 #: src/components/stats/GoalWidget.tsx
-#: src/components/stats/overview/Goals.tsx
 msgid "New goal"
 msgstr ""
 
@@ -7010,6 +7655,7 @@ msgstr ""
 msgid "Next in {series}"
 msgstr ""
 
+#: src/components/goals/pickers.tsx
 #: src/components/stats/RangeControl.tsx
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Next month"
@@ -7162,6 +7808,10 @@ msgstr ""
 msgid "No covers found. Try a different search or use a custom URL below."
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "No data yet"
+msgstr ""
+
 #: src/components/stats/widgets/insights.tsx
 msgid "No data yet."
 msgstr ""
@@ -7202,8 +7852,24 @@ msgstr ""
 msgid "No empty folders found."
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "No estimate yet"
+msgstr ""
+
 #: src/pages/BinderyPage.tsx
 msgid "No files in the bindery"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "no finish dates"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "No finish dates in {l}"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "No finish dates yet"
 msgstr ""
 
 #: src/components/stats/library/Sections.tsx
@@ -7224,6 +7890,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "No fulfilled wishes."
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "No full week yet"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
@@ -7276,6 +7946,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "No metadata found"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "No month with finish dates yet"
 msgstr ""
 
 #: src/components/BulkMetadataReviewModal.tsx
@@ -7423,6 +8097,18 @@ msgstr ""
 msgid "No reading logged yet. Track time by hand, handy for a paper copy or a device that isn't synced."
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "No reading recorded in {l}"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "No reading recorded last week"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "No reading recorded yet"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 #~ msgid "No reading sessions in this range — session-based tiles will be empty."
 #~ msgstr ""
@@ -7447,6 +8133,7 @@ msgstr ""
 msgid "No reading time in Tome"
 msgstr ""
 
+#: src/components/goals/charts.tsx
 #: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/overview/Overview.tsx
 msgid "no reading yet"
@@ -7499,6 +8186,10 @@ msgstr ""
 
 #: src/pages/HardcoverPage.tsx
 msgid "No results. Try a different query."
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "No run yet"
 msgstr ""
 
 #: src/pages/DashboardPage.tsx
@@ -7733,8 +8424,17 @@ msgstr ""
 msgid "not read"
 msgstr ""
 
+#: src/components/goals/charts.tsx
+#: src/components/goals/marks.ts
+msgid "Not read"
+msgstr ""
+
 #: src/components/NotificationChannels.tsx
 msgid "Not sent: this is not a public internet address. An admin can allow this host."
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "Not started"
 msgstr ""
 
 #: src/components/home/FocusMode.tsx
@@ -7798,6 +8498,10 @@ msgstr ""
 msgid "Nothing finished yet."
 msgstr ""
 
+#: src/components/goals/pickers.tsx
+msgid "Nothing found."
+msgstr ""
+
 #: src/pages/SharePage.tsx
 msgid "Nothing here yet."
 msgstr ""
@@ -7822,6 +8526,10 @@ msgstr ""
 msgid "Nothing in progress. Books you start show up here."
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "Nothing left to read there."
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "Nothing matched “{search}”"
 msgstr ""
@@ -7832,6 +8540,10 @@ msgstr ""
 
 #: src/components/stats/taste/TastePage.tsx
 msgid "Nothing rated yet."
+msgstr ""
+
+#: src/components/goals/marks.ts
+msgid "Nothing read yet"
 msgstr ""
 
 #: src/components/ShareLinksOverview.tsx
@@ -7860,6 +8572,10 @@ msgstr ""
 msgid "Notifications"
 msgstr ""
 
+#: src/components/goals/GoalsTab.tsx
+msgid "Now"
+msgstr ""
+
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Number of reading sessions"
 msgstr ""
@@ -7870,6 +8586,10 @@ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "of {totalPages} pages"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "of the last {n} days"
 msgstr ""
 
 #: src/pages/ReaderPage.tsx
@@ -7912,6 +8632,10 @@ msgstr ""
 msgid "On {names}"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "on {r} of {o} days"
+msgstr ""
+
 #: src/pages/LoginPage.tsx
 msgid "On a device where you're already signed in, go to <0>Settings → Access → Quick Connect</0> and enter this code."
 msgstr ""
@@ -7928,6 +8652,14 @@ msgstr ""
 msgid "On board"
 msgstr ""
 
+#: src/components/goals/charts.tsx
+msgid "on course for {n}"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "on course for {p}"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "on hold"
 msgstr ""
@@ -7938,7 +8670,11 @@ msgid "On hold"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "on pace"
+#~ msgid "on pace"
+#~ msgstr ""
+
+#: src/components/goals/text.ts
+msgid "On pace"
 msgstr ""
 
 #: src/components/TelemetryConsentCard.tsx
@@ -8156,6 +8892,10 @@ msgstr ""
 msgid "Other volumes"
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "Out of reach"
+msgstr ""
+
 #: src/components/stats/boards/BoardsView.tsx
 msgid "over {days} days"
 msgstr ""
@@ -8166,6 +8906,10 @@ msgstr ""
 
 #: src/components/stats/habits/charts.tsx
 msgid "Over 2h"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "over the last {n} days"
 msgstr ""
 
 #: src/components/ManageSeriesModal.tsx
@@ -8218,6 +8962,14 @@ msgstr ""
 #~ msgid "Pace by Format"
 #~ msgstr ""
 
+#: src/components/goals/charts.tsx
+msgid "pace for {n}"
+msgstr ""
+
+#: src/components/goals/GoalCard.tsx
+msgid "Pace today: {e} {u}"
+msgstr ""
+
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Padding"
 msgstr ""
@@ -8243,7 +8995,6 @@ msgid "Page thumbnails (T)"
 msgstr ""
 
 #: src/components/SeriesReadingStats.tsx
-#: src/lib/goals.ts
 msgid "pages"
 msgstr ""
 
@@ -8269,12 +9020,19 @@ msgstr ""
 #~ msgid "Pages / Hour"
 #~ msgstr ""
 
+#: src/components/goals/text.ts
+msgid "Pages a day"
+msgstr ""
+
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "pages a minute · share of the time"
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "Pages a week"
+msgstr ""
+
 #: src/components/stats/boards/BoardsView.tsx
-#: src/lib/goals.ts
 msgid "Pages per day"
 msgstr ""
 
@@ -8291,8 +9049,8 @@ msgid "Pages per minute per reading day"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "Pages per week"
-msgstr ""
+#~ msgid "Pages per week"
+#~ msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Pages turned"
@@ -8301,6 +9059,14 @@ msgstr ""
 #: src/pages/StatsPage.tsx
 #~ msgid "Pages Turned"
 #~ msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Pages turned each day"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Pages turned each week"
+msgstr ""
 
 #: src/components/WordCount.tsx
 #~ msgid "Parse each EPUB to store its word count. New uploads get this automatically — this backfills books added before the feature. It only reads the files and writes one number per book; nothing on disk is modified. Word counts power words-read and reading-speed stats. PDF and CBZ are skipped."
@@ -8349,6 +9115,10 @@ msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Past midnight"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "Past periods against the target"
 msgstr ""
 
 #: src/components/HardcoverSync.tsx
@@ -8424,13 +9194,26 @@ msgstr ""
 msgid "Pick"
 msgstr ""
 
+#: src/components/goals/pickers.tsx
+msgid "Pick a book or a series"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "Pick a book or a series to see what it takes a day."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#: src/components/goals/pickers.tsx
+msgid "Pick a day"
+msgstr ""
+
 #: src/components/stats/GoalWidget.tsx
 #~ msgid "Pick a rhythm — progress counts automatically."
 #~ msgstr ""
 
 #: src/components/stats/GoalWidget.tsx
-msgid "Pick a rhythm. Progress counts automatically."
-msgstr ""
+#~ msgid "Pick a rhythm. Progress counts automatically."
+#~ msgstr ""
 
 #: src/pages/StatsPage.tsx
 #~ msgid "Pick a start & end"
@@ -8551,6 +9334,7 @@ msgstr ""
 msgid "Previous book"
 msgstr ""
 
+#: src/components/goals/pickers.tsx
 #: src/components/stats/RangeControl.tsx
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Previous month"
@@ -8625,8 +9409,17 @@ msgstr ""
 #~ msgid "Progress % <0>(optional)</0>"
 #~ msgstr ""
 
+#: src/components/goals/HomeGoals.tsx
 #: src/components/stats/overview/Goals.tsx
 msgid "Progress counts automatically."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "Progress counts by itself, from the reading Tome records."
+#~ msgstr ""
+
+#: src/components/goals/GoalsTab.tsx
+msgid "Progress counts by itself, from the reading Tome records. Start from what you already read:"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
@@ -8917,10 +9710,47 @@ msgstr ""
 msgid "Re-reads"
 msgstr ""
 
+#: src/components/goals/charts.tsx
+#: src/components/goals/GoalsTab.tsx
+msgid "reached"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+#: src/components/goals/figures.ts
+#: src/components/goals/marks.ts
+#: src/components/goals/text.ts
+msgid "Reached"
+msgstr ""
+
+#: src/components/goals/GoalsTab.tsx
+msgid "reached in {r} of {o} weeks"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Reached in {r} of {o} weeks so far"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Reached in {r} of the last 12 weeks"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "reached on {r} of {o} days"
+#~ msgstr ""
+
+#: src/components/goals/marks.ts
+msgid "Reached today"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "Reached, still open"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "read"
 msgstr "阅读"
 
+#: src/components/goals/Detail.tsx
 #: src/components/stats/library/LibraryPage.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Read"
@@ -9073,6 +9903,10 @@ msgstr ""
 msgid "Reading days"
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "Reading days a week"
+msgstr ""
+
 #: src/pages/ReaderPage.tsx
 msgid "Reading direction"
 msgstr ""
@@ -9085,8 +9919,9 @@ msgstr ""
 msgid "Reading every week · Best {n} weeks"
 msgstr ""
 
+#: src/components/goals/CompactRow.tsx
+#: src/components/goals/HomeGoals.tsx
 #: src/components/stats/boards/BoardsView.tsx
-#: src/components/stats/overview/Goals.tsx
 msgid "Reading goals"
 msgstr ""
 
@@ -9210,6 +10045,14 @@ msgstr ""
 msgid "Reading time by hour and weekday"
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "Reading time each day"
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "Reading time each week"
+msgstr ""
+
 #: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/overview/charts.tsx
 msgid "Reading time per day"
@@ -9243,6 +10086,10 @@ msgstr ""
 
 #: src/components/home/HomeTab.tsx
 msgid "Recent activity"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "Recent pace"
 msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
@@ -9676,9 +10523,9 @@ msgid "Saturdays"
 msgstr ""
 
 #: src/components/EntityModal.tsx
+#: src/components/goals/GoalDialog.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/Sidebar.tsx
-#: src/components/stats/GoalWidget.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/BookDetailPage.tsx
 #: src/pages/ReaderPage.tsx
@@ -9920,6 +10767,10 @@ msgstr ""
 msgid "Search query..."
 msgstr ""
 
+#: src/components/goals/pickers.tsx
+msgid "Search series and books"
+msgstr ""
+
 #: src/components/MetadataManager.tsx
 msgid "Search title, author…"
 msgstr ""
@@ -9944,6 +10795,10 @@ msgstr ""
 msgid "Searching {n} books…"
 msgstr ""
 
+#: src/components/goals/pickers.tsx
+msgid "Searching books…"
+msgstr ""
+
 #: src/components/MetadataFetchModal.tsx
 msgid "Searching for: <0>{title}</0>"
 msgstr ""
@@ -9961,12 +10816,20 @@ msgstr ""
 msgid "See all"
 msgstr ""
 
+#: src/components/goals/HomeGoals.tsx
+msgid "See all {k} goals"
+msgstr ""
+
 #: src/components/home/FocusMode.tsx
 #~ msgid "See all in-progress books"
 #~ msgstr ""
 
 #: src/components/AppShell.tsx
 msgid "See all results for \"{searchQuery}\""
+msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+msgid "See goal"
 msgstr ""
 
 #: src/components/SendToDeviceModal.tsx
@@ -10092,6 +10955,7 @@ msgid "series"
 msgstr ""
 
 #: src/components/CommandPalette.tsx
+#: src/components/goals/pickers.tsx
 #: src/components/ManageSeriesModal.tsx
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
@@ -10104,6 +10968,14 @@ msgstr ""
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Series"
+msgstr ""
+
+#: src/components/goals/pickers.tsx
+msgid "series · {r} of {n} read"
+msgstr ""
+
+#: src/components/goals/pickers.tsx
+msgid "series · has a goal"
 msgstr ""
 
 #: src/components/MetadataFetchModal.tsx
@@ -10244,6 +11116,10 @@ msgstr ""
 msgid "Sessions of this book"
 msgstr ""
 
+#: src/components/goals/charts.tsx
+msgid "Set {d}"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Set <0>TOME_SMTP_HOST</0> and <1>TOME_SMTP_PORT</1>. Add <2>TOME_SMTP_USER</2> and <3>TOME_SMTP_PASSWORD</3> if the server needs a login, otherwise set <4>TOME_SMTP_FROM</4>."
 msgstr ""
@@ -10256,7 +11132,15 @@ msgstr ""
 msgid "Set a goal"
 msgstr ""
 
-#: src/components/stats/GoalWidget.tsx
+#: src/components/goals/FinishByPill.tsx
+msgid "Set a goal to finish this book by a day you pick"
+msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+msgid "Set a goal to finish this series by a day you pick"
+msgstr ""
+
+#: src/components/goals/HomeGoals.tsx
 #: src/components/stats/overview/Goals.tsx
 msgid "Set a reading goal"
 msgstr ""
@@ -10273,7 +11157,7 @@ msgstr ""
 msgid "Set aside, keeps your progress"
 msgstr ""
 
-#: src/components/stats/GoalWidget.tsx
+#: src/components/goals/GoalDialog.tsx
 msgid "Set goal"
 msgstr ""
 
@@ -10295,6 +11179,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Set these environment variables to enable Send to device."
+msgstr ""
+
+#: src/components/goals/GoalsTab.tsx
+msgid "Set your first reading goal"
 msgstr ""
 
 #: src/components/ForcePasswordChange.tsx
@@ -10574,9 +11462,17 @@ msgstr ""
 msgid "since {a}"
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "since {d}"
+msgstr ""
+
 #: src/pages/ReadingCalendarPage.tsx
 #~ msgid "since {from}"
 #~ msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "since {m}, your first finish date"
+msgstr ""
 
 #: src/components/stats/library/LibraryPage.tsx
 msgid "since {since}"
@@ -10584,6 +11480,10 @@ msgstr ""
 
 #: src/components/stats/overview/Overview.tsx
 msgid "since {streakStart}"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "since your data starts ({d})"
 msgstr ""
 
 #: src/pages/ReaderPage.tsx
@@ -10658,6 +11558,10 @@ msgstr ""
 
 #: src/components/MetadataManager.tsx
 msgid "Some changes failed to apply."
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "Some volumes have no estimate yet (no word count and no finished volume to go by)."
 msgstr ""
 
 #: src/components/WhatsNewPanel.tsx
@@ -10831,9 +11735,26 @@ msgstr ""
 msgid "Status: {filterStatusLabel}"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "Steady"
+msgstr ""
+
 #: src/pages/SetupPage.tsx
 #~ msgid "Step 1 of 2"
 #~ msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "Still open"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "still to come"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+#: src/components/goals/marks.ts
+msgid "Still to come"
+msgstr ""
 
 #: src/components/WordCount.tsx
 msgid "Stop"
@@ -10853,6 +11774,10 @@ msgstr ""
 msgid "Streak"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "Stretch"
+msgstr ""
+
 #: src/pages/SetupPage.tsx
 msgid "Strong enough"
 msgstr ""
@@ -10869,6 +11794,10 @@ msgstr ""
 #: src/pages/BookDetailPage.tsx
 #~ msgid "Subtitle (optional)"
 #~ msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "Suggested targets"
+msgstr ""
 
 #: src/components/stats/sessions/SessionTools.tsx
 msgid "Suggested: {d}"
@@ -11063,8 +11992,12 @@ msgstr ""
 #~ msgid "TAP ZONES"
 #~ msgstr ""
 
-#: src/components/stats/GoalWidget.tsx
+#: src/components/goals/GoalDialog.tsx
 msgid "Target"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "Targets"
 msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
@@ -11116,6 +12049,10 @@ msgstr ""
 msgid "That file was rejected"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "That is about <0>{per} a day</0> for the {days} days to {due}."
+msgstr ""
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "That QR code is not a Tome sync code."
 msgstr ""
@@ -11126,6 +12063,14 @@ msgstr ""
 
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "the {days} days"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "the {pc}% you have left"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "The app's words, and how it writes dates and numbers."
 msgstr ""
 
 #: src/components/stats/library/charts.tsx
@@ -11142,6 +12087,10 @@ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "The customisable grid from earlier versions, as an extra tab on Stats. Turning it off hides the tab; your boards are kept."
+msgstr ""
+
+#: src/components/goals/text.ts
+msgid "The date has passed"
 msgstr ""
 
 #: src/components/ScanSyncCodeModal.tsx
@@ -11180,6 +12129,10 @@ msgstr ""
 msgid "the last 7 reading days against {rangeWords}"
 msgstr ""
 
+#: src/components/goals/charts.tsx
+msgid "The last weeks day by day"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "The password KOReader's progress sync (KOSync) signs in with. It is separate from your Tome password."
 msgstr ""
@@ -11196,8 +12149,20 @@ msgstr ""
 msgid "the previous 12 months"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "the rest of volume {v} ({pc}%)"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "the rest of volume {v} ({pc}%) and {more}"
+msgstr ""
+
 #: src/components/stats/overview/Overview.tsx
 msgid "The same as {prevPhrase}"
+msgstr ""
+
+#: src/components/goals/GoalsTab.tsx
+msgid "the selected goal"
 msgstr ""
 
 #: src/pages/AdminPage.tsx
@@ -11212,8 +12177,16 @@ msgstr ""
 msgid "The triangle marks an implausibly long session. Scissors shorten a session, the bin deletes it."
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "the whole book"
+msgstr ""
+
 #: src/components/stats/overview/Overview.tsx
 msgid "The year"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "the year so far"
 msgstr ""
 
 #: src/components/reader/ReaderChrome.tsx
@@ -11242,6 +12215,10 @@ msgstr ""
 msgid "This code has expired."
 msgstr ""
 
+#: src/components/goals/actions.ts
+msgid "This goal can no longer be restored."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 #~ msgid "This is a whole-series wish — it stays open as volumes arrive."
 #~ msgstr ""
@@ -11266,6 +12243,7 @@ msgstr ""
 #~ msgid "this month"
 #~ msgstr ""
 
+#: src/components/goals/Detail.tsx
 #: src/components/home/HomeTab.tsx
 #: src/components/stats/boards/BoardsView.tsx
 msgid "This month"
@@ -11293,6 +12271,10 @@ msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
 msgid "This page is yours: every tile can be moved, resized, swapped or removed, per board. Hit <0>Edit</0> to start. Reset always brings the defaults back."
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "This period so far against the pace"
 msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
@@ -11323,12 +12305,41 @@ msgstr ""
 msgid "This volume"
 msgstr ""
 
-#: src/lib/goals.ts
+#: src/components/goals/figures.ts
 msgid "this week"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+#: src/components/goals/GoalCard.tsx
+msgid "This week"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "This week already counts"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "This week by day"
+msgstr ""
+
+#: src/pages/StatsPage.tsx
+msgid "This week, month and year"
 msgstr ""
 
 #: src/components/WishlistModal.tsx
 msgid "This wish covers the whole series and stays open as new volumes arrive."
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "This year"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "This year by month"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "This year by month against the monthly share"
 msgstr ""
 
 #: src/components/stats/habits/charts.tsx
@@ -11364,6 +12375,10 @@ msgstr ""
 #: src/pages/StatsPage.tsx
 #~ msgid "Time by Format"
 #~ msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "Time left"
+msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Time left on books in progress"
@@ -11458,10 +12473,23 @@ msgstr ""
 #~ msgid "To count"
 #~ msgstr ""
 
+#: src/components/goals/charts.tsx
+msgid "today"
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 #: src/pages/ReadingCalendarPage.tsx
 #: src/pages/WishlistPage.tsx
 msgid "Today"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "today, filling"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+#: src/components/goals/marks.ts
+msgid "Today, so far"
 msgstr ""
 
 #: src/components/stats/overview/charts.tsx
@@ -11720,6 +12748,15 @@ msgstr ""
 msgid "Under a minute"
 msgstr ""
 
+#: src/components/goals/charts.tsx
+msgid "under it"
+msgstr ""
+
+#: src/components/goals/charts.tsx
+msgid "Under the monthly share"
+msgstr ""
+
+#: src/components/goals/actions.ts
 #: src/components/stats/boards/BoardsView.tsx
 #: src/pages/BookDetailPage.tsx
 msgid "Undo"
@@ -11810,6 +12847,10 @@ msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Up past midnight with {mainTitle}."
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "Up to last week"
 msgstr ""
 
 #: src/components/home/HomeTab.tsx
@@ -11932,6 +12973,18 @@ msgstr ""
 msgid "Users"
 msgstr ""
 
+#: src/components/goals/figures.ts
+msgid "Usual month"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "Usual week"
+msgstr ""
+
+#: src/components/goals/figures.ts
+msgid "Usual year"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Verify it's working"
 msgstr ""
@@ -12001,6 +13054,7 @@ msgstr ""
 msgid "Volume {n}, not in the library"
 msgstr ""
 
+#: src/components/goals/Detail.tsx
 #: src/components/home/HomeTab.tsx
 #: src/components/QuickLook.tsx
 #: src/pages/BookDetailPage.tsx
@@ -12015,6 +13069,10 @@ msgstr ""
 msgid "Volume {v} · next in {series}"
 msgstr ""
 
+#: src/components/goals/Detail.tsx
+msgid "volume {v} at {pc}%"
+msgstr ""
+
 #: src/components/home/FocusMode.tsx
 #~ msgid "Volume <0>{v}</0>"
 #~ msgstr ""
@@ -12023,6 +13081,7 @@ msgstr ""
 msgid "Volume number, as 01 or 10.5"
 msgstr ""
 
+#: src/components/goals/Detail.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
 msgstr ""
@@ -12106,13 +13165,21 @@ msgstr ""
 msgid "Wednesdays"
 msgstr ""
 
-#: src/lib/goals.ts
-msgid "Weekly minutes"
+#: src/components/goals/charts.tsx
+msgid "Week of {d}"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Week starts on"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "Weekly pages"
-msgstr ""
+#~ msgid "Weekly minutes"
+#~ msgstr ""
+
+#: src/lib/goals.ts
+#~ msgid "Weekly pages"
+#~ msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Weekly streak"
@@ -12121,6 +13188,10 @@ msgstr ""
 #: src/pages/StatsPage.tsx
 #~ msgid "Weekly Streak"
 #~ msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Weeks start on this day across the web app: reading goals, the weekly streak, the calendar and the Stats charts by weekday."
+msgstr ""
 
 #: src/pages/LoginPage.tsx
 msgid "Welcome back"
@@ -12144,6 +13215,10 @@ msgstr ""
 
 #: src/components/InfoHint.tsx
 msgid "What is this?"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "What it takes"
 msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
@@ -12288,6 +13363,10 @@ msgstr ""
 #~ msgid "Words Read"
 #~ msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "Working out what it takes…"
+msgstr ""
+
 #: src/pages/LoginPage.tsx
 msgid "Wrong username or password."
 msgstr ""
@@ -12305,8 +13384,8 @@ msgid "Year"
 msgstr ""
 
 #: src/lib/goals.ts
-msgid "Year challenge"
-msgstr ""
+#~ msgid "Year challenge"
+#~ msgstr ""
 
 #: src/lib/goals.ts
 #~ msgid "Year Challenge"
@@ -12339,16 +13418,40 @@ msgstr ""
 #~ msgid "You already have this goal — edit it from its tile instead."
 #~ msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "You already have this goal. Edit it from its card instead."
+msgstr ""
+
 #: src/components/stats/GoalWidget.tsx
-msgid "You already have this goal. Edit it from its tile instead."
+#~ msgid "You already have this goal. Edit it from its tile instead."
+#~ msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "You already have this goal. Edit it instead."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "You have this one"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "You have this one · {p}"
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "You rated this {rating}/5"
 msgstr ""
 
+#: src/components/goals/text.ts
+msgid "you read {r}"
+msgstr ""
+
 #: src/components/stats/BacklogEstimate.tsx
 msgid "you read ~{mpd} min a day (last {win} days)"
+msgstr ""
+
+#: src/components/goals/Detail.tsx
+msgid "You read a day (last {n} days)"
 msgstr ""
 
 #: src/components/stats/library/Sections.tsx
@@ -12366,6 +13469,30 @@ msgstr ""
 #: src/pages/SettingsPage.tsx
 msgid "You're signed in via SSO. Manage your credentials at your identity provider; there's no Tome password to change."
 msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "You've read {recent} a day over the last {recentDays} days."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "You've read <0>{a} min a day</0> on average over the last 90 days."
+#~ msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "You've read <0>{a} min a week</0> on average over the last 12 weeks."
+#~ msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "You've read <0>{a} pages a day</0> on average over the last 90 days."
+#~ msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "You've read <0>{a} pages a week</0> on average over the last 12 weeks."
+#~ msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+#~ msgid "You've read on <0>{a} days a week</0> on average over the last 12 weeks."
+#~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 #~ msgid "Your account is linked to SSO — you can sign in with your identity provider."
@@ -12385,6 +13512,10 @@ msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Your biggest reading day this month: {dur} with {mainTitle}."
+msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+msgid "Your goal for this. Change its day"
 msgstr ""
 
 #: src/components/HardcoverSync.tsx
@@ -12425,6 +13556,10 @@ msgstr ""
 msgid "Your note. It syncs back to KOReader on the next sync."
 msgstr ""
 
+#: src/components/goals/GoalsTab.tsx
+msgid "your pace on {r} of {o} days"
+msgstr ""
+
 #: src/components/stats/sessions/SessionTools.tsx
 msgid "Your page turns at your usual reading pace"
 msgstr ""
@@ -12435,6 +13570,10 @@ msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Your ratings over time"
+msgstr ""
+
+#: src/components/goals/GoalsTab.tsx
+msgid "Your reading goals"
 msgstr ""
 
 #: src/pages/StatsPage.tsx

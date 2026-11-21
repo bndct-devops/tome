@@ -46,6 +46,7 @@ import { SeriesReadingStats } from '@/components/SeriesReadingStats'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
 import { QuickLook } from '@/components/QuickLook'
 import { SortMenu } from '@/components/library/SortMenu'
+import { FinishByPill } from '@/components/goals/FinishByPill'
 import { PageBody, PageHeader, SectionTitle, Pill, Select, Input, FormLabel, INPUT_CLASS } from '@/components/page'
 // Library / Series tab icons, kept apart from the shared import above.
 import { ArrowLeft, Eye, Upload } from 'lucide-react'
@@ -1311,6 +1312,13 @@ export function DashboardPage() {
                       )}
                     </div>
                           <div className="flex flex-wrap items-center gap-1">
+                            {/* First, so its late arrival or longer label ("Finish by Dec 31") moves nothing to its right. */}
+                            {!isUnserialized && (
+                              <FinishByPill
+                                target={{ series: seriesDetail.name, cover: heroCoverId, read: readCount, total }}
+                                done={total > 0 && readCount === total}
+                              />
+                            )}
                             {!isUnserialized && (
                               <Pill
                                 variant="quiet"

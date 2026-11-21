@@ -46,3 +46,7 @@ export async function gate(page: Page, re: RegExp) {
 
 export const STATS_RE = /\/api\/stats(?!\/dashboard)/
 export const GOALS_RE = /\/api\/goals/
+/** The goals list only (not a goal's history, the kinds or the suggestions). */
+export const GOALS_LIST_RE = /\/api\/goals\?/
+/** A goal's history (the Goals tab's detail). */
+export const HISTORY_RE = /\/api\/goals\/\d+\/history/

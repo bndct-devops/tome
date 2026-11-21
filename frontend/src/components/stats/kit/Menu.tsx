@@ -112,6 +112,7 @@ export function ChoiceMenu({ value, options, groups = [], onPick, label, classNa
           ref={menu}
           role="menu"
           aria-label={label}
+          data-escape-layer=""
           onKeyDown={onMenuKey}
           className="fixed z-50 max-h-[min(420px,calc(100vh-16px))] min-w-52 max-w-[min(320px,calc(100vw-16px))] overflow-y-auto overscroll-contain rounded-xl bg-card p-1.5 shadow-lg ring-1 ring-panel-ring [scrollbar-width:thin]"
           style={pos ? { left: pos.left, top: pos.top } : { left: 0, top: 0, visibility: 'hidden' }}
