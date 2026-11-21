@@ -606,6 +606,32 @@ test('Burn-up legend: each mark is drawn exactly as its line in the plot', async
   }
 })
 
+// The finish-by picker's card against the New goal dialog under it: off screen, or a line of the
+// dialog cut by the card's top or bottom edge (each line is wholly covered or wholly clear). The
+// unseen copy that measures the count kinds (data-ruler) is skipped: nothing of it can peek out.
+const pickerFaults = (card: Locator) => card.evaluate((c) => {
+  const r = c.getBoundingClientRect()
+  const out: string[] = []
+  if (r.top < 0 || r.bottom > window.innerHeight) out.push(`card off screen ${r.top}-${r.bottom}`)
+  const dlg = document.querySelector('[role="dialog"][aria-label="New goal"]')!
+  for (const el of dlg.querySelectorAll('p, span, button, label')) {
+    if (el.children.length && el.tagName !== 'BUTTON') continue
+    if (el.closest('[data-ruler]')) continue
+    const b = el.getBoundingClientRect()
+    if (!b.height || !b.width) continue
+    const overlapX = b.left < r.right && b.right > r.left
+    const cut = overlapX && ((b.top < r.bottom && b.bottom > r.bottom) || (b.top < r.top && b.bottom > r.top))
+    if (cut) out.push(`${el.tagName} "${(el.textContent || '').trim().slice(0, 30)}" ${Math.round(b.top)}-${Math.round(b.bottom)} vs card ${Math.round(r.top)}-${Math.round(r.bottom)}`)
+  }
+  return { h: Math.round(r.height), out }
+})
+
+/** Resolves once nothing in the New goal dialog moves (its opening, a height step). */
+const dialogSettled = (page: Page) => expect.poll(() => page.evaluate(() => {
+  const d = document.querySelector('[role="dialog"][aria-label="New goal"]')
+  return d ? d.getAnimations({ subtree: true }).filter((a) => a.playState === 'running' && !/color|opacity|shadow/.test((a as CSSTransition).transitionProperty ?? '')).length : -1
+})).toBe(0)
+
 test('Finish-by picker while loading: the card keeps the size it will have, nothing peeks out under it', async ({ page }) => {
   seed('goals')
   await login(page)
@@ -622,30 +648,72 @@ test('Finish-by picker while loading: the card keeps the size it will have, noth
     await dialog(page).getByRole('button', { name: 'Book or series' }).click()
     const list = page.getByRole('listbox', { name: 'Book or series' })
     const card = page.getByRole('dialog', { name: 'Book or series' })
-    const check = async () => card.evaluate((c) => {
-      const r = c.getBoundingClientRect()
-      const out: string[] = []
-      if (r.top < 0 || r.bottom > window.innerHeight) out.push(`card off screen ${r.top}-${r.bottom}`)
-      // Every line of the dialog under the card is either wholly covered or wholly clear.
-      const dlg = document.querySelector('[role="dialog"][aria-label="New goal"]')!
-      for (const el of dlg.querySelectorAll('p, span, button, label')) {
-        if (el.children.length && el.tagName !== 'BUTTON') continue
-        const b = el.getBoundingClientRect()
-        if (!b.height || !b.width) continue
-        const overlapX = b.left < r.right && b.right > r.left
-        const cut = overlapX && ((b.top < r.bottom && b.bottom > r.bottom) || (b.top < r.top && b.bottom > r.top))
-        if (cut) out.push(`${el.tagName} "${(el.textContent || '').trim().slice(0, 30)}" ${Math.round(b.top)}-${Math.round(b.bottom)} vs card ${Math.round(r.top)}-${Math.round(r.bottom)}`)
-      }
-      return { h: Math.round(r.height), out }
-    })
+    // The card shows once the dialog has settled from its one height step.
+    await expect(card).toBeVisible()
     await expect(list).toHaveAttribute('aria-busy', 'true')
-    const loading = await check()
+    const loading = await pickerFaults(card)
     expect(loading.out, `loading at ${width}`).toEqual([])
     release()
     await expect(list).toHaveAttribute('aria-busy', 'false')
-    const loaded = await check()
+    const loaded = await pickerFaults(card)
     expect(loaded.out, `loaded at ${width}`).toEqual([])
     expect(loaded.h).toBe(loading.h)
+    await page.keyboard.press('Escape')
+    await page.keyboard.press('Escape')
+    await expect(page.getByRole('dialog')).toHaveCount(0)
+  }
+})
+
+test('Finish-by picker opened during the height step: the title holds, the card sits on its trigger once the dialog settles', async ({ page }) => {
+  seed('goals')
+  await login(page)
+  for (const width of [1440, 390]) {
+    await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
+    await openTab(page, 'Goals')
+    // The one height step (the panel's move and the area's height) slowed from 200 ms to 1.2 s, so
+    // the picker opens well inside it.
+    await page.addStyleTag({ content: '[role="dialog"][aria-modal="true"][style*="transition: top"], [role="dialog"][aria-modal="true"] [style*="transition: height"] { transition-duration: 1200ms !important }' })
+    await newGoal(page)
+    await dialogSettled(page)
+    // Every frame from here: the dialog's title, the trigger, and the card whenever it is shown.
+    await page.evaluate(() => {
+      const w = window as unknown as { __frames: { title: number; bottom: number; trigger: number | null; card: number | null }[]; __stop: boolean }
+      w.__frames = []
+      w.__stop = false
+      const tick = () => {
+        const d = document.querySelector('[role="dialog"][aria-label="New goal"]')
+        if (!d || w.__stop) return
+        const t = d.querySelector('button[aria-label="Book or series"]')
+        const c = document.querySelector<HTMLElement>('[role="dialog"][aria-label="Book or series"]')
+        const shown = c && getComputedStyle(c).visibility !== 'hidden'
+        w.__frames.push({ title: d.querySelector('h2')!.getBoundingClientRect().top, bottom: d.getBoundingClientRect().bottom, trigger: t ? t.getBoundingClientRect().bottom : null, card: shown ? c.getBoundingClientRect().top : null })
+        requestAnimationFrame(tick)
+      }
+      requestAnimationFrame(tick)
+    })
+    await dialog(page).getByRole('radio', { name: /^Finish by a date/ }).click()
+    // At once, mid-step (force: no wait for the trigger to stand still).
+    await dialog(page).getByRole('button', { name: 'Book or series' }).click({ force: true })
+    // (Located by attribute: a role query skips the card while it is hidden.)
+    await expect(page.locator('[role="dialog"][aria-label="Book or series"]')).toBeAttached()
+    const card = page.getByRole('dialog', { name: 'Book or series' })
+    const midStep = await page.evaluate(() => document.querySelector('[role="dialog"][aria-label="New goal"]')!.getAnimations({ subtree: true }).some((a) => (a as CSSTransition).transitionProperty === 'height'))
+    expect(midStep, `the picker opened inside the step at ${width}`).toBe(true)
+    await dialogSettled(page)
+    await expect(card).toBeVisible()
+    const frames = await page.evaluate(() => { const w = window as unknown as { __frames: { title: number; bottom: number; trigger: number | null; card: number | null }[]; __stop: boolean }; w.__stop = true; return w.__frames })
+    // Whenever the card shows, it sits 6 px under the trigger (it never shows where the trigger was).
+    const off = frames.filter((f) => f.card != null && f.trigger != null && Math.abs(f.card - (f.trigger + 6)) > 1)
+    expect(off.map((f) => `card ${Math.round(f.card!)} trigger ${Math.round(f.trigger!)}`), `card on its trigger at ${width}`).toEqual([])
+    expect(frames.some((f) => f.card != null), `card shown at ${width}`).toBe(true)
+    // The dialog grows at the bottom: its title holds (where the bottom would leave the screen the
+    // dialog moves up instead, as far as it has to), and its bottom stays on screen.
+    const titles = frames.map((f) => f.title)
+    const vh = width === 390 ? 844 : 900
+    if (width === 1440) expect(Math.max(...titles) - Math.min(...titles), `title holds at ${width}`).toBeLessThanOrEqual(1)
+    else expect(titles.every((t, i) => i === 0 || t <= titles[i - 1] + 1), `title only moves up at ${width}`).toBe(true)
+    expect(Math.max(...frames.map((f) => f.bottom)), `bottom on screen at ${width}`).toBeLessThanOrEqual(vh - 16 + 1)
+    expect((await pickerFaults(card)).out, `settled at ${width}`).toEqual([])
     await page.keyboard.press('Escape')
     await page.keyboard.press('Escape')
     await expect(page.getByRole('dialog')).toHaveCount(0)
