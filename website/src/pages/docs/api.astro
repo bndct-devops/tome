@@ -23,8 +23,8 @@ import { withBase } from '../../lib/path'
     <tbody>
       <tr><td><code>POST</code></td><td><code>/api/auth/login</code></td><td>Authenticate, returns a JWT that stays valid until signed out. Each call is a new sign-in listed under Settings &gt; Connected devices, so scripts should use an API token instead</td></tr>
       <tr><td><code>POST</code></td><td><code>/api/auth/logout</code></td><td>End the calling sign-in</td></tr>
-      <tr><td><code>GET</code></td><td><code>/api/auth/me</code></td><td>Current user profile</td></tr>
-      <tr><td><code>PUT</code></td><td><code>/api/auth/me</code></td><td>Update username / email</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/auth/me</code></td><td>Current user profile, including <code>week_start</code> (<code>monday</code> / <code>sunday</code>)</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/auth/me</code></td><td>Update username / email / <code>week_start</code></td></tr>
       <tr><td><code>PUT</code></td><td><code>/api/auth/me/password</code></td><td>Change password</td></tr>
       <tr><td><code>GET</code></td><td><code>/api/auth/me/stats</code></td><td>Reading stats for current user</td></tr>
       <tr><td><code>GET</code></td><td><code>/api/auth/me/backup</code></td><td>Export user data as JSON</td></tr>
@@ -161,6 +161,41 @@ import { withBase } from '../../lib/path'
       <tr><td><code>GET</code></td><td><code>/api/home/forgotten-books</code></td><td>Books started but not touched recently</td></tr>
     </tbody>
   </table>
+
+  <h2 id="goals">Goals</h2>
+  <p>
+    The <a href={withBase("/docs/stats#goals")}>reading goals</a> of the current user. Every endpoint
+    that computes takes the reader's zone as <code>?tz=</code> (an IANA name such as
+    <code>Europe/Vienna</code>); the older <code>?tz_offset=</code> (JS <code>getTimezoneOffset</code>,
+    in minutes) is still accepted and used when <code>tz</code> is missing or unknown.
+  </p>
+  <table>
+    <thead><tr><th>Method</th><th>Path</th><th>Description</th></tr></thead>
+    <tbody>
+      <tr><td><code>GET</code></td><td><code>/api/goals</code></td><td>All goals with their current period: <code>&#123;goals, week_start, today&#125;</code></td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/goals</code></td><td>Create a goal (body: <code>kind</code>, <code>target</code>, optional <code>book_type_id</code>; finish-by: <code>series</code> or <code>book_id</code>, and <code>due_date</code>). 409 if the same goal exists</td></tr>
+      <tr><td><code>PUT</code></td><td><code>/api/goals/&#123;id&#125;</code></td><td>Change the <code>target</code>, or a finish-by goal's <code>due_date</code>. Past periods keep the target they had</td></tr>
+      <tr><td><code>DELETE</code></td><td><code>/api/goals/&#123;id&#125;</code></td><td>Delete a goal; it stays restorable for 30 minutes</td></tr>
+      <tr><td><code>POST</code></td><td><code>/api/goals/&#123;id&#125;/restore</code></td><td>Undo a delete, history included</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/goals/&#123;id&#125;/history</code></td><td>Past periods with value, target and met / missed (<code>?periods=</code>, default 12, years 5)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/goals/kinds</code></td><td>The kinds a goal can have, with label, unit, presets and the reader's goals of each</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/goals/suggestions</code></td><td>Targets suggested from the reader's own reading (<code>?kind=</code>, all count kinds when omitted)</td></tr>
+      <tr><td><code>GET</code></td><td><code>/api/goals/finish-preview</code></td><td>What finishing a series or book by a day takes, before a goal is set (<code>?due=</code> and <code>?series=</code> or <code>?book_id=</code>)</td></tr>
+    </tbody>
+  </table>
+  <p>
+    Kinds are <code>books_per_year</code>, <code>books_per_month</code>, <code>minutes_per_day</code>,
+    <code>minutes_per_week</code>, <code>pages_per_day</code>, <code>pages_per_week</code>,
+    <code>days_per_week</code> and <code>finish_by</code>. Fields of a goal worth knowing:
+  </p>
+  <ul>
+    <li><code>name</code> — the display name ("Books in 2026", "Reading days a week"); <code>name_key</code> and <code>name_params</code> to translate it yourself.</li>
+    <li><code>current</code>, <code>target</code>, <code>unit</code>, <code>pct</code>, <code>to_go</code> — progress in the period.</li>
+    <li><code>status</code> — <code>ahead</code>, <code>on_pace</code>, <code>behind</code> or <code>reached</code> for weeks, months and years; <code>open</code> or <code>reached</code> for day goals; <code>on_pace</code>, <code>behind</code>, <code>open</code>, <code>completed</code> or <code>expired</code> for finish-by.</li>
+    <li><code>diff</code> — how many ahead (positive) or behind (negative) of an even pace; <code>expected</code> is where the pace is today, <code>projection</code> the course for the period's end. All <code>null</code> where they don't apply.</li>
+    <li><code>period_start</code>, <code>period_end</code> (local dates, inclusive), <code>days_left</code>; day and reading-days goals add <code>week</code>, one mark per day.</li>
+    <li>Finish-by goals add <code>due_date</code>, <code>target_series</code> or <code>target_book_id</code>, and <code>finish</code> with the volumes and time left.</li>
+  </ul>
 
   <h2>Users (admin)</h2>
   <table>
