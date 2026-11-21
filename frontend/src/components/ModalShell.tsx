@@ -114,7 +114,7 @@ interface Props {
   /** Padding and scroll live on the body; pass `p-0` for edge-to-edge lists. */
   bodyClassName?: string
   'aria-label'?: string
-  /** Extra style for the panel (a dialog that keeps its top edge while its height changes moves it with `translate`). */
+  /** Extra style for the panel (a dialog that keeps its top edge while its height changes moves it with `top`; the panel is `relative`). */
   panelStyle?: CSSProperties
 }
 

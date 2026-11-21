@@ -144,7 +144,10 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
       size={fixed ? 'sm' : 'md'}
       // The small dialog: the two day chips and "Pick a day" on one line.
       className={fixed ? 'max-w-[500px]' : undefined}
-      panelStyle={{ translate: shift.y ? shiftBy(shift.y) : undefined, transition: shift.animate ? STEP_TRANSLATE : undefined }}
+      // `top`, not `translate`: it and the area's height are both laid out on the main thread and
+      // start in the same frame, so they stay in step and the top edge holds (a `translate` runs on
+      // the compositor and can start frames apart from the height, and the panel bobbed by tens of px).
+      panelStyle={{ top: shift.y, transition: shift.animate ? STEP_TOP : undefined }}
       eyebrow={fixed ? kindLabel('finish_by') : undefined}
       title={fixed ? <FixedTitle x={fixed} /> : editing ? t`Edit goal` : t`New goal`}
       aria-label={fixed ? (() => { const n = targetName(fixed); return t`Finish ${n} by a date` })() : editing ? t`Edit goal` : t`New goal`}
@@ -261,9 +264,8 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
 // ── The area under the kinds ──────────────────────────────────────────────────
 
 /* eslint-disable lingui/no-unlocalized-strings -- CSS values and a media query */
-const STEP_TRANSLATE = 'translate 200ms ease-out'
+const STEP_TOP = 'top 200ms ease-out'
 const STEP_HEIGHT = 'height 200ms ease-out'
-const shiftBy = (y: number) => `0 ${y}px`
 const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 /* eslint-enable lingui/no-unlocalized-strings */
 
@@ -300,7 +302,8 @@ function Stepped({ on, finish, onShift, ruler, children }: {
   const [h, setH] = useState<number | null>(null)
   const [moving, setMoving] = useState(false)
   const last = useRef<number | null>(null)
-  const y = useRef(0)
+  // The panel's height before any change: the height its top edge was centred for.
+  const base = useRef<number | null>(null)
   useLayoutEffect(() => {
     if (!on || !inner.current) return
     const el = inner.current
@@ -309,16 +312,20 @@ function Stepped({ on, finish, onShift, ruler, children }: {
       const prev = last.current
       last.current = next
       if (prev === next) return
-      if (prev != null) {
-        const delta = next - prev
-        const panel = el.closest('[role="dialog"]')?.getBoundingClientRect()
+      const panel = el.closest<HTMLElement>('[role="dialog"]')
+      if (prev == null) base.current = panel?.offsetHeight ?? null
+      else if (panel && outer.current && base.current != null) {
+        // The panel's height once this change is done, from layout sizes: a change can come while
+        // an earlier one is still under way (the suggestions arriving, then a kind picked), and the
+        // panel's drawn size or place then is neither the old one nor the new.
+        const to = panel.offsetHeight - outer.current.offsetHeight + next
         // Centred, the panel's top would move up by half the change: move it down as much, so the
         // top stays; growing, never so far that its bottom leaves the screen.
-        const room = panel ? window.innerHeight - 16 - (panel.bottom + delta / 2) : Infinity
-        y.current += Math.min(delta / 2, room)
+        const room = (window.innerHeight - to) / 2 - 16
+        const y = room <= 0 ? 0 : Math.max(-room, Math.min((to - base.current) / 2, room))
         const animate = !reducedMotion()
         setMoving(animate)
-        onShift({ y: y.current, animate })
+        onShift({ y, animate })
       }
       setH(next)
     }
@@ -343,7 +350,8 @@ function Stepped({ on, finish, onShift, ruler, children }: {
       >
         {children}
       </div>
-      <div ref={rulerRef} className="pointer-events-none invisible absolute inset-x-0 top-0 grid" aria-hidden="true" inert>
+      {/* Unseen, unreachable and out of the reading order: only measured (data-ruler marks it). */}
+      <div ref={rulerRef} data-ruler="" className="pointer-events-none invisible absolute inset-x-0 top-0 grid" aria-hidden="true" inert>
         {ruler}
       </div>
     </div>

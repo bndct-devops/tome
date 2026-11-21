@@ -15,20 +15,46 @@ import { useStatsGet } from '@/components/stats/kit/useStatsGet'
 import { longDate, monthName, weekdayLetter } from './text'
 import { targetKey, type FinishTarget } from './pickerModel'
 
+// Transitions that move the trigger (colour changes do not).
+const MOVES = new Set(['top', 'translate', 'transform', 'height', 'margin-top'])
+
 function usePlace(open: boolean, trigger: RefObject<HTMLElement | null>, card: RefObject<HTMLElement | null>, onClose: () => void, below = false) {
   const [pos, setPos] = useState<{ left: number; top: number; width: number } | null>(null)
   useLayoutEffect(() => {
     if (!open || !trigger.current || !card.current) return
-    const r = trigger.current.getBoundingClientRect()
-    const c = card.current
-    const vw = document.documentElement.clientWidth, vh = window.innerHeight
-    const width = Math.min(Math.max(r.width, 280), vw - 16)
-    // `below`: always under the trigger (the card fits its height to the room there).
-    const up = !below && r.bottom + 6 + c.offsetHeight > vh - 8 && r.top - 6 - c.offsetHeight > 8
-    const left = Math.min(Math.max(8, r.left), vw - width - 8)
-    // Placed from the measured trigger and card before paint, as ChoiceMenu does (its refs are its own).
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    setPos({ left, top: up ? r.top - 6 - c.offsetHeight : r.bottom + 6, width })
+    let gone = false
+    const place = () => {
+      if (gone || !trigger.current || !card.current) return
+      const r = trigger.current.getBoundingClientRect()
+      const c = card.current
+      const vw = document.documentElement.clientWidth, vh = window.innerHeight
+      const width = Math.min(Math.max(r.width, 280), vw - 16)
+      // `below`: always under the trigger (the card fits its height to the room there).
+      const up = !below && r.bottom + 6 + c.offsetHeight > vh - 8 && r.top - 6 - c.offsetHeight > 8
+      const left = Math.min(Math.max(8, r.left), vw - width - 8)
+      setPos({ left, top: up ? r.top - 6 - c.offsetHeight : r.bottom + 6, width })
+    }
+    // The dialog may still be moving (opening, or its one height step after a kind is picked):
+    // the card stays hidden until it has settled and is then placed on the trigger where it ends
+    // up, never on where the trigger was a frame earlier.
+    const moving = () => (trigger.current?.closest('[role="dialog"]')?.getAnimations?.({ subtree: true }) ?? [])
+      .filter((a) => a.playState === 'running' && (!('transitionProperty' in a) || MOVES.has((a as CSSTransition).transitionProperty)))
+    const settle = () => {
+      if (gone) return
+      const now = moving()
+      if (!now.length) return place()
+      Promise.all(now.map((a) => a.finished.catch(() => {}))).then(() => requestAnimationFrame(settle))
+    }
+    if (moving().length) {
+      // Hidden while it waits (a card reopened would otherwise show where it was last time).
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setPos(null)
+      settle()
+    } else {
+      // Placed from the measured trigger and card before paint, as ChoiceMenu does (its refs are its own).
+      place()
+    }
+    return () => { gone = true }
   }, [open, trigger, card, below])
   useEffect(() => {
     if (!open) return
