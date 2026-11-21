@@ -2217,12 +2217,16 @@ msgid "a day"
 msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
-msgid "A day counts as it does for your streak: any reading on a device, or a minute or more in the web reader."
+#~ msgid "A day counts as it does for your streak: any reading on a device, or a minute or more in the web reader."
+#~ msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
+msgid "A day counts as it does for your streak."
 msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
-msgid "A few to start with. Once Tome has a few weeks of your reading, targets come from your own days."
-msgstr ""
+#~ msgid "A few to start with. Once Tome has a few weeks of your reading, targets come from your own days."
+#~ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "A folder per author, with a folder per series inside it."
@@ -2864,12 +2868,12 @@ msgid "At your {v} a volume in this series."
 msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
-msgid "At your average day's reading over the last 90 days you'd finish about <0>{a} books a year</0>."
-msgstr ""
+#~ msgid "At your average day's reading over the last 90 days you'd finish about <0>{a} books a year</0>."
+#~ msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
-msgid "At your average day's reading over the last 90 days you'd finish about <0>{b} books a month</0>."
-msgstr ""
+#~ msgid "At your average day's reading over the last 90 days you'd finish about <0>{b} books a month</0>."
+#~ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Attach progress synced from a KOReader-compatible app to this book"
@@ -3236,7 +3240,6 @@ msgstr "No se ha encontrado el libro"
 msgid "Book not found."
 msgstr "No se ha encontrado el libro."
 
-#: src/components/goals/GoalDialog.tsx
 #: src/components/goals/pickers.tsx
 msgid "Book or series"
 msgstr ""
@@ -5627,6 +5630,10 @@ msgstr "Importada del historial de lectura de KOReader"
 msgid "Importing…"
 msgstr "Importando…"
 
+#: src/components/goals/GoalDialog.tsx
+msgid "in {r} of {o} weeks"
+msgstr ""
+
 #: src/components/stats/overview/Overview.tsx
 msgid "in {rangePhrase}"
 msgstr ""
@@ -6613,8 +6620,8 @@ msgid "never used"
 msgstr "sin usar"
 
 #: src/components/goals/GoalDialog.tsx
-msgid "New"
-msgstr ""
+#~ msgid "New"
+#~ msgstr ""
 
 #: src/components/stats/boards/BoardsView.tsx
 #: src/pages/StatsPage.tsx
@@ -7570,6 +7577,10 @@ msgstr "En {name}: <0>{n}</0> de {total}"
 msgid "On {names}"
 msgstr "En {names}"
 
+#: src/components/goals/GoalDialog.tsx
+msgid "on {r} of {o} days"
+msgstr ""
+
 #: src/pages/LoginPage.tsx
 msgid "On a device where you're already signed in, go to <0>Settings → Access → Quick Connect</0> and enter this code."
 msgstr "En un dispositivo en el que ya hayas iniciado sesión, ve a <0>Ajustes → Acceso → Conexión rápida</0> e introduce este código."
@@ -8049,6 +8060,10 @@ msgid "Pick a book or a series"
 msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
+msgid "Pick a book or a series to see what it takes a day."
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
 #: src/components/goals/pickers.tsx
 msgid "Pick a day"
 msgstr ""
@@ -8210,8 +8225,8 @@ msgid "Progress counts automatically."
 msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
-msgid "Progress counts by itself, from the reading Tome records."
-msgstr ""
+#~ msgid "Progress counts by itself, from the reading Tome records."
+#~ msgstr ""
 
 #: src/components/goals/GoalsTab.tsx
 msgid "Progress counts by itself, from the reading Tome records. Start from what you already read:"
@@ -8456,7 +8471,6 @@ msgstr ""
 msgid "Reached"
 msgstr ""
 
-#: src/components/goals/GoalDialog.tsx
 #: src/components/goals/GoalsTab.tsx
 msgid "reached in {r} of {o} weeks"
 msgstr ""
@@ -8470,8 +8484,8 @@ msgid "Reached in {r} of the last 12 weeks"
 msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
-msgid "reached on {r} of {o} days"
-msgstr ""
+#~ msgid "reached on {r} of {o} days"
+#~ msgstr ""
 
 #: src/components/goals/marks.ts
 msgid "Reached today"
@@ -11612,6 +11626,10 @@ msgid "You already have this goal. Edit it instead."
 msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
+msgid "You have this one"
+msgstr ""
+
+#: src/components/goals/GoalDialog.tsx
 msgid "You have this one · {p}"
 msgstr ""
 
@@ -11648,24 +11666,24 @@ msgid "You've read {recent} a day over the last {recentDays} days."
 msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
-msgid "You've read <0>{a} min a day</0> on average over the last 90 days."
-msgstr ""
+#~ msgid "You've read <0>{a} min a day</0> on average over the last 90 days."
+#~ msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
-msgid "You've read <0>{a} min a week</0> on average over the last 12 weeks."
-msgstr ""
+#~ msgid "You've read <0>{a} min a week</0> on average over the last 12 weeks."
+#~ msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
-msgid "You've read <0>{a} pages a day</0> on average over the last 90 days."
-msgstr ""
+#~ msgid "You've read <0>{a} pages a day</0> on average over the last 90 days."
+#~ msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
-msgid "You've read <0>{a} pages a week</0> on average over the last 12 weeks."
-msgstr ""
+#~ msgid "You've read <0>{a} pages a week</0> on average over the last 12 weeks."
+#~ msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
-msgid "You've read on <0>{a} days a week</0> on average over the last 12 weeks."
-msgstr ""
+#~ msgid "You've read on <0>{a} days a week</0> on average over the last 12 weeks."
+#~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Your account is linked to SSO. You can sign in with your identity provider."
@@ -11716,7 +11734,6 @@ msgstr "Tu nota; se enviará a KOReader en la próxima sincronización"
 msgid "Your note. It syncs back to KOReader on the next sync."
 msgstr "Tu nota. Se enviará a KOReader en la próxima sincronización."
 
-#: src/components/goals/GoalDialog.tsx
 #: src/components/goals/GoalsTab.tsx
 msgid "your pace on {r} of {o} days"
 msgstr ""
