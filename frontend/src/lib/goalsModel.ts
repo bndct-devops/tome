@@ -188,6 +188,25 @@ export function shown(n: number): number {
 /** The Overview's compact row shows at most this many goals (one row of four; two rows of two on the phone). */
 export const COMPACT_MAX = 4
 
+/** Home's one row: at most this many goals (four across on a desktop, two rows of two on the phone). */
+export const HOME_MAX = 4
+
+/** How much a status needs the reader: behind or expired first, then not yet reached, then ahead, reached last. */
+const ATTENTION: Record<string, number> = { behind: 0, expired: 0, open: 1, on_pace: 1, ahead: 2, reached: 3, completed: 3 }
+
+/**
+ * The goals Home shows, in the order it shows them: by what needs attention
+ * (ATTENTION); among the goals not yet reached and not behind, the nearest
+ * period end or due date first; then by id, so the same answer always picks
+ * the same cards.
+ */
+export function homePick<G extends { id: number; status: string; period_end: string }>(goals: G[], max = HOME_MAX): G[] {
+  const rank = (g: G) => ATTENTION[g.status] ?? 1
+  return [...goals]
+    .sort((a, b) => rank(a) - rank(b) || (rank(a) === 1 ? a.period_end.localeCompare(b.period_end) : 0) || a.id - b.id)
+    .slice(0, max)
+}
+
 // ── Remembered shape (skeletons) ──────────────────────────────────────────────
 
 /** The heights of a goal grid's rows as last drawn, per place and layout, so a second visit's skeleton reserves them. */

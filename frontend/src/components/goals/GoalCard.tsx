@@ -4,6 +4,9 @@
 // status line and what it takes. Cards sit on hairlines as the Stats pages'
 // figures do. GoalGrid lays them out (four columns on a desktop, two on the
 // phone) and reserves their remembered heights while the goals are on their way.
+// A card's five lines are rows of the grid itself (subgrid), so the cards of a
+// row share each line's height: a status or sub line, a figure whose unit wraps,
+// or a finish-by title on two lines sits level with its neighbours'.
 import type { CSSProperties, ReactNode } from 'react'
 import { Check } from 'lucide-react'
 import { t } from '@lingui/core/macro'
@@ -95,14 +98,14 @@ export function LeadLine({ goal, className, width, px = 14 }: { goal: Goal; clas
   )
 }
 
-/** A finish-by card's strong line: the book or series (truncated with a tip), after the status when it is not plainly on pace. */
+/** A finish-by card's strong line: the book or series (up to two lines, then cut, with a tip), after the status when it is not plainly on pace. */
 function FinishLine({ goal }: { goal: Goal }) {
   const l = lead(goal)
   const w = leadWords(l.lead)
   const title = goal.finish?.title ?? goal.name_params?.title ?? ''
   const plain = l.lead.k === 'finish' && (l.lead.status === 'on_pace' || l.lead.status === 'open')
   return (
-    <span className="block truncate" {...tipAttrs({ title, value: plain ? w.lead : undefined })}>
+    <span className="line-clamp-2 whitespace-normal break-words" {...tipAttrs({ title, value: plain ? w.lead : undefined })}>
       {!plain && (l.lead.k === 'reached'
         ? <span className="font-semibold text-success"><Check className="mr-1 inline-block h-[0.95em] w-[0.95em] align-[-0.12em]" strokeWidth={2.5} aria-hidden="true" />{w.lead}</span>
         : <span className={cn('font-semibold', toneClass[l.tone])}>{w.lead}</span>)}
@@ -150,13 +153,13 @@ export function GoalCard({ goal, entry, desktop, today, lineWidth }: {
   // A finish-by card is labelled by its date ("Finish by Dec 31", never cut); the goal's one name is in the tip.
   const label = finish ? finishLabel(goal, today) : name
   return (
-    <div className="min-w-0 text-left">
+    <div className={cn('min-w-0 text-left', SUB)}>
       <div className={cn(finish ? 'whitespace-nowrap' : 'truncate', 'text-muted-foreground', desktop ? 'text-[14px]' : 'text-[13px] leading-snug')} {...tipAttrs({ title: name })}>{label}</div>
       <div className="mt-1.5"><Figure goal={goal} entry={entry} desktop={desktop} /></div>
       <div className="mt-3 flex h-[30px] items-start">
         {markKind(goal) === 'strip' ? <DayStrip goal={goal} /> : <div className="w-full pt-2"><PaceBar goal={goal} today={today} /></div>}
       </div>
-      <div className={cn('mt-1 leading-[1.4]', desktop ? 'text-[14px]' : 'text-[13px]', lineWidth && 'whitespace-nowrap')}>
+      <div className={cn('mt-1 leading-[1.4]', desktop ? 'text-[14px]' : 'text-[13px]', lineWidth && !finish && 'whitespace-nowrap')}>
         {finish ? <FinishLine goal={goal} /> : <LeadLine goal={goal} width={lineWidth} px={desktop ? 14 : 13} />}
       </div>
       <div className={cn('mt-0.5 leading-[1.4] text-muted-foreground', desktop ? 'text-[13px]' : 'text-[12px]', lineWidth && 'whitespace-nowrap')}>
@@ -179,12 +182,24 @@ function CardSkeleton({ desktop }: { desktop: boolean }) {
   )
 }
 
+/** A card's five lines (name, figure, marks, status, sub line) as rows of the grid it sits in. */
+const SUB = 'grid row-span-5 grid-rows-subgrid'
+/** Grid rows a row of cards takes: its five lines and the hairline under it. */
+const ROW_SPAN = 6
+
 /**
  * The cards on hairlines (four columns on a desktop, two on the phone). `goals`
  * null draws `count` skeleton cells at the remembered row heights (`shapeKey`
  * names where the grid is: the caller only draws a skeleton when shapeKnown()).
  * `pick` makes each card a button (Home: open the Goals tab; the Goals tab:
  * select it, `selected` underlined).
+ *
+ * The hairlines: a rule between two rows of cards is a grid item of its own
+ * across every column, so it runs the full width whatever the last row holds;
+ * a column's rule is the left border of each card after the first in its row,
+ * and every card of a row is as tall as the row, so those rules are of one
+ * length and meet the rows' rules. A short last row draws rules only between
+ * its own cards.
  */
 export function GoalGrid({ goals, count, desktop, entry, shapeKey, pick, selected, today, label }: {
   goals: Goal[] | null
@@ -216,18 +231,19 @@ export function GoalGrid({ goals, count, desktop, entry, shapeKey, pick, selecte
         const sel = !!g && selected === g.id
         const rowH = !g ? shape.h(`row${row}`) : undefined
         const cell: ReactNode = g ? <GoalCard goal={g} entry={entry} desktop={desktop} today={today} lineWidth={lineWidth(col)} /> : <CardSkeleton desktop={desktop} />
-        return (
+        return [
           <div
             key={g ? g.id : `s${i}`}
             role="listitem"
             data-box={`goal-${i}`}
             ref={g && col === 0 ? shape.measure(`row${row}`) : undefined}
-            style={rowH ? { height: rowH } : undefined}
+            style={{ gridColumn: col + 1, gridRow: `${row * ROW_SPAN + 1} / span 5`, ...(rowH ? { height: rowH } : {}) }}
             className={cn(
               'relative min-w-0',
+              g && SUB,
               desktop
-                ? cn('px-6 py-0.5', col === 0 && 'pl-0', col > 0 && cn('border-l', HAIR), row > 0 && cn('border-t pt-5', HAIR), !lastRow && 'pb-5')
-                : cn('py-4', col === 0 ? 'pr-3' : cn('border-l pl-4', HAIR), row === 0 && 'pt-0', !lastRow ? cn('border-b', HAIR) : 'pb-0'),
+                ? cn('px-6 py-0.5', col === 0 && 'pl-0', col > 0 && cn('border-l', HAIR), row > 0 && 'pt-5', !lastRow && 'pb-5')
+                : cn('py-4', col === 0 ? 'pr-3' : cn('border-l pl-4', HAIR), row === 0 && 'pt-0', lastRow && 'pb-0'),
             )}
           >
             {g && pick ? (
@@ -235,7 +251,7 @@ export function GoalGrid({ goals, count, desktop, entry, shapeKey, pick, selecte
                 type="button"
                 onClick={() => pick(g)}
                 aria-pressed={selected !== undefined ? sel : undefined}
-                className="group/card block w-full rounded-[10px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background"
+                className={cn('group/card w-full rounded-[10px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background', SUB)}
               >
                 {cell}
               </button>
@@ -246,8 +262,12 @@ export function GoalGrid({ goals, count, desktop, entry, shapeKey, pick, selecte
                 aria-hidden="true"
               />
             )}
-          </div>
-        )
+          </div>,
+          // After a row's last card (but not the grid's): the rule under the row, across every column.
+          (col === cols - 1 || i === n - 1) && !lastRow && (
+            <div key={`rule${row}`} data-rule="row" aria-hidden="true" className={cn('border-t', HAIR)} style={{ gridColumn: '1 / -1', gridRow: row * ROW_SPAN + ROW_SPAN }} />
+          ),
+        ]
       })}
     </div>
   )

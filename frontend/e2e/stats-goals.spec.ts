@@ -1,5 +1,6 @@
-import { test, expect, type Page } from '@playwright/test'
+import { test, expect, type Locator, type Page } from '@playwright/test'
 import { seed, login, apiToken, apiGet } from './helpers'
+import { LONG_SERIES, goalsAnswer } from './goals-fixtures'
 import { boxes, moved, forgetStats, gate, STATS_RE, GOALS_RE, GOALS_LIST_RE, HISTORY_RE } from './stats-helpers'
 
 // Reading goals against the real backend. Seed `goals`: year goals scoped to Manga
@@ -199,18 +200,123 @@ test('Dialog: suggested targets from the reader\'s own days, presets without his
   for (const v of ['15', '30', '60']) await expect(dialog(page).getByRole('radio', { name: v, exact: true })).toBeVisible()
 })
 
-test('Home: every goal as a card; a card opens it on the Goals tab', async ({ page }) => {
+test('Home: one row of the goals that need attention; a card opens it on the Goals tab, See all the tab', async ({ page }) => {
   seed('goals')
   await login(page)
   await page.goto('/')
   const home = page.locator('[data-box="home-goals"]')
-  await expect(home.getByRole('listitem')).toHaveCount(6)
-  await expect(home).toContainText('Light Novels')
-  await home.getByRole('listitem').filter({ hasText: 'Reading days a week' }).getByRole('button').click()
+  // Six goals: behind first (Light Novels, Minutes a week), then ahead (Comics), then the first reached (Manga).
+  await expect(home.getByRole('listitem')).toHaveCount(4)
+  const names = await home.getByRole('listitem').evaluateAll((els) => els.map((e) => e.querySelector('[class*="text-muted-foreground"]')?.textContent))
+  expect(names).toEqual([`Books in ${year} · Light Novels`, 'Minutes a week', `Books in ${year} · Comics`, `Books in ${year} · Manga`])
+  const all = home.getByRole('link', { name: 'See all 6 goals' })
+  await expect(all).toHaveAttribute('href', '/stats?tab=goals')
+  await home.getByRole('listitem').filter({ hasText: 'Minutes a week' }).getByRole('button').click()
   await expect(page).toHaveURL(/\/stats/)
   await expect(page.getByRole('tab', { name: 'Goals' })).toHaveAttribute('aria-selected', 'true')
-  await expect(card(page, 'Reading days a week').getByRole('button')).toHaveAttribute('aria-pressed', 'true')
+  await expect(card(page, 'Minutes a week').getByRole('button')).toHaveAttribute('aria-pressed', 'true')
+  // The link wins over the view Stats remembers.
+  await page.evaluate(() => localStorage.setItem('tome_stats_view', JSON.stringify({ tab: 'overview', days: 30, board: null })))
+  await page.goto('/')
+  await home.getByRole('link', { name: 'See all 6 goals' }).click()
+  await expect(page).toHaveURL(/\/stats/)
+  await expect(page.getByRole('tab', { name: 'Goals' })).toHaveAttribute('aria-selected', 'true')
+  await expect(cards(page)).toHaveCount(6)
 })
+
+/** Answers GET /api/goals with a made-up set (goals-fixtures.ts) around the server's own today. */
+async function routeGoals(page: Page, n: 1 | 3 | 4 | 6 | 8) {
+  await page.unroute(GOALS_LIST_RE)
+  await page.route(GOALS_LIST_RE, async (route) => {
+    if (route.request().method() !== 'GET') return route.continue()
+    const today = (await (await route.fetch()).json()).today as string
+    await route.fulfill({ json: goalsAnswer(n, today) })
+  })
+}
+
+/**
+ * What is wrong with a goal grid's hairlines: every rule between rows runs the grid's full
+ * width and sits flush between the rows; every card of a row is as tall as the row, so its
+ * column rule (left border) has one length; a column rule is drawn left of every card but
+ * a row's first.
+ */
+async function ruleFaults(list: Locator) {
+  return list.evaluate((grid) => {
+    const out: string[] = []
+    const g = grid.getBoundingClientRect()
+    const near = (a: number, b: number) => Math.abs(a - b) <= 0.5
+    const cells = [...grid.querySelectorAll(':scope > [role="listitem"]')].map((el) => ({ r: el.getBoundingClientRect(), bl: parseFloat(getComputedStyle(el).borderLeftWidth) }))
+    const rows: { top: number; bottom: number; cells: typeof cells }[] = []
+    for (const c of cells) {
+      const row = rows.find((r) => near(r.top, c.r.top))
+      if (row) row.cells.push(c)
+      else rows.push({ top: c.r.top, bottom: c.r.bottom, cells: [c] })
+    }
+    rows.forEach((row, i) => {
+      row.cells.forEach((c, j) => {
+        if (!near(c.r.height, row.cells[0].r.height)) out.push(`row ${i} card ${j}: ${c.r.height} high, the row's first ${row.cells[0].r.height}`)
+        if ((j > 0) !== (c.bl >= 1)) out.push(`row ${i} card ${j}: column rule ${c.bl}`)
+      })
+    })
+    const rules = [...grid.querySelectorAll(':scope > [data-rule="row"]')].map((el) => ({ r: el.getBoundingClientRect(), bt: parseFloat(getComputedStyle(el).borderTopWidth) }))
+    if (rules.length !== Math.max(0, rows.length - 1)) out.push(`${rules.length} row rules for ${rows.length} rows`)
+    rules.forEach((rule, i) => {
+      if (!(rule.bt >= 1)) out.push(`rule ${i}: no line`)
+      if (!near(rule.r.left, g.left) || !near(rule.r.right, g.right)) out.push(`rule ${i}: ${rule.r.left}-${rule.r.right}, the grid ${g.left}-${g.right}`)
+      const above = rows[i], below = rows[i + 1]
+      if (above && !near(rule.r.top, above.top + above.cells[0].r.height)) out.push(`rule ${i}: top ${rule.r.top}, the row above ends ${above.top + above.cells[0].r.height}`)
+      if (below && !near(rule.r.bottom, below.top)) out.push(`rule ${i}: bottom ${rule.r.bottom}, the row below starts ${below.top}`)
+    })
+    return out
+  })
+}
+
+for (const vp of [{ name: 'desktop', width: 1440, height: 900, cols: 4 }, { name: 'phone', width: 390, height: 844, cols: 2 }]) {
+  test(`Goal grids, ${vp.name}: Home caps and orders, and every grid's rules are whole for 1 to 8 goals`, async ({ page }) => {
+    seed('goals')
+    await page.setViewportSize({ width: vp.width, height: vp.height })
+    await login(page)
+    for (const n of [1, 3, 4, 6, 8] as const) {
+      await routeGoals(page, n)
+      await page.goto('/')
+      const home = page.locator('[data-box="home-goals"]')
+      await expect(home.getByRole('listitem')).toHaveCount(Math.min(4, n))
+      expect(await ruleFaults(home.getByRole('list')), `Home, ${n} goals`).toEqual([])
+      // Desktop: one row; the phone: two rows of two.
+      const tops = new Set(await home.getByRole('listitem').evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().top))))
+      expect(tops.size, `Home rows, ${n} goals`).toBe(Math.ceil(Math.min(4, n) / vp.cols))
+      await expect(home.getByRole('link', { name: /^See all/ })).toHaveCount(n > 4 ? 1 : 0)
+      await page.evaluate(() => localStorage.setItem('tome_stats_view', JSON.stringify({ tab: 'goals', days: 30, board: null })))
+      await page.goto('/stats')
+      await expect(now(page)).toHaveAttribute('aria-busy', 'false')
+      await expect(cards(page)).toHaveCount(n)
+      expect(await ruleFaults(now(page).getByRole('list')), `Goals tab, ${n} goals`).toEqual([])
+    }
+    // Eight goals, every kind: Home shows the two behind first (by id), then the not yet reached by the
+    // nearest end (Minutes a day ends today, Books in this month at its end; the finish-by in December waits).
+    await routeGoals(page, 8)
+    await page.goto('/')
+    const home = page.locator('[data-box="home-goals"]')
+    await expect(home.getByRole('listitem')).toHaveCount(4)
+    const labels = await home.getByRole('listitem').evaluateAll((els) => els.map((e) => e.querySelector('[class*="text-muted-foreground"]')?.textContent))
+    expect(labels.slice(0, 2)).toEqual([`Books in ${year} · Light Novels`, 'Reading days a week'])
+    expect(labels.slice(2)).toEqual(['Minutes a day', expect.stringMatching(/^Books in \w+$/)])
+    await expect(home.getByRole('link', { name: 'See all 8 goals' })).toHaveAttribute('href', '/stats?tab=goals')
+    // A long series title takes two lines before it is cut, and the cards of its row keep their status and sub lines level.
+    await routeGoals(page, 6)
+    await page.goto('/')
+    const finishCard = home.getByRole('listitem').filter({ hasText: LONG_SERIES })
+    await expect(finishCard).toBeVisible()
+    const cut = await finishCard.locator('.line-clamp-2').evaluate((el) => el.scrollHeight > el.clientHeight + 1)
+    expect(cut, 'the series title is whole on two lines').toBe(false)
+    const levels = await home.getByRole('listitem').evaluateAll((els) => els.map((e) => {
+      const lines = e.querySelectorAll(':scope > button > div > div')
+      return [3, 4].map((k) => Math.round(lines[k].getBoundingClientRect().top))
+    }))
+    const rowsOf = (vp.cols === 4 ? [levels] : [levels.slice(0, 2), levels.slice(2)])
+    for (const r of rowsOf) for (const l of r) expect(l).toEqual(r[0])
+  })
+}
 
 test('Week start Sunday: the strip starts on Sunday and a weekly goal\'s week with it', async ({ page, request }) => {
   seed('goals')
@@ -332,9 +438,9 @@ for (const vp of VIEWPORTS) {
       await expect(page.locator('[aria-busy="true"]').first()).toBeVisible()
       await expect(page.locator('[data-box="home-goals"]')).toHaveCount(0)
       goals.release()
-      await expect(page.locator('[data-box="home-goals"] [role="listitem"]')).toHaveCount(6)
+      await expect(page.locator('[data-box="home-goals"] [role="listitem"]')).toHaveCount(4)
       const first = await boxes(page)
-      expect(Object.keys(first)).toContain('home-recent')
+      expect(Object.keys(first)).toEqual(expect.arrayContaining(['home-recent', 'home-goals-all']))
       await page.waitForLoadState('networkidle')
       const later = await boxes(page)
       expect(moved(first, later)).toEqual([])

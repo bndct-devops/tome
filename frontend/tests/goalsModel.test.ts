@@ -5,7 +5,7 @@ import assert from 'node:assert/strict'
 import {
   addDays, booksAMonth, fitClauses, detail, dow, lead, markKind, minutesADay, monthGrid, parseTarget, shapeFits,
   stripMarks, tick, weekStartOf, weekdayOrder, type GoalLike, type WeekMark,
-  boxesMeet, placeEndLabels, segHitsBox,
+  boxesMeet, placeEndLabels, segHitsBox, homePick, HOME_MAX,
 } from '../src/lib/goalsModel.ts'
 
 const base: GoalLike = {
@@ -201,4 +201,21 @@ test('end labels: a point in the way is avoided too', () => {
   const placed = placeEndLabels(labels, { segs: [], boxes: [dot] }, plot)
   assert.ok(placed)
   assert.equal(boxesMeet(textBox(placed![0], 62), dot), false)
+})
+
+test('Home picks four goals by what needs attention: behind and expired, then open and on pace by the nearest end, then ahead, reached last', () => {
+  const h = (id: number, status: string, period_end: string) => ({ id, status, period_end })
+  const goals = [
+    h(1, 'reached', '2026-11-22'), h(2, 'ahead', '2026-12-31'), h(3, 'on_pace', '2026-12-31'), h(4, 'open', '2026-11-21'),
+    h(5, 'behind', '2026-12-31'), h(6, 'completed', '2026-12-28'), h(7, 'expired', '2026-11-18'), h(8, 'on_pace', '2026-11-30'),
+  ]
+  assert.equal(HOME_MAX, 4)
+  assert.deepEqual(homePick(goals).map((g) => g.id), [5, 7, 4, 8])
+  assert.deepEqual(homePick(goals, 8).map((g) => g.id), [5, 7, 4, 8, 3, 2, 1, 6])
+  // The same answer in any order picks the same cards; equal ends fall back to the id.
+  assert.deepEqual(homePick([...goals].reverse(), 8).map((g) => g.id), [5, 7, 4, 8, 3, 2, 1, 6])
+  assert.deepEqual(homePick([h(9, 'open', '2026-11-21'), h(2, 'open', '2026-11-21')]).map((g) => g.id), [2, 9])
+  // Fewer than four: all of them; an unknown status counts as not yet reached.
+  assert.deepEqual(homePick([h(1, 'reached', '2026-11-22'), h(2, 'later', '2026-12-01')]).map((g) => g.id), [2, 1])
+  assert.equal(homePick([]).length, 0)
 })
