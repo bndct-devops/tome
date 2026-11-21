@@ -284,7 +284,7 @@ def generate_sessions(
 
     # ── Book lifecycle: when was each book in rotation? ─────────────────────
     # Currently reading — Dungeon Mauling (Good Guys 3) + Project Hail Mary
-    currently_reading_slugs = ["good-guys-03", "project-hail-mary"]
+    currently_reading_slugs = ["project-hail-mary", "good-guys-03"]
 
     # (slug, days_ago_started, days_ago_finished or None, target_state)
     # — `reading`: currently active, no end date
@@ -431,10 +431,12 @@ def generate_sessions(
         "project-hail-mary": 0.42,    # Project Hail Mary 42%
     }
     finished_set = {s for s, _, _, st in lifecycle if st == "read"}
-    reading_set  = set(currently_reading_slugs)
     # Stalled books deliberately get NO status record so they don't pollute "Currently Reading".
 
-    for slug in reading_set:
+    # In list order, not as a set: each book draws its "last read" hours from rng,
+    # and a set's order changes from run to run (string hashing), which swapped the
+    # two books' times, and their order under Reading now, between runs of the same seed.
+    for slug in currently_reading_slugs:
         book = books_by_slug[slug]
         pct = progress_overrides.get(slug, 0.50)
         statuses[slug] = UserBookStatus(
