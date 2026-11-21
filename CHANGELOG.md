@@ -7,6 +7,27 @@ All notable changes to Tome are documented here. Format loosely follows
 ## [Unreleased]
 
 ### Added
+- **A plugin for CrossPoint readers (experimental).** CrossPoint 2.0 and
+  CrossInk load plugins from the SD card, and Tome now has one. With it an
+  Xteink reader sends each reading session to Tome by itself when it goes to
+  sleep: book, start, end, reading time and how far you got, so the book's
+  progress in Tome moves along too. Download it under Settings > Xteink
+  readers, unpack it into the plugins folder on the SD card and turn on
+  Plugins on the reader. Nothing is typed on the reader: opening the plugin
+  shows a QR code, you scan it with a signed-in phone and confirm the code.
+  The reader then holds a key of its own, listed under Settings > Access as
+  "CrossPoint reader" and revocable there; the ZIP itself holds only your
+  server's address. Settings > Xteink readers shows the connected readers
+  and when the last session arrived, and so does the plugin's screen on the
+  reader. Sessions come without page counts, since the plugin system has
+  none to send. On CrossInk it can run next to the stats sync: a sitting
+  that arrives both ways counts once. The same Settings page has the setup
+  for CrossInk's built-in sync, and the new docs page "Xteink readers"
+  compares the two and says which one to use. Tested with CrossInk's own
+  code in its desktop simulator (connecting with the code, a book from Tome
+  read for a few pages, the reader put to sleep, the session delivered) and
+  with CrossPoint 2.0.0's own delivery code on a computer; not yet on a
+  device.
 - **Reading stats from CrossInk readers (experimental).** An Xteink reader
   running CrossInk 2.0 or newer can now send its reading sessions to Tome
   over the same KOReader Sync account it already uses for progress. Each
@@ -22,10 +43,11 @@ All notable changes to Tome are documented here. Format loosely follows
   until the document is linked (the next entry is how that now happens by
   itself). A session you trim or delete in Tome stays that way when the
   reader sends it again. Other KOSync apps are unaffected. Tested with the
-  firmware's own code in its desktop simulator and by a tester on an Xteink
-  X3. Known firmware limit: on CrossInk 2.0.0-rc, "Sync Reading Stats" for
-  more than one book at a time reports a failure with any server; the data
-  still arrives, and syncing from inside a book works.
+  firmware's own code in its desktop simulator and on an Xteink X3 by
+  @gabrieledettorre, who tested every step of this. Known firmware limit:
+  on CrossInk 2.0.0-rc, "Sync Reading Stats" for more than one book at a
+  time reports a failure with any server; the data still arrives, and
+  syncing from inside a book works.
 - **Pages and pace for books read on a CrossInk reader (experimental).** The
   reader's sessions carry reading time but no page counts. It does send a
   page total per book, which Tome now keeps: a book's Pages and Pace on its

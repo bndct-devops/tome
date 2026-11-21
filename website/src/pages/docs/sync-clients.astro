@@ -106,71 +106,11 @@ import { withBase } from '../../lib/path'
     <ThemedShot client:load name="kosync-link" alt="The Link KOReader sync picker on a book page, offering an unlinked Readest document" />
   </div>
 
-  <h2>Reading stats from CrossInk (experimental)</h2>
+  <h2>Xteink readers (CrossPoint, CrossInk)</h2>
   <p>
-    KOSync itself only carries a position, so most KOSync apps add nothing to your stats.
-    <a href="https://github.com/uxjulia/CrossInk" target="_blank" rel="noopener">CrossInk</a>,
-    the firmware for Xteink readers, is the exception from version 2.0: it can also send its
-    reading sessions, and Tome accepts them. Each sitting arrives with its book, start, end
-    and active reading time, and counts in the stats pages, the calendar and streaks.
-  </p>
-  <Steps>
-    <li>Set the sync password in <strong>Settings → KOReader</strong> if you haven't. An account
-      registered from the reader itself is not tied to a Tome user and gets no stats.</li>
-    <li>On the reader, <strong>Authenticate</strong> against your Tome server again. That is
-      when it checks what the server supports.</li>
-    <li>Turn on <strong>Reading Stats</strong> under <strong>What to Sync</strong>, then sync.
-      <strong>Clippings</strong> can be switched on there too (see below).</li>
-  </Steps>
-  <ul>
-    <li>The reader syncs with one server. While it points at Tome, it sends nothing to
-      CrossPoint Sync, and reading it already sent there is not sent to Tome.</li>
-    <li>Sessions arrive with time but no page counts. The reader sends a page total per
-      book instead, and Tome turns that into pages per session: the counter's growth between
-      two syncs is shared out over the sessions read in between, by reading time, marked with
-      a small sign as attributed. Sync after each sitting and every session gets its exact
-      pages; sync less often and a larger total is spread over more sessions. A book's
-      all-time <strong>Pages</strong> and <strong>Pace</strong> always match the reader's
-      counter. Reading from before Tome saw the counter, and history from the import, stays
-      as time only.</li>
-    <li><strong>Sync Book</strong> on the reader covers the open book only: its position and
-      its page count. Reading time is sent for every book. So after finishing one book and
-      starting the next, sync once from inside each of them; a book you finished without
-      syncing keeps its old progress and gets no pages until you do.</li>
-    <li>For a book that is new on the reader, the first sync gives its pages to the sessions
-      sent with it. For a book the reader had counted long before its first sync to Tome,
-      the first count is only the starting point.</li>
-    <li>When the reader reports a book as finished, Tome marks it as read with the reader's
-      finish date.</li>
-    <li>Reading from before the reader first synced to Tome has no sessions. The reader keeps
-      lifetime totals and a calendar of read days, and sends them with every sync: the days
-      show on the <strong>Calendar</strong> as reading days without a time and count for
-      streaks, and the Stats page set to <strong>All</strong> includes the earlier time,
-      sessions and pages, marked "before sync".</li>
-    <li>On CrossInk 2.0.0-rc, <strong>Sync Reading Stats</strong> for more than one book at a
-      time reports a failure with any server. The data still arrives; syncing from inside a
-      book works.</li>
-    <li>A session for a book Tome can't identify still counts toward your totals and is listed
-      as "(book not linked yet)". It appears on the calendar once the document is linked:
-      automatically when the reader next syncs progress for a book you downloaded from Tome
-      or, with <strong>Send Document Metadata</strong> on, for any book (see
-      <em>Sideloaded books that name themselves</em> above), or by hand with
-      <em>Link KOReader sync</em> on the book's page.</li>
-    <li>A session you trim or delete in Tome stays that way, even when the reader sends it again.</li>
-    <li>The progress line on a book's page comes from the position the reader reports at every
-      sync (the furthest of each day), drawn over the days the reader's sessions cover, so it
-      fills in for CrossInk reading too.</li>
-  </ul>
-
-  <h3>Clippings (experimental)</h3>
-  <p>
-    A clipping is a passage you save on the reader. With <strong>Clippings</strong> switched on
-    under <strong>What to Sync</strong>, the reader uploads its clippings to Tome and restores
-    the ones made on your other CrossInk readers; a clipping deleted on one reader is removed
-    everywhere. In Tome they appear on the <strong>Highlights</strong> page and in the book's
-    <em>Highlights and notes</em>, marked as CrossInk clippings, as soon as the file is linked
-    to a book. They are read-only here: change or delete them on the reader. They are not sent
-    to KOReader devices and the iOS app does not show them yet.
+    Xteink readers can send more than a position: reading sessions, pages and clippings,
+    depending on the firmware. That has its own page:
+    <a href={withBase("/docs/xteink")}>Xteink readers</a>.
   </p>
 
   <h2>Troubleshooting</h2>
@@ -181,9 +121,5 @@ import { withBase } from '../../lib/path'
     <li><strong>The app doesn't jump to the web position</strong> — some clients only apply a
       pulled position when it's ahead of the local one, or ask before jumping backwards.
       Check the client's conflict setting (KOReader: <strong>Progress sync → Sync behaviour</strong>).</li>
-    <li><strong>CrossInk shows stats as "Not supported"</strong> — it remembers the answer from
-      the last time you authenticated. Set the sync password in <strong>Settings → KOReader</strong>,
-      make sure the server is on a Tome version with stats support, then authenticate on the
-      reader again.</li>
   </ul>
 </DocsLayout>

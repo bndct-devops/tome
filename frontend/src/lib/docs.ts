@@ -37,6 +37,7 @@ export const DOCS = {
   bindery:        docsUrl('/docs/bindery'),
   sendToDevice:   docsUrl('/docs/send-to-device'),
   koreader:       docsUrl('/docs/koreader'),
+  xteink:         docsUrl('/docs/xteink'),
   opds:           docsUrl('/docs/opds'),
   scribe:         docsUrl('/docs/scribe'),
   apiTokens:      docsUrl('/docs/api-tokens'),

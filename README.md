@@ -27,6 +27,7 @@ Built with FastAPI, React, and SQLite. Ships as a single Docker image.
 - **Built-in reader** -- EPUBs, manga (CBZ/CBR), and PDFs render directly in the browser. Two-page spread, RTL mode, webtoon scroll, pinch-to-zoom on mobile. [Details](docs/reader.md)
 - **Bindery** -- an inbox for incoming books. Drop files in a folder, review pre-filled metadata, accept into your library. Optional auto-import on a schedule. [Details](docs/bindery-deployment.md)
 - **Scribe** -- a Claude Code Skill for conversational batch ingest, metadata refresh, series-wide audits, and series-level annotation (arc breakdowns, publication status). Uses API tokens for auth and talks to Tome over HTTP. [Details](docs/scribe.md)
+- **Xteink readers (experimental)** -- readers on CrossPoint or CrossInk firmware send their reading sessions to Tome: through a plugin that sends by itself when the reader sleeps, or through CrossInk's built-in sync, which also brings pages and clippings. [Which one to use](https://tome.bndct.sh/docs/xteink)
 - **OPDS feed** -- browse and download from KOReader, Panels, Chunky, or any OPDS client
 - **SSO (OIDC)** -- optional single sign-on against any OpenID Connect provider (Pocket ID, Authelia, Authentik, Keycloak, …) with group-to-role mapping and account linking. Local login always stays. [Details](docs/sso.md)
 - **Themes** -- 3 built-in (light, dark, amber) plus fully custom themes via 10-value hex palette
@@ -212,6 +213,7 @@ KOReader plugin and this website stay English for now.
 
 - [Reader](docs/reader.md) -- EPUB, comic/manga reader, keyboard shortcuts, ComicInfo.xml
 - [KOReader Plugin](docs/koreader-plugin.md) -- TomeSync setup, sync behavior, offline support
+- [Xteink readers](https://tome.bndct.sh/docs/xteink) -- CrossPoint plugin and CrossInk sync: which one to use, setup, what arrives
 - [Bindery](docs/bindery-deployment.md) -- setting up the incoming book inbox
 - [Scribe](docs/scribe.md) -- Claude Code Skill for batch ingest, metadata refresh, and series audits
 - [Import Script](docs/import.md) -- bulk importing an existing collection from filenames

@@ -230,6 +230,10 @@ class _SessionItem:
     started_at: datetime
     ended_at: datetime
     seconds: int
+    # Only the CrossPoint plugin reports where in the book a sitting began and
+    # ended (fractions 0..1); the stats API carries time alone.
+    progress_start: Optional[float] = None
+    progress_end: Optional[float] = None
 
 
 def parse_session(item: dict[str, Any], now_ts: int) -> _SessionItem:
@@ -304,9 +308,17 @@ def stage_sessions(
     they count as received when they ended (never later than now), so a live
     snapshot after the import's own never hands them its growth.
 
+    A CrossInk reader can report one sitting twice: through the stats API and
+    through the CrossPoint plugin (``PLUGIN_DEVICE``). The two cut it
+    differently. The plugin sends the whole sitting as one session; the stats
+    API starts a new session at every pause of more than two seconds. The
+    stats API is the authority for reading time, so a sitting never counts
+    twice and ends up as the stats API has it, whichever arrives first
+    (``merged``; see "the CrossPoint plugin" below).
+
     Returns per item what happened and how many seconds of reading it added:
-    ``created``, ``extended`` (the session grew), ``unchanged``, or
-    ``deleted_in_tome`` (it grew, but the user deleted it in Tome, so it
+    ``created``, ``merged``, ``extended`` (the session grew), ``unchanged``,
+    or ``deleted_in_tome`` (it grew, but the user deleted it in Tome, so it
     stays deleted).
     """
     device_row = _device_row(db, user_id, device_id)
@@ -350,27 +362,54 @@ def stage_sessions(
     # item is only visible to the next through ``receipts``.
     now = datetime.utcnow()
     outcomes: list[tuple[str, int]] = []
+    taken: list[ReadingSession] = []   # plugin sessions taken over in this batch (not flushed yet)
     for item in parsed:
         receipt = receipts[item.session_id]
         if receipt is None:
-            row = ReadingSession(
-                user_id=user_id,
-                book_id=books[item.document],
-                started_at=item.started_at,
-                ended_at=item.ended_at,
-                duration_seconds=item.seconds,
-                device=device_name,
-            )
+            twin = _twin(db, user_id, device_id, item)
+            outcome = ("merged", 0)
+            if twin is None:
+                row = _new_row(user_id, books[item.document], item, device_name)
+                outcome = ("created", item.seconds)
+            elif device_id == PLUGIN_DEVICE:
+                # The stats API reported this sitting already, and it is the
+                # authority for time: the plugin adds only where in the book
+                # the sitting began and ended. (None: the user deleted that
+                # session in Tome, and it stays deleted.)
+                row = twin.reading_session
+                if row is not None:
+                    if row.progress_start is None:
+                        row.progress_start = item.progress_start
+                    if row.progress_end is None:
+                        row.progress_end = item.progress_end
+            else:
+                # The plugin reported this sitting first, as one session; the
+                # stats API now sends it in pieces. The first piece takes the
+                # plugin's session over, every later one is a session of its
+                # own, so the sitting ends up exactly as the stats API has it.
+                row = twin.reading_session
+                if row is None:
+                    pass   # deleted in Tome: its pieces stay deleted too
+                elif row in taken or _has_stats_receipt(db, row):
+                    row = _new_row(user_id, books[item.document], item, device_name)
+                    outcome = ("created", item.seconds)
+                else:
+                    taken.append(row)
+                    if (row.duration_seconds or 0) == twin.seconds:   # not trimmed in Tome
+                        row.duration_seconds = item.seconds
+                        row.started_at, row.ended_at = item.started_at, item.ended_at
+                    row.device = device_name
+            if outcome[0] == "created":
+                db.add(row)
             receipt = KOSyncSessionReceipt(
                 user_id=user_id, device_id=device_id, session_uuid=item.session_id,
                 document=item.document, started_at=item.started_at, ended_at=item.ended_at,
                 seconds=item.seconds, reading_session=row, updated_at=now,
                 received_at=min(item.ended_at, now) if imported else now,
             )
-            db.add(row)
             db.add(receipt)
             receipts[item.session_id] = receipt
-            outcomes.append(("created", item.seconds))
+            outcomes.append(outcome)
             continue
         grown = item.seconds - receipt.seconds
         if grown <= 0 and item.ended_at <= receipt.ended_at:
@@ -392,6 +431,136 @@ def stage_sessions(
     # Growth a snapshot left pending is not given out here: more sessions of
     # its window may still be on the reader's card (see "page attribution").
     return outcomes
+
+
+# ── the CrossPoint plugin ────────────────────────────────────────────────────
+# CrossPoint 2.0 (and CrossInk, which shares its plugin system) can load
+# plugins from the SD card. A plugin is a JSON file, not code: it tells the
+# firmware to send a request when a reading session ends. Tome's plugin
+# (``backend/services/crosspoint_plugin.py``) posts each session to
+# ``backend/api/crosspoint.py``, on its own when the reader goes to sleep, with
+# where in the book it began and ended. It carries no page counts.
+#
+# The firmware delivers an event until a 2xx comes back and holds every later
+# event behind it. So a session Tome can never store (a broken clock, a
+# malformed record) is answered 200 and dropped: refusing it would block the
+# reader's queue for good. Only a failed sign-in is an error, since the user
+# can fix that and nothing is lost meanwhile.
+
+PLUGIN_DEVICE = "crosspoint-plugin"
+PLUGIN_DEVICE_NAME = "CrossPoint reader"
+_PLUGIN_ID_PREFIX = "cp-"
+
+
+def _new_row(user_id: int, book_id: Optional[int], item: _SessionItem, device_name: str) -> ReadingSession:
+    return ReadingSession(
+        user_id=user_id, book_id=book_id, started_at=item.started_at, ended_at=item.ended_at,
+        duration_seconds=item.seconds, progress_start=item.progress_start,
+        progress_end=item.progress_end, device=device_name,
+    )
+
+
+def _has_stats_receipt(db: Session, row: ReadingSession) -> bool:
+    """Does a session of the stats API already stand behind this row?"""
+    return db.query(KOSyncSessionReceipt.id).filter(
+        KOSyncSessionReceipt.reading_session_id == row.id,
+        KOSyncSessionReceipt.device_id != PLUGIN_DEVICE,
+    ).first() is not None
+
+
+def _twin(
+    db: Session, user_id: int, device_id: str, item: _SessionItem,
+) -> Optional[KOSyncSessionReceipt]:
+    """The earliest receipt of the same sitting from the other source, if any:
+    for a plugin session one the stats API reported, and the other way round.
+    Same document and overlapping in time. A plugin session's end is its start
+    plus its reading time (pauses removed), so it always overlaps the first
+    piece of its sitting, which is all that is needed."""
+    query = db.query(KOSyncSessionReceipt).filter(
+        KOSyncSessionReceipt.user_id == user_id,
+        KOSyncSessionReceipt.document == item.document,
+        KOSyncSessionReceipt.started_at < item.ended_at,
+        KOSyncSessionReceipt.ended_at > item.started_at,
+    )
+    if device_id == PLUGIN_DEVICE:
+        query = query.filter(KOSyncSessionReceipt.device_id != PLUGIN_DEVICE)
+    else:
+        query = query.filter(KOSyncSessionReceipt.device_id == PLUGIN_DEVICE)
+    return query.order_by(KOSyncSessionReceipt.started_at, KOSyncSessionReceipt.id).first()
+
+
+def _plugin_int(value: Any, what: str) -> int:
+    """The plugin's request body is a text template the firmware fills in, so
+    every number arrives as a string of digits."""
+    # isascii: isdigit() alone also says yes to characters int() refuses.
+    if isinstance(value, str) and value.isascii() and value.isdigit() and len(value) <= 15:
+        return int(value)
+    if isinstance(value, int) and not isinstance(value, bool):
+        return value
+    raise Rejected(f"Invalid {what}")
+
+
+def parse_plugin_session(body: dict[str, Any], now_ts: int) -> _SessionItem:
+    """One ``reader.session`` event as the plugin posts it. Raises ``Rejected``."""
+    event_id = body.get("id")
+    if not isinstance(event_id, str) or not event_id:
+        raise Rejected("Invalid id")
+    item = parse_session({
+        "session_id": _PLUGIN_ID_PREFIX + event_id,
+        "document": body.get("document"),
+        "started_at": _plugin_int(body.get("start_time"), "start_time"),
+        "ended_at": _plugin_int(body.get("end_time"), "end_time"),
+        "seconds": _plugin_int(body.get("duration_seconds"), "duration_seconds"),
+    }, now_ts)
+    scale = body.get("progress_scale")
+    scale = _plugin_int(scale, "progress_scale") if scale not in (None, "") else 10000
+    if scale > 0:
+        start = body.get("start_progress_bp")
+        end = body.get("end_progress_bp")
+        if start not in (None, ""):
+            item.progress_start = min(_plugin_int(start, "start_progress_bp") / scale, 1.0)
+        if end not in (None, ""):
+            item.progress_end = min(_plugin_int(end, "end_progress_bp") / scale, 1.0)
+    return item
+
+
+def store_plugin_session(
+    db: Session,
+    user_id: int,
+    body: dict[str, Any],
+    resolve_book: Callable[[str], Optional[int]],
+    now_ts: int,
+) -> str:
+    """Store one session the CrossPoint plugin posted. Returns what happened
+    (see ``stage_sessions``). Raises ``Rejected`` when it cannot be stored.
+
+    The book's reading progress follows the session's end, forwards only: an
+    old session delivered late never moves a book back.
+    """
+    item = parse_plugin_session(body, now_ts)
+    book_id = resolve_book(item.document)   # can commit, so before any write
+    outcome, _ = stage_sessions(
+        db, user_id, PLUGIN_DEVICE, [item], lambda _document: book_id,
+        fallback_name=PLUGIN_DEVICE_NAME,
+    )[0]
+    if book_id is not None and item.progress_end and outcome in ("created", "merged"):
+        from backend.services.book_progress import apply_progress_to_status
+        apply_progress_to_status(db, user_id=user_id, book_id=book_id, pct=item.progress_end)
+    db.commit()
+    return outcome
+
+
+def plugin_summary(db: Session, user_id: int) -> dict[str, Any]:
+    """What the CrossPoint plugin has delivered for this user: how many
+    sessions, their reading time as the reader reported it, and when the last
+    one ended."""
+    count, seconds, last = (
+        db.query(func.count(KOSyncSessionReceipt.id), func.coalesce(func.sum(KOSyncSessionReceipt.seconds), 0),
+                 func.max(KOSyncSessionReceipt.ended_at))
+        .filter(KOSyncSessionReceipt.user_id == user_id, KOSyncSessionReceipt.device_id == PLUGIN_DEVICE)
+        .one()
+    )
+    return {"sessions": int(count or 0), "seconds": int(seconds or 0), "last_ended_at": last}
 
 
 def has_sessions_for(db: Session, user_id: int, document: str) -> bool:

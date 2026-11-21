@@ -813,7 +813,8 @@ def _run(db: Session, user: User, archive: Archive, now_ts: int) -> dict[str, An
             fallback_name=device_names.get(device_id), known_receipts=known, imported=True,
         )
         for (i, row, fam, example, item), (outcome, added) in zip(entries, outcomes):
-            sessions.add(outcome)
+            # merged: the CrossPoint plugin sent this sitting already
+            sessions.add("unchanged" if outcome == "merged" else outcome)
             if outcome == "created":
                 fam.sessions_new += 1
                 first_start = row["started_at"] if first_start is None else min(first_start, row["started_at"])

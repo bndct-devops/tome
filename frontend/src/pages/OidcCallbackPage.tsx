@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { afterLoginPath } from '@/lib/afterLogin'
 import { useAuth } from '@/contexts/AuthContext'
 import { AuthFrame, Spinner, Wordmark } from '@/components/auth/AuthPanel'
 import { Trans } from '@lingui/react/macro'
@@ -29,7 +30,7 @@ export function OidcCallbackPage() {
       return
     }
     loginWithToken(token)
-      .then(() => navigate('/', { replace: true }))
+      .then(() => navigate(afterLoginPath(), { replace: true }))
       .catch(() => navigate('/login?sso_error=callback', { replace: true }))
   }, [loginWithToken, navigate])
 

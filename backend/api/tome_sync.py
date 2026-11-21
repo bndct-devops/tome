@@ -154,7 +154,9 @@ def _get_api_key_user(
     # Hash the incoming plaintext and look up by hash. Plaintext is never stored.
     key_hash = ApiKey.hash_key(plaintext)
     api_key = db.query(ApiKey).filter(ApiKey.key_hash == key_hash).first()
-    if not api_key:
+    # A CrossPoint reader's key opens only the reader's own routes
+    # (backend/api/crosspoint.py), never these.
+    if not api_key or api_key.kind != ApiKey.KIND_PLUGIN:
         raise HTTPException(status_code=401, detail="Invalid API key")
     user = db.get(User, api_key.user_id)
     if not user or not user.is_active:

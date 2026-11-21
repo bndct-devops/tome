@@ -26,6 +26,7 @@ from backend.api import opds
 from backend.api import opds_pins
 from backend.api import kosync
 from backend.api import kosync_stats
+from backend.api import crosspoint
 from backend.api import tome_sync
 from backend.api import stats
 from backend.api import reading_calendar as reading_calendar_api
@@ -404,6 +405,7 @@ async def lifespan(app: FastAPI):
             conn.commit()
         migrate_reader_page_attribution(conn)
         migrate_reading_history_index(conn)
+        migrate_api_key_kind(conn)
         # Hardcover Want-to-Read pull resolves shelf entries by matched book id
         # every cycle — create_all only builds indexes for brand-new tables, and
         # this must run after the hardcover_book_id column-add above.
@@ -925,6 +927,19 @@ def migrate_reading_history_index(conn) -> None:
     conn.commit()
 
 
+def migrate_api_key_kind(conn) -> None:
+    """``api_keys.kind`` (what a device key opens; see the model). Every key
+    from before the column is a KOReader plugin key, which is the default. An
+    older Tome ignores the column and its inserts get the default. Idempotent.
+    Commits."""
+    from sqlalchemy import text
+
+    cols = {r[1] for r in conn.execute(text("PRAGMA table_info(api_keys)")).fetchall()}
+    if cols and "kind" not in cols:
+        conn.execute(text("ALTER TABLE api_keys ADD COLUMN kind VARCHAR(16) NOT NULL DEFAULT 'plugin'"))
+        conn.commit()
+
+
 def migrate_reader_page_attribution(conn) -> None:
     """Columns for pages attributed from a KOSync reader's page counter
     (services/kosync_stats.py, "page attribution"); create_all does not add
@@ -1046,6 +1061,7 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     app.include_router(opds_pins.router, prefix="/api")
     app.include_router(kosync.router, prefix="/api")  # mounted at /api/v1/
     app.include_router(kosync_stats.router, prefix="/api")  # /api/v1/api/v1/stats/ (sic)
+    app.include_router(crosspoint.router, prefix="/api")  # /api/v1/crosspoint/
     app.include_router(tome_sync.router, prefix="/api")
     app.include_router(reading_calendar_api.router, prefix="/api")
     app.include_router(stats.router, prefix="/api")

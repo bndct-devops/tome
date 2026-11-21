@@ -1092,6 +1092,10 @@ msgstr "{n, plural, one {# tome correspondant actuellement dans la bibliothèque
 msgid "{n, plural, one {# series} other {# series}}"
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "{n, plural, one {# session received, the last one ended {d}} other {# sessions received, the last one ended {d}}}"
+msgstr ""
+
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {# title} other {# titles}}"
 msgstr ""
@@ -2836,6 +2840,10 @@ msgstr "Parcourir la bibliothèque"
 msgid "Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately."
 msgstr "Navigateurs et téléphones connectés à votre compte. Ils restent connectés jusqu’à ce que vous vous y déconnectiez ou que vous révoquiez leur accès ici, ce qui les déconnecte immédiatement."
 
+#: src/pages/SettingsPage.tsx
+msgid "Built-in sync (CrossInk only, experimental)"
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 #: src/components/Sidebar.tsx
 #: src/pages/ReadingCalendarPage.tsx
@@ -2869,6 +2877,7 @@ msgstr "Vous ne le trouvez pas ? Ajoutez-le manuellement"
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/HighlightsPage.tsx
+#: src/pages/LinkReaderPage.tsx
 #: src/pages/LoginPage.tsx
 #: src/pages/ReaderPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -3117,6 +3126,10 @@ msgstr "Le code doit comporter 6 caractères"
 msgid "Code not found. Check the code and try again."
 msgstr "Code introuvable. Vérifiez le code et réessayez."
 
+#: src/pages/LinkReaderPage.tsx
+msgid "Code on the reader"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Code was already authorized."
 msgstr "Le code a déjà été autorisé."
@@ -3225,9 +3238,30 @@ msgstr "Confirmer le mot de passe"
 msgid "Connect a phone"
 msgstr "Connecter un téléphone"
 
+#: src/pages/LinkReaderPage.tsx
+msgid "Connect a reader"
+msgstr ""
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Connect reader"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Connected devices"
 msgstr "Appareils connectés"
+
+#: src/pages/SettingsPage.tsx
+msgid "connected, not seen since"
+msgstr ""
+
+#. placeholder {0}: user.username
+#: src/pages/LinkReaderPage.tsx
+#~ msgid "Connecting lets that reader send its reading sessions to your account, {0}."
+#~ msgstr ""
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Connecting lets that reader send its reading sessions to your account, {name}."
+msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "Content"
@@ -3244,6 +3278,10 @@ msgstr "Type de contenu"
 #: src/pages/ReaderPage.tsx
 msgid "Contents"
 msgstr "Sommaire"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Continue"
+msgstr ""
 
 #: src/components/home/HomeTab.tsx
 msgid "Continue reading"
@@ -3453,10 +3491,18 @@ msgstr "Créé"
 msgid "Creating..."
 msgstr "Création..."
 
+#: src/pages/SettingsPage.tsx
+msgid "CrossInk 2.0 sends reading sessions, pages and clippings over its KOReader Sync account. You start the sync on the reader."
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 #: src/pages/HighlightsPage.tsx
 msgid "CrossInk clipping"
 msgstr ""
+
+#: src/pages/SettingsPage.tsx
+#~ msgid "CrossPoint plugin (experimental)"
+#~ msgstr ""
 
 #: src/components/CrossPointImport.tsx
 msgid "CrossPoint Sync account"
@@ -3872,6 +3918,10 @@ msgstr "Télécharger la sauvegarde"
 msgid "Download failed"
 msgstr "Échec du téléchargement"
 
+#: src/pages/SettingsPage.tsx
+msgid "Download failed."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Download limit must be a number of 0 or more"
 msgstr "La limite de téléchargement doit être un nombre supérieur ou égal à 0"
@@ -3895,6 +3945,10 @@ msgstr "Télécharger le module"
 #: src/pages/StatsPage.tsx
 msgid "Download the plugin from Settings"
 msgstr "Télécharger le module depuis les paramètres"
+
+#: src/pages/SettingsPage.tsx
+msgid "Download the ZIP below and unpack it onto the reader's SD card, so that the card has a folder <0>/plugins/tome</0>."
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 #~ msgid "Download your entire library catalog — all titles, authors, series, tags and formats."
@@ -4111,6 +4165,10 @@ msgstr "Fin"
 #: src/components/ManageSeriesModal.tsx
 msgid "End"
 msgstr "Fin"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Enter the code"
+msgstr ""
 
 #: src/pages/ReaderPage.tsx
 msgid "EPUB failed to open: {msg2}"
@@ -4771,6 +4829,14 @@ msgstr ""
 msgid "For precise series tracking, use the <0>Series</0> tab instead."
 msgstr "Pour un suivi précis des séries, utilisez plutôt l’onglet <0>Séries</0>."
 
+#: src/pages/SettingsPage.tsx
+#~ msgid "For Xteink readers on CrossPoint 2.0 or CrossInk. The reader sends each reading session to Tome by itself when it goes to sleep."
+#~ msgstr ""
+
+#: src/pages/SettingsPage.tsx
+#~ msgid "For Xteink readers on CrossPoint 2.0 or CrossInk. The reader sends each reading session to Tome by itself when it goes to sleep. Unpack the ZIP into the plugins folder on the SD card and turn on Plugins in the reader's settings."
+#~ msgstr ""
+
 #: src/components/DeviceInventoryList.tsx
 msgid "Forget"
 msgstr "Oublier"
@@ -5122,6 +5188,14 @@ msgstr "Icône"
 msgid "If a later version changes what is in here, sending pauses until you have seen the new report. You can stop at any time in Settings."
 msgstr "Si une version ultérieure modifie le contenu de ce rapport, l’envoi sera suspendu jusqu’à ce que vous ayez consulté le nouveau rapport. Vous pouvez arrêter à tout moment dans les paramètres."
 
+#: src/pages/SettingsPage.tsx
+msgid "if you have none."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+#~ msgid "if you have none. The plugin signs in with it."
+#~ msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "Impersonation failed"
 msgstr " Échec de l'impersonnification"
@@ -5257,6 +5331,10 @@ msgstr "Sauvegarde de l’instance"
 msgid "IP:"
 msgstr "IP :"
 
+#: src/pages/LinkReaderPage.tsx
+msgid "Is this the code on your reader?"
+msgstr ""
+
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
 #: src/components/ReadingImport.tsx
@@ -5351,12 +5429,16 @@ msgid "Keyboard shortcuts (?)"
 msgstr ""
 
 #: src/pages/SettingsPage.tsx
+msgid "Keys the TomeSync KOReader plugin signs in with, and the keys of connected CrossPoint readers. Downloading the KOReader plugin creates one; download keys that no device has used for a week are removed at the next download."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
 #~ msgid "Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used are removed at the next download."
 #~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
-msgid "Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used for a week are removed at the next download."
-msgstr ""
+#~ msgid "Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used for a week are removed at the next download."
+#~ msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Kindle users"
@@ -5440,6 +5522,10 @@ msgstr "Dernière lecture"
 #: src/pages/SettingsPage.tsx
 msgid "Last seen"
 msgstr "Dernière activité"
+
+#: src/pages/SettingsPage.tsx
+msgid "last seen {d}"
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Last seen: {when}"
@@ -5633,6 +5719,15 @@ msgstr "Associé en tant que <0>@{username}</0>"
 
 #: src/components/CrossPointImport.tsx
 msgid "linked by file"
+msgstr ""
+
+#. placeholder {0}: user.username
+#: src/pages/LinkReaderPage.tsx
+#~ msgid "Linked to {0}"
+#~ msgstr ""
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Linked to {name}"
 msgstr ""
 
 #: src/components/CrossPointImport.tsx
@@ -6514,6 +6609,10 @@ msgstr ""
 msgid "No readable file found for this book."
 msgstr "Aucun fichier lisible trouvé pour ce livre."
 
+#: src/pages/SettingsPage.tsx
+msgid "No reader is connected yet."
+msgstr ""
+
 #: src/components/stats/TimelineRibbon.tsx
 msgid "no reading"
 msgstr "aucune lecture"
@@ -6647,6 +6746,10 @@ msgstr ""
 #: src/components/stats/widgets/habits.tsx
 msgid "No session data."
 msgstr "Aucune donnée de session."
+
+#: src/pages/SettingsPage.tsx
+msgid "No session has arrived yet. Read a few pages, then let the reader sleep."
+msgstr ""
 
 #: src/components/stats/widgets/insights.tsx
 msgid "No session-time data yet."
@@ -6968,6 +7071,10 @@ msgstr "sur le tableau"
 msgid "On board"
 msgstr "Sur le tableau"
 
+#: src/pages/SettingsPage.tsx
+msgid "On CrossPoint, use the plugin. On CrossInk, the built-in sync brings more (pages, clippings, exact positions), and the plugin can run next to it so sessions arrive by themselves."
+msgstr ""
+
 #: src/pages/AdminPage.tsx
 msgid "on hold"
 msgstr ""
@@ -6993,6 +7100,18 @@ msgstr "Activé depuis le {since}. Dernier envoi : {last}, prochain : {next}."
 msgid "On the KOReader device open TomeSync and tap \"Show sync code\". Point the camera at it, or take a photo and pick it below. A code with several pages is read page by page."
 msgstr "Sur l’appareil KOReader, ouvrez TomeSync et touchez « Afficher le code de synchronisation ». Pointez la caméra vers le code ou prenez une photo et sélectionnez-la ci-dessous. Un code de plusieurs pages se lit page par page."
 
+#: src/pages/SettingsPage.tsx
+msgid "On the reader, enter the address and sign-in above under KOReader Sync and authenticate."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "On the reader, turn on Plugins in the settings, open Plugins, choose Tome and then Sign in."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+#~ msgid "On the reader, turn on Plugins in the settings."
+#~ msgstr ""
+
 #: src/components/home/HomeTab.tsx
 msgid "On the server"
 msgstr ""
@@ -7014,6 +7133,10 @@ msgstr ""
 msgid "Once a month, Tome can send one small anonymous report: version, platform, bucketed counts, which features were used. Never a title, a name or a hostname. Off unless you say yes. Separately, Tome checks upgrades.bndct.dev once a day for a newer version; only the version number is sent."
 msgstr "Une fois par mois, Tome peut envoyer un petit rapport anonyme : version, plateforme, comptages par tranches et fonctionnalités utilisées. Jamais de titre, de nom ni de nom d’hôte. Désactivé sans votre accord. Par ailleurs, Tome vérifie une fois par jour sur upgrades.bndct.dev si une nouvelle version existe ; seul le numéro de version est envoyé."
 
+#: src/pages/LinkReaderPage.tsx
+msgid "One moment"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 #~ msgid "One series front and center — you pick which"
 #~ msgstr "Une série mise à l’honneur — à vous de choisir laquelle"
@@ -7034,6 +7157,10 @@ msgstr "En cours"
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Only a brief open this day, under a minute."
 msgstr "Ouverture très brève ce jour-là, moins d’une minute."
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Only confirm if you started this on your own reader and the code matches."
+msgstr ""
 
 #: src/pages/DashboardPage.tsx
 msgid "Only filled fields will be updated. Leave blank to keep existing values."
@@ -7094,9 +7221,17 @@ msgstr "Ouvrir la navigation"
 msgid "Open page"
 msgstr ""
 
+#: src/pages/LinkReaderPage.tsx
+msgid "Open Plugins → Tome on the reader and choose Sign in. It shows a six-character code."
+msgstr ""
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Open reader"
 msgstr "Ouvrir le lecteur"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Open reader settings"
+msgstr ""
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Open selected book"
@@ -7158,6 +7293,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Optional. Set it together with the user."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "Or type the code here"
 msgstr ""
 
 #: src/components/CoverPickerModal.tsx
@@ -7485,6 +7624,10 @@ msgstr ""
 #: src/components/WishlistModal.tsx
 msgid "Please pick a result or use the manual form."
 msgstr "Sélectionnez un résultat ou utilisez le formulaire manuel."
+
+#: src/pages/SettingsPage.tsx
+msgid "Plugin (CrossPoint 2.0 and CrossInk, experimental)"
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Plugin keys"
@@ -7966,6 +8109,10 @@ msgstr "Lecture seule"
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Reader"
 msgstr "Lecteur"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Reader connected"
+msgstr ""
 
 #: src/pages/ReaderPage.tsx
 msgid "Reader settings"
@@ -8709,6 +8856,10 @@ msgstr "Analyser maintenant"
 #~ msgid "Scan Now"
 #~ msgstr "Analyser maintenant"
 
+#: src/pages/SettingsPage.tsx
+msgid "Scan the QR code on the reader with your phone and confirm the code."
+msgstr ""
+
 #: src/components/ConnectPhoneModal.tsx
 msgid "Scan this with the Tome app to sign the phone in as you. The code works once, stops after five minutes, and dies the moment you close this window."
 msgstr "Scannez ce code avec l’application Tome pour connecter le téléphone à votre compte. Le code est à usage unique, expire après cinq minutes et devient invalide dès que vous fermez cette fenêtre."
@@ -9147,6 +9298,14 @@ msgstr "Définir un objectif"
 msgid "Set a reading goal"
 msgstr "Définir un objectif de lecture"
 
+#: src/pages/SettingsPage.tsx
+msgid "Set a sync password"
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+#~ msgid "Set a sync password first."
+#~ msgstr ""
+
 #: src/components/stats/GoalWidget.tsx
 msgid "Set a target and watch the ring fill as you read."
 msgstr "Définissez un objectif et regardez l’anneau se remplir au fil de vos lectures."
@@ -9166,6 +9325,10 @@ msgstr ""
 #: src/components/stats/GoalWidget.tsx
 msgid "Set goal"
 msgstr "Définir l’objectif"
+
+#: src/pages/SettingsPage.tsx
+#~ msgid "Set it under Access"
+#~ msgstr ""
 
 #: src/components/ForcePasswordChange.tsx
 msgid "Set password & continue"
@@ -9391,9 +9554,14 @@ msgstr ""
 #~ msgid "Shrink/grow this tile to fit its content. Off: set the height yourself (content scrolls)."
 #~ msgstr "Réduire ou agrandir cette tuile pour l’adapter à son contenu. Si désactivé : définissez vous-même la hauteur (le contenu défile)."
 
+#: src/pages/LinkReaderPage.tsx
 #: src/pages/LoginPage.tsx
 msgid "Sign in"
 msgstr "Se connecter"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Sign in first"
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
@@ -9402,6 +9570,10 @@ msgstr "Connectez-vous sur un nouvel appareil sans saisir votre mot de passe. Su
 #: src/pages/SettingsPage.tsx
 msgid "Sign in on a new device without entering your password. Show a QR code for the Tome app, or enter the 6-character code a new device displays when you tap \"Quick Connect\" on its login screen."
 msgstr "Connectez-vous sur un nouvel appareil sans saisir votre mot de passe. Affichez un code QR pour l’application Tome ou saisissez le code à 6 caractères affiché par un nouvel appareil lorsque vous touchez « Connexion rapide » sur son écran de connexion."
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Sign in to Tome on this device. You come back here afterwards."
+msgstr ""
 
 #: src/pages/LoginPage.tsx
 msgid "Sign in to your library"
@@ -9501,6 +9673,10 @@ msgstr "Certaines modifications n’ont pas pu être appliquées."
 
 #: src/components/WhatsNewPanel.tsx
 msgid "Something broken or missing?"
+msgstr ""
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Something went wrong. Try again."
 msgstr ""
 
 #: src/components/library/SortMenu.tsx
@@ -9973,6 +10149,14 @@ msgstr "L’horloge de l’appareil est décalée de {offset} ; les horaires ont
 msgid "The password KOReader's progress sync (KOSync) signs in with. It is separate from your Tome password."
 msgstr ""
 
+#: src/pages/LinkReaderPage.tsx
+msgid "The reader finishes by itself within a few seconds. You can close this page."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+msgid "The reader sends each reading session to Tome by itself when it goes to sleep: reading time and progress, no pages."
+msgstr ""
+
 #: src/components/CrossPointImport.tsx
 msgid "The report holds book titles from your file. Copy it to the Tome developers if something looks wrong."
 msgstr ""
@@ -9988,6 +10172,14 @@ msgstr ""
 #: src/components/stats/SessionLog.tsx
 msgid "The triangle marks an implausibly long session. Scissors shorten a session, the bin deletes it."
 msgstr "Le triangle signale une session d’une durée anormalement longue. Les ciseaux raccourcissent une session, la corbeille la supprime."
+
+#: src/pages/SettingsPage.tsx
+msgid "The ZIP holds this server's address and nothing about your account. A connected reader gets its own key, which you can revoke under Access."
+msgstr ""
+
+#: src/pages/SettingsPage.tsx
+#~ msgid "The ZIP is made for your account and holds your sync sign-in, so keep it to yourself. After changing the sync password, download it again and replace the folder on the card."
+#~ msgstr ""
 
 #: src/components/reader/ReaderChrome.tsx
 #: src/components/Sidebar.tsx
@@ -10385,6 +10577,10 @@ msgstr "Ma"
 #: src/components/stats/widgets/habits.tsx
 msgid "Tue"
 msgstr "Mar"
+
+#: src/pages/SettingsPage.tsx
+msgid "Turn on Reading Stats under What to Sync, then sync from inside a book."
+msgstr ""
 
 #: src/pages/SettingsPage.tsx
 msgid "Turn on when the background is dark, so the parts made for dark mode use their dark look."
@@ -10865,6 +11061,10 @@ msgstr ""
 msgid "Where you read"
 msgstr "Où vous lisez"
 
+#: src/pages/SettingsPage.tsx
+msgid "Which one to use"
+msgstr ""
+
 #: src/pages/StatsPage.tsx
 msgid "Which weekday you read most"
 msgstr "Le jour de la semaine où vous lisez le plus"
@@ -10954,6 +11154,10 @@ msgstr "Mots lus"
 msgid "Wrong username or password."
 msgstr ""
 
+#: src/pages/SettingsPage.tsx
+msgid "Xteink readers"
+msgstr ""
+
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "year"
 msgstr "Année"
@@ -11004,6 +11208,10 @@ msgstr "Vous"
 #: src/components/stats/GoalWidget.tsx
 msgid "You already have this goal. Edit it from its tile instead."
 msgstr ""
+
+#: src/pages/SettingsPage.tsx
+#~ msgid "You have no sync password yet."
+#~ msgstr ""
 
 #: src/pages/BookDetailPage.tsx
 msgid "You rated this {rating}/5"

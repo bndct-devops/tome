@@ -79,7 +79,7 @@ function useFeatures() {
 // Each section has its own address (/settings/appearance) and loads its own
 // data when it is shown. The order here is the order of the navigation.
 const SECTION_IDS = [
-  'account', 'access', 'appearance', 'language', 'koreader', 'send-to-device', 'hardcover',
+  'account', 'access', 'appearance', 'language', 'koreader', 'xteink', 'send-to-device', 'hardcover',
   'notifications', 'share-links', 'import', 'export', 'backup', 'about',
 ] as const
 type SectionId = typeof SECTION_IDS[number]
@@ -115,6 +115,7 @@ export function SettingsPage() {
     language: t`Language`,
     // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
     koreader: 'KOReader',
+    xteink: t`Xteink readers`,
     'send-to-device': t`Send to device`,
     // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
     hardcover: 'Hardcover',
@@ -158,6 +159,7 @@ export function SettingsPage() {
           {section === 'appearance' && <AppearanceSection />}
           {section === 'language' && <LanguageSection />}
           {section === 'koreader' && <KOReaderSection />}
+          {section === 'xteink' && <XteinkSection />}
           {section === 'send-to-device' && <SendToDeviceSection ask={setConfirmAsk} />}
           {section === 'hardcover' && <HardcoverSection />}
           {section === 'notifications' && <PanelSection><NotificationChannels /></PanelSection>}
@@ -1272,6 +1274,168 @@ function KosyncBlock({ kosyncUrl }: { kosyncUrl: string }) {
   )
 }
 
+// ── Xteink readers (CrossPoint, CrossInk) ────────────────────────────────
+
+/** The two ways an Xteink reader sends its reading to Tome: the plugin and CrossInk's own sync. */
+function XteinkSection() {
+  const { user } = useAuth()
+  const { t } = useLingui()
+  const origin = window.location.origin
+  return (
+        <PanelSection>
+          <div className="divide-y divide-border/70">
+            <div className="py-6 first:pt-0 last:pb-0 space-y-2">
+              <p className="text-[13px] text-muted-foreground">
+                <Trans>On CrossPoint, use the plugin. On CrossInk, the built-in sync brings more (pages, clippings, exact positions), and the plugin can run next to it so sessions arrive by themselves.</Trans>{' '}
+                <a href={docsLink(DOCS.xteink)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-primary hover:underline">
+                  <Trans>Which one to use</Trans> <ExternalLink className="w-3 h-3" />
+                </a>
+              </p>
+            </div>
+
+            <CrossPointPluginBlock />
+
+            <div className="py-6 first:pt-0 last:pb-0 space-y-4">
+              <div>
+                <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>Built-in sync (CrossInk only, experimental)</Trans></p>
+                <p className="text-[13px] text-muted-foreground">
+                  <Trans>CrossInk 2.0 sends reading sessions, pages and clippings over its KOReader Sync account. You start the sync on the reader.</Trans>
+                </p>
+              </div>
+              <ConnectBlock rows={[
+                { label: t`URL`, value: `${origin}/api/v1`, copy: true },
+                { label: t`Username`, value: user?.username ?? '-', copy: true },
+                { label: t`Password`, value: t`your sync password, set under Access` },
+              ]} />
+              <ol className="list-decimal pl-5 space-y-1.5 text-[13px] text-muted-foreground">
+                <li>
+                  <Link to="/settings/access" className="text-primary hover:underline"><Trans>Set a sync password</Trans></Link>{' '}
+                  <Trans>if you have none.</Trans>
+                </li>
+                <li><Trans>On the reader, enter the address and sign-in above under KOReader Sync and authenticate.</Trans></li>
+                <li><Trans>Turn on Reading Stats under What to Sync, then sync from inside a book.</Trans></li>
+              </ol>
+            </div>
+          </div>
+        </PanelSection>
+  )
+}
+
+/** Tome's plugin for CrossPoint readers: the ZIP (it holds the server address only), how to link, and what has arrived. */
+function CrossPointPluginBlock() {
+  const { i18n } = useLingui()
+  interface ReaderStatus {
+    readers: { id: number; label: string; created_at: string; last_used_at: string | null }[]
+    sessions: number
+    seconds: number
+    last_session_at: string | null
+  }
+  const [downloading, setDownloading] = useState(false)
+  const [failed, setFailed] = useState(false)
+  const [status, setStatus] = useState<ReaderStatus | null>(null)
+
+  useEffect(() => {
+    api.get<ReaderStatus>('/v1/crosspoint/status').then(setStatus).catch(() => {})
+  }, [])
+
+  async function handleDownload() {
+    setDownloading(true)
+    setFailed(false)
+    try {
+      const token = localStorage.getItem('tome_token')
+      const backendOrigin = window.location.port === '5173'
+        ? window.location.origin.replace(':5173', ':8080')
+        : window.location.origin
+      const res = await fetch(`/api/v1/crosspoint/plugin.zip?server_url=${encodeURIComponent(backendOrigin)}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+      })
+      if (!res.ok) throw new Error('Download failed')
+      const url = URL.createObjectURL(await res.blob())
+      const a = document.createElement('a')
+      a.href = url
+      a.download = 'tome-crosspoint-plugin.zip'
+      document.body.appendChild(a)
+      a.click()
+      document.body.removeChild(a)
+      URL.revokeObjectURL(url)
+    } catch {
+      setFailed(true)
+    } finally {
+      setDownloading(false)
+    }
+  }
+
+  const linked = status?.readers ?? []
+
+  return (
+            <div className="py-6 first:pt-0 last:pb-0 space-y-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <p className="text-[15px] font-semibold text-foreground mb-1"><Trans>Plugin (CrossPoint 2.0 and CrossInk, experimental)</Trans></p>
+                  <p className="text-[13px] text-muted-foreground">
+                    <Trans>The reader sends each reading session to Tome by itself when it goes to sleep: reading time and progress, no pages.</Trans>
+                  </p>
+                </div>
+                <a href={docsLink(DOCS.xteink)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors shrink-0">
+                  <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+
+              <ol className="list-decimal pl-5 space-y-1.5 text-[13px] text-muted-foreground">
+                <li><Trans>Download the ZIP below and unpack it onto the reader's SD card, so that the card has a folder <code className="font-mono text-foreground">/plugins/tome</code>.</Trans></li>
+                <li><Trans>On the reader, turn on Plugins in the settings, open Plugins, choose Tome and then Sign in.</Trans></li>
+                <li>
+                  <Trans>Scan the QR code on the reader with your phone and confirm the code.</Trans>{' '}
+                  <Link to="/link-reader" className="text-primary hover:underline"><Trans>Or type the code here</Trans></Link>
+                </li>
+              </ol>
+
+              <div className="flex flex-wrap items-center gap-3">
+                <Pill onClick={handleDownload} disabled={downloading} variant="primary">
+                  {downloading
+                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                    : <Download className="w-3.5 h-3.5" />}
+                  <Trans>Download plugin ZIP</Trans>
+                </Pill>
+                {failed && (
+                  <span className="text-[13px] text-destructive"><Trans>Download failed.</Trans></span>
+                )}
+              </div>
+
+              <p className="text-[13px] text-muted-foreground">
+                <Trans>The ZIP holds this server's address and nothing about your account. A connected reader gets its own key, which you can revoke under Access.</Trans>
+              </p>
+
+              {status && (
+                <div className="rounded-xl bg-secondary/60 px-4 py-3 space-y-1.5">
+                  {linked.length === 0 ? (
+                    <p className="text-[13px] text-muted-foreground"><Trans>No reader is connected yet.</Trans></p>
+                  ) : (
+                    <>
+                      {linked.map(r => (
+                        <p key={r.id} className="flex items-center gap-2 text-[13px] text-foreground">
+                          <Check className="w-3.5 h-3.5 text-success shrink-0" />
+                          <span>{r.label}</span>
+                          <span className="text-muted-foreground">
+                            {r.last_used_at
+                              ? (() => { const d = formatSyncTime(r.last_used_at, i18n.locale); return <Trans>last seen {d}</Trans> })()
+                              : <Trans>connected, not seen since</Trans>}
+                          </span>
+                        </p>
+                      ))}
+                      <p className="text-[13px] text-muted-foreground">
+                        {status.last_session_at
+                          ? (() => { const n = status.sessions; const d = formatSyncTime(status.last_session_at, i18n.locale); return <Plural value={n} one={`# session received, the last one ended ${d}`} other={`# sessions received, the last one ended ${d}`} /> })()
+                          : <Trans>No session has arrived yet. Read a few pages, then let the reader sleep.</Trans>}
+                      </p>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+  )
+}
+
 /** The KOSync password and whether KOReader's sync is linked. */
 function KosyncPasswordBlock() {
   const { t, i18n } = useLingui()
@@ -1403,7 +1567,7 @@ function PluginKeysBlock() {
   return (
               <AccessBlock
                 title={t`Plugin keys`}
-                description={<Trans>Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used for a week are removed at the next download.</Trans>}
+                description={<Trans>Keys the TomeSync KOReader plugin signs in with, and the keys of connected CrossPoint readers. Downloading the KOReader plugin creates one; download keys that no device has used for a week are removed at the next download.</Trans>}
                 action={
                   <Pill
                     onClick={handleCreateKey}

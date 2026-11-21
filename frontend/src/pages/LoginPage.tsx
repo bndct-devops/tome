@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from 'react'
 import { useNavigate, Navigate } from 'react-router-dom'
 import { LogIn, Smartphone, X, Clock, KeyRound } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { afterLoginPath } from '@/lib/afterLogin'
 import { ThemePill } from '@/components/ThemeToggle'
 import { Pill } from '@/components/page'
 import { AuthError, AuthField, AuthFrame, AuthInput, AuthPanel, AuthPasswordInput, Spinner } from '@/components/auth/AuthPanel'
@@ -75,7 +76,7 @@ export function LoginPage() {
     setLoading(true)
     try {
       await login(username, password)
-      navigate('/')
+      navigate(afterLoginPath())
     } catch (err) {
       // Keep the username; clear only the password so a retry is one field.
       const status = (err as { status?: number }).status
@@ -140,7 +141,7 @@ export function LoginPage() {
             if (timerRef.current) clearInterval(timerRef.current)
             localStorage.setItem('tome_token', res.access_token)
             await refreshUser()
-            navigate('/')
+            navigate(afterLoginPath())
           }
         } catch (err: unknown) {
           const e = err as { status?: number }
@@ -171,7 +172,7 @@ export function LoginPage() {
   // Redirect AFTER all hooks have run - an early return before later hooks
   // (e.g. when a stale session resolves user null→set while mounted) trips
   // React's "rendered fewer hooks than expected".
-  if (user) return <Navigate to="/" replace />
+  if (user) return <Navigate to={afterLoginPath()} replace />
 
   const fmtTime = (secs: number) => `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, '0')}`
 
