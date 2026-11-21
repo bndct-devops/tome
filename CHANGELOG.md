@@ -51,7 +51,9 @@ All notable changes to Tome are documented here. Format loosely follows
   have read a day lately.
 - **A shorter goal dialog.** The eight kinds are one row of choices, the target
   comes right under them with the book type beside the number, and the dialog
-  fits on one screen on a phone, keeping its height when you switch kinds.
+  fits on one screen on a phone. Its top stays put when you switch kinds; only
+  "Finish by a date" makes it taller. Suggested targets that come out the same
+  are offered once.
 - **Suggested targets.** The new goal dialog suggests three targets from your
   own reading over the last 90 days (12 weeks for weekly goals), each with
   how often you reached it. Without enough history it offers fixed targets.
