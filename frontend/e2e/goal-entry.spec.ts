@@ -267,3 +267,40 @@ for (const vp of [{ name: 'desktop', width: 1280, height: 800 }, { name: 'phone'
     await page.unroute(GOALS_LIST_RE)
   })
 }
+
+for (const vp of [{ name: 'desktop', width: 1440, height: 900 }, { name: 'phone', width: 390, height: 844 }]) {
+  test(`New goal dialog, ${vp.name}: every kind fits without scrolling, and switching kinds keeps its height`, async ({ page }) => {
+    seed('goals-history')
+    await page.setViewportSize({ width: vp.width, height: vp.height })
+    await login(page)
+    await page.goto('/stats?tab=goals')
+    await settled(page)
+    await page.getByRole('button', { name: 'New goal' }).first().click()
+    const kinds = ['Books a year', 'Books a month', 'Minutes a day', 'Minutes a week', 'Pages a day', 'Pages a week', 'Reading days a week', 'Finish by a date']
+    // The kinds are one compact row of chips, no descriptions.
+    await expect(dialog(page).getByRole('radiogroup', { name: 'Goal' }).getByRole('radio')).toHaveCount(8)
+    const shape = () => page.evaluate(() => {
+      const d = document.querySelector('[role="dialog"][aria-modal="true"]') as HTMLElement
+      const body = d.querySelector('.overflow-y-auto') as HTMLElement
+      const save = [...d.querySelectorAll('button')].find((b) => b.textContent === 'Set goal')!.getBoundingClientRect()
+      return { h: Math.round(d.getBoundingClientRect().height), scrolls: body.scrollHeight > body.clientHeight + 1, saveVisible: save.bottom <= window.innerHeight && save.top >= 0 }
+    })
+    const seen: number[] = []
+    for (const k of kinds) {
+      await dialog(page).getByRole('radio', { name: new RegExp('^' + k) }).click()
+      if (k.startsWith('Finish')) {
+        await dialog(page).getByRole('button', { name: 'Book or series' }).click()
+        await page.getByRole('option', { name: /Daily Novel/ }).click()
+        await expect(dialog(page)).toContainText(/a day for the \d+ days to/)
+      } else {
+        await expect(dialog(page).locator('#goal-target')).toBeVisible()
+        await expect(dialog(page).locator('#goal-target')).toBeInViewport()
+      }
+      const s = await shape()
+      expect(s.scrolls, k).toBe(false)
+      expect(s.saveVisible, k).toBe(true)
+      seen.push(s.h)
+    }
+    expect(Math.max(...seen) - Math.min(...seen), seen.join(',')).toBeLessThanOrEqual(1)
+  })
+}

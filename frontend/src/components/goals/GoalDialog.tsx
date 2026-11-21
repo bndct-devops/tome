@@ -1,17 +1,18 @@
-// New goal and Edit goal. Creating: the eight kinds (the ones already set show
-// their progress and are not picked twice), "Counts" (a book type) where it
-// applies, then the target: three suggested from the reader's own reading
-// (/api/goals/suggestions: "reached on 46 of 90 days") with what it means
-// ("At 60 min a day you'd finish about 3.7 books a month"), or the presets
-// without history. Finish by a date: a book or series, a day (End of November,
-// End of the year, or any day) and what it takes, live from
-// /api/goals/finish-preview. Editing: the target, or a finish-by goal's date.
+// New goal and Edit goal, kept short enough to need no scrolling. Creating: the
+// eight kinds as one row of chips (the ones already set dimmed with their
+// progress, and not picked twice), then the target: three suggested from the
+// reader's own reading (/api/goals/suggestions: "on 46 of 90 days") or the
+// presets without history, the number, the book type it counts ("All books",
+// beside the number) and one line on what it means. Finish by a date: a book or
+// series, a day (End of November, End of the year, or any day) and what it
+// takes, live from /api/goals/finish-preview. The area under the kinds keeps
+// one height for every kind. Editing: the target, or a finish-by goal's date.
 // From a series or a book page the dialog comes small: that title, the day and
 // what it takes (no kinds, no search). Focus goes into the dialog when it opens
 // and back to whatever opened it when it closes.
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { CalendarDays, Check, ChevronDown } from 'lucide-react'
+import { CalendarDays, ChevronDown } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { cn, formatDuration } from '@/lib/utils'
@@ -37,7 +38,6 @@ export type DialogMode =
   | { kind: 'finish'; target: FinishTarget }
   | { kind: 'edit'; goal: Goal }
 
-const NEW_KINDS = new Set<GoalKind>(['days_per_week', 'finish_by'])
 const BOUNDS: Record<GoalKind, { min: number; max: number | null }> = {
   books_per_year: { min: 1, max: null }, books_per_month: { min: 1, max: null },
   minutes_per_day: { min: 1, max: 1440 }, minutes_per_week: { min: 1, max: 10080 },
@@ -45,10 +45,6 @@ const BOUNDS: Record<GoalKind, { min: number; max: number | null }> = {
   days_per_week: { min: 1, max: 7 }, finish_by: { min: 1, max: null },
 }
 const SCOPED = new Set<GoalKind>(['books_per_year', 'books_per_month', 'minutes_per_day', 'minutes_per_week', 'pages_per_day', 'pages_per_week'])
-
-function Label({ children, htmlFor }: { children: ReactNode; htmlFor?: string }) {
-  return <label htmlFor={htmlFor} className="mb-1.5 block text-[13px] text-muted-foreground">{children}</label>
-}
 
 /** The figure line a kind's tile shows when the reader already has it: "58 / 60". */
 const progress = (g: Goal) => `${num(Math.round(g.current))} / ${num(g.target)}`
@@ -149,7 +145,7 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
       eyebrow={fixed ? kindLabel('finish_by') : undefined}
       title={fixed ? <FixedTitle x={fixed} /> : editing ? t`Edit goal` : t`New goal`}
       aria-label={fixed ? (() => { const n = targetName(fixed); return t`Finish ${n} by a date` })() : editing ? t`Edit goal` : t`New goal`}
-      subtitle={fixed ? undefined : editing ? goalName(editing, today) : t`Progress counts by itself, from the reading Tome records.`}
+      subtitle={editing ? goalName(editing, today) : undefined}
       footer={
         <>
           <Pill variant="quiet" onClick={onClose}><Trans>Cancel</Trans></Pill>
@@ -159,81 +155,87 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
     >
       <div ref={body} className="space-y-5">
         {!editing && !fixed && (
-          <div>
-            <Label><Trans>Goal</Trans></Label>
-            <div role="radiogroup" aria-label={t`Goal`} className="grid grid-cols-2 gap-2">
-              {KIND_ORDER.map((k) => {
-                const on = k === kind
-                const mine = goals.find((g) => g.kind === k && g.book_type_id == null)
-                const off = taken(k)
-                return (
-                  <button
-                    key={k}
-                    type="button"
-                    role="radio"
-                    aria-checked={on}
-                    aria-disabled={off}
-                    onClick={() => pickKind(k)}
-                    className={cn(
-                      'relative min-w-0 rounded-xl px-3.5 py-2.5 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                      on ? 'bg-secondary ring-2 ring-foreground' : 'bg-secondary/55 hover:bg-secondary',
-                      (off || (mine && !on)) && 'opacity-55',
-                      off && 'cursor-not-allowed hover:bg-secondary/55',
-                    )}
-                  >
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-0.5 pr-5 text-[14px] font-semibold text-foreground">
-                      {kindLabel(k)}
-                      {NEW_KINDS.has(k) && <span className="rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-bold uppercase tracking-wide text-primary"><Trans>New</Trans></span>}
+          // The kinds as one row of chips (no descriptions): a kind already set is dimmed with its
+          // progress; one with no book type left free for it cannot be picked.
+          <div role="radiogroup" aria-label={t`Goal`} className="flex flex-wrap gap-2">
+            {KIND_ORDER.map((k) => {
+              const on = k === kind
+              const mine = k !== 'finish_by' ? goals.find((g) => g.kind === k && g.book_type_id == null) : undefined
+              const off = taken(k)
+              return (
+                <button
+                  key={k}
+                  type="button"
+                  role="radio"
+                  aria-checked={on}
+                  aria-disabled={off}
+                  onClick={() => pickKind(k)}
+                  title={mine ? (() => { const p = progress(mine); return t`You have this one · ${p}` })() : kindNote(k)}
+                  className={cn(
+                    'inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[14px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
+                    on ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-surface-hover',
+                    !on && (off || mine) && 'opacity-55',
+                    off && 'cursor-not-allowed hover:bg-secondary',
+                  )}
+                >
+                  {kindLabel(k)}
+                  {mine && (
+                    <span className={cn('text-[12px] tabular-nums', on ? 'text-background/70' : 'text-muted-foreground')}>
+                      <span className="sr-only">{t`You have this one`} · </span>{progress(mine)}
                     </span>
-                    <span className="mt-0.5 block truncate text-[12px] text-muted-foreground">
-                      {mine && k !== 'finish_by' ? (() => { const p = progress(mine); return t`You have this one · ${p}` })() : kindNote(k)}
-                    </span>
-                    {on && <Check className="absolute right-3 top-3 h-4 w-4 text-foreground" strokeWidth={2.5} aria-hidden="true" />}
-                  </button>
-                )
-              })}
-            </div>
+                  )}
+                </button>
+              )
+            })}
           </div>
         )}
 
-        {!editing && SCOPED.has(kind) && types.length > 0 && (
-          <div>
-            <Label><Trans>Counts</Trans></Label>
-            <ChoiceMenu
-              value={String(scope)}
-              options={freeScopes(kind).map((id) => ({ id: String(id), label: typeLabel(id) }))}
-              onPick={(id) => setScope(id === 'null' ? null : Number(id))}
-              label={t`Counts`}
-              className="inline-flex h-10 items-center justify-between gap-3 rounded-xl bg-secondary px-3.5 text-[14px] font-medium text-foreground transition-colors hover:bg-surface-hover focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-            >
-              {typeLabel(scope)}
-              <ChevronDown className="h-4 w-4 text-muted-foreground" aria-hidden="true" />
-            </ChoiceMenu>
-          </div>
-        )}
-
-        {kind === 'finish_by' ? (
-          <FinishBody
-            editing={editing}
-            fixed={!!fixed}
-            today={today}
-            weekStart={weekStart}
-            target={finish}
-            setTarget={(x) => { setFinish(x); setError(null) }}
-            taken={finishTaken}
-            due={chosenDue}
-            setDue={setDue}
-            preview={preview}
-            previewFailed={previewFailed}
-          />
-        ) : (
-          <TargetBody kind={kind} s={s} sug={sug} text={text} setText={setRaw} parsed={parsed} onEnter={save} />
-        )}
-
-        {!editing && kind !== 'finish_by' && has(kind, scope) && (
-          <p className="text-[14px] text-muted-foreground"><Trans>You already have this goal. Edit it from its card instead.</Trans></p>
-        )}
-        {error && <p role="alert" className="text-[14px] text-destructive">{error}</p>}
+        {/* What the kind needs. Creating, the area keeps one height for every kind (the tallest),
+            so switching kinds never moves the footer. */}
+        <div className={cn('space-y-3', !editing && !fixed && 'min-h-[var(--goal-body)] [--goal-body:318px] sm:[--goal-body:256px]')}>
+          {kind === 'finish_by' ? (
+            <FinishBody
+              editing={editing}
+              fixed={!!fixed}
+              today={today}
+              weekStart={weekStart}
+              target={finish}
+              setTarget={(x) => { setFinish(x); setError(null) }}
+              taken={finishTaken}
+              due={chosenDue}
+              setDue={setDue}
+              preview={preview}
+              previewFailed={previewFailed}
+            />
+          ) : (
+            <TargetBody
+              kind={kind}
+              s={s}
+              sug={sug}
+              text={text}
+              setText={setRaw}
+              parsed={parsed}
+              onEnter={save}
+              counts={!editing && SCOPED.has(kind) && types.length > 0 ? (
+                <ChoiceMenu
+                  value={String(scope)}
+                  options={freeScopes(kind).map((id) => ({ id: String(id), label: typeLabel(id) }))}
+                  onPick={(id) => setScope(id === 'null' ? null : Number(id))}
+                  label={t`Counts`}
+                  align="end"
+                  className="inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-[14px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                >
+                  {typeLabel(scope)}
+                  <ChevronDown className="h-4 w-4" aria-hidden="true" />
+                </ChoiceMenu>
+              ) : null}
+            />
+          )}
+          {!editing && kind !== 'finish_by' && has(kind, scope) && (
+            <p className="text-[14px] text-muted-foreground"><Trans>You already have this goal. Edit it from its card instead.</Trans></p>
+          )}
+          {error && <p role="alert" className="text-[14px] text-destructive">{error}</p>}
+        </div>
       </div>
     </ModalShell>,
     document.body,
@@ -242,33 +244,15 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
 
 // ── The target of a count goal ────────────────────────────────────────────────
 
-function intro(kind: GoalKind, s: KindSuggestion): ReactNode {
-  const avg = s.average
-  if (avg == null || !s.suggested) return null
-  const a = kind === 'days_per_week' ? dec1(avg) : num(Math.round(avg))
-  switch (kind) {
-    case 'minutes_per_day': return <Trans>You've read <b className="font-semibold text-foreground">{a} min a day</b> on average over the last 90 days.</Trans>
-    case 'pages_per_day': return <Trans>You've read <b className="font-semibold text-foreground">{a} pages a day</b> on average over the last 90 days.</Trans>
-    case 'minutes_per_week': return <Trans>You've read <b className="font-semibold text-foreground">{a} min a week</b> on average over the last 12 weeks.</Trans>
-    case 'pages_per_week': return <Trans>You've read <b className="font-semibold text-foreground">{a} pages a week</b> on average over the last 12 weeks.</Trans>
-    case 'days_per_week': return <Trans>You've read on <b className="font-semibold text-foreground">{a} days a week</b> on average over the last 12 weeks.</Trans>
-    case 'books_per_month': { const b = dec1(avg); return <Trans>At your average day's reading over the last 90 days you'd finish about <b className="font-semibold text-foreground">{b} books a month</b>.</Trans> }
-    case 'books_per_year': return <Trans>At your average day's reading over the last 90 days you'd finish about <b className="font-semibold text-foreground">{a} books a year</b>.</Trans>
-    default: return null
-  }
-}
-
 function chipNote(s: KindSuggestion, c: Chip): string {
   if (c.reached == null || !c.of) return ''
   const r = num(c.reached), o = num(c.of)
-  if (s.over === 'weeks') return t`reached in ${r} of ${o} weeks`
-  if (s.kind === 'books_per_month' || s.kind === 'books_per_year') return t`your pace on ${r} of ${o} days`
-  return t`reached on ${r} of ${o} days`
+  return s.over === 'weeks' ? t`in ${r} of ${o} weeks` : t`on ${r} of ${o} days`
 }
 
 const CHIP_TITLE = { steady: () => t`Steady`, keep_it_up: () => t`Keep it up`, stretch: () => t`Stretch` } as const
 
-function TargetBody({ kind, s, sug, text, setText, parsed, onEnter }: {
+function TargetBody({ kind, s, sug, text, setText, parsed, onEnter, counts }: {
   kind: GoalKind
   s: KindSuggestion | undefined
   sug: Suggestions | null
@@ -276,6 +260,8 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter }: {
   setText: (v: string) => void
   parsed: ReturnType<typeof parseTarget>
   onEnter: () => void
+  /** The book type it counts ("All books"), beside the number; null where it does not apply. */
+  counts: ReactNode
 }) {
   const value = parsed.ok ? parsed.value : null
   const chips = s?.suggested ?? null
@@ -310,17 +296,14 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter }: {
           : <Trans>{v} books a year take about <b className="font-semibold">{mm} a day</b> at your usual time per book.</Trans>
       }
     } else if (kind === 'days_per_week') {
-      consequence = <Trans>A day counts as it does for your streak: any reading on a device, or a minute or more in the web reader.</Trans>
+      consequence = <Trans>A day counts as it does for your streak.</Trans>
     }
   }
-  const lead = s ? intro(kind, s) : null
   return (
-    <div>
-      <Label htmlFor="goal-target"><Trans>Target</Trans></Label>
-      {lead && <p className="mb-3 text-[14px] leading-snug text-muted-foreground">{lead}</p>}
-      {!chips && s && <p className="mb-3 text-[14px] leading-snug text-muted-foreground"><Trans>A few to start with. Once Tome has a few weeks of your reading, targets come from your own days.</Trans></p>}
+    <div className="space-y-3">
       {chips ? (
-        <div className="flex flex-col gap-2 sm:flex-row" role="radiogroup" aria-label={t`Suggested targets`}>
+        // Three across at every width: the number first, what it is, how often you reached it.
+        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={t`Suggested targets`}>
           {chips.map((c) => {
             const on = value === c.value
             return (
@@ -330,22 +313,19 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter }: {
                 role="radio"
                 aria-checked={on}
                 onClick={() => setText(String(c.value))}
-                className={cn('min-w-0 flex-1 rounded-xl px-3 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', on ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-surface-hover')}
+                className={cn('min-w-0 rounded-xl px-3 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', on ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-surface-hover')}
               >
-                {/* Nothing in a chip is cut: the note wraps and the chip grows (the three stay one height);
-                    a long number drops below its title rather than run out. */}
-                <span className="flex flex-wrap items-baseline justify-between gap-x-2">
-                  <span className="text-[13px] font-semibold">{CHIP_TITLE[c.label ?? 'keep_it_up']()}</span>
-                  <span className="min-w-0 text-[15px] font-bold tabular-nums [overflow-wrap:anywhere]">{num(c.value)}</span>
-                </span>
-                <span className={cn('mt-0.5 block text-[12px] leading-snug [overflow-wrap:anywhere]', on ? 'text-background/75' : 'text-muted-foreground')}>{chipNote(s!, c)}</span>
+                {/* Nothing in a chip is cut: a long note wraps and the chip grows (the three stay one height). */}
+                <span className="block text-[17px] font-bold leading-6 tabular-nums [overflow-wrap:anywhere]">{num(c.value)}</span>
+                <span className="block text-[13px] font-semibold leading-5">{CHIP_TITLE[c.label ?? 'keep_it_up']()}</span>
+                <span className={cn('block text-[12px] leading-snug [overflow-wrap:anywhere]', on ? 'text-background/75' : 'text-muted-foreground')}>{chipNote(s!, c)}</span>
               </button>
             )
           })}
         </div>
       ) : (
         <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t`Targets`}>
-          {(presets.length ? presets : []).map((c) => {
+          {presets.map((c) => {
             const on = value === c.value
             return (
               <button
@@ -362,23 +342,25 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter }: {
           })}
         </div>
       )}
-      <div className="mt-3 flex items-center gap-2.5">
+      <div className="flex items-center gap-2.5">
         <Input
           id="goal-target"
           inputMode="numeric"
           autoComplete="off"
+          aria-label={t`Target`}
           value={text}
           invalid={!!why}
           aria-invalid={!!why}
           aria-describedby={why ? 'goal-target-why' : undefined}
           onChange={(e) => setText(e.target.value)}
           onKeyDown={(e) => { if (e.key === 'Enter') onEnter() }}
-          className="h-10 w-24 rounded-xl text-[15px] font-semibold tabular-nums"
+          className="h-10 w-20 shrink-0 rounded-xl text-[15px] font-semibold tabular-nums"
         />
-        <span className="text-[14px] text-muted-foreground">{unit}</span>
+        <span className="min-w-0 text-[14px] text-muted-foreground">{unit}</span>
+        {counts && <span className="ml-auto shrink-0">{counts}</span>}
       </div>
-      {why && <p id="goal-target-why" className="mt-1.5 text-[13px] text-destructive">{why}</p>}
-      {consequence && <p className="mt-3 text-[14px] leading-snug text-foreground">{consequence}</p>}
+      {why ? <p id="goal-target-why" className="text-[13px] text-destructive">{why}</p>
+        : consequence ? <p className="text-[14px] leading-snug text-foreground">{consequence}</p> : null}
     </div>
   )
 }
@@ -414,40 +396,34 @@ function FinishBody({ editing, fixed, today, weekStart, target, setTarget, taken
   const chips = dateChips(today)
   const chipOn = chips.find((c) => c.date === due)
   const p = preview && preview.due_date === due ? preview : null
-  const showFor = editing || target
   return (
-    <div className="space-y-5">
+    <div className="space-y-4">
       {!editing && !fixed && (
-        <div>
-          <Label><Trans>Book or series</Trans></Label>
-          <FinishTargetPicker value={target} onPick={setTarget} taken={new Set([...taken].filter((k) => !target || k !== targetKey(target)))} />
-        </div>
+        <FinishTargetPicker value={target} onPick={setTarget} taken={new Set([...taken].filter((k) => !target || k !== targetKey(target)))} />
       )}
-      <div>
-        <Label><Trans>By</Trans></Label>
-        <div className="flex flex-wrap items-center gap-1.5">
-          {chips.map((c) => (
-            <button
-              key={c.id}
-              type="button"
-              aria-pressed={chipOn?.id === c.id}
-              onClick={() => setDue(c.date)}
-              className={cn('inline-flex h-9 items-center rounded-full px-4 text-[14px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', chipOn?.id === c.id ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-surface-hover')}
-            >
-              {c.label}
-            </button>
-          ))}
-          <DayPicker value={due} min={today} weekStart={weekStart} onPick={setDue} active={!chipOn}>
-            <CalendarDays className="h-4 w-4" aria-hidden="true" /><Trans>Pick a day</Trans>
-          </DayPicker>
-        </div>
-        <p className="mt-2 px-2 text-[14px] text-muted-foreground">{longDate(due)}</p>
+      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t`By`}>
+        {chips.map((c) => (
+          <button
+            key={c.id}
+            type="button"
+            aria-pressed={chipOn?.id === c.id}
+            title={longDate(c.date)}
+            onClick={() => setDue(c.date)}
+            className={cn('inline-flex h-9 items-center rounded-full px-4 text-[14px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', chipOn?.id === c.id ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-surface-hover')}
+          >
+            {c.label}
+          </button>
+        ))}
+        {/* A day of your own shows on this chip itself. */}
+        <DayPicker value={due} min={today} weekStart={weekStart} onPick={setDue} active={!chipOn}>
+          <CalendarDays className="h-4 w-4" aria-hidden="true" />{chipOn ? <Trans>Pick a day</Trans> : shortDate(due, today)}
+        </DayPicker>
       </div>
-      {showFor && (
-        <div className="min-h-[88px] rounded-xl bg-secondary/55 px-4 py-3" aria-live="polite">
-          {p ? <Preview p={p} today={today} /> : previewFailed ? <p className="text-[14px] text-muted-foreground"><Trans>Nothing left to read there.</Trans></p> : <p className="text-[14px] text-muted-foreground"><Trans>Working out what it takes…</Trans></p>}
-        </div>
-      )}
+      {/* What it takes, in a box of one size whatever is in it (also before a book or series is picked). */}
+      <div className="min-h-[96px] rounded-xl bg-secondary/55 px-4 py-3" aria-live="polite">
+        {!(editing || target) ? <p className="text-[14px] text-muted-foreground"><Trans>Pick a book or a series to see what it takes a day.</Trans></p>
+          : p ? <Preview p={p} today={today} /> : previewFailed ? <p className="text-[14px] text-muted-foreground"><Trans>Nothing left to read there.</Trans></p> : <p className="text-[14px] text-muted-foreground"><Trans>Working out what it takes…</Trans></p>}
+      </div>
     </div>
   )
 }

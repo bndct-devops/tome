@@ -1,7 +1,7 @@
 // "Finish by…" in a series' or a book's header actions: the small goal dialog
 // for that title (the day and what it takes). When the title already has a
-// finish-by goal the pill names its day ("Finish by Dec 31") and opens that
-// goal to edit; when everything there is read, and no goal is open, there is
+// finish-by goal the pill names its day ("Finish by Dec 31", in the primary
+// colour; otherwise it is as quiet as its neighbours) and opens that goal to edit; when everything there is read, and no goal is open, there is
 // nothing to offer. Until the goals are in the pill keeps its place unseen, so
 // it never appears beside the other actions and moves them.
 import { useState } from 'react'
@@ -41,16 +41,16 @@ export function FinishByPill({ target, done, pending, iconOnPhone }: {
   return (
     <>
       <Pill
-        variant={open ? 'secondary' : 'quiet'}
+        variant="quiet"
         onClick={() => setDialog(open ? { kind: 'edit', goal: open } : { kind: 'finish', target })}
         disabled={!ready}
         aria-hidden={!ready || undefined}
         tabIndex={ready ? undefined : -1}
         aria-label={label}
         title={hint}
-        className={cn(!ready && 'invisible')}
+        className={cn(open && 'text-primary hover:text-primary', !ready && 'invisible')}
       >
-        {open ? <CalendarCheck className="h-4 w-4 text-primary" /> : <CalendarClock className="h-4 w-4" />}
+        {open ? <CalendarCheck className="h-4 w-4" /> : <CalendarClock className="h-4 w-4" />}
         {/* On the phone a goal's pill says only its day, in the width "Finish by…" took unseen while
             the goals were on their way: the actions after it (the row starts at the left there) stay put. */}
         {open && !iconOnPhone && (

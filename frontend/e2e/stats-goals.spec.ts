@@ -167,13 +167,15 @@ test('Dialog: suggested targets from the reader\'s own days, presets without his
   await openTab(page, 'Goals')
   await newGoal(page)
   await dialog(page).getByRole('radio', { name: /^Minutes a day/ }).click()
-  await expect(dialog(page)).toContainText(/You've read \d+ min a day on average over the last 90 days/)
-  for (const chip of ['Steady', 'Keep it up', 'Stretch']) await expect(dialog(page).getByRole('radio', { name: new RegExp(chip) })).toContainText(/reached on \d+ of 90 days/)
+  for (const chip of ['Steady', 'Keep it up', 'Stretch']) await expect(dialog(page).getByRole('radio', { name: new RegExp(chip) })).toContainText(/on \d+ of 90 days/)
   await dialog(page).getByRole('radio', { name: /Keep it up/ }).click()
   await expect(dialog(page)).toContainText(/you'd finish about [\d.]+ books a month/)
   // Books goals come from reading time too.
   await dialog(page).getByRole('radio', { name: /^Books a month/ }).click()
-  await expect(dialog(page).getByRole('radio', { name: /Keep it up/ })).toContainText(/your pace on \d+ of 90 days/)
+  await expect(dialog(page).getByRole('radio', { name: /Keep it up/ })).toContainText(/on \d+ of 90 days/)
+  // Weekly goals count weeks.
+  await dialog(page).getByRole('radio', { name: /^Minutes a week/ }).click()
+  await expect(dialog(page).getByRole('radio', { name: /Keep it up/ })).toContainText(/in \d+ of 12 weeks/)
   // No chip text is cut, at this width and a phone's: the note wraps and the chip grows.
   for (const width of [1440, 390]) {
     await page.setViewportSize({ width, height: 900 })
@@ -196,7 +198,7 @@ test('Dialog: suggested targets from the reader\'s own days, presets without his
   await expect(page.locator('[aria-busy="true"]')).toHaveCount(0)
   await newGoal(page)
   await dialog(page).getByRole('radio', { name: /^Minutes a day/ }).click()
-  await expect(dialog(page)).toContainText('A few to start with')
+  await expect(dialog(page).getByRole('radiogroup', { name: 'Suggested targets' })).toHaveCount(0)
   for (const v of ['15', '30', '60']) await expect(dialog(page).getByRole('radio', { name: v, exact: true })).toBeVisible()
 })
 
