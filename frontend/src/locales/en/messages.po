@@ -10780,6 +10780,10 @@ msgstr "Section"
 msgid "See all"
 msgstr "See all"
 
+#: src/components/goals/HomeGoals.tsx
+msgid "See all {k} goals"
+msgstr "See all {k} goals"
+
 #: src/components/home/FocusMode.tsx
 #~ msgid "See all in-progress books"
 #~ msgstr "See all in-progress books"

@@ -9320,6 +9320,10 @@ msgstr "Sección"
 msgid "See all"
 msgstr "Ver todo"
 
+#: src/components/goals/HomeGoals.tsx
+msgid "See all {k} goals"
+msgstr ""
+
 #: src/components/AppShell.tsx
 msgid "See all results for \"{searchQuery}\""
 msgstr "Ver todos los resultados de \"{searchQuery}\""
