@@ -24,8 +24,8 @@ All notable changes to Tome are documented here. Format loosely follows
   other filters, select-all and saved shelves, including shelves in the
   KOReader plugin and the backlog estimate. Contributed by @cliophate (#313).
 - **Spanish translation.** The web UI is available in Spanish (Settings →
-  Language), with every string translated. Contributed by @PedroFlores199
-  (#314).
+  Language and region), with every string translated. Contributed by
+  @PedroFlores199 (#314).
 - **Descriptions in the book list, on request.** `GET /api/books` accepts
   `include=description` to add each book's description to the list items, so
   a client that keeps an offline copy of the library needs no request per
@@ -117,9 +117,10 @@ All notable changes to Tome are documented here. Format loosely follows
   self-update.
 
 ### Changed
-- **Stats has six fixed pages.** Overview shows reading time, sessions,
+- **Stats has seven fixed pages.** Overview shows reading time, sessions,
   pages, books finished and your streak, your reading goals, the books you are
-  reading now, the year as a grid, and all-time totals and records. Habits
+  reading now, the year as a grid, and all-time totals and records. Goals
+  shows each goal's pace, its history and what it takes. Habits
   shows when you read, the last 14 days, session lengths, pace, reading speed,
   the last 12 months and your reading character. Library shows your library,
   series with their next volume, book types, languages, authors, the backlog,
