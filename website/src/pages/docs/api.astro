@@ -165,8 +165,8 @@ import { withBase } from '../../lib/path'
   <h2 id="goals">Goals</h2>
   <p>
     The <a href={withBase("/docs/stats#goals")}>reading goals</a> of the current user. Every endpoint
-    that computes takes the reader's zone as <code>?tz=</code> (an IANA name such as
-    <code>Europe/Vienna</code>); the older <code>?tz_offset=</code> (JS <code>getTimezoneOffset</code>,
+    that computes takes the reader's zone as <code>?tz=</code> (an IANA name such
+    as <code>Europe/Vienna</code>); the older <code>?tz_offset=</code> (JS <code>getTimezoneOffset</code>,
     in minutes) is still accepted and used when <code>tz</code> is missing or unknown.
   </p>
   <table>
@@ -184,9 +184,8 @@ import { withBase } from '../../lib/path'
     </tbody>
   </table>
   <p>
-    Kinds are <code>books_per_year</code>, <code>books_per_month</code>, <code>minutes_per_day</code>,
-    <code>minutes_per_week</code>, <code>pages_per_day</code>, <code>pages_per_week</code>,
-    <code>days_per_week</code> and <code>finish_by</code>. Fields of a goal worth knowing:
+    Kinds are <code>books_per_year</code>, <code>books_per_month</code>, <code>minutes_per_day</code>, <code>minutes_per_week</code>, <code>pages_per_day</code>, <code>pages_per_week</code>, <code>days_per_week</code> and <code>finish_by</code>. Fields
+    of a goal worth knowing:
   </p>
   <ul>
     <li><code>name</code> — the display name ("Books in 2026", "Reading days a week"); <code>name_key</code> and <code>name_params</code> to translate it yourself.</li>
