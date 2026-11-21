@@ -207,6 +207,8 @@ Reading time in the range with the change against the period before, sessions, p
 
 Your reading goals, each as a card: how far you are against the target, how far ahead of or behind pace, and what it takes. Goals count calendar periods (this week, this month, this year, or up to the date of a finish-by goal) with the same numbers as the rest of Stats, so this page ignores the range pills. Home shows one row of up to four of the same cards, the goals that need attention first.
 
+You can set a goal without opening Stats: Home has **Set a reading goal** under its numbers (or **New goal** under the goal cards), and a series page or a book page has **Finish by…** among its actions, which asks only for the day and shows what it takes a day. With a finish-by goal already set for that title the button shows its day and opens the goal to change it.
+
 Click a card for the goal in detail: the period so far day by day, past periods against the target that applied then, and your best and current runs. Periods before you set the goal are shown but not counted as met or missed.
 
 **New goal** offers eight kinds: books a year or a month, minutes or pages a day or a week, **reading days a week** (a day counts as it does for your streak) and **finish by a date** (a book or a series, with the minutes a day it takes at your own pace). Count goals can be limited to one book type. The dialog suggests three targets from your last 90 days (12 weeks for weekly goals), each with how often you reached it; without enough history it offers fixed targets. A deleted goal can be restored with **Undo** for 30 minutes.

@@ -38,6 +38,13 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Goal cards on Home.** Home shows the same cards under its four numbers,
   one row of up to four: the goals behind pace first, reached ones last. Click
   one to open it on the Goals tab; with more goals, "See all" opens the tab.
+- **Set a goal where you are.** Home offers "Set a reading goal" under its
+  numbers when you have none, and "New goal" under the goal cards when you do;
+  both open the goal dialog right on Home. A series page and a book page have
+  "Finish by…" among their actions: it opens a small dialog for that title
+  with just the day and what it takes a day. When the title already has a
+  finish-by goal the button shows its day and opens the goal to change it; a
+  series or book you have read offers none.
 - **Two new kinds of goal.** "Reading days a week" counts the days you read,
   as the streak does. "Finish by a date" takes a book or a series and a date,
   and shows the minutes a day that takes at your own pace next to what you
