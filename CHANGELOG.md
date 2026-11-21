@@ -14,8 +14,10 @@ All notable changes to Tome are documented here. Format loosely follows
   books, and the reading from before its first sync (shown on the Calendar,
   in streaks and as "before sync" totals on Stats). Set it up under
   Settings > Xteink readers; the new docs page "Xteink readers" has the
-  details and says which of the two ways to use. Tested on an Xteink X3 by
-  @gabrieledettorre, who tested every step of this.
+  details and says which of the two ways to use. Thanks to
+  @gabrieledettorre, who asked for this and tested every part of the
+  CrossInk support below on an Xteink X3 over two weeks: the sync, books
+  without a file, reading one book on two devices, and the import.
 - **Xteink readers: a plugin for CrossPoint 2.0 and CrossInk
   (experimental).** With the plugin on its SD card, a reader sends each
   reading session to Tome by itself when it goes to sleep: reading time and
@@ -30,7 +32,8 @@ All notable changes to Tome are documented here. Format loosely follows
   Document Metadata), so its reading has a place. It shows in your Library
   with a "No file" badge and is yours alone. The same file on a KOReader
   device with the TomeSync plugin is the same book, and each device picks
-  up where the other stopped.
+  up where the other stopped (tested by @gabrieledettorre on a Kindle and
+  the Xteink).
 - **Clippings from CrossInk readers (experimental).** Passages saved on the
   reader show on the Highlights page and on the book, read-only.
 - **Import of a CrossPoint Sync account export (experimental).** Settings >
