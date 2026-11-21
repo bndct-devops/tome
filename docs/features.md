@@ -211,7 +211,7 @@ You can set a goal without opening Stats: Home has **Set a reading goal** under 
 
 Click a card for the goal in detail: the period so far day by day, past periods against the target that applied then, and your best and current runs. Periods before you set the goal are shown but not counted as met or missed.
 
-**New goal** offers eight kinds: books a year or a month, minutes or pages a day or a week, **reading days a week** (a day counts as it does for your streak) and **finish by a date** (a book or a series, with the minutes a day it takes at your own pace). Count goals can be limited to one book type. The dialog suggests three targets from your last 90 days (12 weeks for weekly goals), each with how often you reached it; without enough history it offers fixed targets. A deleted goal can be restored with **Undo** for 30 minutes.
+**New goal** offers eight kinds: books a year or a month, minutes or pages a day or a week, **reading days a week** (a day counts as it does for your streak) and **finish by a date** (a book or a series, with the minutes a day it takes at your own pace). The kinds are one row of choices; the ones you already have are dimmed with their progress. Count goals can be limited to one book type (the **All books** menu beside the number). The dialog fits on one screen, phone included, and suggests three targets from your last 90 days (12 weeks for weekly goals), each with how often you reached it; without enough history it offers fixed targets. A deleted goal can be restored with **Undo** for 30 minutes.
 
 Weeks start on Monday unless you choose Sunday under **Settings > Language and region > Week starts on**. Goals follow it, and so do the weekly streak, the Calendar and the Stats charts by weekday.
 
