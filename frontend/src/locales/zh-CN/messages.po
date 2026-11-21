@@ -5763,6 +5763,10 @@ msgstr ""
 msgid "Filters"
 msgstr ""
 
+#: src/components/goals/GoalDialog.tsx
+msgid "Finish {n} by a date"
+msgstr ""
+
 #: src/components/goals/GoalsTab.tsx
 msgid "Finish a book or a series by a day you pick"
 msgstr ""
@@ -5772,12 +5776,24 @@ msgstr ""
 msgid "Finish a couple of books of each type so Tome can measure your pace."
 msgstr ""
 
+#: src/components/goals/FinishByPill.tsx
+#~ msgid "Finish by {d}"
+#~ msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+msgid "Finish by {day}"
+msgstr ""
+
 #: src/components/goals/text.ts
 msgid "Finish by {due}"
 msgstr ""
 
 #: src/components/goals/text.ts
 msgid "Finish by a date"
+msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+msgid "Finish by…"
 msgstr ""
 
 #: src/components/goals/Detail.tsx
@@ -6103,6 +6119,10 @@ msgstr ""
 #: src/lib/goals.ts
 #~ msgid "Goal reached today"
 #~ msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+msgid "Goal set. It shows on Home and in Stats."
+msgstr ""
 
 #: src/pages/StatsPage.tsx
 msgid "Goals"
@@ -7557,6 +7577,7 @@ msgstr ""
 
 #: src/components/goals/GoalDialog.tsx
 #: src/components/goals/GoalsTab.tsx
+#: src/components/goals/HomeGoals.tsx
 #: src/components/stats/GoalWidget.tsx
 msgid "New goal"
 msgstr ""
@@ -9373,6 +9394,7 @@ msgstr ""
 #~ msgid "Progress % <0>(optional)</0>"
 #~ msgstr ""
 
+#: src/components/goals/HomeGoals.tsx
 #: src/components/stats/overview/Goals.tsx
 msgid "Progress counts automatically."
 msgstr ""
@@ -10792,6 +10814,10 @@ msgstr ""
 msgid "See all results for \"{searchQuery}\""
 msgstr ""
 
+#: src/components/goals/FinishByPill.tsx
+msgid "See goal"
+msgstr ""
+
 #: src/components/SendToDeviceModal.tsx
 msgid "See Settings for setup instructions."
 msgstr ""
@@ -11092,6 +11118,15 @@ msgstr ""
 msgid "Set a goal"
 msgstr ""
 
+#: src/components/goals/FinishByPill.tsx
+msgid "Set a goal to finish this book by a day you pick"
+msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+msgid "Set a goal to finish this series by a day you pick"
+msgstr ""
+
+#: src/components/goals/HomeGoals.tsx
 #: src/components/stats/overview/Goals.tsx
 msgid "Set a reading goal"
 msgstr ""
@@ -13459,6 +13494,10 @@ msgstr ""
 
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Your biggest reading day this month: {dur} with {mainTitle}."
+msgstr ""
+
+#: src/components/goals/FinishByPill.tsx
+msgid "Your goal for this. Change its day"
 msgstr ""
 
 #: src/components/HardcoverSync.tsx
