@@ -89,6 +89,12 @@ def book_visibility_filter(db: Session, user: User):
         Book.libraries.any(Library.assigned_users.any(_User.id == user.id)),
     )
 
+    # A book without a file exists only because its owner's reader reported
+    # reading it. It is that person's reading, not part of the shared
+    # collection, so the unfiled-admin-upload rule above must not publish it.
+    from backend.models.book import BOOK_NO_FILE
+    visible = and_(visible, or_(Book.status != BOOK_NO_FILE, Book.added_by == user.id))
+
     # Per-user content restriction (issue #190): a book carrying an excluded
     # tag is invisible — including the user's own uploads (the restriction is
     # account-wide by design, e.g. an under-18 account). Matching is

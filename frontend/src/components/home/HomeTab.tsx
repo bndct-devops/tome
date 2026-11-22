@@ -18,6 +18,7 @@ import { useTilt } from '@/lib/tilt'
 import { HScrollRow } from '@/components/HScrollRow'
 import { QuickLook } from '@/components/QuickLook'
 import { TelemetryConsentCard } from '@/components/TelemetryConsentCard'
+import { AttributedPagesMark } from '@/components/stats/AttributedPagesMark'
 import { HomeGoalStart, HomeGoals } from '@/components/goals/HomeGoals'
 import { PageBody, PageHeader, Pill, SectionTitle, Stat, StatStrip } from '@/components/page'
 
@@ -31,6 +32,8 @@ interface FocusBook {
   series_index: number | null
   description: string | null
   has_cover: boolean
+  /** Known from a reader's sync only: Tome has no file to open. */
+  no_file?: boolean
   progress: number
   device: string | null
   synced: boolean
@@ -59,6 +62,8 @@ interface ActivityEntry {
   started_at: string
   duration_seconds: number
   pages_turned: number | null
+  // Pages attributed from a CrossInk reader's page counter, not counted per session.
+  pages_attributed?: boolean
 }
 interface CalendarMonth {
   totals: { seconds: number }
@@ -67,7 +72,7 @@ interface CalendarMonth {
 interface HighlightSpotlight {
   on_this_day: boolean
   highlight: {
-    id: number
+    id: number | string  // "clipping:<n>" for a CrossInk clipping
     book_id: number
     book_title: string
     book_author: string | null
@@ -281,7 +286,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
     }).catch(() => {})
     api.get<Book[]>('/books?sort=added_at&order=desc&limit=12').finally(countSettled).then(setRecent).catch(() => {})
     api.get<ActivityEntry[]>('/home/activity').finally(countSettled).then(setActivity).catch(() => {})
-    api.get<HighlightSpotlight>('/annotations/spotlight').finally(countSettled).then(setSpotlight).catch(() => {})
+    api.get<HighlightSpotlight>(`/annotations/spotlight?include_clippings=1&tz_offset=${new Date().getTimezoneOffset()}`).finally(countSettled).then(setSpotlight).catch(() => {})
     getFollows().finally(countSettled).then(all => {
       setUpcoming((all ?? [])
         .filter(f => f.latest_release_date != null && f.latest_release_date >= today)
@@ -313,7 +318,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
 
   const shuffleSpotlight = () => {
     const cur = spotlight?.highlight?.id
-    api.get<HighlightSpotlight>(`/annotations/spotlight${cur ? `?exclude=${cur}` : ''}`).then(setSpotlight).catch(() => {})
+    api.get<HighlightSpotlight>(`/annotations/spotlight?include_clippings=1&tz_offset=${new Date().getTimezoneOffset()}${cur ? `&exclude=${encodeURIComponent(cur)}` : ''}`).then(setSpotlight).catch(() => {})
   }
 
   const dailyStreak = month?.streaks.current_days ?? stats?.current_streak_days ?? 0
@@ -337,7 +342,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
   }
 
   // Back-to-back sessions of the same book collapse into one row.
-  const activityRows: { entry: ActivityEntry; sessions: number; seconds: number; pages: number }[] = []
+  const activityRows: { entry: ActivityEntry; sessions: number; seconds: number; pages: number; attributed: boolean }[] = []
   for (const entry of activity) {
     const last = activityRows[activityRows.length - 1]
     if (last && last.entry.book_id === entry.book_id
@@ -345,8 +350,12 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
       last.sessions += 1
       last.seconds += entry.duration_seconds
       last.pages += entry.pages_turned ?? 0
+      last.attributed ||= !!entry.pages_attributed && (entry.pages_turned ?? 0) > 0
     } else {
-      activityRows.push({ entry, sessions: 1, seconds: entry.duration_seconds, pages: entry.pages_turned ?? 0 })
+      activityRows.push({
+        entry, sessions: 1, seconds: entry.duration_seconds, pages: entry.pages_turned ?? 0,
+        attributed: !!entry.pages_attributed && (entry.pages_turned ?? 0) > 0,
+      })
     }
     if (activityRows.length > 5) break
   }
@@ -477,10 +486,16 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
             )}
             <ProgressBar pct={b.progress} className="mt-4" />
             <div className="mt-3.5 flex flex-wrap items-center gap-3">
-              <Pill variant="primary" size="lg" onClick={() => navigate(`/reader/${b.book_id}`)}>
-                <Play className="w-4 h-4 fill-current" />
-                <Trans>Resume</Trans>
-              </Pill>
+              {b.no_file ? (
+                <span className="inline-flex h-9 items-center rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground">
+                  <Trans>On your reader</Trans>
+                </span>
+              ) : (
+                <Pill variant="primary" size="lg" onClick={() => navigate(`/reader/${b.book_id}`)}>
+                  <Play className="w-4 h-4 fill-current" />
+                  <Trans>Resume</Trans>
+                </Pill>
+              )}
               {b.last_sync && (
                 <span className="inline-flex items-center gap-1.5 text-[13px] text-muted-foreground">
                   <RefreshCw className="w-3.5 h-3.5" />
@@ -698,7 +713,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
         <section>
           <SectionTitle action={<SeeAll onClick={() => navigate('/stats')} />}><Trans>Recent activity</Trans></SectionTitle>
           <div className="mt-3">
-            {rows.map(({ entry, sessions, seconds, pages }, i) => (
+            {rows.map(({ entry, sessions, seconds, pages, attributed }, i) => (
               <Link
                 key={entry.started_at}
                 to={`/books/${entry.book_id}`}
@@ -712,7 +727,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                   <div className="text-[14px] text-muted-foreground mt-0.5">
                     {sessions > 1 && <><Plural value={sessions} one="# session" other="# sessions" />{' · '}</>}
                     {duration(seconds)}
-                    {pages > 0 && <>{' · '}<Plural value={pages} one="# page" other="# pages" /></>}
+                    {pages > 0 && <>{' · '}<Plural value={pages} one="# page" other="# pages" />{attributed && <>{' '}<AttributedPagesMark includes /></>}</>}
                   </div>
                 </div>
                 <div className="text-[14px] text-muted-foreground shrink-0">{relativeTime(entry.started_at, i18n.locale)}</div>

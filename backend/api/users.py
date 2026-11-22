@@ -302,6 +302,8 @@ class KOSyncProgressOut(BaseModel):
     percentage: float
     device: Optional[str]
     timestamp: int
+    # What the reader called the file, when it sent metadata.
+    title: Optional[str] = None
 
 
 class KOSyncStatusOut(BaseModel):
@@ -350,21 +352,33 @@ def get_book_kosync_progress(
         KOSyncProgress.user_id == kosync_user.id,
     ).all()
 
+    # A document that only has a file-less book (made from the reader's
+    # metadata) is still on offer: linking it here is how the real book takes
+    # that record over once the file is in the library.
+    from backend.models.book import BOOK_NO_FILE, Book
+    from backend.services.kosync_books import titles_for
+
     mapped_docs = {
-        m.document for m in db.query(KOSyncDocumentMap).filter(
-            KOSyncDocumentMap.tome_user_id == current_user.id,
-        ).all()
+        m.document for m, book_status in (
+            db.query(KOSyncDocumentMap, Book.status)
+            .join(Book, Book.id == KOSyncDocumentMap.book_id)
+            .filter(KOSyncDocumentMap.tome_user_id == current_user.id)
+            .all()
+        )
+        if book_status != BOOK_NO_FILE or m.book_id == book_id
     }
 
+    open_progress = [p for p in all_progress if p.document not in mapped_docs]
+    titles = titles_for(db, current_user.id, [p.document for p in open_progress])
     unlinked = [
         KOSyncProgressOut(
             document=p.document,
             percentage=p.percentage,
             device=p.device,
             timestamp=p.timestamp,
+            title=titles.get(p.document),
         )
-        for p in all_progress
-        if p.document not in mapped_docs
+        for p in open_progress
     ]
 
     return KOSyncStatusOut(linked=False, unlinked_documents=unlinked)
@@ -383,6 +397,10 @@ def link_kosync_document(
 ):
     from backend.models.kosync import KOSyncUser, KOSyncProgress, KOSyncDocumentMap
 
+    from backend.services.kosync_stats import attach_sessions, has_sessions_for
+
+    # The user's progress and sessions end up on this book, so it has to be
+    # one they can see (same answer as a missing book).
     book = visible_book_or_404(db, current_user, book_id)
 
     kosync_user = db.query(KOSyncUser).filter(KOSyncUser.username == current_user.username).first()
@@ -393,7 +411,13 @@ def link_kosync_document(
         KOSyncProgress.user_id == kosync_user.id,
         KOSyncProgress.document == body.document,
     ).first()
-    if not progress:
+    # A reader can upload sessions, clippings or book stats for a file it
+    # never synced a position for.
+    from backend.services.kosync_clippings import has_clippings_for
+    from backend.services.kosync_stats import has_snapshot_for
+    if (not progress and not has_sessions_for(db, current_user.id, body.document)
+            and not has_clippings_for(db, current_user.id, body.document)
+            and not has_snapshot_for(db, current_user.id, body.document)):
         raise HTTPException(404, "Document not found in sync history")
 
     # Upsert document map
@@ -401,6 +425,7 @@ def link_kosync_document(
         KOSyncDocumentMap.tome_user_id == current_user.id,
         KOSyncDocumentMap.document == body.document,
     ).first()
+    previous_book_id = existing.book_id if existing else None
     if existing:
         existing.book_id = book_id
     else:
@@ -409,19 +434,36 @@ def link_kosync_document(
             document=body.document,
             book_id=book_id,
         ))
+    # Reading sessions uploaded for this document follow the link (also when
+    # it corrects an earlier wrong one).
+    attach_sessions(db, current_user.id, body.document, book_id, relink=True)
+    # So do the logged progress pushes (the book page's progress line).
+    from backend.services.kosync_stats import attach_history
+    attach_history(db, current_user.id, body.document, book_id, relink=True)
+
+    # The document may have had a file-less book until now (made from the
+    # reader's metadata). With nothing left on it, this book takes over its
+    # status row and the empty record goes.
+    from backend.services.kosync_books import hand_over, remember_document
+    leftover = hand_over(db, current_user, previous_book_id, book_id)
+    remember_document(db, current_user.id, body.document)
     from backend.api.kosync import clear_pending_links
     clear_pending_links(db, current_user.id, book_id)
 
     # Shared sticky-completion rule — same semantics as a KOSync push landing
     # on an already-linked book (position-sync: tracks the report, downward
     # included; never un-finishes a read book; finishes at 0.99).
-    from backend.services.book_progress import apply_progress_to_status
-    apply_progress_to_status(
-        db, user_id=current_user.id, book_id=book_id,
-        pct=progress.percentage, monotonic=False,
-    )
+    if progress:
+        from backend.services.book_progress import apply_progress_to_status
+        apply_progress_to_status(
+            db, user_id=current_user.id, book_id=book_id,
+            pct=progress.percentage, monotonic=False,
+        )
 
     db.commit()
+    if leftover is not None:
+        from backend.api.books import _delete_book_record
+        _delete_book_record(leftover, db, current_user)
     return {"ok": True}
 
 

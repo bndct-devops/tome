@@ -333,3 +333,115 @@ def test_url_encoded_series_name(client: TestClient, make_book, admin_user, db: 
     resp = client.get(f"/api/series/{quote('Re:ZERO', safe='')}/reading-stats")
     assert resp.status_code == 200
     assert resp.json()["own"]["sessions"] == 1
+
+
+# ── pages a KOSync reader counted itself (CrossInk per-book snapshots) ────────
+# The same snapshots the book page adds (tests/test_kosync_book_pages.py): the
+# series total takes the counter's rest past what sessions already carry.
+
+def _series_pages(client: TestClient, series_name: str, headers: dict | None = None) -> int:
+    from urllib.parse import quote
+    resp = client.get(f"/api/series/{quote(series_name, safe='')}/reading-stats", headers=headers or {})
+    assert resp.status_code == 200, resp.text
+    return resp.json()["own"]["pages_turned"]
+
+
+def test_reader_pages_count_in_the_series(client: TestClient, make_book, admin_user, db: Session):
+    from tests.test_kosync_book_pages import _account, _link, _put_books, _item
+
+    user, _ = admin_user
+    acc = _account(db, user)
+    vol1 = make_book(title="Lantern Vol 1", series="Lantern Keep", series_index=1.0)
+    make_book(title="Lantern Vol 2", series="Lantern Keep", series_index=2.0)
+    _link(db, user, vol1)
+    _put_books(client, acc, _item(pages=240, seconds=4800))
+
+    assert _series_pages(client, "Lantern Keep") == 240
+
+
+def test_attributed_reader_pages_count_once_in_the_series(client: TestClient, make_book, admin_user, db: Session):
+    from tests.test_kosync_attributed_pages import _age, _sess, _sid, _snap
+    from tests.test_kosync_book_pages import _account, _link
+
+    user, _ = admin_user
+    acc = _account(db, user)
+    vol1 = make_book(title="Tidewater Vol 1", series="Tidewater", series_index=1.0)
+    _link(db, user, vol1)
+    _snap(client, acc, 100)
+    _age(db, 10)
+    _sess(client, acc, _sid(1), 5, 1800)
+    _snap(client, acc, 137)
+    session = db.query(ReadingSession).filter_by(book_id=vol1.id).one()
+    assert (session.pages_turned, session.pages_attributed) == (37, True)
+
+    # 37 on the session plus the counter's 100 rest: the counter, not more.
+    assert _series_pages(client, "Tidewater") == 137
+
+
+def test_reader_pages_outside_the_series_or_of_others_do_not_count(
+    client: TestClient, make_book, admin_user, db: Session,
+):
+    from backend.models.library import Library
+    from tests.test_kosync_book_pages import DOC, DOC2, _account, _item, _jwt, _link, _member, _put_books
+
+    admin, _ = admin_user
+    acc = _account(db, admin)
+    vol1 = make_book(title="Cinder Road Vol 1", series="Cinder Road", series_index=1.0)
+    hidden = make_book(title="Cinder Road Vol 2", series="Cinder Road", series_index=2.0)
+    other = make_book(title="Unrelated Standalone", series="Glass Harbour", series_index=1.0)
+    lib = Library(name="Admin only", is_public=False, owner_id=admin.id)
+    db.add(lib)
+    db.flush()
+    hidden.libraries.append(lib)
+    db.flush()
+
+    # A book outside the series.
+    _link(db, admin, other, document=DOC2)
+    _put_books(client, acc, _item(document=DOC2, pages=400))
+    assert _series_pages(client, "Cinder Road") == 0
+
+    # Another user's snapshot of a series book.
+    member = _member(db, "cinder_member")
+    macc = _account(db, member)
+    _link(db, member, vol1)
+    _put_books(client, macc, _item(pages=55))
+    assert _series_pages(client, "Cinder Road") == 0
+    assert _series_pages(client, "Cinder Road", headers=_jwt(member)) == 55
+
+    # A series book the member cannot see (private library) does not count for them.
+    _link(db, member, hidden, document=DOC2)
+    _put_books(client, macc, _item(document=DOC2, pages=900))
+    assert _series_pages(client, "Cinder Road", headers=_jwt(member)) == 55
+    # The admin sees it, but the snapshot is the member's.
+    assert _series_pages(client, "Cinder Road") == 0
+
+
+def test_a_superseded_attributed_session_is_not_counted_twice_in_the_series(
+    client: TestClient, make_book, admin_user, db: Session,
+):
+    """Imported KOReader history covering an attributed CrossInk sitting takes
+    the session out of the totals and its pages back to the counter: the
+    series counts them once (the setup of
+    test_a_superseded_session_gives_its_pages_back_to_the_counter)."""
+    from backend.models.ko_stats import PageStat
+    from tests.test_kosync_attributed_pages import _age, _pages, _sess, _sid, _snap
+    from tests.test_kosync_book_pages import _account, _link, _own
+
+    user, _ = admin_user
+    acc = _account(db, user)
+    vol1 = make_book(title="Ember Lane Vol 1", series="Ember Lane", series_index=1.0)
+    _link(db, user, vol1)
+    _snap(client, acc, 100)
+    _age(db, 10)
+    start = _sess(client, acc, _sid(1), 5, 1800)
+    _snap(client, acc, 140)
+    assert _pages(db, _sid(1)) == [(40, True)]
+    db.add(PageStat(user_id=user.id, book_id=vol1.id, page=5, total_pages=300,
+                    start_time=start + 60, duration_seconds=30, device="kindle"))
+    db.flush()
+
+    # The book page: the counter's 140 plus the one page the imported history
+    # describes. The series never adds page-stats pages (before this change
+    # either), so it shows the counter once: 140, not 180.
+    assert _own(client, vol1)["pages_turned"] == 141
+    assert _series_pages(client, "Ember Lane") == 140

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.security import get_current_user
 from backend.core.permissions import require_role, is_admin as _is_admin
-from backend.models.book import Book
+from backend.models.book import BOOK_NO_FILE, Book
 from backend.models.library import Library, SavedFilter, BookType
 from backend.models.user import User
 from backend.services.audit import audit
@@ -183,10 +183,17 @@ def add_books_to_library(
     # Only books the caller can already see: owning a library that holds a
     # book is itself a visibility grant, so filing a hidden book into your
     # own library would reveal it.
+    # A book without a file (made from a reader's sync) is its owner's
+    # personal reading record, not a library copy: it never goes into a
+    # library, so library counts and shared shelves hold only real books.
     from backend.core.permissions import book_visibility_filter
     books = (
         db.query(Book)
-        .filter(Book.id.in_(book_ids), book_visibility_filter(db, current_user))
+        .filter(
+            Book.id.in_(book_ids),
+            Book.status != BOOK_NO_FILE,
+            book_visibility_filter(db, current_user),
+        )
         .all()
     )
     for book in books:

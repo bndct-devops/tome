@@ -12,13 +12,17 @@ from collections import defaultdict
 from datetime import date, datetime, timedelta, timezone
 from typing import NamedTuple, Optional
 
-from sqlalchemy import func, Integer
+from sqlalchemy import case, func, Integer
 from sqlalchemy.orm import Session
 
 from backend.models.book import Book
 from backend.models.tome_sync import ReadingSession
 from backend.models.user_book_status import UserBookStatus
 from backend.services.reading_day import DayCtx
+
+# Seconds of a session, counted only when the session also counted page turns:
+# the denominator for pages-per-minute.
+_PACED_SECONDS = case((ReadingSession.pages_turned > 0, ReadingSession.duration_seconds), else_=0)
 
 
 def finished_date_expr():
@@ -108,6 +112,7 @@ def compute_book_reading_stats(
         func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("total_seconds"),
         func.count(ReadingSession.id).label("sessions"),
         func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages_turned"),
+        func.coalesce(func.sum(_PACED_SECONDS), 0).label("paced_seconds"),
         func.min(ReadingSession.started_at).label("first_read"),
         func.max(
             func.coalesce(ReadingSession.ended_at, ReadingSession.started_at)
@@ -122,10 +127,13 @@ def compute_book_reading_stats(
         round(total_seconds / sessions) if sessions > 0 else 0
     )
 
-    # Pace: pages per minute
-    total_minutes = total_seconds / 60.0
-    if total_minutes > 0 and pages_turned > 0:
-        pace_pages_per_min: Optional[float] = round(pages_turned / total_minutes, 2)
+    # Pace: pages per minute, over the sittings that counted pages. Time from
+    # a source that reports none (a KOSync reader's uploaded sessions, the web
+    # reader) would otherwise read as very slow reading.
+    paced_seconds = int(agg.paced_seconds) if agg and agg.paced_seconds else 0
+    paced_minutes = paced_seconds / 60.0
+    if paced_minutes > 0 and pages_turned > 0:
+        pace_pages_per_min: Optional[float] = round(pages_turned / paced_minutes, 2)
     else:
         pace_pages_per_min = None
 
@@ -238,6 +246,7 @@ def compute_book_reading_stats(
             func.coalesce(func.sum(ReadingSession.pages_turned), 0),
             func.min(ReadingSession.started_at),
             func.max(func.coalesce(ReadingSession.ended_at, ReadingSession.started_at)),
+            func.coalesce(func.sum(_PACED_SECONDS), 0),
         ).one()
         add_secs, add_count, add_pages = int(add_agg[0] or 0), int(add_agg[1] or 0), int(add_agg[2] or 0)
 
@@ -289,20 +298,41 @@ def compute_book_reading_stats(
         if last_dt:
             last_read = last_dt.isoformat() + "Z"
 
-        total_minutes = total_seconds / 60.0
-        if total_minutes > 0 and pages_turned > 0:
-            pace_pages_per_min = round(pages_turned / total_minutes, 2)
+        # Page-stats time always has pages; additive sessions only where they
+        # counted some (same rule as above).
+        paced_seconds = ps_seconds + int(add_agg[5] or 0)
+        paced_minutes = paced_seconds / 60.0
+        if paced_minutes > 0 and pages_turned > 0:
+            pace_pages_per_min = round(pages_turned / paced_minutes, 2)
+
+    # ── Pages a KOSync reader counted itself (CrossInk per-book snapshots) ───
+    # Its uploaded sessions carry time but no pages, so nothing above holds
+    # these pages: they are added, never merged. Lifetime totals only, so they
+    # touch the all-time figures and no day, session or window. Pace pairs the
+    # reader's pages with the reader's own seconds from the same snapshot.
+    from backend.services.kosync_stats import reader_pages
+    reader = reader_pages(db, user_id, [book_id]).get(book_id)
+    if reader is not None:
+        pages_turned += reader.pages
+        if reader.paced_pages > 0:
+            paced_minutes = (paced_seconds + reader.paced_seconds) / 60.0
+            # Tome's own pages only with Tome's own paced time.
+            tome_paced_pages = pages_turned - reader.pages if paced_seconds > 0 else 0
+            pace_pages_per_min = round((tome_paced_pages + reader.paced_pages) / paced_minutes, 2)
 
     # ── Journey: cumulative progress per reading day (the progress line) ──────
     # Augments each session_timeline day with the furthest-progress reached, so
     # the frontend can plot a progress arc over the minutes-per-day bars.
     # Page-stat days carry no position (dwell is *coverage* — you can be 35% in
-    # having dwelled on 11% of pages), but web/manual sessions record
-    # progress_end, so their days contribute points even on a device-synced book.
+    # having dwelled on 11% of pages); the position comes from the sessions'
+    # progress_end and from the position logs merged in below.
+    # Every session counts here, superseded ones included: imported page-stats
+    # replace a plugin sitting's *time*, not the position it ended at. Filtering
+    # them out left a page-stats book with a line from the few sittings the
+    # page-stats missed, or no line at all.
     day_progress: dict[str, float] = {}
-    prog_base = base.filter(counted_clause()) if ps_seconds > 0 else base
     prog_rows = (
-        prog_base.with_entities(
+        base.with_entities(
             day_ctx.dt_day(ReadingSession.started_at).label("date"),
             func.max(ReadingSession.progress_end).label("p"),
         )
@@ -313,11 +343,64 @@ def compute_book_reading_stats(
         if r.p is not None:
             day_progress[r.date] = min(float(r.p), 1.0)
 
+    # A KOSync reader that uploads sessions (CrossInk) sends them without
+    # progress_end, but every position push is logged in reading_history. Its
+    # per-day furthest point merges in by max, so a reader with both sources
+    # sees the further one. The line still lives on reading days only, so a
+    # KOSync app that uploads no sessions gets none from this.
+    # The protocol's percentage is a 0..1 fraction (KOReader; CrossInk's
+    # KOReaderSyncClient.h says "0.0 to 1.0" and refuses anything above 1 from
+    # a server), so a value outside it is only clamped.
+    from backend.models.kosync import ReadingHistory
+    hist_day = day_ctx.dt_day(ReadingHistory.synced_at)
+    hist_rows = (
+        db.query(hist_day.label("date"), func.max(ReadingHistory.percentage).label("p"))
+        .filter(ReadingHistory.user_id == user_id, ReadingHistory.book_id == book_id)
+        .group_by(hist_day)
+        .all()
+    )
+    for r in hist_rows:
+        if r.p is None:
+            continue
+        p = max(0.0, min(float(r.p), 1.0))
+        day_progress[r.date] = max(day_progress.get(r.date, 0.0), p)
+
+    # The same for TomeSync positions (the KOReader plugin, the web reader):
+    # position_history keeps the newest meaningful moves per book (40 rows at
+    # most, so they are walked in Python). A restore (device "restore") exists
+    # to undo a bad write such as a device jumping the book to 100%: the rows
+    # before it that lie above the restored position are the bad write and do
+    # not count, or the line would stay pinned at 100% after the user fixed it.
+    from backend.models.tome_sync import PositionHistory
+    pos_day = day_ctx.dt_day(PositionHistory.created_at)
+    pos_rows = (
+        db.query(pos_day.label("date"), PositionHistory.percentage.label("p"),
+                 PositionHistory.device.label("device"))
+        .filter(PositionHistory.user_id == user_id, PositionHistory.book_id == book_id)
+        .order_by(PositionHistory.id)
+        .all()
+    )
+    kept: list[tuple[str, float]] = []
+    for r in pos_rows:
+        if r.p is None:
+            continue
+        p = max(0.0, min(float(r.p), 1.0))
+        if r.device == "restore":
+            kept = [(d, q) for d, q in kept if q <= p]
+        kept.append((r.date, p))
+    for pos_date, p in kept:
+        day_progress[pos_date] = max(day_progress.get(pos_date, 0.0), p)
+
     # Forward-fill so the arc never dips on a day with reading-time-but-no-progress.
+    # Every progress day up to a row's date counts, also one with no reading
+    # time (a push made when the reader synced the next morning).
+    progress_days = sorted(day_progress.items())
     running = 0.0
+    k = 0
     for row in session_timeline:
-        if row["date"] in day_progress:
-            running = max(running, day_progress[row["date"]])
+        while k < len(progress_days) and progress_days[k][0] <= row["date"]:
+            running = max(running, progress_days[k][1])
+            k += 1
         row["progress_pct"] = round(running * 100, 1) if running > 0 else None
 
     # ── Where the reading time came from (web reader vs device) ───────────────
@@ -784,6 +867,15 @@ def compute_series_reading_stats(
     books_in_progress = sum(1 for bid in book_ids if status_by_book.get(bid) == "reading")
 
     # ── Aggregate reading sessions ───────────────────────────────────────────
+    # A counter-attributed session that imported page-stats supersede gives
+    # its pages back to the counter (reader_pages below counts them again),
+    # so it adds none here. Other sessions keep their pages as before.
+    from sqlalchemy import and_
+    from backend.services.reconciled_reading import superseded_clause
+    session_pages = case(
+        (and_(ReadingSession.pages_attributed.is_(True), superseded_clause()), 0),
+        else_=ReadingSession.pages_turned,
+    )
     agg = (
         db.query(ReadingSession)
         .filter(
@@ -793,7 +885,7 @@ def compute_series_reading_stats(
         .with_entities(
             func.coalesce(func.sum(ReadingSession.duration_seconds), 0).label("total_seconds"),
             func.count(ReadingSession.id).label("sessions"),
-            func.coalesce(func.sum(ReadingSession.pages_turned), 0).label("pages_turned"),
+            func.coalesce(func.sum(session_pages), 0).label("pages_turned"),
             func.min(ReadingSession.started_at).label("first_read"),
             func.max(
                 func.coalesce(ReadingSession.ended_at, ReadingSession.started_at)
@@ -805,6 +897,13 @@ def compute_series_reading_stats(
     total_seconds: int = int(agg.total_seconds) if agg and agg.total_seconds else 0
     sessions: int = int(agg.sessions) if agg and agg.sessions else 0
     pages_turned: int = int(agg.pages_turned) if agg and agg.pages_turned else 0
+
+    # ── Pages a KOSync reader counted itself (CrossInk per-book snapshots) ───
+    # The counter's rest past what sessions already carry (attributed growth),
+    # so nothing is counted twice. Lifetime totals with no dates; the series
+    # shows no pace, so only the page total takes them.
+    from backend.services.kosync_stats import reader_pages
+    pages_turned += sum(r.pages for r in reader_pages(db, user.id, book_ids).values())
 
     first_read: Optional[str] = (
         agg.first_read.isoformat() + "Z" if agg and agg.first_read else None

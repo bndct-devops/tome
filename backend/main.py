@@ -25,6 +25,8 @@ from backend.api import downloads
 from backend.api import opds
 from backend.api import opds_pins
 from backend.api import kosync
+from backend.api import kosync_stats
+from backend.api import crosspoint
 from backend.api import tome_sync
 from backend.api import stats
 from backend.api import reading_calendar as reading_calendar_api
@@ -50,7 +52,11 @@ from backend.api import annotations as annotations_api
 from backend.api import sync_code as sync_code_api
 from backend.api import device_books as device_books_api
 from backend.api import hardcover as hardcover_api
-from backend.models.kosync import KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory  # noqa: F401
+from backend.models.kosync import (  # noqa: F401
+    KOSyncUser, KOSyncProgress, OPDSPendingLink, ReadingHistory,
+    KOSyncDeviceStats, KOSyncDailyStats, KOSyncSessionReceipt, KOSyncDocumentMeta,
+    KOSyncClipping, KOSyncBookStats,
+)
 from backend.models.opds_pin import OpdsPin  # noqa: F401
 from backend.models.tome_sync import ApiKey, ReadingSession, TomeSyncPosition  # noqa: F401
 from backend.models.user_book_status import UserBookStatus  # noqa: F401
@@ -184,6 +190,10 @@ async def lifespan(app: FastAPI):
         if "download_limit" not in user_cols:
             conn.execute(text("ALTER TABLE users ADD COLUMN download_limit INTEGER"))
             conn.commit()
+        # A KOSync document link remembers when it was only a guess.
+        dm_cols = {r[1] for r in conn.execute(text("PRAGMA table_info(kosync_document_map)")).fetchall()}
+        if dm_cols and "guessed" not in dm_cols:
+            conn.execute(text("ALTER TABLE kosync_document_map ADD COLUMN guessed BOOLEAN"))
         # First day of the reader's week for calendar-week goals (Monday as the
         # weekly streak counts; "sunday" is the per-user option).
         if "week_start" not in user_cols:
@@ -397,6 +407,9 @@ async def lifespan(app: FastAPI):
             conn.execute(text(
                 "ALTER TABLE user_book_status ADD COLUMN hardcover_created BOOLEAN NOT NULL DEFAULT 0"))
             conn.commit()
+        migrate_reader_page_attribution(conn)
+        migrate_reading_history_index(conn)
+        migrate_api_key_kind(conn)
         # Hardcover Want-to-Read pull resolves shelf entries by matched book id
         # every cycle — create_all only builds indexes for brand-new tables, and
         # this must run after the hardcover_book_id column-add above.
@@ -945,6 +958,79 @@ def _cleanup_empty_dir(start: Path, stop_at: Path) -> None:
         current = current.parent
 
 
+def migrate_reading_history_index(conn) -> None:
+    """Composite index on reading_history (user_id, book_id); create_all only
+    builds indexes for brand-new tables. Tome never runs ANALYZE, so with the
+    single-column indexes alone the planner walks every history row of the
+    user to find the unlinked ones (``attach_history``) and to draw a book's
+    progress line; with this one it seeks (user, book) or (user, NULL).
+    Idempotent. Commits."""
+    from sqlalchemy import text
+
+    if not conn.execute(text("PRAGMA table_info(reading_history)")).fetchall():
+        return  # table not there (yet)
+    conn.execute(text(
+        "CREATE INDEX IF NOT EXISTS ix_reading_history_user_book "
+        "ON reading_history (user_id, book_id)"
+    ))
+    conn.commit()
+
+
+def migrate_api_key_kind(conn) -> None:
+    """``api_keys.kind`` (what a device key opens; see the model). Every key
+    from before the column is a KOReader plugin key, which is the default. An
+    older Tome ignores the column and its inserts get the default. Idempotent.
+    Commits."""
+    from sqlalchemy import text
+
+    cols = {r[1] for r in conn.execute(text("PRAGMA table_info(api_keys)")).fetchall()}
+    if cols and "kind" not in cols:
+        conn.execute(text("ALTER TABLE api_keys ADD COLUMN kind VARCHAR(16) NOT NULL DEFAULT 'plugin'"))
+        conn.commit()
+
+
+def migrate_reader_page_attribution(conn) -> None:
+    """Columns for pages attributed from a KOSync reader's page counter
+    (services/kosync_stats.py, "page attribution"); create_all does not add
+    columns to tables that already exist. Idempotent. Commits.
+
+    ``reading_sessions.pages_attributed`` defaults to 0 = counted by its own
+    source, which every session before it was; an older Tome ignores the
+    column (it selects named columns) and its inserts get the default. The
+    reader-stats tables may already exist in a tester's database from before
+    these columns; a receipt from then counts as received when it was last
+    updated, the closest Tome knows.
+    """
+    from sqlalchemy import text
+
+    def cols(table: str) -> set[str]:
+        return {r[1] for r in conn.execute(text(f"PRAGMA table_info({table})")).fetchall()}
+
+    rs_cols = cols("reading_sessions")
+    if rs_cols and "pages_attributed" not in rs_cols:
+        conn.execute(text("ALTER TABLE reading_sessions ADD COLUMN pages_attributed BOOLEAN NOT NULL DEFAULT 0"))
+        conn.commit()
+    kbs_cols = cols("kosync_book_stats")
+    for col, ddl in (
+        ("counter_epoch", "INTEGER NOT NULL DEFAULT 0"),
+        ("pages_attributed", "INTEGER NOT NULL DEFAULT 0"),
+        ("pages_pending", "INTEGER NOT NULL DEFAULT 0"),
+        ("pending_since", "DATETIME"),
+    ):
+        if kbs_cols and col not in kbs_cols:
+            conn.execute(text(f"ALTER TABLE kosync_book_stats ADD COLUMN {col} {ddl}"))
+            conn.commit()
+    ksr_cols = cols("kosync_session_receipts")
+    for col, ddl in (("pages_epoch", "INTEGER"), ("attributed_seconds", "INTEGER"), ("received_at", "DATETIME")):
+        if ksr_cols and col not in ksr_cols:
+            conn.execute(text(f"ALTER TABLE kosync_session_receipts ADD COLUMN {col} {ddl}"))
+            conn.commit()
+    if ksr_cols:
+        conn.execute(text(
+            "UPDATE kosync_session_receipts SET received_at = updated_at WHERE received_at IS NULL"))
+        conn.commit()
+
+
 def frontend_dist_dir(frontend_root: Path, ui: str) -> Path:
     """The built bundle to serve. ``TOME_UI=classic`` picks ``dist-classic``
     (the pre-3.0 look, built from the last 2.x tag by the Dockerfile) when it
@@ -1023,6 +1109,8 @@ def create_app(frontend_dist: Path | None = None) -> FastAPI:
     app.include_router(opds.router)  # mounted at /opds, not /api
     app.include_router(opds_pins.router, prefix="/api")
     app.include_router(kosync.router, prefix="/api")  # mounted at /api/v1/
+    app.include_router(kosync_stats.router, prefix="/api")  # /api/v1/api/v1/stats/ (sic)
+    app.include_router(crosspoint.router, prefix="/api")  # /api/v1/crosspoint/
     app.include_router(tome_sync.router, prefix="/api")
     app.include_router(reading_calendar_api.router, prefix="/api")
     app.include_router(stats.router, prefix="/api")

@@ -549,6 +549,7 @@ msgstr "{0, plural, one {# page to go} other {# pages to go}}"
 #: src/components/stats/habits/charts.tsx
 #: src/components/stats/habits/HabitsPage.tsx
 #: src/components/stats/library/BookSessions.tsx
+#: src/components/stats/SessionLog.tsx
 #: src/pages/ReadingCalendarPage.tsx
 msgid "{0, plural, one {# page} other {# pages}}"
 msgstr "{0, plural, one {# page} other {# pages}}"
@@ -739,8 +740,8 @@ msgstr "{0, plural, one {across # volume} other {across # volumes}}"
 
 #. placeholder {0}: selected.size
 #: src/pages/DashboardPage.tsx
-msgid "{0, plural, one {Added # book to library} other {Added # books to library}}"
-msgstr "{0, plural, one {Added # book to library} other {Added # books to library}}"
+#~ msgid "{0, plural, one {Added # book to library} other {Added # books to library}}"
+#~ msgstr "{0, plural, one {Added # book to library} other {Added # books to library}}"
 
 #. placeholder {0}: applyResult.applied
 #: src/pages/AdminPage.tsx
@@ -934,9 +935,17 @@ msgstr "{active, plural, one {# reading day in all} other {# reading days in all
 msgid "{activeDays, plural, one {on # reading day} other {on # reading days}}"
 msgstr "{activeDays, plural, one {on # reading day} other {on # reading days}}"
 
+#: src/pages/DashboardPage.tsx
+msgid "{added, plural, one {Added # book to library} other {Added # books to library}}"
+msgstr "{added, plural, one {Added # book to library} other {Added # books to library}}"
+
 #: src/pages/AdminPage.tsx
 msgid "{added} added · {skipped} skipped"
 msgstr "{added} added · {skipped} skipped"
+
+#: src/components/CrossPointImport.tsx
+msgid "{added} new sessions"
+msgstr "{added} new sessions"
 
 #: src/components/MetadataManager.tsx
 msgid "{all, plural, one {# book} other {# books}}"
@@ -969,6 +978,10 @@ msgstr "{base} · {rd} in progress"
 #: src/pages/HardcoverPage.tsx
 msgid "{base} · Vol. {idx}"
 msgstr "{base} · Vol. {idx}"
+
+#: src/components/stats/boards/BoardsView.tsx
+msgid "{before} before sync"
+msgstr "{before} before sync"
 
 #: src/lib/goals.ts
 #~ msgid "{behind} behind pace"
@@ -1270,6 +1283,10 @@ msgstr "{fromDay} to {toDay}"
 msgid "{h} h"
 msgstr "{h} h"
 
+#: src/components/CrossPointImport.tsx
+msgid "{h} h {m} min"
+msgstr "{h} h {m} min"
+
 #: src/components/home/HomeTab.tsx
 msgid "{h} hours ago"
 msgstr "{h} hours ago"
@@ -1420,6 +1437,10 @@ msgstr "{median, plural, one {day} other {days}}"
 msgid "{mergeCount, plural, one {merge # group} other {merge # groups}}"
 msgstr "{mergeCount, plural, one {merge # group} other {merge # groups}}"
 
+#: src/components/CrossPointImport.tsx
+msgid "{merged} merged file"
+msgstr "{merged} merged file"
+
 #: src/components/home/HomeTab.tsx
 msgid "{mins}m"
 msgstr "{mins}m"
@@ -1477,6 +1498,10 @@ msgstr "{n, plural, one {# matching volume currently in the library.} other {# m
 #: src/pages/DashboardPage.tsx
 msgid "{n, plural, one {# series} other {# series}}"
 msgstr "{n, plural, one {# series} other {# series}}"
+
+#: src/pages/SettingsPage.tsx
+msgid "{n, plural, one {# session received, the last one ended {d}} other {# sessions received, the last one ended {d}}}"
+msgstr "{n, plural, one {# session received, the last one ended {d}} other {# sessions received, the last one ended {d}}}"
 
 #: src/components/stats/habits/charts.tsx
 msgid "{n, plural, one {# session} other {# sessions}}"
@@ -1598,6 +1623,10 @@ msgstr "{n} a reading day"
 #: src/components/goals/text.ts
 msgid "{n} ahead"
 msgstr "{n} ahead"
+
+#: src/components/stats/boards/BoardsView.tsx
+msgid "{n} before sync"
+msgstr "{n} before sync"
 
 #: src/components/goals/text.ts
 msgid "{n} behind"
@@ -1736,6 +1765,10 @@ msgstr "{name} copy"
 msgid "{name} errored"
 msgstr "{name} errored"
 
+#: src/components/CrossPointImport.tsx
+msgid "{name} exported {when} by {user}, {size} MiB"
+msgstr "{name} exported {when} by {user}, {size} MiB"
+
 #: src/components/MetadataFetchModal.tsx
 #~ msgid "{name} is rate-limited — try again in a minute"
 #~ msgstr "{name} is rate-limited — try again in a minute"
@@ -1759,6 +1792,14 @@ msgstr "{name}, {read}"
 #: src/components/stats/library/LibraryPage.tsx
 msgid "{nDone, plural, one {# complete} other {# complete}}"
 msgstr "{nDone, plural, one {# complete} other {# complete}}"
+
+#: src/pages/DashboardPage.tsx
+msgid "{noFile, plural, one {Added {added} to library; # book without a file was left out} other {Added {added} to library; # books without a file were left out}}"
+msgstr "{noFile, plural, one {Added {added} to library; # book without a file was left out} other {Added {added} to library; # books without a file were left out}}"
+
+#: src/pages/DashboardPage.tsx
+msgid "{noFile, plural, one {Not added: # book without a file stays out of libraries} other {Not added: # books without a file stay out of libraries}}"
+msgstr "{noFile, plural, one {Not added: # book without a file stays out of libraries} other {Not added: # books without a file stay out of libraries}}"
 
 #: src/components/stats/library/LibraryPage.tsx
 msgid "{nOpen, plural, one {# in progress} other {# in progress}}"
@@ -1987,6 +2028,10 @@ msgstr "{recent} pages a minute over the last 7 reading days, {all} across {rang
 msgid "{rest, plural, one {{st}: {names} and # more} other {{st}: {names} and # more}}"
 msgstr "{rest, plural, one {{st}: {names} and # more} other {{st}: {names} and # more}}"
 
+#: src/components/CrossPointImport.tsx
+msgid "{rows, plural, one {# row} other {# rows}}"
+msgstr "{rows, plural, one {# row} other {# rows}}"
+
 #: src/components/goals/charts.tsx
 msgid "{s} a day keeps pace"
 msgstr "{s} a day keeps pace"
@@ -2035,6 +2080,10 @@ msgstr "{sessions} · {share}% of the reading in {rangePhrase}"
 #: src/pages/DashboardPage.tsx
 #~ msgid "{sessions} sessions · {time}"
 #~ msgstr "{sessions} sessions · {time}"
+
+#: src/components/CrossPointImport.tsx
+msgid "{sessions} sessions, {time}"
+msgstr "{sessions} sessions, {time}"
 
 #: src/components/stats/widgets/overview.tsx
 msgid "{sessions}, avg {avg}"
@@ -2136,6 +2185,10 @@ msgstr "{total, plural, one {book} other {books}}"
 #: src/components/stats/library/charts.tsx
 msgid "{total} books added"
 msgstr "{total} books added"
+
+#: src/components/CrossPointImport.tsx
+msgid "{total} min"
+msgstr "{total} min"
 
 #: src/pages/DashboardPage.tsx
 #~ msgid "{totalCount, plural, one {{shown} of # book} other {{shown} of # books}}"
@@ -3023,6 +3076,14 @@ msgstr "All-time hours, pages, books, streak"
 #~ msgid "Already counted"
 #~ msgstr "Already counted"
 
+#: src/components/CrossPointImport.tsx
+msgid "already in Tome"
+msgstr "already in Tome"
+
+#: src/components/CrossPointImport.tsx
+msgid "already in Tome or older"
+msgstr "already in Tome or older"
+
 #: src/components/SendButton.tsx
 msgid "Already in your KOReader inbox"
 msgstr "Already in your KOReader inbox"
@@ -3035,6 +3096,14 @@ msgstr "Already in your KOReader inbox"
 msgid "Already in your library, will be skipped."
 msgstr "Already in your library, will be skipped."
 
+#: src/components/CrossPointImport.tsx
+msgid "already linked"
+msgstr "already linked"
+
+#: src/components/CrossPointImport.tsx
+msgid "Already linked to"
+msgstr "Already linked to"
+
 #: src/components/home/HomeTab.tsx
 msgid "Also reading"
 msgstr "Also reading"
@@ -3042,6 +3111,10 @@ msgstr "Also reading"
 #: src/pages/SettingsPage.tsx
 msgid "Also revoke my API tokens, plugin keys and OPDS PINs"
 msgstr "Also revoke my API tokens, plugin keys and OPDS PINs"
+
+#: src/components/CrossPointImport.tsx
+msgid "Also written"
+msgstr "Also written"
 
 #: src/components/Sidebar.tsx
 #: src/components/ThemeToggle.tsx
@@ -3051,6 +3124,10 @@ msgstr "Amber"
 #: src/components/goals/actions.ts
 msgid "An equal goal exists now, so this one cannot come back."
 msgstr "An equal goal exists now, so this one cannot come back."
+
+#: src/components/CrossPointImport.tsx
+msgid "an unknown time"
+msgstr "an unknown time"
 
 #: src/components/stats/library/Languages.tsx
 msgid "And {more}: {list}."
@@ -3315,6 +3392,10 @@ msgstr "At your {v} a volume in this series."
 #: src/pages/BookDetailPage.tsx
 msgid "Attach progress synced from a KOReader-compatible app to this book"
 msgstr "Attach progress synced from a KOReader-compatible app to this book"
+
+#: src/components/stats/AttributedPagesMark.tsx
+msgid "Attributed from the reader's page counter: what it grew by between two syncs, shared out over those sessions by reading time"
+msgstr "Attributed from the reader's page counter: what it grew by between two syncs, shared out over those sessions by reading time"
 
 #: src/pages/AdminPage.tsx
 msgid "Audit log"
@@ -3745,6 +3826,10 @@ msgstr "Book not found."
 msgid "Book or series"
 msgstr "Book or series"
 
+#: src/components/CrossPointImport.tsx
+msgid "Book page counts"
+msgstr "Book page counts"
+
 #: src/pages/BinderyPage.tsx
 msgid "Book rejected and removed"
 msgstr "Book rejected and removed"
@@ -3782,12 +3867,17 @@ msgstr "Book types sort the library into categories. Each type has its own libra
 #~ msgstr "books"
 
 #: src/components/CommandPalette.tsx
+#: src/components/CrossPointImport.tsx
 #: src/components/goals/pickers.tsx
 #: src/components/SendToDeviceModal.tsx
 #: src/pages/AdminPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Books"
 msgstr "Books"
+
+#: src/components/CrossPointImport.tsx
+msgid "Books ({n})"
+msgstr "Books ({n})"
 
 #: src/components/goals/text.ts
 msgid "Books a month"
@@ -3921,6 +4011,10 @@ msgstr "Browse library"
 msgid "Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately."
 msgstr "Browsers and phones signed in to your account. They stay signed in until you sign out there or revoke them here, which signs them out immediately."
 
+#: src/pages/SettingsPage.tsx
+msgid "Built-in sync (CrossInk only, experimental)"
+msgstr "Built-in sync (CrossInk only, experimental)"
+
 #: src/components/goals/GoalDialog.tsx
 msgid "By"
 msgstr "By"
@@ -3962,6 +4056,7 @@ msgstr "Can't find it? Add manually"
 
 #: src/components/BulkMetadataReviewModal.tsx
 #: src/components/CoverPickerModal.tsx
+#: src/components/CrossPointImport.tsx
 #: src/components/EntityModal.tsx
 #: src/components/goals/GoalDialog.tsx
 #: src/components/InstanceBackup.tsx
@@ -3982,6 +4077,7 @@ msgstr "Can't find it? Add manually"
 #: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 #: src/pages/HighlightsPage.tsx
+#: src/pages/LinkReaderPage.tsx
 #: src/pages/LoginPage.tsx
 #: src/pages/ReaderPage.tsx
 #: src/pages/SettingsPage.tsx
@@ -4074,6 +4170,10 @@ msgstr "Choose a different series"
 msgid "Choose CSV export"
 msgstr "Choose CSV export"
 
+#: src/components/CrossPointImport.tsx
+msgid "Choose export file"
+msgstr "Choose export file"
+
 #: src/components/CoverPickerModal.tsx
 msgid "Choose file…"
 msgstr "Choose file…"
@@ -4165,6 +4265,19 @@ msgstr "Click: only books not on {name}"
 msgid "Click: only books on {name}"
 msgstr "Click: only books on {name}"
 
+#: src/pages/HighlightsPage.tsx
+msgid "Clipping from a CrossInk reader"
+msgstr "Clipping from a CrossInk reader"
+
+#: src/components/CrossPointImport.tsx
+msgid "Clippings"
+msgstr "Clippings"
+
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
+msgid "Clippings are changed on the reader that made them"
+msgstr "Clippings are changed on the reader that made them"
+
 #: src/components/BulkMetadataReviewModal.tsx
 #: src/components/ModalShell.tsx
 #: src/components/PositionHistoryModal.tsx
@@ -4217,6 +4330,10 @@ msgstr "Code must be 6 characters"
 msgid "Code not found. Check the code and try again."
 msgstr "Code not found. Check the code and try again."
 
+#: src/pages/LinkReaderPage.tsx
+msgid "Code on the reader"
+msgstr "Code on the reader"
+
 #: src/pages/SettingsPage.tsx
 msgid "Code was already authorized."
 msgstr "Code was already authorized."
@@ -4249,6 +4366,10 @@ msgstr "Colors"
 #: src/pages/SettingsPage.tsx
 #~ msgid "Colors <0>(10 hex values, comma-separated)</0>"
 #~ msgstr "Colors <0>(10 hex values, comma-separated)</0>"
+
+#: src/components/CrossPointImport.tsx
+msgid "Columns this Tome does not know, ignored: {cols}"
+msgstr "Columns this Tome does not know, ignored: {cols}"
 
 #: src/components/KeyboardShortcutsModal.tsx
 #~ msgid "Command palette — jump to a book, series, author, or page"
@@ -4322,9 +4443,25 @@ msgstr "Confirm password"
 msgid "Connect a phone"
 msgstr "Connect a phone"
 
+#: src/pages/LinkReaderPage.tsx
+msgid "Connect a reader"
+msgstr "Connect a reader"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Connect reader"
+msgstr "Connect reader"
+
 #: src/pages/SettingsPage.tsx
 msgid "Connected devices"
 msgstr "Connected devices"
+
+#: src/pages/SettingsPage.tsx
+msgid "connected, not seen since"
+msgstr "connected, not seen since"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Connecting lets that reader send its reading sessions to your account, {name}."
+msgstr "Connecting lets that reader send its reading sessions to your account, {name}."
 
 #: src/pages/BookDetailPage.tsx
 msgid "Content"
@@ -4342,6 +4479,10 @@ msgstr "Content type"
 msgid "Contents"
 msgstr "Contents"
 
+#: src/pages/LinkReaderPage.tsx
+msgid "Continue"
+msgstr "Continue"
+
 #: src/components/home/HomeTab.tsx
 msgid "Continue reading"
 msgstr "Continue reading"
@@ -4350,6 +4491,7 @@ msgstr "Continue reading"
 #~ msgid "Continue Reading"
 #~ msgstr "Continue Reading"
 
+#: src/components/CrossPointImport.tsx
 #: src/components/ShareShelfModal.tsx
 msgid "Copied"
 msgstr "Copied"
@@ -4375,6 +4517,10 @@ msgstr "Copy all as Markdown"
 #: src/components/ShareShelfModal.tsx
 msgid "Copy link"
 msgstr "Copy link"
+
+#: src/components/CrossPointImport.tsx
+msgid "Copy report"
+msgstr "Copy report"
 
 #: src/pages/HighlightsPage.tsx
 msgid "Copy this book’s highlights as Markdown"
@@ -4448,6 +4594,7 @@ msgstr "Could not load your reading calendar."
 msgid "Could not parse ({n})"
 msgstr "Could not parse ({n})"
 
+#: src/components/CrossPointImport.tsx
 #: src/components/ReadingImport.tsx
 msgid "Could not read that file"
 msgstr "Could not read that file"
@@ -4552,6 +4699,10 @@ msgstr "Cover URL"
 msgid "Covers"
 msgstr "Covers"
 
+#: src/components/CrossPointImport.tsx
+msgid "Covers, service connections and profile settings are not part of the import."
+msgstr "Covers, service connections and profile settings are not part of the import."
+
 #: src/pages/AdminPage.tsx
 #: src/pages/SettingsPage.tsx
 msgid "Create"
@@ -4576,6 +4727,19 @@ msgstr "Created"
 #: src/pages/SettingsPage.tsx
 msgid "Creating..."
 msgstr "Creating..."
+
+#: src/pages/SettingsPage.tsx
+msgid "CrossInk 2.0 sends reading sessions, pages and clippings over its KOReader Sync account. You start the sync on the reader."
+msgstr "CrossInk 2.0 sends reading sessions, pages and clippings over its KOReader Sync account. You start the sync on the reader."
+
+#: src/pages/BookDetailPage.tsx
+#: src/pages/HighlightsPage.tsx
+msgid "CrossInk clipping"
+msgstr "CrossInk clipping"
+
+#: src/components/CrossPointImport.tsx
+msgid "CrossPoint Sync account"
+msgstr "CrossPoint Sync account"
 
 #: src/pages/StatsPage.tsx
 #~ msgid "Cumulative Books Added — Last 24 Months"
@@ -4638,6 +4802,10 @@ msgstr "Custom stat"
 #: src/components/CoverPickerModal.tsx
 msgid "Custom URL"
 msgstr "Custom URL"
+
+#: src/components/CrossPointImport.tsx
+msgid "Daily counters"
+msgstr "Daily counters"
 
 #: src/lib/goals.ts
 #~ msgid "Daily minutes"
@@ -4824,6 +4992,14 @@ msgstr "Deleted {name}"
 msgid "Deleted board “{name}”"
 msgstr "Deleted board “{name}”"
 
+#: src/components/CrossPointImport.tsx
+msgid "deleted in Tome, left deleted"
+msgstr "deleted in Tome, left deleted"
+
+#: src/components/CrossPointImport.tsx
+msgid "deleted on the reader"
+msgstr "deleted on the reader"
+
 #: src/pages/BinderyPage.tsx
 #~ msgid "Deleting..."
 #~ msgstr "Deleting..."
@@ -4890,6 +5066,10 @@ msgstr "Device authorized. The new device is now signed in."
 msgid "Device name"
 msgstr "Device name"
 
+#: src/components/CrossPointImport.tsx
+msgid "device names filled in"
+msgstr "device names filled in"
+
 #: src/pages/SettingsPage.tsx
 #~ msgid "Device offline but your phone is not? \"Show sync code\" in the plugin turns the unsent sessions and positions into a QR code you can scan here."
 #~ msgstr "Device offline but your phone is not? \"Show sync code\" in the plugin turns the unsent sessions and positions into a QR code you can scan here."
@@ -4901,6 +5081,10 @@ msgstr "Device offline but your phone is not? \"Show sync code\" in the plugin t
 #: src/pages/BookDetailPage.tsx
 msgid "Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device."
 msgstr "Device reading time mapped into the book's chapters. Hover the line for a chapter's time; a flat stretch hasn't been read on a synced device."
+
+#: src/components/CrossPointImport.tsx
+msgid "Device totals"
+msgstr "Device totals"
 
 #: src/pages/DashboardPage.tsx
 msgid "Devices"
@@ -4954,6 +5138,7 @@ msgstr "Does time spent match the rating?"
 #~ msgid "Don't have it yet? Tome Reader is in open beta for iPhone."
 #~ msgstr "Don't have it yet? Tome Reader is in open beta for iPhone."
 
+#: src/components/CrossPointImport.tsx
 #: src/components/ScanSyncCodeModal.tsx
 #: src/components/stats/boards/BoardsView.tsx
 #: src/components/WordCount.tsx
@@ -4999,6 +5184,10 @@ msgstr "Download backup"
 msgid "Download failed"
 msgstr "Download failed"
 
+#: src/pages/SettingsPage.tsx
+msgid "Download failed."
+msgstr "Download failed."
+
 #: src/pages/AdminPage.tsx
 msgid "Download limit must be a number of 0 or more"
 msgstr "Download limit must be a number of 0 or more"
@@ -5022,6 +5211,10 @@ msgstr "Download the plugin"
 #: src/components/stats/overview/Overview.tsx
 msgid "Download the plugin from Settings"
 msgstr "Download the plugin from Settings"
+
+#: src/pages/SettingsPage.tsx
+msgid "Download the ZIP below and unpack it onto the reader's SD card, so that the card has a folder <0>/plugins/tome</0>."
+msgstr "Download the ZIP below and unpack it onto the reader's SD card, so that the card has a folder <0>/plugins/tome</0>."
 
 #: src/pages/SettingsPage.tsx
 #~ msgid "Download your entire library catalog — all titles, authors, series, tags and formats."
@@ -5143,6 +5336,10 @@ msgstr "Each rated book appears here by the hours you read it."
 msgid "Each row is one reading session."
 msgstr "Each row is one reading session."
 
+#: src/components/CrossPointImport.tsx
+msgid "earlier sessions linked to their book"
+msgstr "earlier sessions linked to their book"
+
 #: src/components/Sidebar.tsx
 #: src/components/stats/boards/BoardsView.tsx
 #: src/pages/AdminPage.tsx
@@ -5256,6 +5453,10 @@ msgstr "Enter a whole number from {lo} to {hi}."
 #: src/components/goals/GoalDialog.tsx
 msgid "Enter a whole number of at least {lo}."
 msgstr "Enter a whole number of at least {lo}."
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Enter the code"
+msgstr "Enter the code"
 
 #: src/pages/ReaderPage.tsx
 msgid "EPUB failed to open: {msg2}"
@@ -5726,9 +5927,17 @@ msgstr "Field diff"
 msgid "Fields"
 msgstr "Fields"
 
+#: src/pages/DashboardPage.tsx
+msgid "File"
+msgstr "File"
+
 #: src/components/LibraryHealth.tsx
 msgid "File {id}: {err}"
 msgstr "File {id}: {err}"
+
+#: src/components/CrossPointImport.tsx
+msgid "file descriptions stored"
+msgstr "file descriptions stored"
 
 #: src/components/LibraryHealth.tsx
 msgid "file entry only"
@@ -5798,6 +6007,10 @@ msgstr "Finish by a date"
 #: src/components/goals/FinishByPill.tsx
 msgid "Finish by…"
 msgstr "Finish by…"
+
+#: src/components/CrossPointImport.tsx
+msgid "finish date filled in"
+msgstr "finish date filled in"
 
 #: src/components/goals/Detail.tsx
 msgid "Finish dates set on one day: {list}. These bars show when books were marked read, not when they were read."
@@ -6034,6 +6247,10 @@ msgstr "Fridays"
 #: src/pages/AdminPage.tsx
 msgid "From"
 msgstr "From"
+
+#: src/components/CrossPointImport.tsx
+msgid "from sessions between {from} and {to}"
+msgstr "from sessions between {from} and {to}"
 
 #: src/components/stats/library/Sections.tsx
 msgid "From the first reading day to the finish · {pct}%"
@@ -6383,9 +6600,17 @@ msgstr "Icon"
 msgid "If a later version changes what is in here, sending pauses until you have seen the new report. You can stop at any time in Settings."
 msgstr "If a later version changes what is in here, sending pauses until you have seen the new report. You can stop at any time in Settings."
 
+#: src/pages/SettingsPage.tsx
+msgid "if you have none."
+msgstr "if you have none."
+
 #: src/pages/AdminPage.tsx
 msgid "Impersonation failed"
 msgstr "Impersonation failed"
+
+#: src/components/CrossPointImport.tsx
+msgid "Import"
+msgstr "Import"
 
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Import board…"
@@ -6430,6 +6655,10 @@ msgstr "Imported board"
 #: src/components/stats/sessions/SessionsPage.tsx
 msgid "Imported from KOReader reading history"
 msgstr "Imported from KOReader reading history"
+
+#: src/components/CrossPointImport.tsx
+msgid "Imported."
+msgstr "Imported."
 
 #: src/pages/BinderyPage.tsx
 #~ msgid "Importing..."
@@ -6484,6 +6713,15 @@ msgstr "Inactive"
 msgid "Include"
 msgstr "Include"
 
+#: src/components/stats/overview/Overview.tsx
+#: src/components/stats/widgets/insights.tsx
+msgid "Includes {earlierTime} and {earlierPages} pages your reader counted before it synced to Tome."
+msgstr "Includes {earlierTime} and {earlierPages} pages your reader counted before it synced to Tome."
+
+#: src/components/stats/AttributedPagesMark.tsx
+msgid "Includes pages attributed from the reader's page counter: what it grew by between two syncs, shared out over those sessions by reading time"
+msgstr "Includes pages attributed from the reader's page counter: what it grew by between two syncs, shared out over those sessions by reading time"
+
 #: src/components/stats/overview/charts.tsx
 msgid "includes today"
 msgstr "includes today"
@@ -6523,6 +6761,10 @@ msgstr "Instance backup"
 msgid "IP:"
 msgstr "IP:"
 
+#: src/pages/LinkReaderPage.tsx
+msgid "Is this the code on your reader?"
+msgstr "Is this the code on your reader?"
+
 #: src/components/MetadataFetchModal.tsx
 #: src/components/MetadataManager.tsx
 #: src/components/ReadingImport.tsx
@@ -6537,6 +6779,10 @@ msgstr "It applies at the next server restart."
 #: src/pages/SettingsPage.tsx
 msgid "It is signed out immediately and has to sign in again."
 msgstr "It is signed out immediately and has to sign in again."
+
+#: src/components/CrossPointImport.tsx
+msgid "its files were linked to different books before, left as they are"
+msgstr "its files were linked to different books before, left as they are"
 
 #: src/components/ConnectPhoneModal.tsx
 msgid "Join the beta"
@@ -6591,6 +6837,10 @@ msgstr "Keep it up"
 msgid "Keep this one"
 msgstr "Keep this one"
 
+#: src/components/CrossPointImport.tsx
+msgid "kept as Tome has them"
+msgstr "kept as Tome has them"
+
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Kept coming back to it: {n} sittings across the day."
 msgstr "Kept coming back to it: {n} sittings across the day."
@@ -6617,12 +6867,16 @@ msgid "Keyboard shortcuts (?)"
 msgstr "Keyboard shortcuts (?)"
 
 #: src/pages/SettingsPage.tsx
+msgid "Keys the TomeSync KOReader plugin signs in with, and the keys of connected CrossPoint readers. Downloading the KOReader plugin creates one; download keys that no device has used for a week are removed at the next download."
+msgstr "Keys the TomeSync KOReader plugin signs in with, and the keys of connected CrossPoint readers. Downloading the KOReader plugin creates one; download keys that no device has used for a week are removed at the next download."
+
+#: src/pages/SettingsPage.tsx
 #~ msgid "Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used are removed at the next download."
 #~ msgstr "Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used are removed at the next download."
 
 #: src/pages/SettingsPage.tsx
-msgid "Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used for a week are removed at the next download."
-msgstr "Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used for a week are removed at the next download."
+#~ msgid "Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used for a week are removed at the next download."
+#~ msgstr "Keys the TomeSync KOReader plugin signs in with. Downloading the plugin creates one; download keys that no device has used for a week are removed at the next download."
 
 #: src/pages/SettingsPage.tsx
 msgid "Kindle users"
@@ -6748,6 +7002,10 @@ msgid "Last seen"
 msgstr "Last seen"
 
 #: src/pages/SettingsPage.tsx
+msgid "last seen {d}"
+msgstr "last seen {d}"
+
+#: src/pages/SettingsPage.tsx
 msgid "Last seen: {when}"
 msgstr "Last seen: {when}"
 
@@ -6812,6 +7070,10 @@ msgstr "Left to read: {what}. Some of it has no estimate yet."
 #: src/pages/ReaderPage.tsx
 msgid "Left to right"
 msgstr "Left to right"
+
+#: src/components/CrossPointImport.tsx
+msgid "Left unlinked"
+msgstr "Left unlinked"
 
 #: src/pages/DashboardPage.tsx
 msgid "Length"
@@ -6942,6 +7204,10 @@ msgstr "Link your identity provider to this account so you can sign in with SSO.
 msgid "Linked"
 msgstr "Linked"
 
+#: src/components/CrossPointImport.tsx
+msgid "Linked (a file Tome served) to"
+msgstr "Linked (a file Tome served) to"
+
 #: src/components/HardcoverSync.tsx
 #~ msgid "Linked as @{username} — initial sync started"
 #~ msgstr "Linked as @{username} — initial sync started"
@@ -6953,6 +7219,30 @@ msgstr "Linked as @{username}. Initial sync started."
 #: src/components/HardcoverSync.tsx
 msgid "Linked as <0>@{username}</0>"
 msgstr "Linked as <0>@{username}</0>"
+
+#: src/components/CrossPointImport.tsx
+msgid "linked by file"
+msgstr "linked by file"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Linked to {name}"
+msgstr "Linked to {name}"
+
+#: src/components/CrossPointImport.tsx
+msgid "linked to earlier books without a file"
+msgstr "linked to earlier books without a file"
+
+#: src/components/CrossPointImport.tsx
+msgid "Linked to library book"
+msgstr "Linked to library book"
+
+#: src/components/CrossPointImport.tsx
+msgid "linked to library books"
+msgstr "linked to library books"
+
+#: src/components/CrossPointImport.tsx
+msgid "Linked to your earlier book without a file"
+msgstr "Linked to your earlier book without a file"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Linking…"
@@ -7033,6 +7323,10 @@ msgstr "longer"
 #: src/components/stats/library/Sections.tsx
 msgid "Longer than 2 weeks"
 msgstr "Longer than 2 weeks"
+
+#: src/components/CrossPointImport.tsx
+msgid "longer than in Tome"
+msgstr "longer than in Tome"
 
 #: src/components/stats/widgets/insights.tsx
 msgid "Longest daily streak"
@@ -7171,6 +7465,10 @@ msgstr "Marked as read: {title}"
 #: src/pages/BookDetailPage.tsx
 msgid "Marked as reading"
 msgstr "Marked as reading"
+
+#: src/components/CrossPointImport.tsx
+msgid "marked finished"
+msgstr "marked finished"
 
 #: src/pages/BookDetailPage.tsx
 #~ msgid "Marked unread — reading progress cleared"
@@ -7460,6 +7758,10 @@ msgstr "Move files on disk?"
 msgid "Moved {n} files"
 msgstr "Moved {n} files"
 
+#: src/components/CrossPointImport.tsx
+msgid "Moving a CrossInk reader from CrossPoint Sync to Tome? Your earlier reading sessions are only on that server. Export them there (Settings, Account migration, Export account data) and choose the file here. You see what would happen first; nothing is written until you import. Importing the same file again adds nothing twice, and nothing you already have in Tome is changed or lowered."
+msgstr "Moving a CrossInk reader from CrossPoint Sync to Tome? Your earlier reading sessions are only on that server. Export them there (Settings, Account migration, Export account data) and choose the file here. You see what would happen first; nothing is written until you import. Importing the same file again adds nothing twice, and nothing you already have in Tome is changed or lowered."
+
 #: src/pages/SettingsPage.tsx
 msgid "Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)"
 msgstr "Must be exactly 10 comma-separated hex values (e.g. #1E1E2E)"
@@ -7557,6 +7859,10 @@ msgstr "Never synced"
 msgid "never used"
 msgstr "never used"
 
+#: src/components/CrossPointImport.tsx
+msgid "new"
+msgstr "new"
+
 #: src/components/goals/GoalDialog.tsx
 #~ msgid "New"
 #~ msgstr "New"
@@ -7565,6 +7871,14 @@ msgstr "never used"
 #: src/pages/StatsPage.tsx
 msgid "New board"
 msgstr "New board"
+
+#: src/components/CrossPointImport.tsx
+msgid "New book without a file"
+msgstr "New book without a file"
+
+#: src/components/CrossPointImport.tsx
+msgid "new books without a file"
+msgstr "new books without a file"
 
 #: src/components/ConnectPhoneModal.tsx
 msgid "New code"
@@ -7637,6 +7951,10 @@ msgstr "New user"
 #: src/pages/AdminPage.tsx
 #~ msgid "New User"
 #~ msgstr "New User"
+
+#: src/components/CrossPointImport.tsx
+msgid "newer than in Tome"
+msgstr "newer than in Tome"
 
 #: src/components/stats/SessionLog.tsx
 #: src/components/stats/sessions/SessionsPage.tsx
@@ -7856,6 +8174,10 @@ msgstr "No empty folders found."
 msgid "No estimate yet"
 msgstr "No estimate yet"
 
+#: src/components/BookCard.tsx
+msgid "No file"
+msgstr "No file"
+
 #: src/pages/BinderyPage.tsx
 msgid "No files in the bindery"
 msgstr "No files in the bindery"
@@ -8031,6 +8353,10 @@ msgstr "No re-reads yet. Pages you revisit on a later day show up here."
 #: src/pages/ReaderPage.tsx
 msgid "No readable file found for this book."
 msgstr "No readable file found for this book."
+
+#: src/pages/SettingsPage.tsx
+msgid "No reader is connected yet."
+msgstr "No reader is connected yet."
 
 #: src/components/stats/overview/Overview.tsx
 #: src/components/stats/TimelineRibbon.tsx
@@ -8233,6 +8559,10 @@ msgstr "No series yet"
 msgid "No session data."
 msgstr "No session data."
 
+#: src/pages/SettingsPage.tsx
+msgid "No session has arrived yet. Read a few pages, then let the reader sleep."
+msgstr "No session has arrived yet. Read a few pages, then let the reader sleep."
+
 #: src/components/stats/widgets/insights.tsx
 msgid "No session-time data yet."
 msgstr "No session-time data yet."
@@ -8281,6 +8611,10 @@ msgstr "No thanks"
 #: src/components/stats/widgets/wordstats.tsx
 msgid "No timed reading with word counts yet."
 msgstr "No timed reading with word counts yet."
+
+#: src/components/CrossPointImport.tsx
+msgid "No title in the file"
+msgstr "No title in the file"
 
 #: src/components/MetadataManager.tsx
 msgid "No titles need standardizing."
@@ -8337,6 +8671,10 @@ msgstr "None"
 msgid "none finished"
 msgstr "none finished"
 
+#: src/pages/DashboardPage.tsx
+msgid "None of the selected books has a file to download"
+msgstr "None of the selected books has a file to download"
+
 #: src/components/stats/library/LibraryPage.tsx
 msgid "none started"
 msgstr "none started"
@@ -8385,6 +8723,10 @@ msgstr "Not estimated yet: {list}."
 #: src/pages/SharePage.tsx
 msgid "Not found"
 msgstr "Not found"
+
+#: src/components/CrossPointImport.tsx
+msgid "Not imported"
+msgstr "Not imported"
 
 #: src/components/stats/library/BookSessions.tsx
 #: src/components/stats/SessionLog.tsx
@@ -8534,6 +8876,14 @@ msgstr "Nothing left to read there."
 msgid "Nothing matched “{search}”"
 msgstr "Nothing matched “{search}”"
 
+#: src/components/CrossPointImport.tsx
+msgid "Nothing new was in the file."
+msgstr "Nothing new was in the file."
+
+#: src/components/CrossPointImport.tsx
+msgid "Nothing new: everything in this file is already in Tome."
+msgstr "Nothing new: everything in this file is already in Tome."
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Nothing new. Tome already had everything in this code."
 msgstr "Nothing new. Tome already had everything in this code."
@@ -8608,6 +8958,10 @@ msgstr "Off, disabled by TOME_TELEMETRY."
 msgid "Off, you have not opted in."
 msgstr "Off, you have not opted in."
 
+#: src/components/CrossPointImport.tsx
+msgid "older copies"
+msgstr "older copies"
+
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "on {activeDays} of {nDays} days"
 msgstr "on {activeDays} of {nDays} days"
@@ -8660,6 +9014,10 @@ msgstr "on course for {n}"
 msgid "on course for {p}"
 msgstr "on course for {p}"
 
+#: src/pages/SettingsPage.tsx
+msgid "On CrossPoint, use the plugin. On CrossInk, the built-in sync brings more (pages, clippings, exact positions), and the plugin can run next to it so sessions arrive by themselves."
+msgstr "On CrossPoint, use the plugin. On CrossInk, the built-in sync brings more (pages, clippings, exact positions), and the plugin can run next to it so sessions arrive by themselves."
+
 #: src/pages/AdminPage.tsx
 msgid "on hold"
 msgstr "on hold"
@@ -8689,6 +9047,14 @@ msgstr "On since {since}. Last sent {last}, next {next}."
 msgid "On the KOReader device open TomeSync and tap \"Show sync code\". Point the camera at it, or take a photo and pick it below. A code with several pages is read page by page."
 msgstr "On the KOReader device open TomeSync and tap \"Show sync code\". Point the camera at it, or take a photo and pick it below. A code with several pages is read page by page."
 
+#: src/pages/SettingsPage.tsx
+msgid "On the reader, enter the address and sign-in above under KOReader Sync and authenticate."
+msgstr "On the reader, enter the address and sign-in above under KOReader Sync and authenticate."
+
+#: src/pages/SettingsPage.tsx
+msgid "On the reader, turn on Plugins in the settings, open Plugins, choose Tome and then Sign in."
+msgstr "On the reader, turn on Plugins in the settings, open Plugins, choose Tome and then Sign in."
+
 #: src/components/home/HomeTab.tsx
 msgid "On the server"
 msgstr "On the server"
@@ -8697,6 +9063,10 @@ msgstr "On the server"
 #: src/pages/HighlightsPage.tsx
 msgid "On this day"
 msgstr "On this day"
+
+#: src/components/home/HomeTab.tsx
+msgid "On your reader"
+msgstr "On your reader"
 
 #: src/components/stats/library/LibraryPage.tsx
 msgid "on your shelf"
@@ -8713,6 +9083,10 @@ msgstr "Once a month, Tome can send one small anonymous report: version, platfor
 #: src/components/stats/overview/Overview.tsx
 msgid "one day starts it"
 msgstr "one day starts it"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "One moment"
+msgstr "One moment"
 
 #: src/pages/StatsPage.tsx
 #~ msgid "One series front and center — you pick which"
@@ -8734,6 +9108,10 @@ msgstr "Ongoing"
 #: src/pages/ReadingCalendarPage.tsx
 msgid "Only a brief open this day, under a minute."
 msgstr "Only a brief open this day, under a minute."
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Only confirm if you started this on your own reader and the code matches."
+msgstr "Only confirm if you started this on your own reader and the code matches."
 
 #: src/pages/DashboardPage.tsx
 msgid "Only filled fields will be updated. Leave blank to keep existing values."
@@ -8794,9 +9172,17 @@ msgstr "Open navigation"
 msgid "Open page"
 msgstr "Open page"
 
+#: src/pages/LinkReaderPage.tsx
+msgid "Open Plugins → Tome on the reader and choose Sign in. It shows a six-character code."
+msgstr "Open Plugins → Tome on the reader and choose Sign in. It shows a six-character code."
+
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Open reader"
 msgstr "Open reader"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Open reader settings"
+msgstr "Open reader settings"
 
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Open selected book"
@@ -8859,6 +9245,10 @@ msgstr "Optional. Set it together with the password when the server needs a logi
 #: src/pages/AdminPage.tsx
 msgid "Optional. Set it together with the user."
 msgstr "Optional. Set it together with the user."
+
+#: src/pages/SettingsPage.tsx
+msgid "Or type the code here"
+msgstr "Or type the code here"
 
 #: src/components/CoverPickerModal.tsx
 #~ msgid "or use a custom source"
@@ -9068,6 +9458,10 @@ msgstr "Pages turned each day"
 msgid "Pages turned each week"
 msgstr "Pages turned each week"
 
+#: src/components/CrossPointImport.tsx
+msgid "pages: {pages} from the reader's counter"
+msgstr "pages: {pages} from the reader's counter"
+
 #: src/components/WordCount.tsx
 #~ msgid "Parse each EPUB to store its word count. New uploads get this automatically — this backfills books added before the feature. It only reads the files and writes one number per book; nothing on disk is modified. Word counts power words-read and reading-speed stats. PDF and CBZ are skipped."
 #~ msgstr "Parse each EPUB to store its word count. New uploads get this automatically — this backfills books added before the feature. It only reads the files and writes one number per book; nothing on disk is modified. Word counts power words-read and reading-speed stats. PDF and CBZ are skipped."
@@ -9268,6 +9662,10 @@ msgid "Please pick a result or use the manual form."
 msgstr "Please pick a result or use the manual form."
 
 #: src/pages/SettingsPage.tsx
+msgid "Plugin (CrossPoint 2.0 and CrossInk, experimental)"
+msgstr "Plugin (CrossPoint 2.0 and CrossInk, experimental)"
+
+#: src/pages/SettingsPage.tsx
 msgid "Plugin keys"
 msgstr "Plugin keys"
 
@@ -9287,6 +9685,10 @@ msgstr "Position history"
 #: src/components/ScanSyncCodeModal.tsx
 msgid "position kept, newer here"
 msgstr "position kept, newer here"
+
+#: src/components/CrossPointImport.tsx
+msgid "Positions"
+msgstr "Positions"
 
 #: src/pages/AdminPage.tsx
 msgid "Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series."
@@ -9320,6 +9722,10 @@ msgstr "Preview:"
 #: src/components/reader/ReaderChrome.tsx
 msgid "Preview: progress and stats are not updated"
 msgstr "Preview: progress and stats are not updated"
+
+#: src/components/CrossPointImport.tsx
+msgid "Preview: this is what importing would do. Nothing has been written yet."
+msgstr "Preview: this is what importing would do. Nothing has been written yet."
 
 #: src/components/MetadataManager.tsx
 #: src/pages/AdminPage.tsx
@@ -9421,6 +9827,10 @@ msgstr "Progress counts automatically."
 #: src/components/goals/GoalsTab.tsx
 msgid "Progress counts by itself, from the reading Tome records. Start from what you already read:"
 msgstr "Progress counts by itself, from the reading Tome records. Start from what you already read:"
+
+#: src/components/CrossPointImport.tsx
+msgid "progress moved forward"
+msgstr "progress moved forward"
 
 #: src/pages/SettingsPage.tsx
 msgid "Progress sync"
@@ -9584,6 +9994,10 @@ msgstr "Quick look: {title}"
 #: src/components/stats/library/Sections.tsx
 msgid "Quickest <0>{qd}</0> ({qn}), slowest <1>{sd}</1>"
 msgstr "Quickest <0>{qd}</0> ({qn}), slowest <1>{sd}</1>"
+
+#: src/components/CrossPointImport.tsx
+msgid "raised"
+msgstr "raised"
 
 #: src/components/stats/boards/BoardsView.tsx
 msgid "Range"
@@ -9753,6 +10167,7 @@ msgstr "read"
 #: src/components/goals/Detail.tsx
 #: src/components/stats/library/LibraryPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/ReadingCalendarPage.tsx
 msgid "Read"
 msgstr "Read"
 
@@ -9811,6 +10226,14 @@ msgstr "Read book"
 msgid "Read on the web"
 msgstr "Read on the web"
 
+#: src/pages/ReadingCalendarPage.tsx
+msgid "read on your reader"
+msgstr "read on your reader"
+
+#: src/components/CrossPointImport.tsx
+msgid "Read status"
+msgstr "Read status"
+
 #: src/pages/SettingsPage.tsx
 msgid "Read the QR code an offline KOReader device shows under TomeSync > Show sync code"
 msgstr "Read the QR code an offline KOReader device shows under TomeSync > Show sync code"
@@ -9830,6 +10253,10 @@ msgstr "Read: finished books out of all you own. Finish rate: finished out of th
 #: src/components/KeyboardShortcutsModal.tsx
 msgid "Reader"
 msgstr "Reader"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Reader connected"
+msgstr "Reader connected"
 
 #: src/pages/ReaderPage.tsx
 msgid "Reader settings"
@@ -9974,6 +10401,10 @@ msgstr "Reading pace"
 #~ msgid "Reading Pace"
 #~ msgstr "Reading Pace"
 
+#: src/components/CrossPointImport.tsx
+msgid "Reading sessions"
+msgstr "Reading sessions"
+
 #: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/habits/HabitsPage.tsx
 msgid "Reading speed"
@@ -10022,6 +10453,10 @@ msgstr "Reading stats"
 msgid "Reading stats appear once sessions arrive: synced from the TomeSync KOReader plugin, logged by hand on a book page, or imported from a KOReader statistics file."
 msgstr "Reading stats appear once sessions arrive: synced from the TomeSync KOReader plugin, logged by hand on a book page, or imported from a KOReader statistics file."
 
+#: src/components/CrossPointImport.tsx
+msgid "Reading the file..."
+msgstr "Reading the file..."
+
 #: src/components/ScanSyncCodeModal.tsx
 msgid "Reading the photo…"
 msgstr "Reading the photo…"
@@ -10039,6 +10474,10 @@ msgstr "Reading time"
 #: src/pages/StatsPage.tsx
 #~ msgid "Reading Time"
 #~ msgstr "Reading Time"
+
+#: src/components/CrossPointImport.tsx
+msgid "Reading time added"
+msgstr "Reading time added"
 
 #: src/components/stats/habits/charts.tsx
 #: src/components/stats/overview/charts.tsx
@@ -10298,6 +10737,10 @@ msgstr "Reorganize selected ({n})"
 #: src/components/LibraryHealth.tsx
 #~ msgid "Reorganize Selected ({n})"
 #~ msgstr "Reorganize Selected ({n})"
+
+#: src/components/CrossPointImport.tsx
+msgid "Report as text"
+msgstr "Report as text"
 
 #: src/components/NotificationChannels.tsx
 msgid "request failed"
@@ -10647,6 +11090,10 @@ msgstr "Scan now"
 #: src/pages/AdminPage.tsx
 #~ msgid "Scan Now"
 #~ msgstr "Scan Now"
+
+#: src/pages/SettingsPage.tsx
+msgid "Scan the QR code on the reader with your phone and confirm the code."
+msgstr "Scan the QR code on the reader with your phone and confirm the code."
 
 #: src/components/ConnectPhoneModal.tsx
 msgid "Scan this with the Tome app to sign the phone in as you. The code works once, stops after five minutes, and dies the moment you close this window."
@@ -11145,6 +11592,10 @@ msgstr "Set a goal to finish this series by a day you pick"
 msgid "Set a reading goal"
 msgstr "Set a reading goal"
 
+#: src/pages/SettingsPage.tsx
+msgid "Set a sync password"
+msgstr "Set a sync password"
+
 #: src/components/stats/GoalWidget.tsx
 msgid "Set a target and watch the ring fill as you read."
 msgstr "Set a target and watch the ring fill as you read."
@@ -11152,6 +11603,10 @@ msgstr "Set a target and watch the ring fill as you read."
 #: src/components/UploadModal.tsx
 msgid "Set all to"
 msgstr "Set all to"
+
+#: src/components/CrossPointImport.tsx
+msgid "set aside"
+msgstr "set aside"
 
 #: src/pages/BookDetailPage.tsx
 msgid "Set aside, keeps your progress"
@@ -11418,9 +11873,14 @@ msgstr "Shrink or grow this tile to fit its content. Off: set the height yoursel
 #~ msgid "Shrink/grow this tile to fit its content. Off: set the height yourself (content scrolls)."
 #~ msgstr "Shrink/grow this tile to fit its content. Off: set the height yourself (content scrolls)."
 
+#: src/pages/LinkReaderPage.tsx
 #: src/pages/LoginPage.tsx
 msgid "Sign in"
 msgstr "Sign in"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Sign in first"
+msgstr "Sign in first"
 
 #: src/pages/SettingsPage.tsx
 msgid "Sign in on a new device without entering your password. On the new device, tap \"Quick Connect\" on the login screen to get a 6-character code, then enter it here."
@@ -11429,6 +11889,10 @@ msgstr "Sign in on a new device without entering your password. On the new devic
 #: src/pages/SettingsPage.tsx
 msgid "Sign in on a new device without entering your password. Show a QR code for the Tome app, or enter the 6-character code a new device displays when you tap \"Quick Connect\" on its login screen."
 msgstr "Sign in on a new device without entering your password. Show a QR code for the Tome app, or enter the 6-character code a new device displays when you tap \"Quick Connect\" on its login screen."
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Sign in to Tome on this device. You come back here afterwards."
+msgstr "Sign in to Tome on this device. You come back here afterwards."
 
 #: src/pages/LoginPage.tsx
 msgid "Sign in to your library"
@@ -11523,6 +11987,14 @@ msgstr "Size"
 msgid "Skip"
 msgstr "Skip"
 
+#: src/components/CrossPointImport.tsx
+msgid "skipped"
+msgstr "skipped"
+
+#: src/components/CrossPointImport.tsx
+msgid "Skipped, and why"
+msgstr "Skipped, and why"
+
 #: src/components/stats/habits/HabitsPage.tsx
 #: src/components/stats/widgets/wordstats.tsx
 msgid "Slowest"
@@ -11567,6 +12039,10 @@ msgstr "Some volumes have no estimate yet (no word count and no finished volume 
 #: src/components/WhatsNewPanel.tsx
 msgid "Something broken or missing?"
 msgstr "Something broken or missing?"
+
+#: src/pages/LinkReaderPage.tsx
+msgid "Something went wrong. Try again."
+msgstr "Something went wrong. Try again."
 
 #: src/components/library/SortMenu.tsx
 msgid "Sort by {current}"
@@ -12149,6 +12625,18 @@ msgstr "the previous {span} days"
 msgid "the previous 12 months"
 msgstr "the previous 12 months"
 
+#: src/pages/LinkReaderPage.tsx
+msgid "The reader finishes by itself within a few seconds. You can close this page."
+msgstr "The reader finishes by itself within a few seconds. You can close this page."
+
+#: src/pages/SettingsPage.tsx
+msgid "The reader sends each reading session to Tome by itself when it goes to sleep: reading time and progress, no pages."
+msgstr "The reader sends each reading session to Tome by itself when it goes to sleep: reading time and progress, no pages."
+
+#: src/components/CrossPointImport.tsx
+msgid "The report holds book titles from your file. Copy it to the Tome developers if something looks wrong."
+msgstr "The report holds book titles from your file. Copy it to the Tome developers if something looks wrong."
+
 #: src/components/goals/GoalDialog.tsx
 msgid "the rest of volume {v} ({pc}%)"
 msgstr "the rest of volume {v} ({pc}%)"
@@ -12188,6 +12676,10 @@ msgstr "The year"
 #: src/components/goals/charts.tsx
 msgid "the year so far"
 msgstr "the year so far"
+
+#: src/pages/SettingsPage.tsx
+msgid "The ZIP holds this server's address and nothing about your account. A connected reader gets its own key, which you can revoke under Access."
+msgstr "The ZIP holds this server's address and nothing about your account. A connected reader gets its own key, which you can revoke under Access."
 
 #: src/components/reader/ReaderChrome.tsx
 #: src/components/Sidebar.tsx
@@ -12529,6 +13021,10 @@ msgstr "Token name"
 msgid "Tome · Your personal library"
 msgstr "Tome · Your personal library"
 
+#: src/pages/BookDetailPage.tsx
+msgid "Tome has no file for this book. It was added from your reader's sync so the reading has a place. If you add the book to your library, use Link KOReader sync on its page to move the reading there."
+msgstr "Tome has no file for this book. It was added from your reader's sync so the reading has a place. If you add the book to your library, use Link KOReader sync on its page to move the reading there."
+
 #: src/components/RouteErrorBoundary.tsx
 msgid "Tome may have been updated since this tab was opened. Reloading usually fixes it."
 msgstr "Tome may have been updated since this tab was opened. Reloading usually fixes it."
@@ -12677,6 +13173,10 @@ msgid "Tuesdays"
 msgstr "Tuesdays"
 
 #: src/pages/SettingsPage.tsx
+msgid "Turn on Reading Stats under What to Sync, then sync from inside a book."
+msgstr "Turn on Reading Stats under What to Sync, then sync from inside a book."
+
+#: src/pages/SettingsPage.tsx
 msgid "Turn on when the background is dark, so the parts made for dark mode use their dark look."
 msgstr "Turn on when the background is dark, so the parts made for dark mode use their dark look."
 
@@ -12723,6 +13223,10 @@ msgstr "Types"
 #: src/pages/DashboardPage.tsx
 msgid "Unassigned"
 msgstr "Unassigned"
+
+#: src/components/CrossPointImport.tsx
+msgid "unchanged"
+msgstr "unchanged"
 
 #: src/components/stats/overview/Overview.tsx
 msgid "under {a}"
@@ -13270,6 +13774,10 @@ msgstr "Where the time went"
 msgid "Where you read"
 msgstr "Where you read"
 
+#: src/pages/SettingsPage.tsx
+msgid "Which one to use"
+msgstr "Which one to use"
+
 #: src/components/stats/sessions/SessionsPage.tsx
 msgid "Which sessions"
 msgstr "Which sessions"
@@ -13371,6 +13879,10 @@ msgstr "Working out what it takes…"
 msgid "Wrong username or password."
 msgstr "Wrong username or password."
 
+#: src/pages/SettingsPage.tsx
+msgid "Xteink readers"
+msgstr "Xteink readers"
+
 #: src/components/BulkMetadataReviewModal.tsx
 msgid "year"
 msgstr "year"
@@ -13457,6 +13969,10 @@ msgstr "You read a day (last {n} days)"
 #: src/components/stats/library/Sections.tsx
 msgid "you read about {m} minutes a day (last {win} days)"
 msgstr "you read about {m} minutes a day (last {win} days)"
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "You read on this day. Your reader kept no details from before it synced to Tome."
+msgstr "You read on this day. Your reader kept no details from before it synced to Tome."
 
 #: src/pages/SettingsPage.tsx
 msgid "You will have to sign in again here."

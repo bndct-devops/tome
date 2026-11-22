@@ -25,6 +25,13 @@ class ApiKey(Base):
     label: Mapped[str] = mapped_column(String(100), nullable=False, default="KOReader Plugin")
     created_at: Mapped[datetime] = mapped_column(DateTime, default=datetime.utcnow, nullable=False)
     last_used_at: Mapped[Optional[datetime]] = mapped_column(DateTime, nullable=True)
+    # What the key opens. "plugin": the KOReader plugin's routes (/tome-sync).
+    # "reader": only what a CrossPoint reader needs (/v1/crosspoint), so the key
+    # on a reader's SD card cannot download books or read positions.
+    kind: Mapped[str] = mapped_column(String(16), nullable=False, default="plugin", server_default="plugin")
+
+    KIND_PLUGIN = "plugin"
+    KIND_READER = "reader"
 
     user: Mapped["User"] = relationship("User")  # type: ignore[name-defined]
 
@@ -37,6 +44,14 @@ class ApiKey(Base):
     def hash_key(plaintext: str) -> str:
         import hashlib
         return hashlib.sha256(plaintext.encode()).hexdigest()
+
+    @staticmethod
+    def hash_reader_key(plaintext: str) -> str:
+        """The stored hash of a CrossPoint reader's key. Not ``hash_key``: a
+        Tome from before ``kind`` looks keys up by ``hash_key`` and does not
+        check the kind, so after a rollback it must not find these at all."""
+        import hashlib
+        return hashlib.sha256(b"crosspoint-reader:" + plaintext.encode()).hexdigest()
 
 
 class ReadingSession(Base):
@@ -55,6 +70,13 @@ class ReadingSession(Base):
     progress_start: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     progress_end: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     pages_turned: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
+    # True when ``pages_turned`` was not counted by the session's source but
+    # attributed from a KOSync reader's lifetime page counter (CrossInk): the
+    # counter's growth between two uploads, split over the reader's sessions in
+    # between by their reading time. See services/kosync_stats.py.
+    pages_attributed: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="0"
+    )
     device: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     # Client-generated UUID to prevent duplicates on retry
     session_uuid: Mapped[Optional[str]] = mapped_column(String(36), unique=True, nullable=True)

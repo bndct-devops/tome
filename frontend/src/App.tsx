@@ -33,6 +33,7 @@ const PAGE_LOADERS = {
   HardcoverPage: () => import('@/pages/HardcoverPage').then(m => ({ default: m.HardcoverPage })),
   HighlightsPage: () => import('@/pages/HighlightsPage').then(m => ({ default: m.HighlightsPage })),
   ReadingCalendarPage: () => import('@/pages/ReadingCalendarPage').then(m => ({ default: m.ReadingCalendarPage })),
+  LinkReaderPage: () => import('@/pages/LinkReaderPage').then(m => ({ default: m.LinkReaderPage })),
 }
 const ReaderPage = lazy(() => import('@/pages/ReaderPage'))
 const OidcCallbackPage = lazy(PAGE_LOADERS.OidcCallbackPage)
@@ -46,6 +47,7 @@ const WishlistPage = lazy(PAGE_LOADERS.WishlistPage)
 const HardcoverPage = lazy(PAGE_LOADERS.HardcoverPage)
 const HighlightsPage = lazy(PAGE_LOADERS.HighlightsPage)
 const ReadingCalendarPage = lazy(PAGE_LOADERS.ReadingCalendarPage)
+const LinkReaderPage = lazy(PAGE_LOADERS.LinkReaderPage)
 
 function prefetchPages() {
   const idle = window.requestIdleCallback ?? ((cb: () => void) => setTimeout(cb, 1500))
@@ -112,6 +114,9 @@ function AppRoutes() {
         {/* Public share view - deliberately outside ProtectedRoute; the token
             is the capability. */}
         <Route path="/share/:token" element={<SharePage />} />
+        {/* Where a reader's QR code leads. Outside ProtectedRoute: signed out,
+            it keeps the code and offers the sign-in instead of losing it. */}
+        <Route path="/link-reader" element={<LinkReaderPage />} />
         <Route
           path="/"
           element={

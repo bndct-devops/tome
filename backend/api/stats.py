@@ -16,7 +16,7 @@ from backend.models.user import User
 from backend.models.user_dashboard import UserDashboard
 from backend.models.ko_stats import PageStat
 from backend.models.tome_sync import Annotation, ReadingSession, TomeSyncPosition
-from backend.models.book import Book, BookFile
+from backend.models.book import READING_STATUSES, Book, BookFile
 from backend.models.user_book_status import UserBookStatus
 from backend.models.user_series_rating import UserSeriesRating
 from backend.models.library import BookType
@@ -522,6 +522,17 @@ def get_stats(
         }
 
     # ── Per-book time breakdown (full list, no limit) — reconciled ───────────
+    # For "all time" only, a book's pages also count what the user's KOSync
+    # readers counted themselves (CrossInk per-book snapshots: lifetime totals
+    # with no dates; its sessions carry no pages, so nothing is counted twice).
+    # Any narrower range keeps session/page-stat pages only.
+    reader_extra: dict[int, int] = {}
+    if cutoff is None and range_end is None and win_book:
+        from backend.services.kosync_stats import reader_pages
+        reader_extra = {
+            bid: extra.pages
+            for bid, extra in reader_pages(db, current_user.id, list(win_book)).items()
+        }
     per_book_time = [
         {
             "book_id": bid,
@@ -530,7 +541,7 @@ def get_stats(
             "has_cover": bool(book_meta.get(bid, (None, None, None, None))[2]),
             "seconds": v[0],
             "sessions": v[1],
-            "pages_turned": v[2],
+            "pages_turned": v[2] + reader_extra.get(bid, 0),
         }
         for bid, v in _bsorted()
     ]
@@ -808,7 +819,7 @@ def get_stats(
         .filter(
             UserBookStatus.user_id == current_user.id,
             UserBookStatus.rating.isnot(None),
-            Book.status == "active",
+            Book.status.in_(READING_STATUSES),
             book_visibility_filter(db, current_user),
         )
         .all()
@@ -882,14 +893,37 @@ def get_stats(
 
     # ── Lifetime / records / TBR / language (all-time, ignore the date range) ──
     lt_secs, lt_sessions, lt_pages = rr.totals(db, current_user.id, day_ctx, covered, None, None)
+    # All-time pages also count what the user's KOSync readers counted per
+    # book (undated lifetime totals, as in the all-time per-book table), on
+    # books the user can see. Nothing windowed takes them.
+    from backend.services.kosync_stats import reader_pages as _reader_pages
+    _lt_reader = _reader_pages(db, current_user.id)
+    if _lt_reader:
+        _seen = {
+            bid for (bid,) in db.query(Book.id).filter(
+                Book.id.in_(list(_lt_reader)), Book.status.in_(READING_STATUSES),
+                book_visibility_filter(db, current_user))
+        }
+        lt_pages += sum(extra.pages for bid, extra in _lt_reader.items() if bid in _seen)
     all_daily = rr.daily_map(db, current_user.id, day_ctx, covered, None, None)
+    # Reading a KOSync reader counted before it first synced to Tome: lifetime
+    # totals and reading days with no dates or books to hang them on, so they
+    # go into the all-time figures only (kosync_stats.reader_earlier).
+    from backend.services.kosync_stats import reader_earlier as _reader_earlier
+    from backend.services.kosync_stats import reader_days as _reader_days
+    earlier = _reader_earlier(db, current_user.id)
+    # A day another device was read on in Tome is one active day, not two.
+    earlier.days = sum(
+        1 for d in _reader_days(db, current_user.id)
+        if all_daily.get(d.isoformat(), (0,))[0] <= 0)
     lifetime = {
-        "seconds": lt_secs,
-        "sessions": lt_sessions,
-        "pages": lt_pages,
+        "seconds": lt_secs + earlier.seconds,
+        "sessions": lt_sessions + earlier.sessions,
+        "pages": lt_pages + earlier.pages,
+        "reader_earlier": earlier.as_dict(),
         "books_finished": db.query(UserBookStatus).filter(
             UserBookStatus.user_id == current_user.id, UserBookStatus.status == "read").count(),
-        "active_days": sum(1 for v in all_daily.values() if v[0] > 0),
+        "active_days": sum(1 for v in all_daily.values() if v[0] > 0) + earlier.days,
         "longest_streak_days": longest_streak,
     }
 
@@ -1122,11 +1156,22 @@ def get_stats(
     from backend.services.reading_dna import compute_reading_dna
     reading_dna = compute_reading_dna(db, current_user, tz_offset, tz)
 
+    # The "All" range shows the all-time figures, so it also takes what the
+    # readers counted themselves (per-book page counters, reading from before
+    # their first sync). A dated range cannot: none of that has a date.
+    all_time = cutoff is None and range_end is None
+    if all_time:
+        pages_turned = lifetime["pages"]
+        if lifetime["reader_earlier"]:
+            total_seconds, total_sessions = lifetime["seconds"], lifetime["sessions"]
+            avg_session = int(total_seconds / total_sessions) if total_sessions > 0 else 0
+
     return {
         "range_days": effective_days,
         "headline": {
             "total_reading_seconds": total_seconds,
             "total_sessions": total_sessions,
+            "reader_earlier": lifetime["reader_earlier"] if all_time else None,
             "books_finished": books_finished_count,
             "avg_session_seconds": avg_session,
             "current_streak_days": current_streak,
@@ -1437,7 +1482,7 @@ def get_reading_timeline(
         b.id: b
         for b in db.query(Book).filter(
             Book.id.in_(per_book.keys()),
-            Book.status == "active",
+            Book.status.in_(READING_STATUSES),
             book_visibility_filter(db, current_user),
         )
     }
@@ -1746,6 +1791,7 @@ def list_sessions(
             ReadingSession.ended_at,
             ReadingSession.duration_seconds,
             ReadingSession.pages_turned,
+            ReadingSession.pages_attributed,
             ReadingSession.device,
             ReadingSession.progress_start,
             ReadingSession.progress_end,
@@ -1815,25 +1861,38 @@ def list_sessions(
     if counted == "not_counted":
         superseded_ids = {e[2].id for e in page if e[1] == "session"}
 
+    # A session a KOSync reader uploaded for a file Tome has not matched to a
+    # book yet has no book either; that is not a deleted book.
+    from backend.services.kosync_stats import unlinked_session_titles
+    not_linked = unlinked_session_titles(
+        db, current_user.id, [e[2].id for e in page if e[1] == "session" and e[2].book_id is None])
+
     out = []
     for _, kind, r in page:
         if kind == "session":
+            # Pages attributed from a reader's counter are its time re-priced at
+            # the window's average pace, so they say nothing about idle time:
+            # the runaway checks see such a session as one without pages, as
+            # they did before it had any.
+            own_pages = None if r.pages_attributed else r.pages_turned
             out.append({
                 "id": r.id,
                 "kind": "session",
                 "counted": r.id not in superseded_ids,
                 "book_id": r.book_id,
-                "book_title": r.book_title or "(deleted book)",
+                "book_title": r.book_title or (
+                    (not_linked[r.id] or "(book not linked yet)") if r.id in not_linked else "(deleted book)"),
                 "started_at": (r.started_at.isoformat() + "Z") if r.started_at else None,
                 "ended_at": (r.ended_at.isoformat() + "Z") if r.ended_at else None,
                 "duration_seconds": r.duration_seconds,
                 "pages_turned": r.pages_turned,
+                "pages_attributed": bool(r.pages_attributed),
                 "device": r.device,
                 "progress_start": r.progress_start,
                 "progress_end": r.progress_end,
-                "suspect": is_suspect(r.duration_seconds, r.pages_turned),
+                "suspect": is_suspect(r.duration_seconds, own_pages),
                 "suggested_seconds": suggested_seconds(
-                    r.duration_seconds, r.pages_turned, median_pace
+                    r.duration_seconds, own_pages, median_pace
                 ),
             })
         else:
@@ -1848,6 +1907,7 @@ def list_sessions(
                 "ended_at": _iso(last_start),
                 "duration_seconds": int(r.secs or 0),
                 "pages_turned": int(r.pages or 0),
+                "pages_attributed": False,
                 "device": r.device or "KOReader",
                 "progress_start": None,
                 "progress_end": None,

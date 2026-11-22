@@ -26,6 +26,7 @@ from backend.models.tome_sync import ReadingSession
 from backend.models.user_book_status import UserBookStatus
 from backend.services import reconciled_reading as rr
 from backend.services.reading_day import DayCtx
+from backend.services.kosync_stats import reader_days
 from backend.services.streaks import _runs, reconciled_streak_summary
 
 # Same gap rule as the stats session log: a new sitting after 30 idle minutes.
@@ -49,6 +50,8 @@ class _BookDay:
     spans: list[tuple[float, float]] = field(default_factory=list)
     # (start_epoch, end_epoch) of each raw read: page rows and sessions.
     reads: list[tuple[int, int]] = field(default_factory=list)
+    # Some of ``pages`` were attributed from a reader's page counter.
+    pages_attributed: bool = False
 
 
 def _collect(db: Session, user_id: int, day: DayCtx, first: date, last: date) -> dict[str, dict[int, _BookDay]]:
@@ -82,10 +85,11 @@ def _collect(db: Session, user_id: int, day: DayCtx, first: date, last: date) ->
         .filter(ReadingSession.book_id.isnot(None))
         .with_entities(ReadingSession.book_id, ReadingSession.started_at, ReadingSession.ended_at,
                        ReadingSession.duration_seconds, ReadingSession.pages_turned,
-                       ReadingSession.progress_start, ReadingSession.progress_end)
+                       ReadingSession.progress_start, ReadingSession.progress_end,
+                       ReadingSession.pages_attributed)
         .all()
     )
-    for bid, started, ended, dur, pages, p0, p1 in sessions:
+    for bid, started, ended, dur, pages, p0, p1, attributed in sessions:
         start = _epoch(started)
         d = day.py_day(start).isoformat()
         if not (lo_iso <= d <= hi_iso):
@@ -93,6 +97,8 @@ def _collect(db: Session, user_id: int, day: DayCtx, first: date, last: date) ->
         e = out[d][bid]
         e.secs += int(dur or 0)
         e.pages += int(pages or 0)
+        if attributed and pages:
+            e.pages_attributed = True
         end = _epoch(ended) if ended else start + int(dur or 0)
         e.reads.append((start, end))
         if p1 is not None:
@@ -230,15 +236,26 @@ def month_view(db: Session, user_id: int, day: DayCtx, year: int, month: int) ->
         })
     in_month = [d for d in days if first.isoformat() <= d["date"] <= last.isoformat()]
     first_day = _first_reading_day(db, user_id, day)
+    # Days a KOSync reader was read on before it synced to Tome: reading days
+    # with no time, pages or books (kosync_stats.reader_days).
+    all_reader = reader_days(db, user_id)
+    have = {d["date"] for d in days}
+    shown_reader = sorted(
+        d.isoformat() for d in all_reader
+        if first - timedelta(days=1) <= d <= last + timedelta(days=1) and d.isoformat() not in have)
+    reader_in_month = [d for d in shown_reader if first.isoformat() <= d <= last.isoformat()]
+    if all_reader and (first_day is None or min(all_reader) < first_day):
+        first_day = min(all_reader)
     return {
         "month": f"{year:04d}-{month:02d}",
         "today": day.today().isoformat(),
         "first_day": first_day.isoformat() if first_day else None,
         "days": days,
+        "reader_days": shown_reader,
         "totals": {
             "seconds": sum(d["seconds"] for d in in_month),
             "pages": sum(d["pages"] for d in in_month),
-            "reading_days": len(in_month),
+            "reading_days": len(in_month) + len(reader_in_month),
             "books_finished": sum(len(d["finished"]) for d in in_month),
             "best_day": _unique_best({d["date"]: d["seconds"] for d in in_month}),
         },
@@ -306,6 +323,7 @@ def day_view(db: Session, user_id: int, day: DayCtx, d: date) -> dict:
             **meta[bid],
             "seconds": b.secs,
             "pages": b.pages,
+            "pages_attributed": b.pages_attributed,
             "progress_from": round(min(positions), 4) if positions else None,
             "progress_to": round(max(positions), 4) if positions else None,
             "chapters": _chapters(chapter_map.get(bid, []), b.fractions, b.spans),
@@ -317,7 +335,8 @@ def day_view(db: Session, user_id: int, day: DayCtx, d: date) -> dict:
         })
 
     # Streak position: which run of consecutive reading days this day sits in.
-    active = rr.active_days(db, user_id, day, covered)
+    from_reader = reader_days(db, user_id)
+    active = rr.active_days(db, user_id, day, covered) | from_reader
     streak = None
     if d in active:
         run = next(r for r in _runs(sorted(active), 1) if r[0] <= d <= r[1])
@@ -334,6 +353,8 @@ def day_view(db: Session, user_id: int, day: DayCtx, d: date) -> dict:
         "date": d.isoformat(),
         "seconds": secs,
         "pages": total_pages,
+        # Read on a reader before it synced to Tome: a reading day without detail.
+        "reader_day": total_secs <= 0 and d in from_reader,
         "books": out_books,
         "finished_elsewhere": [meta[b] for b in finished_ids if b not in books and b in meta],
         "sittings": sorted(all_sittings, key=lambda s: s["start"]),

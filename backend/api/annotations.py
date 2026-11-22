@@ -18,6 +18,8 @@ router is mounted at /api like the rest.
 """
 from __future__ import annotations
 
+import random
+import re
 import uuid
 from typing import Optional
 
@@ -30,8 +32,10 @@ from backend.core.database import get_db
 from backend.core.security import get_current_user
 from backend.core.permissions import book_visibility_filter, user_can_see_book
 from backend.models.book import Book
+from backend.models.kosync import KOSyncClipping
 from backend.models.tome_sync import Annotation, AnnotationTombstone
 from backend.models.user import User
+from backend.services import kosync_clippings as clippings
 from backend.services.audit import audit
 
 router = APIRouter(tags=["annotations"])
@@ -76,10 +80,27 @@ def list_annotations(
     # over the cap is a 422, not a truncation — see the Markdown export.
     limit: int = Query(200, ge=1, le=10_000),
     offset: int = Query(0, ge=0),
+    include_clippings: bool = Query(
+        False, description="also CrossInk clippings (string ids, read-only); off for older clients"
+    ),
+    tz_offset: int = Query(0, description="viewer's offset in minutes (JS getTimezoneOffset), for clipping times"),
+    tz: Optional[str] = Query(None, description="viewer's IANA time zone, for clipping times"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    """The current user's highlights across every book they can see."""
+    """The current user's highlights across every book they can see.
+
+    With ``include_clippings`` the list also holds the user's CrossInk
+    clippings on linked books (``id`` is a string, ``source`` "crossink",
+    ``read_only`` true). It is opt-in because existing clients read ``id`` as
+    an integer and send it back to the edit/delete routes.
+
+    A clipping's time is a UTC instant; ``tz`` (IANA name) or else
+    ``tz_offset`` (JS getTimezoneOffset minutes) give the viewer's zone for
+    its ``datetime``, its place in the order and "on this day" (judged on the
+    viewer's date). Without them clipping times are shown in UTC. KOReader
+    highlights are unaffected: they carry the device's wall-clock time.
+    """
     query = (
         db.query(Annotation, Book)
         .join(Book, Annotation.book_id == Book.id)
@@ -112,18 +133,60 @@ def list_annotations(
         query.order_by(Annotation.koreader_datetime.desc().nullslast(), Annotation.id.desc())
         .all()
     )
-
+    today = _month_day(func_now_str()) if on_this_day else None
     if on_this_day:
-        today = _month_day(func_now_str())
         rows = [(a, b) for (a, b) in rows if _month_day(a.koreader_datetime) == today]
 
-    total = len(rows)
-    book_ids = {b.id for (_, b) in rows}
-    page = rows[offset : offset + limit]
+    entries = [(a.koreader_datetime, a.id, a, b) for (a, b) in rows]
+    if include_clippings:
+        viewer_today = _month_day(clippings.viewer_now(tz_offset, tz))
+        matches = _like(f"%{q.strip()}%") if q else None
+        for clip, book in clippings.visible_clippings(db, current_user, book_id=book_id):
+            when = clippings.local_datetime(clip.created_at, tz_offset, tz)
+            if matches and not any(matches(v) for v in (clip.text, clip.note, clip.chapter, book.title)):
+                continue
+            if only_notes and not clip.note:
+                continue
+            if on_this_day and _month_day(when) != viewer_today:
+                continue
+            entries.append((when, clip.id, clip, book))
+        entries.sort(key=lambda e: (e[0] is not None, e[0] or "", e[1]), reverse=True)
 
-    items = [_to_item(a, b) for (a, b) in page]
+    total = len(entries)
+    book_ids = {e[3].id for e in entries}
+    page = entries[offset : offset + limit]
+
+    items = [_entry_item(row, b, tz_offset, tz) for (_, _, row, b) in page]
 
     return {"total": total, "books": len(book_ids), "items": items}
+
+
+def _like(pattern: str):
+    """A matcher with the semantics the annotation search gets from SQLite:
+    SQLAlchemy's ilike is ``lower(x) LIKE lower(pattern)``, so ``%`` and ``_``
+    are wildcards and only ASCII letters fold case (SQLite's lower() and LIKE
+    without ICU). Used for clippings, which are filtered in Python."""
+    regex = "".join(".*" if ch == "%" else "." if ch == "_" else re.escape(ch) for ch in pattern)
+    compiled = re.compile(regex, re.ASCII | re.IGNORECASE | re.DOTALL)
+    return lambda value: value is not None and compiled.fullmatch(value) is not None
+
+
+def _entry_item(row, b, tz_offset: int = 0, tz: Optional[str] = None) -> dict:
+    if isinstance(row, KOSyncClipping):
+        return _clipping_item(row, b, tz_offset, tz)
+    return _to_item(row, b)
+
+
+def _clipping_item(c: KOSyncClipping, b, tz_offset: int = 0, tz: Optional[str] = None) -> dict:
+    """A CrossInk clipping in the shape of `_to_item`, marked read-only."""
+    return {
+        **clippings.display_fields(c, tz_offset, tz),
+        "book_id": b.id,
+        "book_title": b.title,
+        "book_author": b.author,
+        "book_cover": f"/api/books/{b.id}/cover" if b.cover_path else None,
+        "synced_at": clippings.synced_at(c),
+    }
 
 
 class AnnotationCreate(BaseModel):
@@ -321,7 +384,10 @@ def delete_annotation(
 
 @router.get("/annotations/spotlight")
 def annotation_spotlight(
-    exclude: Optional[int] = Query(None, description="annotation id to re-roll away from"),
+    exclude: Optional[str] = Query(None, description="highlight id to re-roll away from"),
+    include_clippings: bool = Query(False, description="also pick from CrossInk clippings"),
+    tz_offset: int = Query(0, description="viewer's offset in minutes (JS getTimezoneOffset), for clipping times"),
+    tz: Optional[str] = Query(None, description="viewer's IANA time zone, for clipping times"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -331,8 +397,15 @@ def annotation_spotlight(
 
     `exclude` powers the shuffle button: pass the current highlight's id and the
     re-roll returns a different one whenever more than one candidate exists (the
-    on-this-day preference is kept — only its current pick is excluded).
+    on-this-day preference is kept — only its current pick is excluded). With
+    `include_clippings` CrossInk clippings are candidates too (their ids are
+    strings, "clipping:<n>"). ``tz``/``tz_offset`` are the viewer's zone for
+    a clipping's time and its "on this day" (UTC when not sent), as in
+    ``GET /annotations``.
     """
+    exclude_annotation = int(exclude) if exclude is not None and exclude.isdigit() else None
+    exclude_clipping = clippings.parse_display_id(exclude) if exclude is not None else None
+
     base = (
         db.query(Annotation, Book)
         .join(Book, Annotation.book_id == Book.id)
@@ -344,30 +417,51 @@ def annotation_spotlight(
             book_visibility_filter(db, current_user),
         )
     )
-    if exclude is not None:
-        base = base.filter(Annotation.id != exclude)
+    if exclude_annotation is not None:
+        base = base.filter(Annotation.id != exclude_annotation)
+
+    clips = []
+    if include_clippings:
+        clips = [
+            (c, b) for (c, b) in clippings.visible_clippings(db, current_user)
+            if c.id != exclude_clipping
+        ]
 
     today_md = _month_day(func_now_str())
-    on_day_row = None
+    viewer_md = _month_day(clippings.viewer_now(tz_offset, tz))
+
+    def pick(annotations, candidates):
+        """One random row out of both pools, each row equally likely."""
+        count = annotations.count()
+        if count + len(candidates) == 0:
+            return None
+        n = random.randrange(count + len(candidates))
+        if n < count:
+            a, b = annotations.order_by(func.random()).first()
+            return _to_item(a, b)
+        c, b = candidates[n - count]
+        return _clipping_item(c, b, tz_offset, tz)
+
+    on_day = None
     if today_md:
-        on_day_row = (
+        on_day = pick(
             base.filter(
                 Annotation.koreader_datetime.isnot(None),
                 func.substr(Annotation.koreader_datetime, 6, 5) == today_md,
-            )
-            .order_by(func.random())
-            .first()
+            ),
+            [(c, b) for (c, b) in clips
+             if _month_day(clippings.local_datetime(c.created_at, tz_offset, tz)) == viewer_md],
         )
 
-    row = on_day_row or base.order_by(func.random()).first()
-    if not row and exclude is not None:
+    item = on_day or pick(base, clips)
+    if not item and exclude is not None:
         # The excluded highlight was the only one — better the same again
         # than an empty card.
-        return annotation_spotlight(exclude=None, db=db, current_user=current_user)
-    if not row:
+        return annotation_spotlight(exclude=None, include_clippings=include_clippings,
+                                    tz_offset=tz_offset, tz=tz, db=db, current_user=current_user)
+    if not item:
         return {"highlight": None, "on_this_day": False}
-    a, b = row
-    return {"highlight": _to_item(a, b), "on_this_day": on_day_row is not None}
+    return {"highlight": item, "on_this_day": on_day is not None}
 
 
 def func_now_str() -> str:

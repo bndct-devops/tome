@@ -44,8 +44,11 @@ interface Facets {
 }
 
 interface Annotation {
-  id: number
-  anchor: string
+  id: number | string  // "clipping:<n>" for a CrossInk clipping
+  anchor: string | null
+  // Set on CrossInk clippings: the reader owns them, so Tome only shows them.
+  source?: 'crossink'
+  read_only?: boolean
   highlighted_text: string | null
   note: string | null
   chapter: string | null
@@ -148,6 +151,8 @@ interface KosyncUnlinkedDoc {
   percentage: number
   device: string | null
   timestamp: number
+  /** What the reader called the file, when it sent metadata. */
+  title?: string | null
 }
 
 interface KosyncStatus {
@@ -239,7 +244,7 @@ function BookDetailView() {
   const [kosyncLinkDoc, setKosyncLinkDoc] = useState('')
   const [kosyncLinking, setKosyncLinking] = useState(false)
   const [annotations, setAnnotations] = useState<Annotation[]>([])
-  const [confirmingHighlight, setConfirmingHighlight] = useState<number | null>(null)
+  const [confirmingHighlight, setConfirmingHighlight] = useState<number | string | null>(null)
   const [highlightsOpen, setHighlightsOpen] = useState(true)
   const [readingStats, setReadingStats] = useState<ReadingStatsResponse | null>(null)
   const [estimate, setEstimate] = useState<BookEstimate | null>(null)
@@ -248,7 +253,7 @@ function BookDetailView() {
   const [sessionsOpen, setSessionsOpen] = useState(false)
   const [showPositionHistory, setShowPositionHistory] = useState(false)
   const [showShare, setShowShare] = useState(false)
-  const [editingNoteId, setEditingNoteId] = useState<number | null>(null)
+  const [editingNoteId, setEditingNoteId] = useState<number | string | null>(null)
   const [editingNoteDraft, setEditingNoteDraft] = useState('')
   const [descExpanded, setDescExpanded] = useState(false)
   // "Show more" only when the 4-line clamp actually hides text.
@@ -409,7 +414,7 @@ function BookDetailView() {
         setKosyncUnlinked(!r.linked && r.unlinked_documents ? r.unlinked_documents : [])
       })
       .catch(() => {})  // KOSync is optional - silent fail is fine
-    api.get<Annotation[]>(`/books/${id}/annotations`).then(setAnnotations).catch(() => {})
+    api.get<Annotation[]>(`/books/${id}/annotations?include_clippings=1&tz_offset=${new Date().getTimezoneOffset()}`).then(setAnnotations).catch(() => {})
     api.get<ReadingStatsResponse>(`/books/${id}/reading-stats?tz_offset=${new Date().getTimezoneOffset()}`).then(setReadingStats).catch(() => {})
     api.get<BookEstimate>(`/books/${id}/estimate?tz_offset=${new Date().getTimezoneOffset()}`).then(setEstimate).catch(() => {})
   }, [id])
@@ -629,7 +634,7 @@ function BookDetailView() {
   const refreshStats = () =>
     api.get<ReadingStatsResponse>(`/books/${id}/reading-stats?tz_offset=${new Date().getTimezoneOffset()}`).then(setReadingStats).catch(() => {})
 
-  async function deleteHighlight(annotationId: number) {
+  async function deleteHighlight(annotationId: number | string) {
     try {
       await api.delete(`/annotations/${annotationId}`)
       setAnnotations(prev => prev.filter(a => a.id !== annotationId))
@@ -640,7 +645,7 @@ function BookDetailView() {
     }
   }
 
-  async function saveHighlightNote(annotationId: number) {
+  async function saveHighlightNote(annotationId: number | string) {
     try {
       const note = editingNoteDraft.trim() || null
       await api.put(`/annotations/${annotationId}`, { note })
@@ -751,7 +756,8 @@ function BookDetailView() {
           <Sparkles className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Fetch metadata</Trans></span>
         </Pill>
       )}
-      {member && libraries.some(l => l.can_edit) && (
+      {/* A book without a file is a personal reading record: it never goes into a library. */}
+      {member && book.status !== 'no_file' && libraries.some(l => l.can_edit) && (
         <div className="relative" ref={libMenuRef}>
           <Pill variant="quiet" onClick={() => setLibMenuOpen(o => !o)} aria-expanded={libMenuOpen} aria-label={t`Libraries`}
             className={cn(libMenuOpen && 'bg-secondary text-foreground')}>
@@ -796,7 +802,7 @@ function BookDetailView() {
           )}
         </div>
       )}
-      {member && (
+      {member && book.status !== 'no_file' && (
         <Pill variant="quiet" onClick={() => setShowShare(true)} title={t`Share this book as a public page with its metadata only`} aria-label={t`Share`}>
           <Share2 className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Share</Trans></span>
         </Pill>
@@ -1091,7 +1097,12 @@ function BookDetailView() {
     </div>
   ) : null
 
-  const actionRow = (readable || book.files.length > 0) ? (
+  // A book Tome only knows from a reader's sync: nothing to read or download here.
+  const actionRow = book.status === 'no_file' ? (
+    <p className="mt-5 max-w-[60ch] text-[14px] leading-relaxed text-muted-foreground">
+      <Trans>Tome has no file for this book. It was added from your reader's sync so the reading has a place. If you add the book to your library, use Link KOReader sync on its page to move the reading there.</Trans>
+    </p>
+  ) : (readable || book.files.length > 0) ? (
     <div className="mt-5 flex flex-wrap items-center gap-2">
       {readable && (
         <Pill variant="primary" size="lg" onClick={() => navigate(`/reader/${book.id}`)}>
@@ -1145,7 +1156,7 @@ function BookDetailView() {
             className="w-auto max-w-[18rem]">
             {kosyncUnlinked.map(d => (
               <option key={d.document} value={d.document}>
-                {d.device || t`unknown device`} · {Math.round(d.percentage * 100)}% · {shortDay(new Date(d.timestamp * 1000))}
+                {d.title ? `${d.title} · ` : ''}{d.device || t`unknown device`} · {Math.round(d.percentage * 100)}% · {shortDay(new Date(d.timestamp * 1000))}
               </option>
             ))}
           </Select>
@@ -1314,7 +1325,11 @@ function BookDetailView() {
                 <span className="min-w-0 truncate text-[12px] text-muted-foreground/80">
                   {[a.chapter, a.datetime ? shortDay(new Date(a.datetime)) : null].filter(Boolean).join(' · ')}
                 </span>
-                {confirmingHighlight === a.id ? (
+                {a.read_only ? (
+                  <span className="shrink-0 text-[12px] text-muted-foreground/80" title={t`Clippings are changed on the reader that made them`}>
+                    <Trans>CrossInk clipping</Trans>
+                  </span>
+                ) : confirmingHighlight === a.id ? (
                   <span className="flex shrink-0 items-center gap-3 text-[13px]">
                     <button onClick={() => deleteHighlight(a.id)} className="font-medium text-destructive hover:underline">
                       <Trans>Delete</Trans>

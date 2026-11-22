@@ -16,6 +16,7 @@ import { dropStatsCache } from '@/components/stats/kit/useStatsGet'
 import { sourceLabel, useSessionActions } from '@/components/stats/sessions/actions'
 import { SessionTools, TrimPanel } from '@/components/stats/sessions/SessionTools'
 import { tipAttrs } from '@/components/stats/kit/tip'
+import { AttributedPagesMark } from '@/components/stats/AttributedPagesMark'
 
 const PAGE = 10
 /* eslint-disable lingui/no-unlocalized-strings -- placeholder text and CSS */
@@ -130,7 +131,7 @@ function Row({ s, desktop, a }: { s?: SessionEntry; desktop: boolean; a?: Return
         <div className={cn('grid h-11 items-center gap-x-4 text-[14px]', COLS)}>
           <span className="whitespace-nowrap tabular-nums text-muted-foreground">{when}</span>
           <span className="inline-flex items-center gap-1.5 whitespace-nowrap tabular-nums text-foreground">{dur}{warn}</span>
-          <span className="truncate text-muted-foreground">{pages ? `${device} · ${pages}` : device}</span>
+          <span className="truncate text-muted-foreground">{pages ? `${device} · ${pages}` : device}{pages && s.pages_attributed && <>{' '}<AttributedPagesMark /></>}</span>
           <span className="whitespace-nowrap text-[13px] text-muted-foreground/70" {...(statusTitle ? tipAttrs({ title: statusTitle }) : {})}>{status}</span>
           <span className="flex justify-end gap-0.5"><SessionTools s={s} a={a} keepSlot /></span>
         </div>

@@ -1,0 +1,202 @@
+---
+import DocsLayout from '../../layouts/DocsLayout.astro'
+import SectionHero from '../../components/SectionHero.astro'
+import DocsMeta from '../../components/DocsMeta.astro'
+import Callout from '../../components/Callout.astro'
+import Steps from '../../components/Steps.astro'
+import { withBase } from '../../lib/path'
+---
+<DocsLayout title="Xteink readers" description="Send reading sessions from an Xteink reader on CrossPoint or CrossInk firmware to Tome: which way to use, setup, and what arrives.">
+  <SectionHero section="integrations" />
+  <h1>Xteink readers (CrossPoint, CrossInk)</h1>
+  <p>
+    An Xteink reader can send its reading to Tome in two ways. Which one you can use depends
+    on the firmware: <a href="https://github.com/crosspoint-reader/crosspoint-reader" target="_blank" rel="noopener">CrossPoint</a>{' '}
+    2.0 has plugins, and <a href="https://github.com/uxjulia/CrossInk" target="_blank" rel="noopener">CrossInk</a>{' '}
+    2.0 has plugins and a sync of its own. Both are experimental in Tome.
+  </p>
+  <DocsMeta />
+
+  <h2>Which one to use</h2>
+  <table>
+    <thead>
+      <tr><th></th><th>Built-in sync</th><th>Plugin</th></tr>
+    </thead>
+    <tbody>
+      <tr><td>Firmware</td><td>CrossInk 2.0 or newer</td><td>CrossPoint 2.0, CrossInk 2.0 or newer</td></tr>
+      <tr><td>Sends</td><td>When you sync on the reader</td><td>By itself when the reader goes to sleep</td></tr>
+      <tr><td>Reading time per session</td><td>Yes</td><td>Yes</td></tr>
+      <tr><td>Progress</td><td>Yes, with the exact position</td><td>Yes, as a percentage</td></tr>
+      <tr><td>Pages</td><td>Yes</td><td>No</td></tr>
+      <tr><td>Clippings</td><td>Yes</td><td>No</td></tr>
+      <tr><td>Reading from before the first sync</td><td>Yes, as totals and reading days</td><td>No</td></tr>
+      <tr><td>Tested on a device</td><td>Yes (Xteink X3)</td><td>Not yet</td></tr>
+    </tbody>
+  </table>
+  <ul>
+    <li><strong>On CrossPoint:</strong> the plugin. It is the only way.</li>
+    <li><strong>On CrossInk, for full stats:</strong> the built-in sync. It is the one with pages,
+      clippings and exact positions, and the one that has run on a device.</li>
+    <li><strong>On CrossInk, if you forget to sync:</strong> add the plugin next to the built-in
+      sync. Sessions then arrive by themselves, and a session that comes both ways counts
+      once. Pages still need a sync from the reader now and then.</li>
+  </ul>
+  <Callout variant="info" title="Moving from CrossPoint Sync?">
+    Reading you already sent to CrossPoint Sync is not sent again. Export your account there and
+    bring it in under <strong>Settings → Import reading history</strong>.
+  </Callout>
+
+  <h2 id="plugin">The plugin (CrossPoint 2.0 and CrossInk, experimental)</h2>
+  <Callout variant="warning" title="Not tested on a device yet">
+    The plugin has run in CrossInk's desktop simulator, which is the firmware's own code on a
+    computer: the reader connected with its code, a book downloaded from Tome, read for a few
+    pages, the reader put to sleep, the session delivered and shown on the book in Tome. CrossPoint 2.0.0's own delivery code has
+    run the plugin on a computer too. Nobody has run it on an Xteink reader so far. If you
+    try it, tell us how it went.
+  </Callout>
+  <p>
+    With the plugin the reader sends each reading session to Tome by itself when it goes to
+    sleep. You do not have to start a sync, and nothing is typed on the reader: you connect it
+    by scanning a code from its screen.
+  </p>
+  <Steps>
+    <li>In <strong>Settings → Xteink readers</strong>, choose <strong>Download plugin ZIP</strong>.</li>
+    <li>Unpack it into the <code>plugins</code> folder on the reader's SD card, so that the
+      card has a folder <code>/plugins/tome</code>.</li>
+    <li>On the reader, turn on <strong>Plugins</strong> in the settings, open
+      <strong>Plugins</strong> on Home and choose <strong>Tome</strong>. It says that a sign-in
+      is required; choose <strong>Sign in</strong>.</li>
+    <li>The reader shows a QR code and a six-character code. Scan the QR code with your phone,
+      sign in to Tome if asked, check that the code matches and choose
+      <strong>Connect reader</strong>. Without a camera, open <code>/link-reader</code> on your
+      Tome server and type the code.</li>
+    <li>A few seconds later the reader shows "Linked to" with your user name. Done.</li>
+  </Steps>
+
+  <h3>What arrives</h3>
+  <ul>
+    <li>Each session with its book, start, end and reading time.</li>
+    <li>How far you got. The book's progress in Tome follows it, forwards only.</li>
+    <li>No page counts. The plugin system has none to send.</li>
+  </ul>
+
+  <h3>Good to know</h3>
+  <ul>
+    <li>The ZIP holds your server's address and nothing about your account. It is the same for
+      every user of your server.</li>
+    <li>A connected reader gets a key of its own. It is listed under
+      <strong>Settings → Access</strong> as "CrossPoint reader" and can be revoked there; the
+      reader then asks you to sign in again and keeps its sessions until you do.</li>
+    <li><strong>Settings → Xteink readers</strong> shows the connected readers and when the last
+      session arrived. Opening <strong>Plugins → Tome</strong> on the reader shows the same.</li>
+    <li>The reader needs a saved Wi-Fi network from which it can reach your Tome server. A
+      session read without one waits on the reader and is sent later.</li>
+    <li>The reader keeps a small queue, about a dozen sessions. If it cannot reach Tome for
+      longer than that, the firmware clears the queue and those sessions are gone. On CrossInk
+      the built-in sync has no such limit.</li>
+    <li>On CrossPoint 2.0.0 a book whose path on the card is longer than about 230 characters
+      produces no session. That is a limit of the firmware; CrossInk allows longer paths.</li>
+    <li>Session times come from the reader's clock. On some readers that clock has been
+      reported to run ahead, and Tome stores the times as sent.</li>
+    <li>On CrossInk the plugin can run next to the built-in sync. A session that arrives both
+      ways counts once.</li>
+  </ul>
+
+  <h2 id="built-in">The built-in sync (CrossInk only, experimental)</h2>
+  <p>
+    CrossInk 2.0 can send its reading to Tome over the KOReader Sync account it already uses
+    for progress. You start the sync on the reader.
+  </p>
+  <Steps>
+    <li>Set a sync password in <strong>Settings → Access</strong> if you have none. An account
+      registered from the reader itself is not tied to a Tome user and gets no stats.</li>
+    <li>On the reader, set the KOReader Sync server to <code>https://your-server/api/v1</code>
+      with your Tome username and the sync password (<strong>Settings → Xteink readers</strong> shows
+      them to copy), and <strong>Authenticate</strong>. That is
+      when it checks what the server supports.</li>
+    <li>Turn on <strong>Reading Stats</strong> under <strong>What to Sync</strong>, then sync.{' '}
+      <strong>Clippings</strong> can be switched on there too.</li>
+  </Steps>
+
+  <h3>What arrives</h3>
+  <ul>
+    <li>Each session with its book, start, end and active reading time. It counts in the stats
+      pages, the calendar and streaks.</li>
+    <li>The position in the open book, and with it the progress line on the book's page.</li>
+    <li>A page count per book (see below).</li>
+    <li>The finished flag: when the reader reports a book as finished, Tome marks it as read
+      with the reader's finish date.</li>
+    <li>Clippings, if switched on (see below).</li>
+  </ul>
+
+  <h3>How pages are counted</h3>
+  <p>
+    Sessions arrive with time but no pages. The reader sends one page total per book, and Tome
+    turns its growth between two syncs into pages for the sessions read in between, shared out
+    by reading time and marked with a small sign as attributed.
+  </p>
+  <ul>
+    <li>Sync after each sitting and every session gets its exact pages. Sync less often and a
+      larger total is spread over more sessions.</li>
+    <li>A book's all-time <strong>Pages</strong> and <strong>Pace</strong> always match the
+      reader's counter.</li>
+    <li>For a book that is new on the reader, the first sync gives its pages to the sessions
+      sent with it. For a book the reader had counted long before, the first count is only the
+      starting point.</li>
+  </ul>
+
+  <h3>Reading from before the first sync</h3>
+  <p>
+    That reading has no sessions. The reader keeps lifetime totals and a calendar of read days
+    and sends them with every sync. The days show on the <strong>Calendar</strong> as reading
+    days without a time and count for streaks. The Stats page set to <strong>All</strong>{' '}
+    includes the earlier time, sessions and pages, marked "before sync".
+  </p>
+
+  <h3>Good to know</h3>
+  <ul>
+    <li><strong>Sync Book covers the open book only:</strong> its position and its page count.
+      Reading time is sent for every book. After finishing one book and starting the next,
+      sync once from inside each of them.</li>
+    <li><strong>One server at a time:</strong> while the reader points at Tome it sends nothing
+      to CrossPoint Sync, and reading it already sent there is not sent to Tome.</li>
+    <li><strong>A book Tome can't identify:</strong> its sessions count toward your totals and
+      are listed as "(book not linked yet)". They appear on the calendar once the file is
+      linked: by itself for a book you downloaded from Tome or, with{' '}
+      <strong>Send Document Metadata</strong> on, for any book (see{' '}
+      <a href={withBase("/docs/sync-clients")}>KOSync apps</a>), or by hand with{' '}
+      <em>Link KOReader sync</em> on the book's page.</li>
+    <li><strong>Your edits stay:</strong> a session you trim or delete in Tome stays that way,
+      even when the reader sends it again.</li>
+    <li><strong>Known firmware bug:</strong> on CrossInk 2.0.0-rc, <strong>Sync Reading
+      Stats</strong> for more than one book at a time reports a failure with any server. The
+      data still arrives, and syncing from inside a book works.</li>
+  </ul>
+
+  <h3>Clippings (experimental)</h3>
+  <p>
+    A clipping is a passage you save on the reader. With <strong>Clippings</strong> switched on
+    under <strong>What to Sync</strong>, the reader uploads its clippings to Tome and restores
+    the ones made on your other CrossInk readers; a clipping deleted on one reader is removed
+    everywhere. In Tome they appear on the <strong>Highlights</strong> page and in the book's
+    <em>Highlights and notes</em>, marked as CrossInk clippings, as soon as the file is linked
+    to a book. They are read-only here: change or delete them on the reader. They are not sent
+    to KOReader devices and the iOS app does not show them yet.
+  </p>
+
+  <h2>Troubleshooting</h2>
+  <ul>
+    <li><strong>CrossInk shows stats as "Not supported"</strong>: it remembers the answer from
+      the last time you authenticated. Set the sync password in <strong>Settings → Access</strong>,
+      then authenticate on the reader again.</li>
+    <li><strong>The plugin sends nothing</strong>: check that Plugins is turned on, that the
+      folder on the card is <code>/plugins/tome</code> with <code>config.json</code> in it, that
+      <strong>Plugins → Tome</strong> on the reader says it is linked, and that the reader has a
+      saved Wi-Fi network from which it reaches your server.</li>
+    <li><strong>The reader says the sign-in failed</strong>: a code lasts ten minutes. Choose
+      <strong>Sign in</strong> again for a new one. The address in <code>config.json</code> must
+      be one your phone can open too, since the QR code points at it.</li>
+    <li><strong>A session shows as "(book not linked yet)"</strong>: Tome does not know which
+      book the file is. Link it with <em>Link KOReader sync</em> on the book's page.</li>
+  </ul>
+</DocsLayout>

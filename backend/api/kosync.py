@@ -72,7 +72,9 @@ def _epoch(dt: datetime) -> int:
     return calendar.timegm(dt.utctimetuple())
 
 
-def _find_or_hash_link(db: Session, tome_user_id: int, document: str) -> Optional[KOSyncDocumentMap]:
+def _find_or_hash_link(
+    db: Session, tome_user_id: int, document: str, commit: bool = True,
+) -> Optional[KOSyncDocumentMap]:
     """Resolve a KOSync document hash to this user's document map.
 
     Existing map wins. Otherwise try a deterministic link: the KOSync
@@ -83,6 +85,8 @@ def _find_or_hash_link(db: Session, tome_user_id: int, document: str) -> Optiona
     guesswork for any file that came from Tome. Only active, visible books
     are linked. Returns None when the file never passed through Tome (the
     caller may fall back to the legacy OPDS heuristic, or a manual link).
+    ``commit=False`` flushes a new link instead of committing it, for a caller
+    that owns the transaction (the CrossPoint Sync import).
     """
     doc_map = (
         db.query(KOSyncDocumentMap)
@@ -112,7 +116,13 @@ def _find_or_hash_link(db: Session, tome_user_id: int, document: str) -> Optiona
     doc_map = KOSyncDocumentMap(tome_user_id=tome_user_id, document=document, book_id=hit)
     db.add(doc_map)
     clear_pending_links(db, tome_user_id, hit)
-    db.commit()
+    # Progress pushes logged while the file was unknown belong to this book.
+    from backend.services.kosync_stats import attach_history
+    attach_history(db, tome_user_id, document, hit)
+    if commit:
+        db.commit()
+    else:
+        db.flush()
     logger.info("kosync: auto-linked document %s to book %s via ko-hash", document, hit)
     return doc_map
 
@@ -245,15 +255,47 @@ def update_progress(
     # pending OPDS download" heuristic only as fallback for files Tome never
     # hashed (it guesses, and a wrong guess writes status onto the wrong book).
     if user.user_id:
+        # A reader may say which book the hash is (title, author, file name).
+        # Kept per document; it is what resolves a sideloaded file below.
+        from sqlalchemy.exc import IntegrityError
+        from backend.services import kosync_books
+        meta = kosync_books.store_metadata(db, user.user_id, document, body.get("metadata"))
+        if meta is not None and (db.new or db.dirty):
+            try:
+                db.commit()
+            except IntegrityError:
+                # Two first pushes for the same document at once: the other one stored it.
+                db.rollback()
+                meta = kosync_books.store_metadata(db, user.user_id, document, body.get("metadata"))
+                db.commit()
+
         doc_map = _find_or_hash_link(db, user.user_id, document)
 
         if not doc_map:
             pending = _claim_pending_link(db, user.user_id)
-            if pending:
+            tome_user = db.get(User, user.user_id) if meta is not None else None
+            if meta is not None and tome_user is not None:
+                # The reader named the book, so nothing is guessed: an exact
+                # match with a library book, else a book record without a
+                # file. The pending download only breaks a tie.
+                try:
+                    doc_map = kosync_books.resolve(
+                        db, tome_user, document, meta,
+                        prefer_book_id=pending.book_id if pending else None,
+                    )
+                except IntegrityError:
+                    # Two pushes for the same new document at once.
+                    db.rollback()
+                    doc_map = _find_or_hash_link(db, user.user_id, document)
+                if doc_map and pending and doc_map.book_id == pending.book_id:
+                    clear_pending_links(db, user.user_id, pending.book_id)
+                    db.commit()
+            elif pending:
                 doc_map = KOSyncDocumentMap(
                     tome_user_id=user.user_id,
                     document=document,
                     book_id=pending.book_id,
+                    guessed=True,
                 )
                 db.add(doc_map)
                 clear_pending_links(db, user.user_id, pending.book_id)
@@ -269,6 +311,12 @@ def update_progress(
                 db, user_id=user.user_id, book_id=doc_map.book_id,
                 pct=float(percentage), monotonic=False,
             )
+            # Sessions a stats-capable reader uploaded before this document
+            # was linked have no book yet; they belong to this one.
+            # Pushes logged before then likewise (the progress line reads them).
+            from backend.services.kosync_stats import attach_history, attach_sessions
+            attach_sessions(db, user.user_id, document, doc_map.book_id)
+            attach_history(db, user.user_id, document, doc_map.book_id)
             if history_entry:
                 history_entry.book_id = doc_map.book_id
             db.commit()

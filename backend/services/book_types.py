@@ -50,7 +50,12 @@ def get_or_create_type_library(db: Session, book_type: BookType) -> Library:
 
 
 def assign_book_to_type_library(db: Session, book, book_type: BookType) -> None:
-    """Ensure the book is in its type library (add if missing)."""
+    """Ensure the book is in its type library (add if missing). A book
+    without a file (a reader-sync record) is never put into a library; its
+    book_type_id is still set by the caller."""
+    from backend.models.book import BOOK_NO_FILE
+    if book.status == BOOK_NO_FILE:
+        return
     lib = get_or_create_type_library(db, book_type)
     if lib not in book.libraries:
         book.libraries.append(lib)

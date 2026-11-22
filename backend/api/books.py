@@ -26,7 +26,7 @@ from backend.core.permissions import (
     require_role, user_can_see_book, book_visibility_filter,
     visible_book_or_404, editable_book_or_403, editable_books,
 )
-from backend.models.book import Book, BookFile, BookTag
+from backend.models.book import BOOK_ACTIVE, BOOK_NO_FILE, READING_STATUSES, Book, BookFile, BookTag
 from backend.models.user_book_status import UserBookStatus
 from backend.services.audit import audit
 from backend.services.book_filters import apply_word_count_bounds
@@ -137,36 +137,68 @@ def _filtered_books_query(
     ownership: Optional[str] = None,
     on_device: Optional[str] = None,
     not_on_device: Optional[str] = None,
+    include_no_file: bool = False,
     min_words: Optional[int] = None,
     max_words: Optional[int] = None,
     with_rating_join: bool = False,
 ):
     """Build the filtered books query shared by the list and ids endpoints.
 
+    ``include_no_file`` (opt-in, the web Library sends it) adds the caller's
+    OWN file-less books (``BOOK_NO_FILE``, made from a reader's sync) to the
+    active ones. Only the caller's: an admin sees every active book but never
+    another user's reading records.
+
     Returns (query, join_effective_rating, eff_rating). eff_rating is None
     unless min_rating or with_rating_join forced the rating outer-joins;
     join_effective_rating lets the caller re-apply those joins after a
     group-by rebuild (which drops them).
     """
+    from sqlalchemy import and_, false, or_
     from backend.core.permissions import is_admin as _is_admin
-
-    query = db.query(Book).filter(Book.status == "active")
 
     # ── Role-based visibility ────────────────────────────────────────────────
     # Single source of truth lives in backend.core.permissions; see there for
     # the full rule (library membership gates everything; unfiled admin/legacy
     # books stay shared; admins see all).
+    visible = None
     if not _is_admin(current_user):
         from backend.core.permissions import book_visibility_filter
-        query = query.filter(book_visibility_filter(db, current_user))
+        visible = book_visibility_filter(db, current_user)
+
+    active = Book.status == BOOK_ACTIVE
+    own_no_file = and_(Book.status == BOOK_NO_FILE, Book.added_by == current_user.id)
+    if visible is not None:
+        active = and_(active, visible)
+        # Keeps the account-wide tag restriction on the user's own records too.
+        own_no_file = and_(own_no_file, visible)
+    query = db.query(Book).filter(or_(active, own_no_file) if include_no_file else active)
 
     if q:
         from backend.services.fts import search_book_ids
         fts_ids = search_book_ids(db, q)
-        if fts_ids:
-            query = query.filter(Book.id.in_(fts_ids))
-        else:
-            query = query.filter(Book.id == -1)
+        match = Book.id.in_(fts_ids) if fts_ids else false()
+        if include_no_file:
+            # The FTS index holds active books only (backfill_fts rebuilds it
+            # from them), so the caller's own file-less books (a handful) are
+            # matched in Python by the same rules: case and accent folding,
+            # every term in some field. Visibility is still applied above.
+            from sqlalchemy.orm import selectinload
+            from backend.services.fts import text_matches
+            own = (
+                db.query(Book)
+                .options(selectinload(Book.tags))
+                .filter(Book.status == BOOK_NO_FILE, Book.added_by == current_user.id)
+                .all()
+            )
+            hit_ids = [
+                b.id for b in own
+                if text_matches(q, [b.title, b.author, b.series, b.description,
+                                    " ".join(t.tag for t in b.tags if t.tag)])
+            ]
+            if hit_ids:
+                match = or_(match, Book.id.in_(hit_ids))
+        query = query.filter(match)
     if series:
         query = query.filter(Book.series == series)
     if no_series:
@@ -253,6 +285,9 @@ def _filtered_books_query(
             query = query.filter(no_series_f)
         elif missing == "any":
             query = query.filter(sa_or_(no_cover, no_description, no_author, no_series_f))
+        elif missing == "file":
+            # Only matches with include_no_file: active books always have one.
+            query = query.filter(Book.status == BOOK_NO_FILE)
 
     query = apply_word_count_bounds(query, min_words, max_words)
 
@@ -275,7 +310,9 @@ def _filtered_books_query(
             _or_(
                 Book.added_by.in_(shared_admin_ids),
                 Book.added_by.is_(None),
-            )
+            ),
+            # An admin's own reading record is not part of the shared library.
+            Book.status != BOOK_NO_FILE,
         )
 
     return query, _join_effective_rating, eff_rating
@@ -301,6 +338,7 @@ def list_book_ids(
     ownership: Optional[str] = Query(None),
     on_device: Optional[str] = Query(None),
     not_on_device: Optional[str] = Query(None),
+    include_no_file: bool = Query(False),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -318,6 +356,7 @@ def list_book_ids(
         min_words=min_words, max_words=max_words,
         content_type=content_type, added_by=added_by, ownership=ownership,
         on_device=on_device, not_on_device=not_on_device,
+        include_no_file=include_no_file,
     )
     ids = [row[0] for row in query.with_entities(Book.id).distinct().all()]
     return {"ids": ids}
@@ -342,13 +381,14 @@ def list_books(
     reading_status: Optional[str] = Query(None, description="Filter by reading status: unread, reading, read"),
     min_words: Optional[int] = Query(None, ge=0, description="Minimum word count, inclusive"),
     max_words: Optional[int] = Query(None, ge=0, description="Maximum word count, inclusive"),
-    missing: Optional[str] = Query(None, description="Filter books missing a field: cover, description, author, series, any"),
+    missing: Optional[str] = Query(None, description="Filter books missing a field: cover, description, author, series, any; 'file' (with include_no_file) = books without a file"),
     content_type: Optional[str] = Query(None, description="Filter by content type: volume, chapter"),
     added_by: Optional[int] = Query(None, description="Filter by uploader user ID (admin only)"),
     ownership: Optional[str] = Query(None, description="Ownership filter: 'mine' or 'shared' (member only)"),
     on_device: Optional[str] = Query(None, description="Only books on these KOReader devices of the current user (device names, comma-separated; all must hold the book)"),
     not_on_device: Optional[str] = Query(None, description="Only books on none of these KOReader devices of the current user (device names, comma-separated)"),
     group_by_series: Optional[bool] = Query(None, description="Collapse series into one representative book each, annotated with series_count"),
+    include_no_file: bool = Query(False, description="Also return the caller's own books without a file (status 'no_file', made from a reader's sync). Off by default"),
     include: Optional[str] = Query(None, description="Extra fields for each book, comma-separated. Supported: description. Unknown names are ignored."),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
@@ -361,6 +401,7 @@ def list_books(
         min_words=min_words, max_words=max_words,
         content_type=content_type, added_by=added_by, ownership=ownership,
         on_device=on_device, not_on_device=not_on_device,
+        include_no_file=include_no_file,
         with_rating_join=(sort == "rating"),
     )
 
@@ -369,12 +410,18 @@ def list_books(
     # annotated with how many volumes matched the active filters; standalone
     # books pass through with a count of 1.
     if group_by_series:
-        from sqlalchemy import func as _func, select as _select
+        from sqlalchemy import case as _case, func as _func, select as _select
 
         # Joins above (tags, files, libraries) can duplicate book rows —
         # collapse to distinct IDs first so the window count isn't inflated.
         id_sq = query.with_entities(Book.id).distinct().subquery()
-        partition = _func.coalesce(Book.series, _func.printf("__solo__%d", Book.id))
+        # A file-less book stands alone even when it names a series: the
+        # series page lists only books Tome has, so a stack it led would open
+        # onto a series without it.
+        partition = _case(
+            (Book.status == BOOK_NO_FILE, _func.printf("__solo__%d", Book.id)),
+            else_=_func.coalesce(Book.series, _func.printf("__solo__%d", Book.id)),
+        )
         win_sq = (
             db.query(
                 Book.id.label("book_id"),
@@ -471,7 +518,7 @@ def list_books(
     if group_by_series:
         # For the stacked-card fan effect, fetch the next two volumes per
         # series on this page that actually have a cover (ID-only query).
-        series_names = [b.series for b, _ in rows if b.series]
+        series_names = [b.series for b, _ in rows if b.series and b.status != BOOK_NO_FILE]
         fan_map: dict[str, list[int]] = {}
         if series_names:
             fan_rows = (
@@ -492,7 +539,7 @@ def list_books(
         books = []
         for book, series_count in rows:
             book.series_count = int(series_count)
-            book.stack_cover_ids = fan_map.get(book.series or "", [])
+            book.stack_cover_ids = [] if book.status == BOOK_NO_FILE else fan_map.get(book.series or "", [])
             books.append(book)
     else:
         books = rows
@@ -1301,6 +1348,9 @@ def get_adjacent_books(
 @router.get("/{book_id}/annotations")
 def get_book_annotations(
     book_id: int,
+    include_clippings: bool = False,
+    tz_offset: int = Query(0, description="viewer's offset in minutes (JS getTimezoneOffset), for clipping times"),
+    tz: Optional[str] = Query(None, description="viewer's IANA time zone, for clipping times"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
@@ -1309,11 +1359,18 @@ def get_book_annotations(
     KOReader owns annotations and pushes them via the TomeSync plugin; the web's
     only write is DELETE /api/annotations/{id} (drops the row + tombstones it so the
     deletion syncs back). Web reader (foliate) inline rendering is a later phase.
+
+    ``include_clippings`` adds the user's CrossInk clippings on this book
+    (string ``id``, ``source`` "crossink", ``read_only``, no anchor or CFI). Off
+    by default: the web reader paints everything this route returns by default,
+    and a clipping has no position it could be drawn at or synced from.
+    A clipping's ``datetime`` is its UTC instant in the viewer's zone (``tz``,
+    else ``tz_offset``), UTC when neither is sent.
     """
     from backend.models.tome_sync import Annotation
 
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not book or book.status not in READING_STATUSES:
         raise HTTPException(status_code=404, detail="Book not found")
     if not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
@@ -1324,7 +1381,7 @@ def get_book_annotations(
         .order_by(Annotation.koreader_datetime, Annotation.id)
         .all()
     )
-    return [
+    out = [
         {
             "id": a.id,
             "anchor": a.anchor,
@@ -1338,6 +1395,16 @@ def get_book_annotations(
         }
         for a in rows
     ]
+    if not include_clippings:
+        return out
+    from backend.services import kosync_clippings as clippings
+
+    out += [
+        {**clippings.display_fields(c, tz_offset, tz), "anchor": None, "cfi": None, "updated_at": clippings.synced_at(c)}
+        for c, _ in clippings.visible_clippings(db, current_user, book_id=book_id)
+    ]
+    out.sort(key=lambda x: x["datetime"] or "")
+    return out
 
 
 # ── Reader pacing ("time left in chapter") ────────────────────────────────────
@@ -1421,7 +1488,7 @@ def get_book_estimate(
 
 def _visible_book_or_404(db: Session, current_user: User, book_id: int) -> Book:
     book = db.get(Book, book_id)
-    if not book or book.status != "active" or not user_can_see_book(db, current_user, book):
+    if not book or book.status not in READING_STATUSES or not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
     return book
 
@@ -1553,7 +1620,7 @@ def get_book_reading_stats(
     )
 
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not book or book.status not in READING_STATUSES:
         raise HTTPException(status_code=404, detail="Book not found")
     if not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
@@ -1602,7 +1669,7 @@ def add_manual_reading_session(
     from backend.services.reading_stats import compute_book_reading_stats
 
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not book or book.status not in READING_STATUSES:
         raise HTTPException(status_code=404, detail="Book not found")
     if not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
@@ -1694,7 +1761,7 @@ def clear_imported_history(
     from backend.models.ko_stats import KoStatsBookMatch, PageStat
 
     book = db.get(Book, book_id)
-    if not book or book.status != "active":
+    if not book or book.status not in READING_STATUSES:
         raise HTTPException(status_code=404, detail="Book not found")
     if not user_can_see_book(db, current_user, book):
         raise HTTPException(status_code=404, detail="Book not found")
@@ -2484,6 +2551,11 @@ def _delete_book_record(book: Book, db: Session, actor: User) -> None:
     deleted_id, deleted_title = book.id, book.title
     file_paths = [Path(bf.file_path) for bf in book.files]
     cover_file = settings.covers_dir / book.cover_path if book.cover_path else None
+
+    # A file-less book made from a reader's sync must not come back from the
+    # same files on the next sync.
+    from backend.services.kosync_books import forget_documents
+    forget_documents(db, book)
 
     from backend.services.fts import unindex_book
     unindex_book(db, book.id)

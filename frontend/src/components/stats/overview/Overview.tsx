@@ -849,6 +849,10 @@ function AllTime({ stats, loading, desktop, sig }: { stats: StatsResponse | null
       ))}
     </div>
   )
+  // Reading a KOSync reader (CrossInk) counted before its first sync is part of the totals.
+  const earlier = !loading && lt?.reader_earlier && lt.reader_earlier.seconds > 0 ? lt.reader_earlier : null
+  const earlierTime = earlier ? formatDuration(earlier.seconds) : ''
+  const earlierPages = earlier ? num(earlier.pages) : ''
   const r = stats?.records
   const s = stats?.headline.streaks
   const dash = '—'
@@ -884,6 +888,11 @@ function AllTime({ stats, loading, desktop, sig }: { stats: StatsResponse | null
       <Heading><Trans>All time</Trans></Heading>
       <div className={SUB}><Trans>Totals</Trans></div>
       {totals}
+      {earlier && (
+        <p data-box="lifetime-reader" className={cn('mt-3 text-muted-foreground', desktop ? 'text-[14px]' : 'text-[12px]', 'leading-[1.4]')}>
+          <Trans>Includes {earlierTime} and {earlierPages} pages your reader counted before it synced to Tome.</Trans>
+        </p>
+      )}
       <div className={cn(SUB, desktop ? 'mt-9' : 'mt-8')}><Trans>Records</Trans></div>
       <div data-box="records" className={cn('grid', desktop ? 'grid-cols-5' : 'grid-cols-[minmax(0,1.5fr)_minmax(0,1fr)]')}>
         {cells.map((c, i) => (

@@ -219,3 +219,21 @@ def test_bridge_does_not_leak_other_users_pushes(ts_client, db, make_book, monke
 
     r = c.get(f"/api/tome-sync/position/{book.id}", headers=headers)
     assert r.json()["percentage"] == 0.10
+
+
+# ── a locator that only names the chapter is not passed on ───────────────────
+
+@pytest.mark.parametrize("locator,kept", [
+    ("/body/DocFragment[8]/body/p[3]/text().12", True),
+    ("/body/DocFragment[8]", False),
+    ("/body/DocFragment[8].0", False),
+    ("/body/DocFragment[8]/body.0", False),
+])
+def test_chapter_only_locator_falls_back_to_the_percentage(ts_client, db, make_book, monkeypatch, locator, kept):
+    client, user, headers = ts_client
+    monkeypatch.setattr(settings, "kosync_position_bridge", True)
+    book = make_book(title="Chapter Start")
+    _seed_kosync_push(db, user, book, 0.43, progress=locator)
+    data = client.get(f"/api/tome-sync/position/{book.id}", headers=headers).json()
+    assert data["percentage"] == 0.43
+    assert data["progress"] == (locator if kept else None)

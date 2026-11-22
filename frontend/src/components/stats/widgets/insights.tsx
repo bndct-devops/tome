@@ -25,6 +25,9 @@ export function LifetimeTotals({ data }: { data: StatsResponse['lifetime'] }) {
     { icon: Calendar, label: t`Active days`, value: num(data.active_days) },
     { icon: Flame, label: t`Longest streak`, value: `${num(data.longest_streak_days)}d` },
   ]
+  const earlier = data.reader_earlier
+  const earlierTime = earlier ? formatDuration(earlier.seconds) : ''
+  const earlierPages = earlier ? earlier.pages.toLocaleString() : ''
   return (
     <div className="grid h-full grid-cols-2 content-center gap-x-6 gap-y-4 sm:grid-cols-3">
       {items.map((it) => (
@@ -36,6 +39,11 @@ export function LifetimeTotals({ data }: { data: StatsResponse['lifetime'] }) {
           <p className="mt-1 truncate font-display text-[24px] font-bold leading-none text-foreground">{it.value}</p>
         </div>
       ))}
+      {earlier && (
+        <p className="col-span-full text-[12px] leading-snug text-muted-foreground">
+          <Trans>Includes {earlierTime} and {earlierPages} pages your reader counted before it synced to Tome.</Trans>
+        </p>
+      )}
     </div>
   )
 }

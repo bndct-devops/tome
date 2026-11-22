@@ -10,7 +10,7 @@ from backend.core.permissions import book_visibility_filter
 from backend.core.security import get_current_user
 from backend.models.user import User
 from backend.models.tome_sync import ReadingSession, TomeSyncPosition
-from backend.models.book import Book
+from backend.models.book import BOOK_NO_FILE, READING_STATUSES, Book
 from backend.models.user_book_status import UserBookStatus
 from backend.services.streaks import reconciled_user_streaks
 from backend.services.reading_stats import finished_date_expr
@@ -53,7 +53,8 @@ def get_focus(
             UserBookStatus.status == "reading",
         )
         .join(Book, Book.id == UserBookStatus.book_id)
-        .filter(Book.status == "active", visible)
+        # Also books Tome only knows from a reader's sync (no file here).
+        .filter(Book.status.in_(READING_STATUSES), visible)
         .outerjoin(
             TomeSyncPosition,
             (TomeSyncPosition.book_id == Book.id)
@@ -67,6 +68,7 @@ def get_focus(
             Book.series_index,
             Book.description,
             Book.cover_path,
+            Book.status.label("book_status"),
             TomeSyncPosition.percentage.label("sync_pct"),
             TomeSyncPosition.device.label("device"),
             TomeSyncPosition.updated_at.label("synced_at"),
@@ -136,6 +138,7 @@ def get_focus(
             "author": r.author,
             "has_cover": bool(r.cover_path),
             "progress": _norm_pct(r.sync_pct if r.sync_pct is not None else r.progress_pct),
+            "no_file": r.book_status == BOOK_NO_FILE,
         }
         for r in ordered[:12]
     ]
@@ -153,6 +156,8 @@ def get_focus(
             "series_index": hero.series_index,
             "description": hero.description,
             "has_cover": bool(hero.cover_path),
+            # Nothing to open in the web reader: the file is on the reader only.
+            "no_file": hero.book_status == BOOK_NO_FILE,
             "progress": progress,
             "device": hero.device,
             "synced": hero.synced_at is not None,
@@ -245,6 +250,7 @@ def get_home_activity(
             ReadingSession.started_at,
             ReadingSession.duration_seconds,
             ReadingSession.pages_turned,
+            ReadingSession.pages_attributed,
         )
         .order_by(ReadingSession.started_at.desc())
         .limit(10)
@@ -259,6 +265,7 @@ def get_home_activity(
             "started_at": r.started_at.isoformat() + "Z" if r.started_at else None,
             "duration_seconds": r.duration_seconds,
             "pages_turned": r.pages_turned,
+            "pages_attributed": bool(r.pages_attributed),
         }
         for r in rows
     ]
@@ -278,7 +285,7 @@ def forgotten_books(
             UserBookStatus.user_id == current_user.id,
             UserBookStatus.status == "reading",
             UserBookStatus.updated_at < cutoff,
-            Book.status == "active",
+            Book.status.in_(READING_STATUSES),
         )
         .order_by(UserBookStatus.updated_at.asc())
         .limit(6)

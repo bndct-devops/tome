@@ -15,7 +15,10 @@ import { QuickLook } from '@/components/QuickLook'
 import { PageBody, PageHeader, Pill, SectionTitle } from '@/components/page'
 
 interface Highlight {
-  id: number
+  id: number | string  // "clipping:<n>" for a CrossInk clipping
+  // Set on CrossInk clippings: the reader owns them, so Tome only shows them.
+  source?: 'crossink'
+  read_only?: boolean
   book_id: number
   book_title: string
   book_author: string | null
@@ -108,6 +111,7 @@ function fullInfo(h: Highlight): string {
   if (d) { const when = d.toLocaleString(undefined, { dateStyle: 'medium', timeStyle: 'short' }); parts.push(t`Highlighted ${when}`) }
   if (h.chapter) parts.push(h.chapter)
   if (h.color) { const color = h.color; parts.push(t`${color} highlight`) }
+  if (h.source === 'crossink') parts.push(t`Clipping from a CrossInk reader`)
   if (h.synced_at) {
     const s = new Date(h.synced_at)
     if (!isNaN(s.getTime())) { const when = s.toLocaleDateString(undefined, { dateStyle: 'medium' }); parts.push(t`Synced to Tome ${when}`) }
@@ -181,6 +185,11 @@ function HighlightRow({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q: 
             </span>
           )}
         </div>
+        {h.read_only ? (
+          <span className="shrink-0 text-[12px] text-muted-foreground" title={t`Clippings are changed on the reader that made them`}>
+            <Trans>CrossInk clipping</Trans>
+          </span>
+        ) : (
         <div className="flex items-center gap-0.5 shrink-0">
           {confirming ? (
             <>
@@ -216,6 +225,7 @@ function HighlightRow({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q: 
             </>
           )}
         </div>
+        )}
       </div>
     </li>
   )
@@ -248,6 +258,9 @@ export function HighlightsPage() {
     if (debounced) p.set('q', debounced)
     if (onThisDay) p.set('on_this_day', '1')
     if (onlyNotes) p.set('only_notes', '1')
+    p.set('include_clippings', '1')
+    // Clipping times are UTC instants; api.ts adds the IANA zone next to this.
+    p.set('tz_offset', String(new Date().getTimezoneOffset()))
     p.set('limit', String(PAGE_SIZE))
     p.set('offset', String(offset))
     return p
@@ -311,6 +324,9 @@ export function HighlightsPage() {
     if (debounced) p.set('q', debounced)
     if (onThisDay) p.set('on_this_day', '1')
     if (onlyNotes) p.set('only_notes', '1')
+    p.set('include_clippings', '1')
+    // Clipping times are UTC instants; api.ts adds the IANA zone next to this.
+    p.set('tz_offset', String(new Date().getTimezoneOffset()))
     p.set('limit', '10000')
     return api.get<HighlightsResponse>(`/annotations?${p.toString()}`)
   }
