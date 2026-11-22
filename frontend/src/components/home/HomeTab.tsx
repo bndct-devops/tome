@@ -33,6 +33,7 @@ interface FocusBook {
   series_index: number | null
   description: string | null
   has_cover: boolean
+  cover_color?: string | null
   /** Known from a reader's sync only: Tome has no file to open. */
   no_file?: boolean
   progress: number
@@ -40,8 +41,8 @@ interface FocusBook {
   synced: boolean
   last_sync: string | null
 }
-interface FocusUpcoming { book_id: number; title: string; series_index: number | null; has_cover: boolean; description: string | null }
-interface FocusReading { book_id: number; title: string; author: string | null; has_cover: boolean; progress: number }
+interface FocusUpcoming { book_id: number; title: string; series_index: number | null; has_cover: boolean; cover_color?: string | null; description: string | null }
+interface FocusReading { book_id: number; title: string; author: string | null; has_cover: boolean; cover_color?: string | null; progress: number }
 interface FocusData {
   ready: boolean
   book: FocusBook | null
@@ -393,7 +394,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
           title={t`Show ${title} here`}
           className={cn('relative block w-full aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', dim && 'opacity-80 hover:opacity-100')}
         >
-          <CoverImage src={r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
+          <CoverImage src={r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null} alt="" color={r.cover_color} iconClassName="w-5 h-5" />
         </button>
         <PeekButton onClick={e => openPeek(r.book_id, e.currentTarget.previousElementSibling, r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null)} />
       </TiltCover>
@@ -412,7 +413,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
         title={t`Quick look`}
       >
         <div className={cn('relative aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition-opacity', dim && 'opacity-80 group-hover:opacity-100')}>
-          <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
+          <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 400 }) : null} alt="" color={u.cover_color} iconClassName="w-5 h-5" />
         </div>
       </button>
     )
@@ -464,7 +465,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
               aria-label={b.title}
             >
               <div className="relative aspect-[2/3]">
-                <CoverImage src={b.has_cover ? coverSrc(b.book_id, { w: 400 }) : null} alt="" loading="eager" iconClassName="w-10 h-10" />
+                <CoverImage src={b.has_cover ? coverSrc(b.book_id, { w: 400 }) : null} alt="" loading="eager" color={b.cover_color} iconClassName="w-10 h-10" />
               </div>
             </Link>
           </TiltCover>
@@ -647,7 +648,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                     aria-label={t`Quick look: ${title}`}
                     title={t`Quick look`}
                   >
-                    <CoverImage src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null} alt="" />
+                    <CoverImage src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null} alt="" color={book.cover_color} />
                   </button>
                 </TiltCover>
                 <Link to={`/books/${book.id}`} className="mt-2.5 block text-[15px] text-foreground leading-snug line-clamp-2 hover:text-primary transition-colors">

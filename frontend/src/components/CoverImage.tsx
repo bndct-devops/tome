@@ -8,6 +8,8 @@ interface CoverImageProps {
   loading?: 'lazy' | 'eager'
   iconClassName?: string
   imgClassName?: string
+  /** The cover's stored colour ("#rrggbb"): the tile holds it, without shimmer, until the image loads. */
+  color?: string | null
 }
 
 export function CoverImage({
@@ -16,6 +18,7 @@ export function CoverImage({
   loading = 'lazy',
   iconClassName,
   imgClassName,
+  color,
 }: CoverImageProps) {
   const [loaded, setLoaded] = useState(false)
   const [errored, setErrored] = useState(false)
@@ -28,7 +31,9 @@ export function CoverImage({
 
   return (
     <>
-      {!!src && !loaded && !errored && (
+      {!!src && !loaded && !errored && (color ? (
+        <div className="absolute inset-0" style={{ backgroundColor: color }} />
+      ) : (
         <div
           className="absolute inset-0 bg-muted"
           style={{
@@ -38,7 +43,7 @@ export function CoverImage({
             animation: 'shimmer 1.5s infinite',
           }}
         />
-      )}
+      ))}
       {hasImg && (
         <img
           src={src!}

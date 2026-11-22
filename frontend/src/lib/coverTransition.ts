@@ -24,6 +24,8 @@ export interface BookPreview {
   series_index?: number | null
   /** The thumbnail the card showed: the hero starts with it (already cached). */
   cover?: string | null
+  /** The cover's stored colour, held by the hero until an image paints. */
+  coverColor?: string | null
 }
 
 export function previewState(preview: BookPreview) {

@@ -25,6 +25,8 @@ export interface Book {
   status: string
   content_type: string
   cover_path: string | null
+  /** "#rrggbb" placeholder while the cover loads. */
+  cover_color?: string | null
   updated_at?: string | null
   added_at: string
   files: BookFile[]

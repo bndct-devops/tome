@@ -33,6 +33,10 @@ All notable changes to Tome are documented here. Format loosely follows
 - More of the interface now stays still when the system asks for reduced
   motion: press feedback, the cover tilt, the sidebar icon wiggle and the
   loading shimmer.
+- A cover that is still loading holds its place in its own colour instead of
+  a grey shimmer, so a page of covers already looks like your library before
+  the pictures arrive. Tome works out the colours of existing covers in the
+  background after the update.
 
 ## [3.2.0] - 2026-11-22 - "Chapbook"
 

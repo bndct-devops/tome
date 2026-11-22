@@ -61,6 +61,7 @@ interface SeriesItem {
   name: string
   book_count: number
   cover_book_id: number
+  cover_color?: string | null
   description: string | null
   author: string | null
   read_count: number
@@ -81,6 +82,7 @@ interface SeriesDetailBook {
   title: string
   series_index: number | null
   cover_path: string | null
+  cover_color?: string | null
   reading_status: 'unread' | 'reading' | 'read' | 'shelved' | 'want_to_read'
   progress_pct: number | null
 }
@@ -1397,6 +1399,7 @@ export function DashboardPage() {
                 const readingPct = total ? (readingCount / total) * 100 : 0
                 const heroCoverId = seriesList.find(s => s.name === seriesDetail.name)?.cover_book_id
                   ?? seriesDetail.books[0]?.id ?? null
+                const heroCoverColor = seriesDetail.books.find(b => b.id === heroCoverId)?.cover_color
                 const sections = groupVolumesByArc(seriesDetail.books, seriesArcs)
                 const hasArcs = seriesArcs.length > 0
                 const coverage = seriesDetail.books.map(b => ({
@@ -1461,6 +1464,7 @@ export function DashboardPage() {
                           <CoverImage
                             src={heroCoverId != null ? coverSrc(heroCoverId, { w: 400 }) : null}
                             alt=""
+                            color={heroCoverColor}
                             iconClassName="w-10 h-10"
                           />
                         </div>
@@ -1612,6 +1616,7 @@ export function DashboardPage() {
                               const state = previewState({
                                 id: vol.id, title: vol.title, author: seriesDetail.author ?? null, series: seriesDetail.name,
                                 series_index: vol.series_index, cover: vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null,
+                                coverColor: vol.cover_color,
                               })
                               openBookWithCover(cover, vol.id, () => navigate(`/books/${vol.id}`, { state }))
                             }}
@@ -1626,6 +1631,7 @@ export function DashboardPage() {
                               <CoverImage
                                 src={vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null}
                                 alt={vol.title}
+                                color={vol.cover_color}
                                 iconClassName="w-4 h-4"
                               />
                               {/* Quick-read play button - top-left corner on hover */}
@@ -1744,6 +1750,7 @@ export function DashboardPage() {
                           <CoverImage
                             src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
                             alt={isUnserialized ? t`Unserialized` : s.name}
+                            color={s.cover_color}
                           />
                         </div>
                         <div className="pt-2.5 flex flex-col gap-0.5 min-w-0">
@@ -2237,6 +2244,7 @@ export function DashboardPage() {
                         <CoverImage
                           src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
                           alt={name}
+                          color={s.cover_color}
                           iconClassName="w-4 h-4"
                         />
                       </div>

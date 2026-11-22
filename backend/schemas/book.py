@@ -38,6 +38,8 @@ class BookOut(BaseModel):
     status: str
     content_type: str
     cover_path: Optional[str] = None
+    # Placeholder tint ("#rrggbb") while the cover image loads.
+    cover_color: Optional[str] = None
     added_at: datetime
     files: list[BookFileOut] = []
     tags: list[BookTagOut] = []

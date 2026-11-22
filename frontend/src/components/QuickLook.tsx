@@ -153,7 +153,7 @@ export function QuickLook({ bookId, onClose, origin, cover }: {
         <m.div {...face} aria-hidden className="absolute inset-0 rounded-[var(--radius-panel)] bg-card shadow-2xl shadow-black/40 ring-1 ring-panel-ring" />
         <div className="relative max-h-[calc(100dvh-2rem)] overflow-y-auto p-5 sm:p-7 flex flex-col sm:flex-row gap-5 sm:gap-8">
         <div ref={coverRef} data-cover-id={bookId} className="relative shrink-0 self-center sm:self-start w-[160px] sm:w-[220px] mx-auto sm:mx-0 rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
-          <div className="relative aspect-[2/3]"><CoverImage src={coverUrl} alt="" loading="eager" iconClassName="w-8 h-8" /></div>
+          <div className="relative aspect-[2/3]"><CoverImage src={coverUrl} alt="" loading="eager" color={book?.cover_color} iconClassName="w-8 h-8" /></div>
         </div>
         <m.div {...face} className="relative min-w-0 flex-1 flex flex-col">
           {book?.series && book.series_index != null && (
@@ -189,6 +189,7 @@ export function QuickLook({ bookId, onClose, origin, cover }: {
               const state = book ? previewState({
                 id: bookId, title: book.title, author: book.author, series: book.series,
                 series_index: book.series_index, cover: coverSrc(bookId, { w: 400, v: book.updated_at }),
+                coverColor: book.cover_color,
               }) : undefined
               openBookWithCover(coverRef.current, bookId, () => { onClose(); navigate(`/books/${bookId}`, { state }) })
             }}>

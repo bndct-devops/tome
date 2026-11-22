@@ -135,7 +135,7 @@ export function BookCard({
     e.preventDefault()
     const state = previewState({
       id: book.id, title: book.title, author: book.author, series: book.series,
-      series_index: book.series_index, cover: coverUrl,
+      series_index: book.series_index, cover: coverUrl, coverColor: book.cover_color,
     })
     openBookWithCover(coverRef.current, book.id, () => navigate(`/books/${book.id}`, { state }))
   }
@@ -157,7 +157,7 @@ export function BookCard({
           </div>
         ) : null}
         <m.div key="cover" {...travelProps('cover')} className="w-9 h-12 shrink-0">
-        <div ref={coverRef} data-cover-id={book.id} className="w-full h-full rounded overflow-hidden bg-muted">
+        <div ref={coverRef} data-cover-id={book.id} className="w-full h-full rounded overflow-hidden bg-muted" style={coverUrl && book.cover_color ? { backgroundColor: book.cover_color } : undefined}>
           {coverUrl ? (
             <>
               <img
@@ -256,6 +256,7 @@ export function BookCard({
         <CoverImage
           src={coverUrl}
           alt={book.title}
+          color={book.cover_color}
           iconClassName={view === 'large' ? 'w-12 h-12' : 'w-8 h-8'}
         />
 

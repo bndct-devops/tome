@@ -62,7 +62,7 @@ export function SeriesStackCard({ book, count, view, focused, onOpen, travel = f
             )}
           </div>
           <div className="relative w-full h-full rounded-[6px] overflow-hidden bg-muted">
-            <CoverImage src={coverUrl} alt={seriesName} iconClassName="w-4 h-4" />
+            <CoverImage src={coverUrl} alt={seriesName} color={book.cover_color} iconClassName="w-4 h-4" />
           </div>
         </m.div>
         <m.div key="title" {...travelProps('title')} className="flex-1 min-w-0">
@@ -137,6 +137,7 @@ export function SeriesStackCard({ book, count, view, focused, onOpen, travel = f
             <CoverImage
               src={coverUrl}
               alt={seriesName}
+              color={book.cover_color}
               iconClassName={lg ? 'w-12 h-12' : 'w-8 h-8'}
             />
             {/* Volume count badge - top right */}

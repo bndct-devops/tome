@@ -170,6 +170,7 @@ interface SeriesVolume {
   title: string
   series_index: number | null
   cover_path: string | null
+  cover_color?: string | null
   updated_at: string | null
   reading_status: string | null
 }
@@ -213,11 +214,12 @@ let headerRow: { width: number; height: number } | null = null
 /** The hero cover. Opened from a card it starts with the card's thumbnail
  *  (already in the cache, so it paints at once) and the full-size image fades
  *  in over it once loaded; a direct visit shows the full image as before. */
-function HeroCover({ thumb, full, alt }: { thumb?: string | null; full: string | null; alt: string }) {
+function HeroCover({ thumb, full, alt, color }: { thumb?: string | null; full: string | null; alt: string; color?: string | null }) {
   const [readySrc, setReadySrc] = useState<string | null>(null)
-  if (!thumb) return <CoverImage src={full} alt={alt} loading="eager" iconClassName="w-12 h-12" />
+  if (!thumb) return <CoverImage src={full} alt={alt} loading="eager" color={color} iconClassName="w-12 h-12" />
   return (
     <>
+      {color && <div className="absolute inset-0" style={{ backgroundColor: color }} />}
       <img src={thumb} alt="" decoding="sync" className="absolute inset-0 h-full w-full object-cover" />
       {full && (
         <img
@@ -681,7 +683,7 @@ function BookDetailView() {
         <div className={GRID_CLS} aria-busy>
           <div className={RAIL_COVER_CLS}>
             <div className={COVER_CLS} style={{ boxShadow: 'var(--cover-bloom-hero)' }} data-hero-cover={preview.id}>
-              <HeroCover thumb={preview.cover} full={null} alt={preview.title} />
+              <HeroCover thumb={preview.cover} full={null} alt={preview.title} color={preview.coverColor} />
             </div>
           </div>
           <div className={MAIN_COL_CLS}>
@@ -920,6 +922,7 @@ function BookDetailView() {
         thumb={book.cover_path ? preview?.cover : null}
         full={book.cover_path ? `/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}` : null}
         alt={book.title}
+        color={book.cover_color ?? preview?.coverColor}
       />
       {canEdit && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
@@ -1501,7 +1504,7 @@ function BookDetailView() {
                     : v.reading_status === 'read' ? 'opacity-55 hover:opacity-100' : 'hover:opacity-90',
                 )}
                 style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
-                <CoverImage src={v.cover_path ? coverSrc(v.id, { w: 160, v: v.updated_at }) : null} alt="" iconClassName="w-5 h-5" />
+                <CoverImage src={v.cover_path ? coverSrc(v.id, { w: 160, v: v.updated_at }) : null} alt="" color={v.cover_color} iconClassName="w-5 h-5" />
               </button>
               {here ? (
                 <div className="mt-2 truncate text-[13px] font-medium text-foreground">{idx != null ? t`Vol. ${idx}` : v.title}</div>

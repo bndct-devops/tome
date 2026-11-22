@@ -216,6 +216,9 @@ def insert_book(db, meta: dict, file_path: Path, content_hash: str, fmt: str) ->
         content_hash=content_hash,
         status="active",
     )
+    if meta.get("_covers_dir"):
+        from backend.services.cover_color import refresh_cover_color
+        refresh_cover_color(book, meta["_covers_dir"])
     db.add(book)
     db.flush()
     db.add(BookFile(
@@ -318,6 +321,7 @@ def process_file(
         cover_path = extract_cover(dest, covers_dir, content_hash)
         if cover_path:
             meta["cover_path"] = cover_path
+            meta["_covers_dir"] = covers_dir
 
     try:
         insert_book(db, meta, dest, content_hash, fmt)
