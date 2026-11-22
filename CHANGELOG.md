@@ -6,6 +6,8 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+## [3.2.0] - 2026-11-22 - "Chapbook"
+
 ### Added
 - **Xteink readers: CrossInk's built-in sync (experimental).** An Xteink
   reader on CrossInk 2.0 or newer sends its reading to Tome over the
