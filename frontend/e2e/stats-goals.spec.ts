@@ -1,6 +1,7 @@
 import { test, expect, type Locator, type Page } from '@playwright/test'
 import { seed, login, apiToken, apiGet } from './helpers'
-import { LONG_SERIES, goalsAnswer } from './goals-fixtures'
+import { LONG_SERIES, goalSet, goalsAnswer } from './goals-fixtures'
+import { homePick } from '../src/lib/goalsModel'
 import { boxes, moved, forgetStats, gate, STATS_RE, GOALS_RE, GOALS_LIST_RE, HISTORY_RE } from './stats-helpers'
 
 // Reading goals against the real backend. Seed `goals`: year goals scoped to Manga
@@ -230,11 +231,16 @@ test('Home: one row of the goals that need attention; a card opens it on the Goa
 })
 
 /** Answers GET /api/goals with a made-up set (goals-fixtures.ts) around the server's own today. */
+/** The server's "today" the last routed goals answer was built around. */
+let routedToday = ''
+
 async function routeGoals(page: Page, n: 1 | 3 | 4 | 6 | 8) {
   await page.unroute(GOALS_LIST_RE)
   await page.route(GOALS_LIST_RE, async (route) => {
     if (route.request().method() !== 'GET') return route.continue()
-    const today = (await (await route.fetch()).json()).today as string
+    // E2E_GOALS_TODAY=YYYY-MM-DD builds the answer around another day, to try a weekday or a month end.
+    const today = process.env.E2E_GOALS_TODAY || ((await (await route.fetch()).json()).today as string)
+    routedToday = today
     await route.fulfill({ json: goalsAnswer(n, today) })
   })
 }
@@ -297,15 +303,17 @@ for (const vp of [{ name: 'desktop', width: 1440, height: 900, cols: 4 }, { name
       await expect(cards(page)).toHaveCount(n)
       expect(await ruleFaults(now(page).getByRole('list')), `Goals tab, ${n} goals`).toEqual([])
     }
-    // Eight goals, every kind: Home shows the two behind first (by id), then the not yet reached by the
-    // nearest end (Minutes a day ends today, Books in this month at its end; the finish-by in December waits).
+    // Eight goals, every kind: Home shows the four that homePick picks, in its order (the behind first, by
+    // id, then the not yet reached by the nearest end). Which goals are behind depends on the day of the
+    // week and of the month the suite runs on, so the cards are compared with the rule, not with fixed names.
     await routeGoals(page, 8)
     await page.goto('/')
     const home = page.locator('[data-box="home-goals"]')
     await expect(home.getByRole('listitem')).toHaveCount(4)
     const labels = await home.getByRole('listitem').evaluateAll((els) => els.map((e) => e.querySelector('[class*="text-muted-foreground"]')?.textContent))
-    expect(labels.slice(0, 2)).toEqual([`Books in ${year} · Light Novels`, 'Reading days a week'])
-    expect(labels.slice(2)).toEqual(['Minutes a day', expect.stringMatching(/^Books in \w+$/)])
+    // A finish-by card's small line is "Finish by <date>"; every other card's is the goal's name.
+    const picked = homePick(goalSet(8, routedToday) as { id: number; status: string; period_end: string; kind: string; name: string }[])
+    picked.forEach((g, i) => expect(labels[i], `Home card ${i + 1} on ${routedToday}`).toContain(g.kind === 'finish_by' ? 'Finish by' : g.name))
     await expect(home.getByRole('link', { name: 'See all 8 goals' })).toHaveAttribute('href', '/stats?tab=goals')
     // A long series title takes two lines before it is cut. The cards of its row start their status
     // lines level, and each card's sub line follows its own status with no gap (the wrapped title's
