@@ -51,6 +51,7 @@ import { PageBody, PageHeader, SectionTitle, Pill, Select, Input, FormLabel, INP
 // Library / Series tab icons, kept apart from the shared import above.
 import { ArrowLeft, Eye, Upload } from 'lucide-react'
 import { coverSrc } from '@/lib/covers'
+import { openBookWithCover, previewState } from '@/lib/coverTransition'
 import { preloadImages } from '@/lib/preload'
 
 type SortField = 'title' | 'author' | 'year' | 'added_at' | 'rating' | 'word_count'
@@ -220,6 +221,16 @@ type StatusMap = Record<number, { status: ReadingStatus; progress_pct: number | 
 // The library list as it was when the page was last left, so coming back
 // (from a book, Stats, anywhere) shows it at once and where it was scrolled
 // to, then refreshes it quietly. One entry: the list for one set of filters.
+// The filter panel and the selection bar unfold under the header and fold
+// away; the negative margin takes back the column's gap while folded. Clipped
+// only while moving, so menus inside can hang out once it is open.
+const UNFOLD = {
+  initial: { height: 0, opacity: 0, marginTop: -16, overflow: 'hidden' },
+  animate: { height: 'auto', opacity: 1, marginTop: 0, transitionEnd: { overflow: 'visible' } },
+  exit: { height: 0, opacity: 0, marginTop: -16, overflow: 'hidden' },
+  transition: { duration: 0.2, ease: [0.2, 0.8, 0.2, 1] },
+} as const
+
 let listCache: {
   key: string
   books: Book[]
@@ -254,6 +265,52 @@ export function DashboardPage() {
     (localStorage.getItem(ORDER_KEY) as SortOrder | null) ?? 'asc')
 
   function persistView(v: ViewPref) { setView(v); localStorage.setItem(VIEW_KEY, v) }
+
+  // The grid/list switch: each card keeps its box, cover and title travel to
+  // their place in the other layout (BookCard). `travelEpoch` tells covers and
+  // titles to measure for a switch only; the first book on screen keeps its
+  // place in the scroll.
+  //
+  // Measuring every loaded card stalls a long list (hundreds of cards), so a
+  // switch measures and animates only the cards around the screen: the others
+  // keep their last layout dependency (the tick of the render before the
+  // switch) and snap. The hold ends with the switch's animation.
+  const [travelEpoch, setTravelEpoch] = useState(0)
+  // True from a switch until its animation is over; read by the next render
+  // only, so ending it costs no render (a render would re-measure every card).
+  const viewSwitching = useRef(false)
+  const switchAnchor = useRef<{ id: string; top: number } | null>(null)
+  const switchTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  const renderTick = useRef(0)
+  const renderNo = ++renderTick.current
+  // Each held card keeps the dependency it carries on screen (its data-dep).
+  const hold = useRef<{ deps: Map<string, [string, number]>; from: number; to: number; ended: boolean } | null>(null)
+  function switchView(v: ViewPref) {
+    if (v === view) return
+    const grid = booksGridRef.current
+    const main = grid?.closest('main')
+    let index = 0
+    const deps = new Map<string, [string, number]>()
+    if (grid && main) {
+      const top = main.getBoundingClientRect().top
+      const items = Array.from(grid.children) as HTMLElement[]
+      index = Math.max(0, items.findIndex(el => el.getBoundingClientRect().bottom > top + 1))
+      const first = items[index]
+      switchAnchor.current = first?.dataset.item ? { id: first.dataset.item, top: first.getBoundingClientRect().top - top } : null
+      for (const el of items) if (el.dataset.item && el.dataset.dep) deps.set(el.dataset.item, [el.dataset.dep, Number(el.dataset.epoch)])
+    }
+    hold.current = { deps, from: index - 6, to: index + 45, ended: false }
+    setTravelEpoch(e => e + 1)
+    viewSwitching.current = true
+    clearTimeout(switchTimer.current)
+    switchTimer.current = setTimeout(() => {
+      viewSwitching.current = false
+      if (hold.current) hold.current.ended = true
+      booksGridRef.current?.removeAttribute('data-view-switch')
+    }, 700)
+    persistView(v)
+  }
+  useEffect(() => () => clearTimeout(switchTimer.current), [])
   function persistGridSize(s: number) { setGridSize(s); localStorage.setItem(GRID_SIZE_KEY, String(s)) }
   function persistSort(s: SortField) { setSort(s); localStorage.setItem(SORT_KEY, s) }
   function persistOrder(o: SortOrder) { setOrder(o); localStorage.setItem(ORDER_KEY, o) }
@@ -830,6 +887,9 @@ export function DashboardPage() {
   const [filterOpen, setFilterOpen] = useState(false)
   // Quick look opened from a cover in the Library grid or a series' volumes.
   const [quickLookId, setQuickLookId] = useState<number | null>(null)
+  // The cover box it was opened on: the quick look grows out of it and back.
+  const [quickLookFrom, setQuickLookFrom] = useState<{ origin?: DOMRect; cover?: string | null }>({})
+  const openQuickLook = useCallback((id: number, origin?: DOMRect, cover?: string | null) => { setQuickLookFrom({ origin, cover }); setQuickLookId(id) }, [])
   const closeQuickLook = useCallback(() => setQuickLookId(null), [])
 
   const { toast } = useToast()
@@ -956,6 +1016,16 @@ export function DashboardPage() {
       loadBooks(true, true)
     } else loadBooks()
   }, [loadBooks])
+
+  useLayoutEffect(() => {
+    const anchor = switchAnchor.current
+    switchAnchor.current = null
+    const grid = booksGridRef.current
+    const main = grid?.closest('main')
+    if (!anchor || !grid || !main) return
+    const el = grid.querySelector<HTMLElement>(`[data-item="${anchor.id}"]`)
+    if (el) main.scrollTop = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop - anchor.top
+  }, [view])
 
   // Keep the list (and, on leaving, the scroll position) for the way back.
   useEffect(() => {
@@ -1173,8 +1243,8 @@ export function DashboardPage() {
   if (saveableParams.content_type !== 'chapter') delete saveableParams.content_type
 
   // Grid columns flow from the spring-smoothed cover size; card typography
-  // follows the slider value. The grid/list switch swaps in place: the old
-  // view-fade faded the new view up from nothing inside the painted panel.
+  // follows the slider value. On the grid/list switch the cards keep their
+  // identity: covers and titles travel, the rest of a row lands in place.
   // List rows sit on hairlines, no boxes.
   const cardView: ViewMode = view === 'list' ? 'list' : gridSize < 150 ? 'small' : 'large'
   const gridClass = view === 'list'
@@ -1190,6 +1260,13 @@ export function DashboardPage() {
     ? undefined
     // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS grid template
     : { gridTemplateColumns: `repeat(auto-fill, minmax(min(${gridSize}px, 42vw), 1fr))` }
+
+  // Opening the filter panel or the selection bar unfolds them over 200 ms and
+  // the cards are pushed along by that, so those renders start no glide.
+  const committedLayout = useRef({ filterOpen, selectionMode, dep: '' })
+  const quiet = filterOpen !== committedLayout.current.filterOpen || selectionMode !== committedLayout.current.selectionMode
+  const listDep = quiet ? committedLayout.current.dep : String(renderNo)
+  useLayoutEffect(() => { committedLayout.current = { filterOpen, selectionMode, dep: listDep } })
 
   // Active library name for heading
   const activeLibraryName = filterLibrary ? libraries.find(l => l.id === filterLibrary)?.name : null
@@ -1275,7 +1352,7 @@ export function DashboardPage() {
       {/* ── Body: the dashboard tabs. The frame's panel scrolls; this wrapper
             only carries the page padding (the shared PageBody comes with the
             per-tab rebuilds). ────────────────────────────────────────────── */}
-        <div ref={bodyRef}>
+        <div ref={bodyRef} data-dashboard="">
           {/* Every tab brings its own PageBody + PageHeader now; the library
               name heading only had a job before the Library tab had a header. */}
           {tab === 'home' && activeLibraryName && (
@@ -1530,11 +1607,19 @@ export function DashboardPage() {
                         {section.volumes.map(vol => (
                           <div
                             key={vol.id}
-                            onClick={() => navigate(`/books/${vol.id}`)}
+                            onClick={e => {
+                              const cover = e.currentTarget.querySelector<HTMLElement>('[data-cover-id]')
+                              const state = previewState({
+                                id: vol.id, title: vol.title, author: seriesDetail.author ?? null, series: seriesDetail.name,
+                                series_index: vol.series_index, cover: vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null,
+                              })
+                              openBookWithCover(cover, vol.id, () => navigate(`/books/${vol.id}`, { state }))
+                            }}
                             title={vol.title}
                             className="group relative cursor-pointer touch-feedback"
                           >
                             <div
+                              data-cover-id={vol.id}
                               className="relative aspect-[2/3] w-full rounded-[8px] overflow-hidden bg-muted transition-transform duration-150 group-hover:-translate-y-0.5"
                               style={{ boxShadow: 'var(--cover-bloom-fan)' }}
                             >
@@ -1556,7 +1641,7 @@ export function DashboardPage() {
                               {/* Quick look - top-right corner on hover; the status dot steps aside */}
                               <button
                                 type="button"
-                                onClick={e => { e.stopPropagation(); setQuickLookId(vol.id) }}
+                                onClick={e => { e.stopPropagation(); openQuickLook(vol.id, e.currentTarget.parentElement?.getBoundingClientRect(), vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null) }}
                                 className="absolute top-1 right-1 z-10 w-7 h-7 rounded-full bg-background/75 backdrop-blur-sm text-foreground hover:bg-background flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 title={t`Quick look`}
                                 aria-label={t`Quick look`}
@@ -1832,7 +1917,7 @@ export function DashboardPage() {
                       key={mode}
                       icon
                       variant={view === mode ? 'secondary' : 'quiet'}
-                      onClick={() => persistView(mode)}
+                      onClick={() => switchView(mode)}
                       title={title}
                       aria-label={title}
                       aria-pressed={view === mode}
@@ -1872,6 +1957,7 @@ export function DashboardPage() {
           )}
 
           {/* ── Filter panel ──────────────────────────────────────────────── */}
+          <AnimatePresence initial={false}>
           {filterOpen && (() => {
             /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
             const opt = (active: boolean) => cn(
@@ -1881,6 +1967,7 @@ export function DashboardPage() {
             const rowLabel = 'text-[13px] text-muted-foreground w-20 shrink-0'
             /* eslint-enable lingui/no-unlocalized-strings */
             return (
+            <m.div key="filters" {...UNFOLD}>
             <div className="rounded-[var(--radius-panel)] bg-card p-5 flex flex-col gap-4">
               <div className="flex items-center justify-between sm:hidden">
                 <span className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground"><Trans>Filters</Trans></span>
@@ -2039,11 +2126,15 @@ export function DashboardPage() {
                 </Select>
               </div>
             </div>
+            </m.div>
             )
           })()}
+          </AnimatePresence>
 
           {/* ── Bulk action bar ──────────────────────────────────────────── */}
+          <AnimatePresence initial={false}>
           {selectionMode && (
+            <m.div key="bulk" {...UNFOLD}>
             <div className="flex flex-wrap items-center gap-2 py-2.5 border-y border-border/70">
               <span className="text-[15px] font-semibold text-foreground tabular-nums mr-auto">{(() => { const n = selected.size; return t`${n} selected` })()}</span>
               <Pill onClick={bulkDownload} disabled={bulkPending || selected.size === 0}>
@@ -2121,7 +2212,9 @@ export function DashboardPage() {
                 <Trans>Done</Trans>
               </Pill>
             </div>
+            </m.div>
           )}
+          </AnimatePresence>
           </div>
 
           {/* ── Series matching the search ───────────────────────────────── */}
@@ -2219,20 +2312,34 @@ export function DashboardPage() {
               )}
             </div>
           ) : (
-            <div key={view} ref={booksGridRef} className={cn(gridClass, refreshing && 'opacity-50 transition-opacity duration-150')} style={gridStyle}>
+            <div ref={booksGridRef} data-view-switch={viewSwitching.current ? view : undefined} className={cn(gridClass, refreshing && 'opacity-50 transition-opacity duration-150')} style={gridStyle}>
               {/* Motion layout animations: `layout` glides the survivors on a
                   reflow (cover-size slider, filter changes). Arriving cards
                   appear in place, never fading up from nothing inside the
                   painted panel; leaving cards fade out. */}
               <AnimatePresence mode="popLayout" initial={false}>
-              {books.map((book, i) => (
+              {books.map((book, i) => {
+                const fz = hold.current
+                const itemKey = `${groupActive && book.series && book.status !== 'no_file' ? 'stack-' : ''}${book.id}`
+                const heldDep = fz && !fz.ended && (i < fz.from || i > fz.to) ? fz.deps.get(itemKey) : undefined
+                const held = heldDep !== undefined
+                const dep = heldDep?.[0] ?? listDep
+                const epoch = heldDep?.[1] ?? travelEpoch
+                return (
                 <m.div
-                  key={`${cardView}-${groupActive && book.series && book.status !== 'no_file' ? 'stack-' : ''}${book.id}`}
-                  layout
+                  key={itemKey}
+                  data-item={itemKey}
+                  // Position only: a box never stretches (that distorted the
+                  // text); the cover inside scales on its own (BookCard).
+                  layout="position"
+                  layoutDependency={dep}
+                  data-dep={dep}
+                  data-epoch={epoch}
+                  data-held={held ? '' : undefined}
                   initial={false}
                   animate={{ opacity: 1, scale: 1 }}
                   exit={{ opacity: 0, scale: 0.92 }}
-                  transition={{ layout: { duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }, duration: 0.15 }}
+                  transition={{ layout: { duration: viewSwitching.current ? 0.42 : 0.24, ease: [0.2, 0.8, 0.2, 1] }, duration: 0.15 }}
                 >
                 {groupActive && book.series && book.status !== 'no_file' ? (
                   <SeriesStackCard
@@ -2242,6 +2349,8 @@ export function DashboardPage() {
                     index={i}
                     focused={focusedIndex === i}
                     onOpen={() => navigate(`/?tab=series&series_detail=${encodeURIComponent(book.series!)}`)}
+                    travel
+                    travelEpoch={epoch}
                   />
                 ) : (
                 <BookCard
@@ -2254,14 +2363,17 @@ export function DashboardPage() {
                   onTagClick={tag => setFilter('tag', tag)}
                   onSeriesClick={series => setFilter('series', series)}
                   onAuthorClick={author => setFilter('author', author)}
-                  onQuickLook={() => setQuickLookId(book.id)}
+                  onQuickLook={origin => openQuickLook(book.id, origin, book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null)}
+                  travel
+                  travelEpoch={epoch}
                   readingStatus={readingStatuses[book.id]?.status}
                   progressPct={readingStatuses[book.id]?.progress_pct}
                   rating={readingStatuses[book.id]?.rating}
                 />
                 )}
                 </m.div>
-              ))}
+                )
+              })}
               </AnimatePresence>
             </div>
           )}
@@ -2295,7 +2407,9 @@ export function DashboardPage() {
       />
 
       {/* ── Quick look (Library grid, series volumes) ───────────────────────── */}
-      {quickLookId != null && <QuickLook bookId={quickLookId} onClose={closeQuickLook} />}
+      <AnimatePresence>
+        {quickLookId != null && <QuickLook key={quickLookId} bookId={quickLookId} origin={quickLookFrom.origin} cover={quickLookFrom.cover} onClose={closeQuickLook} />}
+      </AnimatePresence>
 
       {/* ── Bulk metadata modal ─────────────────────────────────────────────── */}
       <ModalShell

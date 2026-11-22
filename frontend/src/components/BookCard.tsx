@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
+import { m } from 'motion/react'
 import { BookOpen, Eye, Star } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Trans, useLingui } from '@lingui/react/macro'
@@ -8,7 +9,8 @@ import { cn, progressPercent } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
 import { DevicePills } from '@/components/DevicePills'
 import { coverSrc } from '@/lib/covers'
-import { coverRing } from '@/lib/tilt'
+import { coverRing, useTilt } from '@/lib/tilt'
+import { isPlainClick, openBookWithCover, previewState } from '@/lib/coverTransition'
 
 /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map, not copy */
 const COLOR_CLASSES: Record<string, string> = {
@@ -41,10 +43,21 @@ interface BookCardProps {
   // Home rows are usually all one format - the badge is noise there, so those
   // callers turn it off. Library grids keep it (that's where formats differ).
   showFormatBadge?: boolean
-  /** Opens the quick look for this book. Grid view only: a small pill in the
-   *  cover's corner on hover or focus. The card click still opens the page. */
-  onQuickLook?: () => void
+  /** Opens the quick look for this book, with the cover's box to grow from.
+   *  Grid view only: a small pill in the cover's corner on hover or focus. The
+   *  card click still opens the page. */
+  onQuickLook?: (origin?: DOMRect) => void
+  /** The Library grid/list switch: the cover and the title block are the same
+   *  elements (keyed) in the grid card and the list row, and travel to their
+   *  place in the other layout. */
+  travel?: boolean
+  /** Changes when the cover and title should measure for that hand-over (the
+   *  view switch); between switches they skip measuring. */
+  travelEpoch?: number
 }
+
+// The hand-over of cover and title between the grid card and the list row.
+const TRAVEL = { duration: 0.42, ease: [0.2, 0.8, 0.2, 1] as const }
 
 /** Compact read-only star rating for cards. Renders nothing when unrated. */
 function RatingStars({ rating, size = 11 }: { rating?: number | null; size?: number }) {
@@ -67,11 +80,16 @@ export function BookCard({
   book, view, selected, focused, onSelect,
   onTagClick: _onTagClick, onSeriesClick, onAuthorClick,
   readingStatus, progressPct, rating, showFormatBadge = true, onQuickLook,
+  travel = false, travelEpoch,
 }: BookCardProps) {
   const { t } = useLingui()
   const navigate = useNavigate()
   const bookTypes = useBookTypes()
   const cardRef = useRef<HTMLDivElement | HTMLAnchorElement>(null)
+  // The visible cover box: the cover transition and the quick look start from it.
+  const coverRef = useRef<HTMLDivElement | null>(null)
+  const tiltEnabled = !onSelect
+  const { wrapperProps: tiltHandlers, tiltProps } = useTilt(tiltEnabled, 4, { lift: 3, scale: 1, glare: true })
 
   useEffect(() => {
     if (focused && cardRef.current) {
@@ -106,6 +124,22 @@ export function BookCard({
     readingStatus === 'read' ? 'bg-primary'
     : 'bg-primary/60'
 
+  const travelProps = (part: 'cover' | 'title') => travel
+    ? { layout: part === 'title' ? 'position' as const : true, layoutDependency: travelEpoch, transition: TRAVEL, 'data-travel': '' }
+    : {}
+
+  // A plain click opens the page with the cover transition and hands the page
+  // what the card knows, so its hero paints at once.
+  function openPage(e: React.MouseEvent) {
+    if (!isPlainClick(e)) return
+    e.preventDefault()
+    const state = previewState({
+      id: book.id, title: book.title, author: book.author, series: book.series,
+      series_index: book.series_index, cover: coverUrl,
+    })
+    openBookWithCover(coverRef.current, book.id, () => navigate(`/books/${book.id}`, { state }))
+  }
+
   // ── List view ────────────────────────────────────────────────────────────
   if (view === 'list') {
     const inner = (
@@ -122,7 +156,8 @@ export function BookCard({
             </div>
           </div>
         ) : null}
-        <div className="w-9 h-12 rounded overflow-hidden bg-muted shrink-0">
+        <m.div key="cover" {...travelProps('cover')} className="w-9 h-12 shrink-0">
+        <div ref={coverRef} data-cover-id={book.id} className="w-full h-full rounded overflow-hidden bg-muted">
           {coverUrl ? (
             <>
               <img
@@ -142,7 +177,8 @@ export function BookCard({
             </div>
           )}
         </div>
-        <div className="flex-1 min-w-0">
+        </m.div>
+        <m.div key="title" {...travelProps('title')} className="flex-1 min-w-0">
           <p className="text-[15px] font-medium text-foreground truncate group-hover:text-primary transition-colors">
             {book.title}
           </p>
@@ -162,9 +198,9 @@ export function BookCard({
             )}
             <DevicePills bookId={book.id} size="xs" />
           </div>
-        </div>
+        </m.div>
         {/* Series stays in list view - earns its space there */}
-        <div className="hidden sm:block w-40 shrink-0">
+        <div className="library-extra hidden sm:block w-40 shrink-0">
           {book.series && (
             <button
               className="text-[13px] text-primary/70 hover:text-primary transition-colors truncate w-full text-left py-1.5 -my-1.5"
@@ -174,20 +210,20 @@ export function BookCard({
             </button>
           )}
         </div>
-        <div className="hidden md:block w-12 shrink-0 text-right">
+        <div className="library-extra hidden md:block w-12 shrink-0 text-right">
           {book.year && <span className="text-[13px] text-muted-foreground">{book.year}</span>}
         </div>
         {rating ? (
-          <div className="hidden sm:flex shrink-0 justify-end">
+          <div className="library-extra hidden sm:flex shrink-0 justify-end">
             <RatingStars rating={rating} size={12} />
           </div>
         ) : null}
         {noFile ? (
-          <span className="shrink-0 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+          <span className="library-extra shrink-0 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             <Trans>No file</Trans>
           </span>
         ) : showFormatBadge && book.files.length > 0 && (
-          <span className="shrink-0 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+          <span className="library-extra shrink-0 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             {book.files[0].format}
           </span>
         )}
@@ -202,55 +238,20 @@ export function BookCard({
     )
 
     if (onSelect) return <div ref={cardRef as React.RefObject<HTMLDivElement>} className={cls} onClick={onSelect}>{inner}</div>
-    return <Link ref={cardRef as React.RefObject<HTMLAnchorElement>} to={`/books/${book.id}`} className={cls}>{inner}</Link>
+    return <Link ref={cardRef as React.RefObject<HTMLAnchorElement>} to={`/books/${book.id}`} onClick={openPage} className={cls}>{inner}</Link>
   }
 
   // ── Cover grid (large / small) ────────────────────────────────────────────
-  const coverDivRef = useRef<HTMLDivElement>(null)
-  const [isHovering, setIsHovering] = useState(false)
-  const [mousePos, setMousePos] = useState({ x: 50, y: 50 })
-
-  const tiltEnabled = !onSelect
-
-  function handleMouseMove(e: React.MouseEvent<HTMLElement>) {
-    if (!tiltEnabled) return
-    const rect = e.currentTarget.getBoundingClientRect()
-    const x = (e.clientX - rect.left) / rect.width  // 0 to 1
-    const y = (e.clientY - rect.top) / rect.height   // 0 to 1
-    const xRatio = x * 2 - 1  // -1 to 1
-    const yRatio = y * 2 - 1  // -1 to 1
-    setMousePos({ x: x * 100, y: y * 100 })
-    if (coverDivRef.current) {
-      // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS transform
-      coverDivRef.current.style.transform = `rotateY(${xRatio * 4}deg) rotateX(${yRatio * -4}deg) translateY(-3px)`
-    }
-  }
-
-  function handleMouseLeave() {
-    if (!tiltEnabled) return
-    setIsHovering(false)
-    setMousePos({ x: 50, y: 50 })
-    if (coverDivRef.current) {
-      coverDivRef.current.style.transform = 'rotateY(0deg) rotateX(0deg) translateY(0px)'
-    }
-  }
-
-  function handleMouseEnter() {
-    if (!tiltEnabled) return
-    setIsHovering(true)
-  }
-
   const gridCls = cn('group flex flex-col cursor-pointer touch-feedback', onSelect && 'select-none')
   const gridContent = (
     <>
-      {/* Cover */}
+      {/* Cover: the outer box travels on the grid/list switch, the inner one tilts */}
+      <m.div key="cover" {...travelProps('cover')} style={{ perspective: '600px' }}>
       <div
-        ref={coverDivRef}
+        ref={node => { coverRef.current = node; tiltProps.ref(node) }}
+        data-cover-id={book.id}
         className="aspect-[2/3] bg-muted relative overflow-hidden rounded-[8px]"
-        style={{
-          boxShadow: coverRing(!!selected, !!focused),
-          transition: isHovering ? 'transform 0.12s ease-out' : 'transform 0.3s ease-out',
-        }}
+        style={{ boxShadow: coverRing(!!selected, !!focused), transition: 'transform 200ms ease-out' }}
       >
         <CoverImage
           src={coverUrl}
@@ -262,7 +263,7 @@ export function BookCard({
         {tiltEnabled && (
           <div
             className="absolute inset-0 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-            style={{ background: `radial-gradient(circle at ${mousePos.x}% ${mousePos.y}%, rgba(255,255,255,0.12) 0%, transparent 60%)` }}
+            style={{ background: 'radial-gradient(circle at var(--glare-x, 50%) var(--glare-y, 50%), rgba(255,255,255,0.12) 0%, transparent 60%)' }}
           />
         )}
 
@@ -309,7 +310,7 @@ export function BookCard({
             )}
             title={t`Quick look`}
             aria-label={t`Quick look`}
-            onClick={e => stop(e, onQuickLook)}
+            onClick={e => stop(e, () => onQuickLook(coverRef.current?.getBoundingClientRect()))}
           >
             <Eye className="w-4 h-4" />
           </button>
@@ -343,9 +344,10 @@ export function BookCard({
           </div>
         )}
       </div>
+      </m.div>
 
       {/* Info - bare below the cover, no border/card wrapper */}
-      <div className="flex flex-col gap-0.5 pt-2.5 px-0.5">
+      <m.div key="title" {...travelProps('title')} className="flex flex-col gap-0.5 pt-2.5 px-0.5">
         <p className="text-[14px] font-medium text-foreground line-clamp-2 leading-snug transition-colors duration-150 group-hover:text-primary">
           {book.title}
         </p>
@@ -359,7 +361,7 @@ export function BookCard({
         )}
         {rating ? <RatingStars rating={rating} size={view === 'large' ? 12 : 10} /> : null}
         <DevicePills bookId={book.id} size="xs" className="mt-0.5" />
-      </div>
+      </m.div>
     </>
   )
 
@@ -370,11 +372,7 @@ export function BookCard({
       <div
         ref={cardRef as React.RefObject<HTMLDivElement>}
         className={gridCls}
-        style={{ perspective: '600px' }}
         onClick={onSelect}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        onMouseEnter={handleMouseEnter}
       >
         {gridContent}
       </div>
@@ -385,10 +383,9 @@ export function BookCard({
       ref={cardRef as React.RefObject<HTMLAnchorElement>}
       to={`/books/${book.id}`}
       className={cn(gridCls, 'rounded-[8px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background')}
-      style={{ perspective: '600px' }}
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
-      onMouseEnter={handleMouseEnter}
+      onClick={openPage}
+      onMouseMove={tiltHandlers.onMouseMove}
+      onMouseLeave={tiltHandlers.onMouseLeave}
     >
       {gridContent}
     </Link>

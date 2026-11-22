@@ -6,6 +6,34 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Libraries and shelves can be reordered in the sidebar.** Drag a row to a
+  new place and the others step aside; on a touch screen, drag by the grip at
+  the end of the row. Libraries can be reordered by anyone who may edit all
+  of the libraries in their list, shelves by their owner.
+
+### Changed
+- **The interface moves with you.** Switching the library between grid and
+  list sends each cover and title to its new place. Opening a book grows the
+  cover you clicked into the cover of the book page, and Back sends it home
+  (in browsers that support view transitions). The book page shows its cover
+  and title at once when opened from a list. Quick look grows out of its
+  cover and shrinks back into it.
+- Changing the range on Stats no longer restarts the page: figures count from
+  the old value to the new one, bars move to their new size, a day keeps its
+  bar where two ranges share it, and ranked rows slide to their new rank.
+- Tabs, range pills, the Settings and Admin section lists and the sidebar
+  have one indicator that glides to the option you pick. On a book's page the
+  status pills do the same and the rating stars fill in turn.
+- In the calendar the selection outline glides from day to day, the month
+  slides further in the direction you step, and the day card's figures count
+  to their new values.
+- The filter panel, the selection bar, the command palette and the sort menu
+  open and close with a short motion.
+- More of the interface now stays still when the system asks for reduced
+  motion: press feedback, the cover tilt, the sidebar icon wiggle and the
+  loading shimmer.
+
 ## [3.2.0] - 2026-11-22 - "Chapbook"
 
 ### Added

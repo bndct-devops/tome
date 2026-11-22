@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { AnimatePresence } from 'motion/react'
 import {
   Search, StickyNote, Loader2,
   CalendarHeart, Copy, X, ChevronDown, Info, ChevronsDownUp, ChevronsUpDown, Trash2, Pencil,
@@ -245,6 +246,8 @@ export function HighlightsPage() {
   const [onlyNotes, setOnlyNotes] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const [peek, setPeek] = useState<number | null>(null)
+  // The cover the quick look grows out of (and shrinks back into).
+  const [peekFrom, setPeekFrom] = useState<{ origin?: DOMRect; cover?: string | null }>({})
   const [loadedOnce, setLoadedOnce] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -557,7 +560,7 @@ export function HighlightsPage() {
                   <div className="flex items-center gap-4">
                     <button
                       type="button"
-                      onClick={() => setPeek(g.book_id)}
+                      onClick={e => { setPeekFrom({ origin: e.currentTarget.getBoundingClientRect(), cover: g.cover }); setPeek(g.book_id) }}
                       aria-label={(() => { const title = g.title; return t`Quick look at ${title}` })()}
                       className="relative w-11 h-16 rounded-[8px] overflow-hidden bg-muted shrink-0"
                       style={{ boxShadow: 'var(--cover-bloom-fan)' }}
@@ -626,7 +629,9 @@ export function HighlightsPage() {
           </div>
         )}
       </PageBody>
-      {peek != null && <QuickLook bookId={peek} onClose={() => setPeek(null)} />}
+      <AnimatePresence>
+        {peek != null && <QuickLook key={peek} bookId={peek} origin={peekFrom.origin} cover={peekFrom.cover} onClose={() => setPeek(null)} />}
+      </AnimatePresence>
     </AppShell>
   )
 }

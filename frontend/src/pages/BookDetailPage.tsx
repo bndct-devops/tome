@@ -1,5 +1,6 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
+import { AnimatePresence } from 'motion/react'
 import {
   Camera, Download, Edit2, X, Trash2, Loader2, Sparkles, Library as LibraryIcon, Check,
   ChevronLeft, ChevronRight, StickyNote, ChevronDown, Play, Link2, RefreshCw,
@@ -23,10 +24,11 @@ import { CoverImage } from '@/components/CoverImage'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { AppShell } from '@/components/AppShell'
 import { QuickLook } from '@/components/QuickLook'
-import { PageBody, SectionTitle, Stat, StatStrip, Field, Pill, Input, Select, Textarea, FormLabel, INPUT_CLASS } from '@/components/page'
+import { Glide, GlideGroup, PageBody, SectionTitle, Stat, StatStrip, Field, Pill, Input, Select, Textarea, FormLabel, INPUT_CLASS } from '@/components/page'
 import { ModalShell, isModalOpen } from '@/components/ModalShell'
 import { NamedIcon } from '@/lib/icons'
 import { coverSrc } from '@/lib/covers'
+import { readPreview } from '@/lib/coverTransition'
 import { SessionLog, SessionLogHint } from '@/components/stats/SessionLog'
 import { InfoHint } from '@/components/InfoHint'
 import { api } from '@/lib/api'
@@ -190,6 +192,47 @@ async function downloadFile(book: BookDetail, f: BookFile) {
   URL.revokeObjectURL(url)
 }
 
+// The page frame, shared by the page and its preview (below) so the hero cover
+// sits in the same place in both and React keeps the same element.
+const HEADER_CLS = 'flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-2'
+const GRID_CLS = 'grid items-start gap-10 lg:grid-cols-[220px_minmax(0,1fr)] lg:grid-rows-[auto_1fr]'
+const RAIL_COVER_CLS = 'mx-auto w-[200px] sm:w-[220px] lg:mx-0 lg:col-start-1 lg:row-start-1'
+const COVER_CLS = 'relative aspect-[2/3] overflow-hidden rounded-[12px] bg-muted'
+const MAIN_COL_CLS = 'order-2 flex min-w-0 flex-col gap-7 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2'
+const HERO_CLS = 'min-w-0 max-w-[680px]'
+// min-h-7: the previous/next buttons arrive later and must not grow the row.
+const CRUMBS_CLS = 'flex min-h-7 min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground'
+const SERIES_LINE_CLS = 'block text-left text-[12px] font-bold uppercase tracking-[0.1em] text-primary hover:underline underline-offset-4'
+const TITLE_CLS = 'mt-2 font-display text-[30px] sm:text-[34px] font-bold leading-[1.05] text-foreground'
+const AUTHOR_CLS = 'mt-1.5 block text-left text-[16px] text-muted-foreground hover:text-primary transition-colors'
+
+// The header row's height at a viewport width, as the last page drew it: its
+// actions wrap at narrow widths, so the preview reserves what the page used.
+let headerRow: { width: number; height: number } | null = null
+
+/** The hero cover. Opened from a card it starts with the card's thumbnail
+ *  (already in the cache, so it paints at once) and the full-size image fades
+ *  in over it once loaded; a direct visit shows the full image as before. */
+function HeroCover({ thumb, full, alt }: { thumb?: string | null; full: string | null; alt: string }) {
+  const [readySrc, setReadySrc] = useState<string | null>(null)
+  if (!thumb) return <CoverImage src={full} alt={alt} loading="eager" iconClassName="w-12 h-12" />
+  return (
+    <>
+      <img src={thumb} alt="" decoding="sync" className="absolute inset-0 h-full w-full object-cover" />
+      {full && (
+        <img
+          key={full}
+          src={full}
+          alt={alt}
+          ref={el => { if (el?.complete && el.naturalWidth) setReadySrc(full) }}
+          onLoad={() => setReadySrc(full)}
+          className={cn('absolute inset-0 h-full w-full object-cover transition-opacity duration-300', readySrc === full ? 'opacity-100' : 'opacity-0')}
+        />
+      )}
+    </>
+  )
+}
+
 // Keyed on the book id: moving to the previous/next volume mounts a fresh page,
 // so no state from the old book survives and a slow or failed request for the
 // old book can no longer land on the new one (its setState hits an unmounted
@@ -203,6 +246,15 @@ function BookDetailView() {
   const { t, i18n } = useLingui()
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+  const location = useLocation()
+  // What the card that opened this page knew: the hero paints from it at once.
+  const preview = readPreview(location.state, Number(id))
+  const headerRef = useRef<HTMLDivElement>(null)
+  const [heldHeader] = useState(() => (headerRow?.width === window.innerWidth ? headerRow.height : null))
+  useLayoutEffect(() => {
+    const el = headerRef.current
+    if (el) headerRow = { width: window.innerWidth, height: el.offsetHeight }
+  })
   const { user } = useAuth()
   const { toast } = useToast()
   const [book, setBook] = useState<BookDetail | null>(null)
@@ -231,6 +283,8 @@ function BookDetailView() {
   const [progressAnimated, setProgressAnimated] = useState(false)
   const [statusSaving, setStatusSaving] = useState(false)
   const [rating, setRating] = useState<number | null>(null)
+  // The stars' fill-in runs only once the pointer is on them, not on load.
+  const [ratingSettled, setRatingSettled] = useState(true)
   const [review, setReview] = useState('')       // saved review text
   const [reviewDraft, setReviewDraft] = useState('')  // in-progress edit
   const [editingReview, setEditingReview] = useState(false)
@@ -263,6 +317,7 @@ function BookDetailView() {
   const downloadMenuRef = useRef<HTMLDivElement>(null)
   const [seriesVolumes, setSeriesVolumes] = useState<SeriesVolume[]>([])
   const [quickLookId, setQuickLookId] = useState<number | null>(null)
+  const [quickLookFrom, setQuickLookFrom] = useState<{ origin?: DOMRect; cover?: string | null }>({})
   const [facets, setFacets] = useState<Facets>({ authors: [], series: [], tags: [], formats: [] })
   const [draftTags, setDraftTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
@@ -447,11 +502,12 @@ function BookDetailView() {
     }
   }
 
+  // The bar keeps its width and moves to the new one (progressAnimated stays
+  // set); only a bar that was not shown yet grows from zero.
   function applyStatus(s: BookStatus) {
     setBookStatus(s.status)
     setProgressPct(s.progress_pct)
     setCfi(s.cfi ?? null)
-    setProgressAnimated(false)
   }
 
   async function restoreStatus(prev: { status: ReadingStatus; progress_pct: number | null; cfi: string | null }) {
@@ -477,11 +533,13 @@ function BookDetailView() {
     if (!id || statusSaving || s === bookStatus) return
     const prev = { status: bookStatus, progress_pct: progressPct, cfi }
     setStatusSaving(true)
+    setBookStatus(s)
     try {
       const updated = await api.put<BookStatus>(`/books/${id}/status`, { status: s })
       applyStatus(updated)
       toast.info(STATUS_LABEL[s], { action: { label: t`Undo`, onClick: () => restoreStatus(prev) } })
     } catch {
+      setBookStatus(prev.status)
       toast.error(t`Failed to update reading status`)
     } finally {
       setStatusSaving(false)
@@ -612,6 +670,39 @@ function BookDetailView() {
     setDraft(d => ({ ...d, [key]: value || null }))
   }
 
+  if (loading && preview) return (
+    <AppShell>
+      <PageBody width="wide">
+        <div className={cn(HEADER_CLS, 'content-start')} style={heldHeader ? { minHeight: heldHeader } : undefined}>
+          <nav className={CRUMBS_CLS} aria-label={t`Breadcrumb`}>
+            <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>All books</Trans></Link>
+          </nav>
+        </div>
+        <div className={GRID_CLS} aria-busy>
+          <div className={RAIL_COVER_CLS}>
+            <div className={COVER_CLS} style={{ boxShadow: 'var(--cover-bloom-hero)' }} data-hero-cover={preview.id}>
+              <HeroCover thumb={preview.cover} full={null} alt={preview.title} />
+            </div>
+          </div>
+          <div className={MAIN_COL_CLS}>
+            <div className={HERO_CLS}>
+              {preview.series && (
+                <button type="button" className={SERIES_LINE_CLS}>
+                  {preview.series}{preview.series_index != null && (() => { const v = preview.series_index; return <> · <Trans>Volume {v}</Trans></> })()}
+                </button>
+              )}
+              <h1 className={TITLE_CLS}>{preview.title}</h1>
+              {preview.author && <button type="button" className={AUTHOR_CLS}>{preview.author}</button>}
+            </div>
+          </div>
+        </div>
+      </PageBody>
+      {/* The page's children are a list (PageBody, then its dialogs); the same
+          shape here lets React keep the hero element when the page arrives. */}
+      {null}
+    </AppShell>
+  )
+
   if (loading) return (
     <AppShell>
       <div className="flex h-full min-h-[60vh] items-center justify-center">
@@ -691,7 +782,7 @@ function BookDetailView() {
   // ── Header line: where you are, previous/next volume, the page's actions ────
 
   const crumbs = (
-    <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground" aria-label={t`Breadcrumb`}>
+    <nav className={CRUMBS_CLS} aria-label={t`Breadcrumb`}>
       <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>All books</Trans></Link>
       {book.series && seriesHref ? (
         <>
@@ -819,16 +910,16 @@ function BookDetailView() {
 
   const cover = (
     <div
-      className={cn('relative aspect-[2/3] overflow-hidden rounded-[12px] bg-muted', canEdit && 'group cursor-pointer')}
+      className={cn(COVER_CLS, canEdit && 'group cursor-pointer')}
       style={{ boxShadow: 'var(--cover-bloom-hero)' }}
       onClick={() => canEdit && setCoverPickerOpen(true)}
       title={canEdit ? t`Change cover` : undefined}
+      data-hero-cover={book.id}
     >
-      <CoverImage
-        src={book.cover_path ? `/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}` : null}
+      <HeroCover
+        thumb={book.cover_path ? preview?.cover : null}
+        full={book.cover_path ? `/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}` : null}
         alt={book.title}
-        loading="eager"
-        iconClassName="w-12 h-12"
       />
       {canEdit && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
@@ -961,7 +1052,7 @@ function BookDetailView() {
   // The rail is two grid children so phones can read cover, then the hero,
   // then details; on desktop both sit in the left column.
   const railCover = (
-    <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0 lg:col-start-1 lg:row-start-1">
+    <div className={RAIL_COVER_CLS}>
       {cover}
       {fileLines}
     </div>
@@ -1009,11 +1100,11 @@ function BookDetailView() {
     <>
       {book.series && (
         <button type="button" onClick={() => navigate(`/?tab=books&series=${encodeURIComponent(book.series!)}`)}
-          className={cn(smallCaps, 'block text-left text-primary hover:underline underline-offset-4')}>
+          className={SERIES_LINE_CLS}>
           {book.series}{book.series_index != null && (() => { const v = book.series_index; return <> · <Trans>Volume {v}</Trans></> })()}
         </button>
       )}
-      <h1 className="mt-2 font-display text-[30px] sm:text-[34px] font-bold leading-[1.05] text-foreground">
+      <h1 className={TITLE_CLS}>
         {book.title}
         {book.content_type === 'chapter' && (
           <span className="ml-3 inline-flex h-6 -translate-y-1 items-center rounded-full bg-secondary px-2.5 align-middle font-sans text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
@@ -1024,7 +1115,7 @@ function BookDetailView() {
       {book.subtitle && <p className="mt-1.5 text-[16px] text-foreground/80">{book.subtitle}</p>}
       {book.author && (
         <button type="button" onClick={() => navigate(`/?tab=books&author=${encodeURIComponent(book.author!)}`)}
-          className="mt-1.5 block text-left text-[16px] text-muted-foreground hover:text-primary transition-colors">
+          className={AUTHOR_CLS}>
           {book.author}
         </button>
       )}
@@ -1032,26 +1123,31 @@ function BookDetailView() {
     </>
   )
 
+  // One indicator glides to the chosen status (it moves on the click; the
+  // request follows and undoes it on failure).
   const statusRow = (
-    <div className="mt-5 flex flex-wrap items-center gap-2">
-      {STATUS_PILLS.map(s => (
-        <button
-          key={s.id}
-          type="button"
-          disabled={statusSaving}
-          onClick={() => handleStatusChange(s.id)}
-          title={s.title}
-          aria-pressed={bookStatus === s.id}
-          className={cn(
-            'h-8 rounded-full px-3.5 text-[13px] font-medium transition-colors disabled:cursor-default',
-            bookStatus === s.id ? 'bg-foreground text-background' : 'bg-secondary text-muted-foreground hover:text-foreground',
-          )}
-        >
-          {s.label}
-        </button>
-      ))}
-      {statusSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-    </div>
+    <GlideGroup>
+      <div className="isolate mt-5 flex flex-wrap items-center gap-2">
+        {STATUS_PILLS.map(s => (
+          <button
+            key={s.id}
+            type="button"
+            disabled={statusSaving}
+            onClick={() => handleStatusChange(s.id)}
+            title={s.title}
+            aria-pressed={bookStatus === s.id}
+            className={cn(
+              'relative h-8 rounded-full bg-secondary px-3.5 text-[13px] font-medium transition-colors duration-200 disabled:cursor-default',
+              bookStatus === s.id ? 'text-background' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {bookStatus === s.id && <Glide className="bg-foreground" />}
+            <span className="relative z-[1]">{s.label}</span>
+          </button>
+        ))}
+        {statusSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+      </div>
+    </GlideGroup>
   )
 
   const progressRow = showProgress ? (
@@ -1172,7 +1268,21 @@ function BookDetailView() {
   const ratingRow = (
     <div className="mt-5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <StarRating value={rating} onChange={saveRating} />
+        {/* Stars fill one after another up to the pointer (styles/view-transitions.css)
+            once the pointer is on them; the clicked star pops. */}
+        <div
+          className="rating-motion"
+          data-settled={ratingSettled ? '' : undefined}
+          onPointerEnter={() => setRatingSettled(false)}
+          onClickCapture={e => {
+            const star = (e.target as Element).closest('button')
+            if (star && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+              star.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3)' }, { transform: 'scale(1)' }], { duration: 240, easing: 'cubic-bezier(0.2, 0.8, 0.2, 1)' })
+            }
+          }}
+        >
+          <StarRating value={rating} onChange={saveRating} />
+        </div>
         <span className="text-[13px] text-muted-foreground">
           {rating ? t`You rated this ${rating}/5` : t`Rate this book`}
         </span>
@@ -1205,7 +1315,7 @@ function BookDetailView() {
   )
 
   const hero = (
-    <div className="min-w-0 max-w-[680px]">
+    <div className={HERO_CLS}>
       {heroTitle}
       {statusRow}
       {progressRow}
@@ -1379,7 +1489,12 @@ function BookDetailView() {
           const idx = v.series_index
           return (
             <div key={v.id} className="w-[104px] shrink-0">
-              <button type="button" onClick={() => !here && setQuickLookId(v.id)} aria-label={v.title} title={v.title}
+              <button type="button" aria-label={v.title} title={v.title}
+                onClick={e => {
+                  if (here) return
+                  setQuickLookFrom({ origin: e.currentTarget.getBoundingClientRect(), cover: v.cover_path ? coverSrc(v.id, { w: 400, v: v.updated_at }) : null })
+                  setQuickLookId(v.id)
+                }}
                 className={cn(
                   'relative block aspect-[2/3] w-full overflow-hidden rounded-[8px] bg-muted transition',
                   here ? 'cursor-default ring-2 ring-primary ring-offset-2 ring-offset-background'
@@ -1411,14 +1526,16 @@ function BookDetailView() {
       <PageBody width="wide">
         {/* The page header for a book: where you are on the left, the page's
             actions on the right. The hero's h1 is the title. */}
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        {/* Opened from a card, the row keeps the height the preview reserved
+            while its later parts (previous/next, Finish by) arrive. */}
+        <div ref={headerRef} className={cn(HEADER_CLS, 'content-start')} style={preview && heldHeader ? { minHeight: heldHeader } : undefined}>
           {crumbs}
           {pageActions}
         </div>
 
-        <div className="grid items-start gap-10 lg:grid-cols-[220px_minmax(0,1fr)] lg:grid-rows-[auto_1fr]">
+        <div className={GRID_CLS}>
           {railCover}
-          <div className="order-2 flex min-w-0 flex-col gap-7 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2">
+          <div className={MAIN_COL_CLS}>
             {hero}
             {descriptionSection}
             {readingSection}
@@ -1436,7 +1553,9 @@ function BookDetailView() {
         </div>
       </PageBody>
 
-      {quickLookId != null && <QuickLook bookId={quickLookId} onClose={() => setQuickLookId(null)} />}
+      <AnimatePresence>
+        {quickLookId != null && <QuickLook key={quickLookId} bookId={quickLookId} origin={quickLookFrom.origin} cover={quickLookFrom.cover} onClose={() => setQuickLookId(null)} />}
+      </AnimatePresence>
       <MetadataFetchModal
         book={book}
         open={fetchModalOpen}

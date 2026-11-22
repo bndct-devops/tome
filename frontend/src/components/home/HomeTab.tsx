@@ -2,6 +2,7 @@
 // progress as a row, four bare numbers, Recently added, a highlight and the
 // latest reading sessions as plain rows.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Trans, useLingui, Plural } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
@@ -167,7 +168,7 @@ function ProgressBar({ pct, className, steady }: { pct: number; className?: stri
 }
 
 /** The quick-look button in a cover's corner, shown on hover or keyboard focus. */
-function PeekButton({ onClick }: { onClick: () => void }) {
+function PeekButton({ onClick }: { onClick: (e: React.MouseEvent<HTMLButtonElement>) => void }) {
   const { t } = useLingui()
   return (
     <button
@@ -263,6 +264,9 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
   const [upcoming, setUpcoming] = useState<FollowOut[]>(seed?.upcoming ?? [])
   const [switching, setSwitching] = useState(false)
   const [peek, setPeek] = useState<number | null>(null)
+  // The cover the quick look grows out of (and shrinks back into).
+  const [peekFrom, setPeekFrom] = useState<{ origin?: DOMRect; cover?: string | null }>({})
+  const openPeek = (id: number, from: Element | null | undefined, cover: string | null) => { setPeekFrom({ origin: from?.getBoundingClientRect(), cover }); setPeek(id) }
 
   // The telemetry question (admins) waits with the rest, or its card lands on
   // top a moment later and pushes the whole page down.
@@ -391,7 +395,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
         >
           <CoverImage src={r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
         </button>
-        <PeekButton onClick={() => setPeek(r.book_id)} />
+        <PeekButton onClick={e => openPeek(r.book_id, e.currentTarget.previousElementSibling, r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null)} />
       </TiltCover>
     )
   }
@@ -402,7 +406,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
     return (
       <button
         type="button"
-        onClick={() => setPeek(u.book_id)}
+        onClick={e => openPeek(u.book_id, e.currentTarget.firstElementChild, u.has_cover ? coverSrc(u.book_id, { w: 400 }) : null)}
         className="block w-full text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[8px]"
         aria-label={t`Quick look: ${title}`}
         title={t`Quick look`}
@@ -637,7 +641,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                 <TiltCover className="relative">
                   <button
                     type="button"
-                    onClick={() => setPeek(book.id)}
+                    onClick={e => openPeek(book.id, e.currentTarget, book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null)}
                     className="relative block w-full aspect-[2/3] rounded-[12px] overflow-hidden bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     style={{ boxShadow: 'var(--cover-bloom-fan)' }}
                     aria-label={t`Quick look: ${title}`}
@@ -737,7 +741,9 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
         </section>
       )}
 
-      {peek != null && <QuickLook bookId={peek} onClose={() => setPeek(null)} />}
+      <AnimatePresence>
+        {peek != null && <QuickLook key={peek} bookId={peek} origin={peekFrom.origin} cover={peekFrom.cover} onClose={() => setPeek(null)} />}
+      </AnimatePresence>
     </PageBody>
   )
 }

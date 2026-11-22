@@ -1,4 +1,5 @@
 import { useEffect, useRef } from 'react'
+import { m } from 'motion/react'
 import { Layers } from 'lucide-react'
 import { Plural } from '@lingui/react/macro'
 import type { Book } from '@/lib/books'
@@ -15,13 +16,21 @@ interface SeriesStackCardProps {
   focused?: boolean
   index?: number
   onOpen: () => void
+  /** Cover and title travel on the Library grid/list switch (see BookCard). */
+  travel?: boolean
+  travelEpoch?: number
 }
+
+const TRAVEL = { duration: 0.42, ease: [0.2, 0.8, 0.2, 1] as const }
 
 // Stacked card for the "Group by series" library view: the first volume's
 // cover sits on top of the next volumes' real covers, which fan out on hover.
 // Clicking anywhere opens the series detail view.
-export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesStackCardProps) {
+export function SeriesStackCard({ book, count, view, focused, onOpen, travel = false, travelEpoch }: SeriesStackCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
+  const travelProps = (part: 'cover' | 'title') => travel
+    ? { layout: part === 'title' ? 'position' as const : true, layoutDependency: travelEpoch, transition: TRAVEL, 'data-travel': '' }
+    : {}
 
   useEffect(() => {
     if (focused && cardRef.current) {
@@ -46,7 +55,7 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
           focused && 'ring-2 ring-ring ring-offset-1 ring-offset-background',
         )}
       >
-        <div className="relative w-9 h-12 shrink-0">
+        <m.div key="cover" {...travelProps('cover')} className="relative w-9 h-12 shrink-0">
           <div className="absolute inset-0 translate-x-1 -translate-y-0.5 rounded-[6px] overflow-hidden bg-muted ring-1 ring-border/60 transition-transform duration-200 group-hover:translate-x-2 group-hover:-translate-y-1">
             {fanIds[0] && (
               <CoverImage src={coverSrc(fanIds[0], { w: 400 })} alt="" iconClassName="w-3 h-3" />
@@ -55,16 +64,16 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
           <div className="relative w-full h-full rounded-[6px] overflow-hidden bg-muted">
             <CoverImage src={coverUrl} alt={seriesName} iconClassName="w-4 h-4" />
           </div>
-        </div>
-        <div className="flex-1 min-w-0">
+        </m.div>
+        <m.div key="title" {...travelProps('title')} className="flex-1 min-w-0">
           <p className="text-[15px] font-medium text-foreground truncate group-hover:text-primary transition-colors">
             {seriesName}
           </p>
           {book.author && (
             <p className="text-[13px] text-muted-foreground truncate">{book.author}</p>
           )}
-        </div>
-        <span className="shrink-0 inline-flex items-center gap-1 h-7 px-3 rounded-full bg-secondary text-[13px] text-muted-foreground">
+        </m.div>
+        <span className="library-extra shrink-0 inline-flex items-center gap-1 h-7 px-3 rounded-full bg-secondary text-[13px] text-muted-foreground">
           <Layers className="w-3.5 h-3.5" />
           <Plural value={count} one="# volume" other="# volumes" />
         </span>
@@ -95,7 +104,7 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
       className="group flex flex-col cursor-pointer touch-feedback"
     >
       {/* Reserved bleed area for the stack layers */}
-      <div className={cn('relative', lg ? 'pt-2 pr-2' : 'pt-1 pr-1')}>
+      <m.div key="cover" {...travelProps('cover')} className={cn('relative', lg ? 'pt-2 pr-2' : 'pt-1 pr-1')}>
         <div className="relative">
           {/* Volumes behind the top cover - real covers when available, fanning out on hover */}
           {fanIds.length > 0 ? (
@@ -137,9 +146,9 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
             </span>
           </div>
         </div>
-      </div>
+      </m.div>
 
-      <div className="flex flex-col gap-0.5 pt-2.5 px-0.5">
+      <m.div key="title" {...travelProps('title')} className="flex flex-col gap-0.5 pt-2.5 px-0.5">
         <p className="text-[14px] font-medium text-foreground line-clamp-2 leading-snug transition-colors duration-150 group-hover:text-primary">
           {seriesName}
         </p>
@@ -147,7 +156,7 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
           <Plural value={count} one="# volume" other="# volumes" />
           {book.author ? ` · ${book.author}` : ''}
         </p>
-      </div>
+      </m.div>
     </div>
   )
 }

@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback, useRef } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { useNavigate } from 'react-router-dom'
 import {
   RefreshCw, Loader2, BookOpen, Check, X, Trash2, Search,
@@ -744,6 +745,8 @@ export function BinderyPage() {
   const bookTypes = useBookTypes()
   const navigate = useNavigate()
   const [peekId, setPeekId] = useState<number | null>(null)
+  // The cover the quick look grows out of (and shrinks back into).
+  const [peekFrom, setPeekFrom] = useState<{ origin?: DOMRect; cover?: string | null }>({})
   const [libraries, setLibraries] = useState<LibraryOption[]>([])
   useEffect(() => {
     api.get<LibraryOption[]>('/libraries').then(setLibraries).catch(() => {})
@@ -1654,7 +1657,7 @@ export function BinderyPage() {
                   <div key={book.id} className="group flex items-center gap-4 py-3.5 px-2">
                     <button
                       type="button"
-                      onClick={() => setPeekId(book.id)}
+                      onClick={e => { setPeekFrom({ origin: e.currentTarget.getBoundingClientRect(), cover: book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null }); setPeekId(book.id) }}
                       aria-label={t`Quick look`}
                       className="relative shrink-0 w-11 h-16 rounded-md overflow-hidden bg-muted"
                       style={{ boxShadow: 'var(--cover-bloom-fan)' }}
@@ -1889,7 +1892,9 @@ export function BinderyPage() {
           onCancel={() => setConfirmRejectUnreviewed(null)}
         />
 
-        {peekId != null && <QuickLook bookId={peekId} onClose={() => setPeekId(null)} />}
+        <AnimatePresence>
+          {peekId != null && <QuickLook key={peekId} bookId={peekId} origin={peekFrom.origin} cover={peekFrom.cover} onClose={() => setPeekId(null)} />}
+        </AnimatePresence>
       </AppShell>
     )
   }
