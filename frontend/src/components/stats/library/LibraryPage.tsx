@@ -25,6 +25,7 @@ import type { DesignedPageProps } from '@/components/stats/kit/page'
 import { Cover, Pending, Ph, Track } from '@/components/stats/kit/Kit'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, rangeSig, stagger, useEntry } from '@/components/stats/kit/motion'
+import { useTween } from '@/components/stats/kit/tween'
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, num, useWidth } from '@/components/stats/kit/tokens'
 import { useStatsGet } from '@/components/stats/kit/useStatsGet'
@@ -454,6 +455,8 @@ const AUTHOR_ROW_H = 54
 function Authors({ stats, desktop, shape, range, dim }: Common & { range: Range; dim: string }) {
   const rangePhrase = range.phrase
   const e = useEntry('library/authors', range.sig)
+  // An author who stays slides to the new place; the bar and time move to the new figures.
+  const tw = useTween(e, stats ? stats.author_affinity : null, desktop)
   const cap = desktop ? AUTHORS_MAX : AUTHORS_MAX_PHONE
   const list = stats ? stats.author_affinity.slice(0, cap) : Array.from({ length: Math.min(cap, shape.authors) }, () => null)
   const max = Math.max(1, ...(stats?.author_affinity.slice(0, 1).map((a) => a.seconds) ?? [1]))
@@ -465,7 +468,7 @@ function Authors({ stats, desktop, shape, range, dim }: Common & { range: Range;
       {list.length === 0 ? (
         <Note h={AUTHOR_ROW_H}>{stats && t`No reading in ${rangePhrase}.`}</Note>
       ) : (
-        <div data-box="author-rows" className={cn('k-bars grid', desktop ? 'grid-cols-2 gap-x-12' : 'grid-cols-1')}>
+        <div ref={tw} data-box="author-rows" className={cn('k-bars relative grid', desktop ? 'grid-cols-2 gap-x-12' : 'grid-cols-1')}>
           {list.map((a, i) => {
             const read = a ? plural(a.book_count, { one: '# book read', other: '# books read' }) : ''
             const sub = a
@@ -479,14 +482,14 @@ function Authors({ stats, desktop, shape, range, dim }: Common & { range: Range;
               const sessions = plural(a.sessions, { one: '# session', other: '# sessions' })
               return tipAttrs({ title: a.author, value: t`${dur} in ${rangePhrase}`, note: `${read} · ${sessions}` })
             })() : undefined
-            const row = cn('grid grid-cols-[minmax(0,1fr)_auto] grid-rows-[20px_17px_10px] content-center gap-x-4', i >= cols && cn('border-t', HAIR))
+            const row = cn('block', i >= cols && cn('border-t', HAIR))
             const body = (
-              <>
+              <div data-k={a ? `a:${a.author}` : undefined} data-kt="move" className="grid h-full grid-cols-[minmax(0,1fr)_auto] grid-rows-[20px_17px_10px] content-center gap-x-4">
                 <span className="truncate text-[15px] font-semibold leading-[20px] text-foreground transition-colors group-hover:text-primary"><Ph on={!a}>{a?.author ?? PH.author}</Ph></span>
-                <span className="text-right text-[14px] leading-[20px] text-muted-foreground"><Ph on={!a}>{a ? formatDuration(a.seconds) : PH.dur}</Ph></span>
+                <span className="text-right text-[14px] leading-[20px] text-muted-foreground"><Ph on={!a}>{a ? <CountUp entry={e} value={a.seconds} format={formatDuration} align="end" /> : PH.dur}</Ph></span>
                 <span className="col-span-2 truncate text-[13px] leading-[17px] text-muted-foreground"><Ph on={!a}>{sub}</Ph></span>
-                <Thin frac={a ? a.seconds / max : 0} className={cn('col-span-2 self-end', !a && 'opacity-40')} style={stagger(i, list.length)} tip={tip} />
-              </>
+                <Thin frac={a ? a.seconds / max : 0} k={a ? `t:${a.author}` : undefined} className={cn('col-span-2 self-end', !a && 'opacity-40')} style={stagger(i, list.length)} tip={tip} />
+              </div>
             )
             // A row is one link to the author's books in the library, as the book page and the search link authors.
             return a ? (

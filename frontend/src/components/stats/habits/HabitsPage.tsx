@@ -132,7 +132,7 @@ function useSection(scope: string, sig: string | null): [Entry, (el: Element | n
 // ── When you read ─────────────────────────────────────────────────────────────
 
 function WhenYouRead({ stats, width, phone, dim, sig }: { stats: StatsResponse | null; width: number; phone: boolean; dim: string; sig: string | null }) {
-  const [, enter] = useSection('habits/when', sig)
+  const [e, enter] = useSection('habits/when', sig)
   const loading = !stats
   const m = useMemo(() => hourModel(stats?.hour_dow_heatmap ?? [], phone), [stats, phone])
   const dow = useMemo(() => byWeekday(stats?.hour_dow_heatmap ?? []), [stats])
@@ -151,7 +151,7 @@ function WhenYouRead({ stats, width, phone, dim, sig }: { stats: StatsResponse |
       <Heading note={phone ? t`two-hour columns` : undefined}><Trans>When you read</Trans></Heading>
       <p className={cn('mb-3.5 text-[15px] leading-[1.45] text-foreground', phone ? 'line-clamp-2 min-h-[44px] [text-wrap:balance]' : 'truncate')}>{sentence}</p>
       <div data-box="when-chart" style={{ height: rhythmHeight(width, phone) }}>
-        <Rhythm W={width} grid={m.grid} byCol={m.byCol} colN={m.colN} byDow={dow} phone={phone} loading={loading} />
+        <Rhythm entry={e} W={width} grid={m.grid} byCol={m.byCol} colN={m.colN} byDow={dow} phone={phone} loading={loading} />
       </div>
     </section>
   )
@@ -271,7 +271,7 @@ function Sessions({ stats, habits, desktop, allTime, dim, sig }: { stats: StatsR
 // ── Session length ────────────────────────────────────────────────────────────
 
 function SessionLength({ habits, width, desktop, dim, sig }: { habits: HabitsResponse | null; width: number; desktop: boolean; dim: string; sig: string | null }) {
-  const [, enter] = useSection('habits/lengths', sig)
+  const [e, enter] = useSection('habits/lengths', sig)
   const counts = bucketCounts(habits)
   const H = desktop ? HIST_H : HIST_H_PHONE
   const note = habits ? plural(habits.sessions, { one: '# sitting', other: '# sittings' }) : <Ph on>{PH.sittings}</Ph>
@@ -282,7 +282,7 @@ function SessionLength({ habits, width, desktop, dim, sig }: { habits: HabitsRes
         {habits && habits.sessions === 0 ? (
           <ChartEmpty H={H}>{t`No sittings in this range.`}</ChartEmpty>
         ) : (
-          <Lengths W={width} H={H} counts={counts} loading={!habits} />
+          <Lengths entry={e} W={width} H={H} counts={counts} loading={!habits} />
         )}
       </div>
     </section>

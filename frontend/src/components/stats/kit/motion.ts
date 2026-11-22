@@ -13,14 +13,19 @@
 //     <CountUp entry={e} value={n} format={num} />                figures count up in a reserved width
 //   </section>
 //
-// When it plays (useEntry): the first time a section has data, and again when its
-// signature changes (pass the range the data answers, rangeSig(); pass ONCE for
-// sections that do not follow the range). Not on re-render, hover, or coming back
-// to a tab whose signature already played this session (remembered per scope, so
-// use a scope unique to the section, e.g. 'overview/hero'). A section below the
-// fold waits (marks held at their start) and plays once when 15 % of it is on
-// screen. Reduced motion: final state at once. finishEntries() ends every entry
-// (the image export calls it). Do not nest one entry section inside another.
+// When it plays (useEntry): the first time a section has data in this mount (pass
+// the range the data answers, rangeSig(); pass ONCE for sections that do not follow
+// the range). Not on re-render, hover, or coming back to a tab whose signature
+// already played this session (remembered per scope, so use a scope unique to the
+// section, e.g. 'overview/hero'). A section below the fold waits (marks held at
+// their start) and plays once when 15 % of it is on screen. Reduced motion: final
+// state at once. finishEntries() ends every entry (the image export calls it). Do
+// not nest one entry section inside another.
+//
+// Once a section has been seen, new data does not replay it: a new signature is
+// only remembered, and the data change itself is shown as a change (phase
+// 'update'): CountUp runs from the figure it shows to the new one, and marks under
+// useTween() (tween.ts) move from their old size and place to the new one.
 //
 // Only transform/opacity/clip-path/stroke-dashoffset move, and only on marks
 // inside a section, never on a [data-box] element, so no box moves.
@@ -53,7 +58,7 @@ export const ONCE = 'once'
 
 export const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
 
-export type Phase = 'idle' | 'wait' | 'play' | 'done'
+export type Phase = 'idle' | 'wait' | 'play' | 'update' | 'done'
 
 // What each scope last played, for the session (module state: survives tab switches and remounts).
 const played = new Map<string, string>()
@@ -97,24 +102,46 @@ export class Entry {
     if (p === 'play') {
       played.set(this.scope, this.sig ?? '')
       this.timer = window.setTimeout(() => this.set('done'), TOTAL)
-    } else if (p === 'wait') this.observe()
+    } else if (p === 'update') this.timer = window.setTimeout(() => this.set('done'), TOTAL)
+    else if (p === 'wait') this.observe()
     for (const fn of this.subs) fn(p)
   }
 
   /** Decide for a new signature: done (reduced motion, or already played), play (on screen) or wait. */
   decide(scope: string, sig: string) {
+    const seen = this.seen() && scope === this.scope
     this.scope = scope
     this.sig = sig
+    // Seen already: the new data is shown as a change (update()), not a new entry.
+    if (seen) { played.set(scope, sig); return }
     if (reducedMotion() || played.get(scope) === sig) return this.set('done')
     this.set(onScreen(this.el) ? 'play' : 'wait')
   }
 
-  finish() { if (this.phase === 'wait' || this.phase === 'play') this.set('done') }
+  /** The section has been drawn with data in this mount (its entry played, or was skipped). */
+  seen() { return this.phase === 'play' || this.phase === 'update' || this.phase === 'done' }
+
+  /**
+   * Called by what shows a data change (CountUp, useTween) when it starts one:
+   * true (and the section in 'update' until the change is over) when it may run,
+   * false before the section has been seen or under reduced motion (show the end at once).
+   */
+  update(): boolean {
+    if (!this.seen() || reducedMotion()) return false
+    if (this.phase !== 'update') this.set('update')
+    else {
+      window.clearTimeout(this.timer)
+      this.timer = window.setTimeout(() => this.set('done'), TOTAL)
+    }
+    return true
+  }
+
+  finish() { if (this.phase === 'wait' || this.phase === 'play' || this.phase === 'update') this.set('done') }
 
   /** Re-arm after a remount of the effect (StrictMode runs effects twice). */
   resume() {
     if (this.phase === 'wait') this.observe()
-    else if (this.phase === 'play') this.timer = window.setTimeout(() => this.set('done'), TOTAL)
+    else if (this.phase === 'play' || this.phase === 'update') this.timer = window.setTimeout(() => this.set('done'), TOTAL)
   }
 
   stop() {

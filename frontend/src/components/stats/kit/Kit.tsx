@@ -36,12 +36,13 @@ export function Pending() {
  * Home's progress track: 6 px, accent fill on a tinted track. Inside a section
  * with an entry (motion.ts) the fill grows from the start; `style` takes its
  * stagger() delay. `tip` (tipAttrs()) gives it a tooltip and a hover ring; in a
- * list marked .k-bars the other tracks dim while one is hovered.
+ * list marked .k-bars the other tracks dim while one is hovered. `k` names the
+ * fill for useTween() (kit/tween.ts): a new value then moves it to its new width.
  */
-export function Track({ pct, className, style, tip }: { pct: number; className?: string; style?: CSSProperties; tip?: { 'data-tip': string } }) {
+export function Track({ pct, className, style, tip, k }: { pct: number; className?: string; style?: CSSProperties; tip?: { 'data-tip': string }; k?: string }) {
   return (
     <div className={cn('k-track k-bar h-[6px] flex-1 overflow-hidden rounded-full', className)} style={{ background: 'var(--rail)', ...style }} {...tip}>
-      <div className="k-grow-x h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+      <div className="k-grow-x h-full rounded-full bg-primary" data-k={k} data-kt={k ? 'barx' : undefined} style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
     </div>
   )
 }

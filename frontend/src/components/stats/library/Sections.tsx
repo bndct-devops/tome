@@ -12,6 +12,7 @@ import { Cover, Ph } from '@/components/stats/kit/Kit'
 import { DIM, HAIR, UNDIM, num } from '@/components/stats/kit/tokens'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
+import { useTween } from '@/components/stats/kit/tween'
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { ChoiceMenu } from '@/components/stats/kit/Menu'
 import { AddedChart, ChartPlaceholder, SmallBars, type SmallBar } from './charts'
@@ -394,6 +395,8 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
   const data = stats?.per_book_time ?? null
   const sorted = useMemo(() => (data ? [...data].sort((a, b) => (asc ? a[key] - b[key] : b[key] - a[key]) || a.title.localeCompare(b.title)) : null), [data, key, asc])
   const list = sorted ? (all ? sorted : sorted.slice(0, BOOKS_SHOWN)) : Array.from({ length: rows }, () => null)
+  // A new range or a new sort: the cells of a book that stays slide to its new row (rows keep their boxes).
+  const tw = useTween(e, sorted, `${desktop}:${all}:${open}`)
   const sort = (k: SortKey) => {
     if (k === key) setAsc(!asc)
     else { setKey(k); setAsc(false) }
@@ -420,7 +423,7 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
       {(stats ? n === 0 : rows === 0) ? (
         <Note h={rowH}>{stats && t`No reading in ${rangePhrase}.`}</Note>
       ) : (
-        <div role="table" aria-label={t`All books by reading time`}>
+        <div ref={tw} role="table" aria-label={t`All books by reading time`} className="relative">
           <div role="row" className={cn('grid h-[28px] items-center pb-1.5', cols)}>
             <span />
             <span role="columnheader" className={cn(th, 'text-muted-foreground')}><Trans>Title</Trans></span>
@@ -449,22 +452,24 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
                 <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', isOpen && 'rotate-180')} aria-hidden="true" />
               </button>
             ) : null
+            // Each cell is a mark of its book (useTween): the row's box and hairline stay put.
+            const mk = (c: number) => (b ? { 'data-k': `${b.book_id}:${c}`, 'data-kt': 'move' } : {})
             const cells = (
               <>
-                <span role="cell">
+                <span role="cell" {...mk(0)}>
                   <Cover id={b ? (b.has_cover ? b.book_id : null) : null} h={44} className={cn('rounded-[6px]', b && cn(K.fade, 'transition-transform duration-200 group-hover:-translate-y-0.5'))} />
                 </span>
-                <span role="cell" className="min-w-0">
+                <span role="cell" className="min-w-0" {...mk(1)}>
                   <span className={cn('block truncate font-semibold text-foreground transition-colors group-hover:text-primary', desktop ? 'text-[15px]' : 'text-[14px] leading-[19px]')}>
                     {b ? b.title : <Ph on>{PH.title}</Ph>}
                   </span>
                   {!desktop && <span className="mt-0.5 block truncate text-[13px] text-muted-foreground"><Ph on={!b}>{b ? b.author ?? ' ' : PH.author}</Ph></span>}
                 </span>
-                {desktop && <span role="cell" className="truncate text-muted-foreground"><Ph on={!b}>{b ? b.author ?? '—' : PH.author}</Ph></span>}
-                <span role="cell" className="whitespace-nowrap text-right text-foreground"><Ph on={!b}>{b ? formatDuration(b.seconds) : PH.dur}</Ph></span>
-                {desktop && <span role="cell" className="text-right tabular-nums text-foreground"><Ph on={!b}>{b ? num(b.sessions) : PH.n}</Ph></span>}
-                {desktop && <span role="cell" className="text-right tabular-nums text-foreground"><Ph on={!b}>{b ? num(b.pages_turned) : PH.n}</Ph></span>}
-                <span role="cell" className="flex justify-end">{toggle}</span>
+                {desktop && <span role="cell" className="truncate text-muted-foreground" {...mk(2)}><Ph on={!b}>{b ? b.author ?? '—' : PH.author}</Ph></span>}
+                <span role="cell" className="whitespace-nowrap text-right text-foreground" {...mk(3)}><Ph on={!b}>{b ? <CountUp entry={e} value={b.seconds} format={formatDuration} align="end" /> : PH.dur}</Ph></span>
+                {desktop && <span role="cell" className="text-right tabular-nums text-foreground" {...mk(4)}><Ph on={!b}>{b ? <CountUp entry={e} value={b.sessions} format={num} align="end" /> : PH.n}</Ph></span>}
+                {desktop && <span role="cell" className="text-right tabular-nums text-foreground" {...mk(5)}><Ph on={!b}>{b ? <CountUp entry={e} value={b.pages_turned} format={num} align="end" /> : PH.n}</Ph></span>}
+                <span role="cell" className="flex justify-end" {...mk(6)}>{toggle}</span>
               </>
             )
             // A row leads to its book (a link stretched under the cells; the row washes and the

@@ -19,6 +19,7 @@ import { fmtDay as fmtShortDay, type CustomRange } from '@/components/stats/rang
 import { Cover, Heading, Pending, Ph, Track } from '@/components/stats/kit/Kit'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, rangeSig, stagger, useEntry } from '@/components/stats/kit/motion'
+import { useTween } from '@/components/stats/kit/tween'
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
 import { BarsChart, HourHeat, YearGrid } from './charts'
@@ -287,7 +288,7 @@ function Hero({ stats, desktop, width, loading, neverRead, prevPhrase, rangePhra
           <Link to="/settings/koreader" className="text-[14px] font-medium text-primary hover:underline"><Trans>Download the plugin from Settings</Trans></Link>
         </div>
       ) : (
-        <BarsChart W={width} H={HERO_CHART_H} bars={chart?.bars ?? []} avg={chart?.avg ?? 0} monthStarts={chart?.monthStarts ?? []} nDays={chart?.nDays ?? 1} weekly={chart?.weekly ?? false} best={best} month={month} loading={loading} />
+        <BarsChart entry={e} W={width} H={HERO_CHART_H} bars={chart?.bars ?? []} avg={chart?.avg ?? 0} monthStarts={chart?.monthStarts ?? []} nDays={chart?.nDays ?? 1} weekly={chart?.weekly ?? false} best={best} month={month} loading={loading} />
       )}
     </div>
   )
@@ -389,6 +390,7 @@ const NOW_GAP_PHONE = 20
 
 function ReadingNow({ stats, estimates, desktop, loading, sig, onRefresh }: { stats: StatsResponse | null; estimates: CompletionEstimate[] | null; desktop: boolean; loading: boolean; sig: string | null; onRefresh: () => void }) {
   const e = useEntry('overview/now', sig)
+  const tw = useTween(e, stats ? stats.books_in_progress : null, desktop)
   const { toast } = useToast()
   // Marked read here: gone from the list at once, while the stats are asked for again.
   const [marked, setMarked] = useState<ReadonlySet<number>>(() => new Set())
@@ -465,7 +467,7 @@ function ReadingNow({ stats, estimates, desktop, loading, sig, onRefresh }: { st
       ) : books.length === 0 ? (
         <p className="flex items-center text-[15px] text-muted-foreground" style={{ height: Math.max(NOW_CARD_H, minH ?? 0) }}>{stats && <Trans>Nothing in progress. Books you start show up here.</Trans>}</p>
       ) : (
-        <div className={desktop ? 'grid grid-cols-12 gap-4' : 'flex flex-col gap-5'} style={{ minHeight: minH }}>
+        <div ref={tw} className={desktop ? 'grid grid-cols-12 gap-4' : 'flex flex-col gap-5'} style={{ minHeight: minH }}>
           {books.map((b, i) => {
             const done = !!b && b.progress >= FINISHED_PCT
             const rest = b ? line(b) : ''
@@ -492,7 +494,7 @@ function ReadingNow({ stats, estimates, desktop, loading, sig, onRefresh }: { st
                   </div>
                   <div className="mt-1 truncate text-[15px] leading-[1.4] text-muted-foreground">{b ? b.author ?? ' ' : <Ph on>{PH.author}</Ph>}</div>
                   <div className="mt-3 flex h-5 items-center gap-3">
-                    <Track pct={b?.progress ?? 0} className={loading ? 'opacity-40' : ''} style={stagger(i, books.length)} />
+                    <Track pct={b?.progress ?? 0} k={b ? `now-${b.book_id}` : undefined} className={loading ? 'opacity-40' : ''} style={stagger(i, books.length)} />
                     <span className="text-[17px] font-bold tabular-nums text-foreground">
                       <Ph on={!b}>{b ? <><CountUp entry={e} value={Math.round(b.progress)} format={String} />%</> : PH.pct}</Ph>
                     </span>
@@ -527,6 +529,8 @@ function ReadingNow({ stats, estimates, desktop, loading, sig, onRefresh }: { st
 
 function Finished({ stats, width, desktop, loading, rangePhrase, allTime, dim, sig }: { stats: StatsResponse | null; width: number; desktop: boolean; loading: boolean; rangePhrase: string; allTime: boolean; dim: string; sig: string | null }) {
   const e = useEntry('overview/finished', sig)
+  // A cover in both ranges slides to its new slot; the others fade out or rise in.
+  const tw = useTween(e, stats ? stats.books_finished : null, `${width}:${desktop}`)
   const books = useMemo(() => {
     if (!stats) return []
     const monthOf = (iso: string) => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month: 'short' })
@@ -557,6 +561,8 @@ function Finished({ stats, width, desktop, loading, rangePhrase, allTime, dim, s
             to={`/books/${b.book_id}`}
             aria-label={b.title}
             {...tipAttrs({ title: b.title, value: t`Finished ${finishedOn}` })}
+            data-k={`${b.book_id}-${b.date}`}
+            data-kt="move"
             className={cn('group block rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', K.rise)}
             style={stagger(i, shown + (n > shown ? 1 : 0))}
           >
@@ -580,6 +586,8 @@ function Finished({ stats, width, desktop, loading, rangePhrase, allTime, dim, s
         <Link
           to="/?tab=books&reading_status=read"
           {...tipAttrs({ title: moreTitle, note: t`Show every read book in the library` })}
+          data-k="more"
+          data-kt="move"
           className={cn('grid place-items-center rounded-[8px] bg-secondary text-[15px] font-semibold text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', K.rise)}
           style={{ width: COVER_SHELF_W, height: COVER_SHELF_H, ...stagger(shown, shown + 1) }}
         >
@@ -596,10 +604,10 @@ function Finished({ stats, width, desktop, loading, rangePhrase, allTime, dim, s
       {stats && count === 0 ? (
         <p className="flex items-center text-[15px] text-muted-foreground" style={{ height: COVER_SHELF_H + 26 }}>{allTime ? t`Nothing finished yet.` : t`Nothing finished in ${rangePhrase}.`}</p>
       ) : desktop ? (
-        <div data-box="shelf" className={cn('flex', full ? 'justify-between' : 'gap-6')}>{cells}</div>
+        <div ref={tw} data-box="shelf" className={cn('relative flex', full ? 'justify-between' : 'gap-6')}>{cells}</div>
       ) : (
         <div className="-mx-5 overflow-x-auto px-5 [scrollbar-width:none]">
-          <div className="flex w-max gap-3 pr-5">{cells}</div>
+          <div ref={tw} className="relative flex w-max gap-3 pr-5">{cells}</div>
         </div>
       )}
     </section>
@@ -631,6 +639,8 @@ function rememberTopRows(rangeKey: string, n: number) {
 
 function TopBooks({ stats, loading, desktop, rangeKey, rangePhrase, allTime, onAllBooks, dim, sig }: { stats: StatsResponse | null; loading: boolean; desktop: boolean; rangeKey: string | null; rangePhrase: string; allTime: boolean; onAllBooks: () => void; dim: string; sig: string | null }) {
   const e = useEntry('overview/top', sig)
+  // A book that stays slides to its new rank and its bar and time move to the new figures.
+  const tw = useTween(e, stats && !loading ? stats.top_books : null, desktop)
   const total = stats?.headline.total_reading_seconds ?? 0
   // The skeleton draws as many rows as this range had last time (the box keeps its
   // height either way), so a short range does not draw rows that then go.
@@ -643,35 +653,37 @@ function TopBooks({ stats, loading, desktop, rangeKey, rangePhrase, allTime, onA
   return (
     <section ref={e.ref} data-box="top" className={cn('min-w-0', dim)}>
       <Heading><Trans>Where the time went</Trans></Heading>
-      <div data-box="top-rows" className="k-bars" style={{ minHeight: TOP_ROWS * 54 + (TOP_ROWS - 1) }}>
+      <div ref={tw} data-box="top-rows" className="k-bars relative" style={{ minHeight: TOP_ROWS * 54 + (TOP_ROWS - 1) }}>
         {stats && rows.length === 0 ? (
           <p className="pt-3 text-[15px] text-muted-foreground">{allTime ? t`No reading yet.` : t`No reading in ${rangePhrase}.`}</p>
         ) : (
           rows.map((b, i) => {
             const dur = b ? formatDuration(b.seconds) : PH.dur
+            const durFig = b ? <CountUp entry={e} value={b.seconds} format={formatDuration} align="end" /> : dur
             const share = b && total > 0 ? Math.round((b.seconds / total) * 100) : 0
             const sessions = b ? plural(b.sessions, { one: '# session', other: '# sessions' }) : ''
             const body = (
-              <>
+              <div data-k={b ? `row-${b.book_id}` : undefined} data-kt="move" className="flex h-full min-w-0 flex-1 items-center gap-4">
                 <Cover id={b ? (covers.get(b.book_id) === false ? null : b.book_id) : null} h={48} className="rounded-[6px]" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-4">
                     <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-foreground transition-colors group-hover:text-primary">
                       {b ? b.title : <Ph on>{PH.title}</Ph>}
                     </span>
-                    {desktop && <span className="whitespace-nowrap text-[14px] text-muted-foreground"><Ph on={!b}>{dur}</Ph></span>}
+                    {desktop && <span className="whitespace-nowrap text-[14px] tabular-nums text-muted-foreground"><Ph on={!b}>{durFig}</Ph></span>}
                   </div>
                   <div className={cn('flex items-center gap-3', desktop ? 'mt-[9px]' : 'mt-2')}>
                     <Track
                       pct={b ? (b.seconds / max) * 100 : 0}
+                      k={b ? `bar-${b.book_id}` : undefined}
                       className={loading ? 'opacity-40' : ''}
                       style={stagger(i, rows.length)}
                       tip={b ? tipAttrs({ title: b.title, value: dur, note: allTime ? t`${sessions} · ${share}% of all your reading` : t`${sessions} · ${share}% of the reading in ${rangePhrase}` }) : undefined}
                     />
-                    {!desktop && <span className="whitespace-nowrap text-[13px] text-muted-foreground"><Ph on={!b}>{dur}</Ph></span>}
+                    {!desktop && <span className="whitespace-nowrap text-[13px] tabular-nums text-muted-foreground"><Ph on={!b}>{durFig}</Ph></span>}
                   </div>
                 </div>
-              </>
+              </div>
             )
             const row = cn('flex h-[54px] items-center gap-4', i > 0 && cn('border-t', HAIR))
             // A row is one link to its book; the title takes the accent on hover, as Home's rows do.
@@ -712,7 +724,7 @@ function WhenYouRead({ stats, loading, width, desktop, dim, sig }: { stats: Stat
       <Heading note={two ? t`two-hour columns` : undefined}><Trans>When you read</Trans></Heading>
       <p className={cn('mb-3.5 text-[15px] leading-[1.45] text-foreground', desktop ? 'truncate' : 'line-clamp-2 min-h-[44px] [text-wrap:balance]')}>{sentence}</p>
       <div data-box="when-chart" style={{ height: hourHeatHeight(width, two, histH) }}>
-        <HourHeat W={width} grid={m.grid} byCol={m.byCol} colN={m.colN} two={two} histH={histH} loading={loading} />
+        <HourHeat entry={e} W={width} grid={m.grid} byCol={m.byCol} colN={m.colN} two={two} histH={histH} loading={loading} />
       </div>
     </section>
   )
