@@ -81,7 +81,7 @@ export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, pla
   const { t } = useLingui()
   const inner = (
     <>
-      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none" />
+      <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground pointer-events-none transition-colors duration-150 group-focus-within:text-foreground" />
       <input
         ref={inputRef}
         aria-label={t`Search books`}
@@ -90,8 +90,9 @@ export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, pla
         // Rests quiet (tinted fill, no border), sharpens on focus - filled AND
         // bordered at rest made it the heaviest element in the whole bar.
         // The secondary fill in every theme: on black the panel colour equals
-        // the frame, and the pill had no shape at all.
-        className="w-full h-9 pl-10 pr-12 rounded-full bg-secondary text-[14px] placeholder:text-muted-foreground max-sm:placeholder:text-transparent transition-colors hover:bg-surface-hover focus:bg-card focus:outline-none focus:ring-1 focus:ring-ring"
+        // the frame, and the pill had no shape at all. Focus lifts it: card fill,
+        // the ring and a soft halo that opens out over 150 ms.
+        className="w-full h-9 pl-10 pr-12 rounded-full bg-secondary text-[14px] placeholder:text-muted-foreground max-sm:placeholder:text-transparent transition-[background-color,box-shadow] duration-150 hover:bg-surface-hover focus:bg-card focus:outline-none focus:ring-1 focus:ring-ring focus:shadow-[0_0_0_4px_color-mix(in_oklch,var(--ring)_30%,transparent)]"
         placeholder={placeholder ?? t`Search`}
         value={value}
         onChange={e => onChange(e.target.value)}
@@ -117,8 +118,8 @@ export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, pla
     </>
   )
   return onSubmit ? (
-    <form onSubmit={onSubmit} className="relative flex-1 sm:max-w-[360px]">{inner}</form>
+    <form onSubmit={onSubmit} className="group relative flex-1 sm:max-w-[360px]">{inner}</form>
   ) : (
-    <div className="relative flex-1 sm:max-w-[360px]">{inner}</div>
+    <div className="group relative flex-1 sm:max-w-[360px]">{inner}</div>
   )
 }

@@ -5,6 +5,7 @@
 // contain a fixed overlay - same lesson as WhatsNewPanel).
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { AnimatePresence, m } from 'motion/react'
 import { useNavigate } from 'react-router-dom'
 import {
   BookOpen, ChartColumn, Compass, Layers, Library as LibraryIcon,
@@ -186,17 +187,36 @@ export function CommandPalette() {
   const inset = useShellInset()
   useRegisterOverlay(open)
 
-  if (!open) return null
-
   // eslint-disable-next-line lingui/no-unlocalized-strings -- group keys, labels via GROUP_LABEL
   const groups: Item['group'][] = ['Books', 'Series', 'Authors', 'Actions']
 
+  // Enters and leaves like the dialogs (ModalShell): the veil fades, the panel
+  // scales a little from its top edge.
   return createPortal(
-    <>
-      <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={() => setOpen(false)} />
+    <AnimatePresence>
+      {open && (
+      <m.div
+        key="veil"
+        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+        onClick={() => setOpen(false)}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        exit={{ opacity: 0 }}
+        transition={{ duration: 0.15 }}
+      />
+      )}
       {/* Centred over the content panel, like the dialogs; the veil still
           covers the whole viewport. */}
-      <div className="pointer-events-none fixed inset-y-0 right-0 z-50 flex justify-center px-4 pt-[15vh]" style={{ left: inset }}>
+      {open && (
+      <m.div
+        key="panel"
+        className="pointer-events-none fixed inset-y-0 right-0 z-50 flex justify-center px-4 pt-[15vh]"
+        style={{ left: inset, transformOrigin: '50% 15vh' }}
+        initial={{ opacity: 0, scale: 0.97, y: -4 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.97, y: -4 }}
+        transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+      >
         <div className="pointer-events-auto h-fit w-full max-w-xl overflow-hidden rounded-xl bg-card shadow-lg ring-1 ring-panel-ring">
           <div className="flex items-center gap-2 border-b border-border/70 px-4">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -268,8 +288,9 @@ export function CommandPalette() {
             })}
           </div>
         </div>
-      </div>
-    </>,
+      </m.div>
+      )}
+    </AnimatePresence>,
     document.body,
   )
 }

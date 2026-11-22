@@ -287,6 +287,23 @@ def create_saved_filter(
     return SavedFilterOut(id=sf.id, name=sf.name, icon=sf.icon, params=body.params, sort_order=sf.sort_order)
 
 
+@router.post("/saved-filters/reorder", status_code=status.HTTP_204_NO_CONTENT)
+def reorder_saved_filters(
+    body: ReorderIn,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Sets sort_order from the list position; only the caller's own shelves change."""
+    for i, filter_id in enumerate(body.ids):
+        sf = db.query(SavedFilter).filter(
+            SavedFilter.id == filter_id,
+            SavedFilter.owner_id == current_user.id,
+        ).first()
+        if sf:
+            sf.sort_order = i
+    db.commit()
+
+
 @router.put("/saved-filters/{filter_id}", response_model=SavedFilterOut)
 def update_saved_filter(
     filter_id: int,

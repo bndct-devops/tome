@@ -5,7 +5,7 @@ import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
-import { Pill } from '@/components/page'
+import { Glide, GlideGroup, Pill } from '@/components/page'
 import { cn } from '@/lib/utils'
 import { RANGES, fmtDay, type CustomRange } from './range'
 import { inWeekOrder, rowOfJsDay } from '@/lib/weekStart'
@@ -106,24 +106,34 @@ export function RangeControl({
 
   return (
     <div className="relative flex items-center gap-0.5">
-      {RANGES.map((r) => (
-        <Pill
-          key={r.days}
-          variant={!custom && days === r.days ? 'secondary' : 'quiet'}
-          onClick={() => onPreset(r.days)}
-          className="max-sm:px-3"
-        >
-          {i18n._(r.label)}
-        </Pill>
-      ))}
-      <Pill
-        variant={custom ? 'secondary' : 'quiet'}
-        onClick={() => setOpen((o) => !o)}
-        className="max-sm:px-3"
-      >
-        <Calendar className="h-4 w-4" />
-        {custom ? t`${customStart} to ${customEnd}` : t`Custom`}
-      </Pill>
+      {/* One fill glides to the chosen range; the popover stays outside the isolated row. */}
+      <GlideGroup>
+        <div className="isolate flex items-center gap-0.5">
+          {RANGES.map((r) => {
+            const on = !custom && days === r.days
+            return (
+              <Pill
+                key={r.days}
+                variant="quiet"
+                onClick={() => onPreset(r.days)}
+                className={cn('relative max-sm:px-3', on && 'text-foreground')}
+              >
+                {on && <Glide behind className="bg-secondary" />}
+                {i18n._(r.label)}
+              </Pill>
+            )
+          })}
+          <Pill
+            variant="quiet"
+            onClick={() => setOpen((o) => !o)}
+            className={cn('relative max-sm:px-3', custom && 'text-foreground')}
+          >
+            {custom && <Glide behind className="bg-secondary" />}
+            <Calendar className="h-4 w-4" />
+            {custom ? t`${customStart} to ${customEnd}` : t`Custom`}
+          </Pill>
+        </div>
+      </GlideGroup>
 
       {open && (
         <>

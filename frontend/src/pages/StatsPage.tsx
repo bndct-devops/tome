@@ -5,7 +5,7 @@ import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { AppShell } from '@/components/AppShell'
-import { PageBody, PageHeader, Pill } from '@/components/page'
+import { Glide, GlideGroup, PageBody, PageHeader, Pill } from '@/components/page'
 import { BookAnimation } from '@/components/BookAnimation'
 import { DOCS, docsLink } from '@/lib/docs'
 import { api } from '@/lib/api'
@@ -401,7 +401,8 @@ export function StatsPage() {
             )}
           </div>
 
-          <div className="flex min-w-0 items-center gap-1 overflow-x-auto max-sm:-ml-5 max-sm:pl-5 max-sm:-mr-5 max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] [scrollbar-width:none]" role="tablist" aria-label={t`Stats pages`} data-stats-controls="">
+          <GlideGroup>
+          <div className="isolate flex min-w-0 items-center gap-1 overflow-x-auto max-sm:-ml-5 max-sm:pl-5 max-sm:-mr-5 max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] [scrollbar-width:none]" role="tablist" aria-label={t`Stats pages`} data-stats-controls="">
             {tabs.map((p) => (
               <button
                 key={p.id}
@@ -410,14 +411,16 @@ export function StatsPage() {
                 aria-selected={shownTab === p.id}
                 onClick={() => setTab(p.id)}
                 className={cn(
-                  'h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-[14px] font-medium transition-colors',
-                  shownTab === p.id ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                  'relative h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-[14px] font-medium transition-colors',
+                  shownTab === p.id ? 'text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
                 )}
               >
+                {shownTab === p.id && <Glide behind className="bg-secondary" />}
                 {i18n._(p.label)}
               </button>
             ))}
           </div>
+          </GlideGroup>
         </div>
 
         <div ref={contentRef} className="min-w-0">{content}</div>

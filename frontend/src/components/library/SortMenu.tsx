@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AnimatePresence, m } from 'motion/react'
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react'
 import { useLingui } from '@lingui/react/macro'
 import { Pill } from '@/components/page'
@@ -40,10 +41,18 @@ export function SortMenu<F extends string>({ fields, value, order, onPick }: {
         {current}
         <Arrow className="w-3.5 h-3.5 text-muted-foreground" />
       </Pill>
-      {open && (
-        <>
-          <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />
-          <div role="menu" className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 z-40 min-w-52 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5">
+      {open && <div className="fixed inset-0 z-30" onClick={() => setOpen(false)} />}
+      {/* Grows out of the pill: same short scale + fade as the notification panel. */}
+      <AnimatePresence>
+        {open && (
+          <m.div
+            role="menu"
+            initial={{ opacity: 0, scale: 0.95, y: -4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.95, y: -4 }}
+            transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
+            className="absolute left-0 sm:left-auto sm:right-0 top-full mt-2 z-40 min-w-52 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 origin-top-left sm:origin-top-right"
+          >
             {fields.map(f => {
               const active = f.id === value
               return (
@@ -71,9 +80,9 @@ export function SortMenu<F extends string>({ fields, value, order, onPick }: {
             <div className="px-3 pt-1.5 pb-1 text-[12px] text-muted-foreground">
               {t`Pick the active field again to reverse the order.`}
             </div>
-          </div>
-        </>
-      )}
+          </m.div>
+        )}
+      </AnimatePresence>
     </div>
   )
 }

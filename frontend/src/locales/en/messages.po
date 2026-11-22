@@ -1688,6 +1688,10 @@ msgstr "{n} of 7 days"
 msgid "{n} of 7 days this week"
 msgstr "{n} of 7 days this week"
 
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{n} p/h"
+msgstr "{n} p/h"
+
 #: src/components/goals/figures.ts
 msgid "{n} pages or more on a reading day"
 msgstr "{n} pages or more on a reading day"
@@ -4611,6 +4615,10 @@ msgstr "Could not resolve this series on Hardcover"
 msgid "Could not save the goal. Try again."
 msgstr "Could not save the goal. Try again."
 
+#: src/components/Sidebar.tsx
+msgid "Could not save the new order"
+msgstr "Could not save the new order"
+
 #: src/pages/SettingsPage.tsx
 msgid "Could not save the week start. Try again."
 msgstr "Could not save the week start. Try again."
@@ -5235,6 +5243,10 @@ msgstr "Downloaded {n} highlights"
 #: src/pages/AdminPage.tsx
 msgid "Downloads per day"
 msgstr "Downloads per day"
+
+#: src/components/Sidebar.tsx
+msgid "Drag to reorder"
+msgstr "Drag to reorder"
 
 #: src/components/UploadModal.tsx
 msgid "Drop books here or <0>click to browse</0>"

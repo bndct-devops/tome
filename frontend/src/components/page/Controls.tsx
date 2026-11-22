@@ -1,6 +1,7 @@
 import { forwardRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Glide, GlideGroup } from './Glide'
 
 // Form controls in the refreshed vocabulary. One filled, borderless field
 // (bg-secondary, 36px, 14px text, ring on focus); selects get the chevron from
@@ -100,27 +101,34 @@ export function PillGroup<T extends string>({ value, onChange, options, size = '
   className?: string
   'aria-label'?: string
 }) {
+  // The filled pill is one indicator that glides to the chosen option; it sits
+  // over the other pills' fills and under every label.
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className={cn('inline-flex flex-wrap gap-1.5', className)}>
-      {options.map(o => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={o.value === value}
-          disabled={o.disabled}
-          onClick={() => onChange(o.value)}
-          className={cn(
-            'rounded-full font-medium transition-colors disabled:opacity-50',
-            size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-9 px-4 text-[14px]',
-            o.value === value
-              ? 'bg-foreground text-background'
-              : 'bg-secondary text-foreground hover:bg-surface-hover',
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
+    <GlideGroup>
+      <div role="radiogroup" aria-label={ariaLabel} className={cn('isolate inline-flex flex-wrap gap-1.5', className)}>
+        {options.map(o => (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={o.value === value}
+            disabled={o.disabled}
+            onClick={() => onChange(o.value)}
+            className={cn(
+              // Label colour over 300 ms, close to the indicator's travel: an instant
+              // swap left the new label in the inverse colour on a plain pill.
+              'relative rounded-full font-medium transition-colors duration-300 disabled:opacity-50',
+              size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-9 px-4 text-[14px]',
+              o.value === value
+                ? 'text-background'
+                : 'bg-secondary text-foreground hover:bg-surface-hover',
+            )}
+          >
+            {o.value === value && <Glide className="bg-foreground" />}
+            <span className="relative z-[1]">{o.label}</span>
+          </button>
+        ))}
+      </div>
+    </GlideGroup>
   )
 }

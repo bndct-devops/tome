@@ -7,7 +7,8 @@ import { useLocation, useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { cn } from '@/lib/utils'
-import { PageBody, PageHeader, SectionTitle } from '@/components/page'
+import { Glide, GlideGroup, PageBody, PageHeader, SectionTitle } from '@/components/page'
+import { m } from 'motion/react'
 import { TomeMark } from '@/components/TomeMark'
 
 // Where a sidebar-placed SectionNav puts its desktop list. SectionSidebar
@@ -73,23 +74,30 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
     row.scrollTo({ left: Math.max(0, left), behavior: 'smooth' })
   }, [active])
 
-  function item(s: SectionNavItem, className: string) {
+  // The active tint is one indicator that glides between entries (Glide).
+  // The pill row's other pills are filled, so there it rides over their fills
+  // and under the labels instead of behind them.
+  function item(s: SectionNavItem, className: string, radius: number, overFills = false) {
     const isActive = s.id === active
     const common = {
       onClick: (e: React.MouseEvent) => onSelect(s.id, e),
       'aria-current': isActive ? ('page' as const) : undefined,
       'data-section': s.id,
-      className,
+      className: cn('relative', className, isActive && 'glide-host'),
     }
+    const body = overFills
+      ? <>{isActive && <Glide className="bg-primary/10" radius={radius} />}<span className="relative z-[1]">{s.label}</span></>
+      : <>{isActive && <Glide behind className="bg-primary/10" radius={radius} />}{s.label}</>
     return hrefFor
-      ? <a key={s.id} href={hrefFor(s.id)} {...common}>{s.label}</a>
-      : <button key={s.id} type="button" {...common}>{s.label}</button>
+      ? <a key={s.id} href={hrefFor(s.id)} {...common}>{body}</a>
+      : <button key={s.id} type="button" {...common}>{body}</button>
   }
 
   return (
     <>
       {placement === 'sidebar' ? (slot && createPortal(
-        <nav aria-label={label} className="flex flex-col gap-0.5">
+        <GlideGroup>
+        <nav aria-label={label} className="isolate flex flex-col gap-0.5">
           {withGroupStarts(items).map(({ s, groupStart }, i) => (
             <Fragment key={s.id}>
               {groupStart && <div className={cn(GROUP_LABEL, i > 0 && 'mt-4')}>{s.group}</div>}
@@ -98,14 +106,16 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
                 s.id === active
                   ? 'bg-primary/10 text-foreground font-medium'
                   : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
-              ))}
+              ), 8)}
             </Fragment>
           ))}
-        </nav>,
+        </nav>
+        </GlideGroup>,
         slot,
       )) : (
+      <GlideGroup>
       <nav aria-label={label} className="hidden lg:block sticky top-6 self-start">
-        <div className="flex flex-col gap-0.5">
+        <div className="isolate flex flex-col gap-0.5">
           {withGroupStarts(items).map(({ s, groupStart }, i) => (
             <Fragment key={s.id}>
               {groupStart && <div className={cn(GROUP_LABEL, i > 0 && 'mt-4')}>{s.group}</div>}
@@ -114,15 +124,17 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
                 s.id === active
                   ? 'bg-primary/10 text-foreground font-medium'
                   : 'text-muted-foreground hover:text-foreground hover:bg-secondary',
-              ))}
+              ), 8)}
             </Fragment>
           ))}
         </div>
       </nav>
+      </GlideGroup>
       )}
 
+      <GlideGroup>
       <nav aria-label={label} className="lg:hidden sticky top-0 z-10 -mx-5 sm:-mx-6 bg-background" data-section-pills>
-        <div ref={pillRow} className="relative flex gap-1.5 overflow-x-auto px-5 sm:px-6 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        <m.div ref={pillRow} layoutScroll className="relative isolate flex gap-1.5 overflow-x-auto px-5 sm:px-6 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {withGroupStarts(items).map(({ s, groupStart }, i) => (
             <Fragment key={s.id}>
               {groupStart && i > 0 && <span aria-hidden className="shrink-0 self-center w-px h-4 mx-1 bg-border" />}
@@ -131,11 +143,12 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
                 s.id === active
                   ? 'bg-primary/10 text-foreground font-medium'
                   : 'bg-secondary text-muted-foreground hover:text-foreground',
-              ))}
+              ), 9999, true)}
             </Fragment>
           ))}
-        </div>
+        </m.div>
       </nav>
+      </GlideGroup>
     </>
   )
 }

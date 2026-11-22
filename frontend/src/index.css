@@ -202,27 +202,6 @@
   --surface-hover: oklch(0.885 0.016 70);
 }
 
-/* Card stagger entrance animation */
-@keyframes card-appear {
-  from { opacity: 0; transform: translateY(10px); }
-  to   { opacity: 1; transform: translateY(0); }
-}
-.animate-card-appear {
-  animation: card-appear 0.25s ease-out both;
-}
-
-/* Soft fade when the library switches between grid and list */
-@keyframes view-fade {
-  from { opacity: 0; transform: translateY(4px); }
-  to   { opacity: 1; transform: none; }
-}
-
-/* Focus-mode rotary: panel text cross-fades as you rotate to another volume */
-@keyframes fadeIn {
-  from { opacity: 0; transform: translateY(6px); }
-  to   { opacity: 1; transform: none; }
-}
-
 /* Settings and Admin replace the app sidebar with their own section list,
    which slides in from the left (no fade: the frame behind it is painted). */
 @keyframes section-sidebar-in { from { transform: translateX(-16px); } to { transform: none; } }
@@ -237,6 +216,8 @@
 }
 @media (prefers-reduced-motion: reduce) {
   .animate-\[quicklook-in_220ms_cubic-bezier\(0\.2\,0\.8\,0\.2\,1\)\] { animation: none; }
+  [class*="animate-[quicklook-veil"],
+  [class*="animate-[section-sidebar-in"] { animation: none !important; }
 }
 
 /* Focus-mode cover bloom — a soft black halo on light themes, a neutral light
@@ -295,18 +276,21 @@
   25% { transform: rotate(-12deg); }
   75% { transform: rotate(12deg); }
 }
-
-/* Reading status pop animation */
-@keyframes pop {
-  0% { transform: scale(1); }
-  50% { transform: scale(1.15); }
-  100% { transform: scale(1); }
+/* Hover wiggles and jiggles (Sidebar) and the Bindery badge ping: decoration only. */
+@media (prefers-reduced-motion: reduce) {
+  [class*="animate-[wiggle"],
+  [class*="animate-[badge-ping"],
+  .group:hover .sidebar-item-icon { animation: none !important; }
 }
 
-/* Cover shimmer placeholder */
+/* Cover shimmer placeholder. Reduced motion: CoverImage sets the animation
+   inline, so only !important stops it; the placeholder then sits still. */
 @keyframes shimmer {
   0% { background-position: -200% 0; }
   100% { background-position: 200% 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  [style*="shimmer"] { animation: none !important; }
 }
 
 /* ── Book animations (BookAnimation component) ───────────────────────────
@@ -460,6 +444,15 @@ body {
 .touch-feedback:active {
   transform: scale(0.97);
 }
+@media (prefers-reduced-motion: reduce) {
+  .touch-feedback { transition: none; }
+  .touch-feedback:active { transform: none; }
+}
+
+/* An entry whose tint is drawn by a gliding indicator (page/Glide.tsx) keeps
+   its bg-* class but paints no fill itself, so the two never double up.
+   Unlayered on purpose: it must win over the utility. */
+.glide-host { background-color: transparent; }
 
 /* Contain overscroll in nested scrollables */
 .overscroll-contain {

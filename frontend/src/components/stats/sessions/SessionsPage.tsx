@@ -12,7 +12,7 @@ import { t } from '@lingui/core/macro'
 import { ArrowUpDown, ChevronDown, Loader2, TriangleAlert } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn, formatDuration } from '@/lib/utils'
-import { Pill } from '@/components/page'
+import { Glide, GlideGroup, Pill } from '@/components/page'
 import type { SessionEntry, SessionsPage as SessionsAnswer } from '@/components/stats/shared'
 import { Cover, Pending, Ph } from '@/components/stats/kit/Kit'
 import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
@@ -141,7 +141,9 @@ export function SessionsPage() {
             <Trans><span className="font-medium text-foreground">Not counted</span>: a live device session whose sitting is also described by imported history. Listed for completeness, excluded from the totals so nothing is counted twice.</Trans>
           </p>
           <div data-box="sessions-chips" data-stats-controls="" className={cn('mt-5 flex items-center', desktop ? 'gap-1.5' : 'flex-wrap gap-1')}>
-            <div role="radiogroup" aria-label={t`Which sessions`} className={cn('flex items-center', desktop ? 'gap-1.5' : 'gap-1')}>
+            {/* The fill of the chosen chip glides to the next one (page/Glide). */}
+            <GlideGroup>
+            <div role="radiogroup" aria-label={t`Which sessions`} className={cn('isolate flex items-center', desktop ? 'gap-1.5' : 'gap-1')}>
               {chips.map((ch) => {
                 const on = ch.id === filter
                 return (
@@ -152,17 +154,19 @@ export function SessionsPage() {
                     aria-checked={on}
                     onClick={() => setFilter(ch.id)}
                     className={cn(
-                      'inline-flex items-center whitespace-nowrap rounded-full font-medium transition-colors',
+                      'relative inline-flex items-center whitespace-nowrap rounded-full font-medium transition-colors',
                       desktop ? 'h-[34px] gap-[7px] px-3.5 text-[14px]' : 'h-8 gap-1.5 px-3 text-[13px]',
-                      on ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                      on ? 'text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
                     )}
                   >
+                    {on && <Glide behind className="bg-secondary" />}
                     {ch.label}
                     <span className="text-[13px] font-normal tabular-nums text-muted-foreground"><Ph on={ch.n == null}>{ch.n == null ? PH.count : num(ch.n)}</Ph></span>
                   </button>
                 )
               })}
             </div>
+            </GlideGroup>
             {/* The order as the app's choice menu (kit/Menu.tsx), as the Library's sort pill. */}
             <div className={cn(desktop && 'ml-auto')}>
               <ChoiceMenu

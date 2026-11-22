@@ -7,11 +7,13 @@
 // of text. Clicking a day opens a card with what was read that day (books,
 // chapters, pages, pace, when). Its own page on purpose, not a stats tile.
 // Motion: the page arrives as one piece; the grid is its own skeleton and fills
-// in place when data lands; a month change slides the grid a few pixels in the
-// direction of travel; a day change dims the old card until the new one loads.
+// in place when data lands; a month change slides the new grid in from the side
+// it comes from (no fade); the selection outline glides from day to day; a day
+// change dims the old card until the new one loads, then its figures run from
+// the old values to the new.
 // Nothing fades up from zero inside a painted container, which is what reads
 // as flicker. All off under reduced motion. Data: GET /stats/calendar + /stats/calendar/day.
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
@@ -20,7 +22,7 @@ import {
   Flame, Gauge, List, Moon, Trophy, X, type LucideIcon,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
-import { PageBody, PageHeader, Pill } from '@/components/page'
+import { Glide, GlideGroup, PageBody, PageHeader, Pill } from '@/components/page'
 import { api } from '@/lib/api'
 import { cn, formatDuration } from '@/lib/utils'
 import type { StreakSummary } from '@/components/stats/shared'
@@ -186,7 +188,7 @@ export function ReadingCalendarPage() {
   })
 
   // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
-  const slide = dir == null ? '' : dir > 0 ? 'animate-in slide-in-from-right-2 duration-200 ease-out' : 'animate-in slide-in-from-left-2 duration-200 ease-out'
+  const slide = dir == null ? '' : dir > 0 ? 'animate-in slide-in-from-right-12 duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]' : 'animate-in slide-in-from-left-12 duration-300 ease-[cubic-bezier(0.2,0.8,0.2,1)]'
   const jump = (iso: string) => go({ month: iso.slice(0, 7), day: iso })
 
   return (
@@ -331,6 +333,8 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
       <div className="mb-1.5 grid grid-cols-7">
         {weekdays().map(w => <div key={w} className="pl-1.5 text-[11px] uppercase tracking-wide text-muted-foreground sm:pl-2">{w}</div>)}
       </div>
+      {/* One selection outline per month; it glides from day to day within it. */}
+      <GlideGroup>
       <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border">
         {Array.from({ length: lead }, (_, i) => { const n = prevCount - lead + 1 + i; return outside(`${prevMonth}-${String(n).padStart(2, '0')}`, n, i) })}
         {Array.from({ length: count }, (_, i) => {
@@ -355,18 +359,23 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
               aria-pressed={isSelected}
               className={cn(
                 CELL, cellBg(col),
-                'group flex flex-col items-stretch gap-1 text-left transition-colors focus-visible:outline-none',
+                'group relative flex flex-col items-stretch gap-1 text-left transition-colors focus-visible:outline-none',
                 // The highlights are marked important so they beat the weekend tint,
                 // whose theme variant would otherwise sort after them.
                 future ? 'cursor-default' : !isSelected && 'hover:bg-muted/50!',
                 // Selected: full muted plus an inset hairline, so it stays apart
                 // from the weekend tint (which is itself a muted mix) in every theme.
-                selected === iso && 'bg-muted! shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--foreground)_28%,transparent)]',
+                // The inset hairline is the gliding outline below.
+                selected === iso && 'bg-muted!',
                 // The desktop panel opens on a default day; only mark it where the panel shows.
-                !selected && fallback === iso && 'lg:bg-muted! lg:shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--foreground)_28%,transparent)]',
+                !selected && fallback === iso && 'lg:bg-muted!',
                 'focus-visible:bg-muted/70!',
               )}
             >
+              {isSelected && (
+                <Glide radius={0} layoutId="cal-sel"
+                  className={cn('z-[1] shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--foreground)_28%,transparent)]', !selected && 'hidden lg:block')} />
+              )}
               <span className="flex items-start justify-between gap-1">
                 <span className={cn(
                   'grid h-6 w-6 place-items-center rounded-full font-display text-xs leading-none sm:text-sm',
@@ -419,6 +428,7 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
         })}
         {Array.from({ length: trail }, (_, i) => outside(`${nextMonth}-${String(i + 1).padStart(2, '0')}`, i + 1, (lead + count + i) % 7))}
       </div>
+      </GlideGroup>
     </div>
   )
 }
@@ -556,11 +566,11 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
   // and speed out rather than show a 0 that reads like a measurement.
   const hasPages = data.pages > 0
   const pph = data.seconds ? Math.round(data.pages / (data.seconds / 3600)) : 0
-  const stats = [
-    { value: formatDuration(data.seconds), label: t`Time` },
-    ...(hasPages ? [{ value: data.pages.toLocaleString(), label: t`Pages` }] : []),
-    { value: String(data.sittings.length), label: t`Sittings` },
-    ...(hasPages ? [{ value: t`${pph} p/h`, label: t`Speed` }] : []),
+  const stats: { n: number; fmt: (n: number) => string; label: string }[] = [
+    { n: data.seconds, fmt: formatDuration, label: t`Time` },
+    ...(hasPages ? [{ n: data.pages, fmt: (n: number) => n.toLocaleString(), label: t`Pages` }] : []),
+    { n: data.sittings.length, fmt: String, label: t`Sittings` },
+    ...(hasPages ? [{ n: pph, fmt: (n: number) => t`${n} p/h`, label: t`Speed` }] : []),
   ]
   // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS colours
   const shades = ['var(--primary)', 'color-mix(in oklch, var(--primary) 45%, var(--muted-foreground))', 'var(--muted-foreground)']
@@ -581,7 +591,7 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
       <div className="grid grid-cols-4 gap-3">
         {stats.map(s => (
           <div key={s.label} className="min-w-0">
-            <p className="whitespace-nowrap font-display text-lg leading-tight text-foreground tabular-nums">{s.value}</p>
+            <p className="whitespace-nowrap font-display text-lg leading-tight text-foreground tabular-nums"><RunningNumber value={s.n} format={s.fmt} /></p>
             <p className="truncate text-[11px] text-muted-foreground">{s.label}</p>
           </div>
         ))}
@@ -659,4 +669,34 @@ function DayBookRow({ b }: { b: DayBook }) {
       </div>
     </Link>
   )
+}
+
+/**
+ * A figure that runs from the value it showed to the new one (420 ms, the app's
+ * ease) when the day changes. The first value shows at once; reduced motion
+ * shows every value at once.
+ */
+function RunningNumber({ value, format }: { value: number; format: (n: number) => string }) {
+  const [shown, setShown] = useState(value)
+  const shownRef = useRef(value)
+  useEffect(() => {
+    const start = shownRef.current
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
+    const instant = start === value || window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    const t0 = performance.now()
+    let raf = 0
+    // performance.now(), not the rAF timestamp: that can lie before t0.
+    const tick = () => {
+      const k = instant ? 1 : Math.min(1, Math.max(0, (performance.now() - t0) / 420))
+      // Close to the app's cubic-bezier(0.2, 0.8, 0.2, 1): a fast start, a long settle.
+      const e = 1 - Math.pow(1 - k, 4)
+      const v = k < 1 ? Math.round(start + (value - start) * e) : value
+      shownRef.current = v
+      setShown(v)
+      if (k < 1) raf = requestAnimationFrame(tick)
+    }
+    raf = requestAnimationFrame(tick)
+    return () => cancelAnimationFrame(raf)
+  }, [value])
+  return <>{format(shown)}</>
 }

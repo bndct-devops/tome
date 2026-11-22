@@ -1685,6 +1685,10 @@ msgstr ""
 msgid "{n} of 7 days this week"
 msgstr ""
 
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{n} p/h"
+msgstr ""
+
 #: src/components/goals/figures.ts
 msgid "{n} pages or more on a reading day"
 msgstr ""
@@ -4605,6 +4609,10 @@ msgstr "Impossible d’identifier cette série sur Hardcover"
 msgid "Could not save the goal. Try again."
 msgstr ""
 
+#: src/components/Sidebar.tsx
+msgid "Could not save the new order"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Could not save the week start. Try again."
 msgstr ""
@@ -5225,6 +5233,10 @@ msgstr "{n} surlignages téléchargés"
 #: src/pages/AdminPage.tsx
 msgid "Downloads per day"
 msgstr "Téléchargements par jour"
+
+#: src/components/Sidebar.tsx
+msgid "Drag to reorder"
+msgstr ""
 
 #: src/components/UploadModal.tsx
 msgid "Drop books here or <0>click to browse</0>"
