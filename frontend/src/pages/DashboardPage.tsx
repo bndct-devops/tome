@@ -1464,12 +1464,14 @@ export function DashboardPage() {
             <PageBody width="wide">
             {/* The URL names the series from the first render (opened from a book page, say), so
                 the page's first frame is its detail, not the grid. */}
-            {(expandedSeries ?? searchParams.get('series_detail')) ? (
-              seriesDetailLoading || !seriesDetail ? (() => {
+            {/* The URL alone decides between grid and detail: going Back, the grid is in the very
+                commit the URL changes in, so the cover has its card to return to. */}
+            {searchParams.get('series_detail') ? (
+              seriesDetailLoading || !seriesDetail || expandedSeries !== searchParams.get('series_detail') ? (() => {
                 // While the series loads: its frame with the hero cover the
                 // card showed, in the place the loaded page puts it, so the
                 // cover transition has somewhere to land at once.
-                const name = (expandedSeries ?? searchParams.get('series_detail'))!
+                const name = searchParams.get('series_detail')!
                 const listed = seriesList.find(s => s.name === name)
                 const previewCover = readSeriesPreview(location.state, name)?.cover
                   ?? (listed?.cover_book_id ? coverSrc(listed.cover_book_id, { w: 400 }) : null)
