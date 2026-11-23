@@ -430,14 +430,20 @@ def _cluster_rows(db, user_id: int, day: DayCtx,
 
 # ── Totals ────────────────────────────────────────────────────────────────────
 
-def totals(db, user_id, day, covered, cutoff, range_end) -> tuple[int, int, int]:
-    """(seconds, sessions, pages) reconciled over the window."""
+def totals(db, user_id, day, covered, cutoff, range_end, *,
+           sessions: bool = True) -> tuple[int, Optional[int], int]:
+    """(seconds, sessions, pages) reconciled over the window.
+
+    ``sessions=False`` leaves the session count out (None): counting page-stat
+    sessions gap-clusters every row of the window, by far the costliest part,
+    and a caller that only needs seconds (a reading pace) should not pay for it.
+    Seconds and pages are the same either way."""
     rs = _rs_filtered(db, user_id, covered, cutoff, range_end).with_entities(
         func.coalesce(func.sum(ReadingSession.duration_seconds), 0),
         func.count(ReadingSession.id),
         func.coalesce(func.sum(ReadingSession.pages_turned), 0),
     ).one()
-    secs, sessions, pages = int(rs[0] or 0), int(rs[1] or 0), int(rs[2] or 0)
+    secs, n_sessions, pages = int(rs[0] or 0), int(rs[1] or 0), int(rs[2] or 0)
     if covered:
         rows_ps = _page_rows(db, user_id, cutoff)
         if rows_ps is not None:
@@ -451,18 +457,24 @@ def totals(db, user_id, day, covered, cutoff, range_end) -> tuple[int, int, int]
         secs += int(ps[0] or 0)
         pages += int(ps[1] or 0)
         # real sessions: gap-clustered, not one-per-(book, day)
-        sessions += len(_cluster_rows(db, user_id, day, cutoff, range_end))
-    return secs, sessions, pages
+        if sessions:
+            n_sessions += len(_cluster_rows(db, user_id, day, cutoff, range_end))
+    return secs, (n_sessions if sessions else None), pages
 
 
 # ── Daily (per local-day) ───────────────────────────────────────────────────────
 
 def daily_map(db, user_id, day, covered, start_dt, end_dt,
-              book_ids: Optional[list[int]] = None) -> dict[str, tuple[int, int, int]]:
+              book_ids: Optional[list[int]] = None, *,
+              sessions: bool = True) -> dict[str, tuple[int, Optional[int], int]]:
     """day_str -> (seconds, sessions, pages). Caller fills the gaps.
 
     ``book_ids`` narrows every source to those books (a book-type goal); None
-    is the whole library, exactly as Stats counts it."""
+    is the whole library, exactly as Stats counts it.
+
+    ``sessions=False`` skips the page-stat session count (see ``totals``): the
+    session slot is None, and a day only page-stat sessions would have put in
+    the map (one with no seconds and no pages of its own) is not there."""
     rs_q = _rs_filtered(db, user_id, covered, start_dt, end_dt)
     if book_ids is not None:
         rs_q = rs_q.filter(ReadingSession.book_id.in_(book_ids))
@@ -503,18 +515,23 @@ def daily_map(db, user_id, day, covered, start_dt, end_dt,
                 e = out.setdefault(g.day, [0, 0, 0])
                 e[0] += int(g.secs or 0); e[2] += int(g.pages or 0)
         wanted = set(book_ids) if book_ids is not None else None
-        for c in _cluster_rows(db, user_id, day, start_dt, end_dt):
+        for c in (_cluster_rows(db, user_id, day, start_dt, end_dt) if sessions else ()):
             if wanted is not None and c.book_id not in wanted:
                 continue
             e = out.setdefault(c.day, [0, 0, 0])
             e[1] += 1
-    return {d: (v[0], v[1], v[2]) for d, v in out.items()}
+    return {d: (v[0], v[1] if sessions else None, v[2]) for d, v in out.items()}
 
 
 # ── Per-book ────────────────────────────────────────────────────────────────────
 
-def book_seconds(db, user_id, day, covered, cutoff, range_end) -> dict[int, tuple[int, int, int]]:
-    """book_id -> (seconds, sessions, pages) reconciled over the window."""
+def book_seconds(db, user_id, day, covered, cutoff, range_end, *,
+                 sessions: bool = True) -> dict[int, tuple[int, Optional[int], int]]:
+    """book_id -> (seconds, sessions, pages) reconciled over the window.
+
+    ``sessions=False``: session counts left out (None), see ``totals``. The
+    same books are listed: a book with a page-stat session in the window has
+    page rows in it, so its seconds and pages list it anyway."""
     rows = (
         _rs_filtered(db, user_id, covered, cutoff, range_end)
         .filter(ReadingSession.book_id.isnot(None))
@@ -544,10 +561,10 @@ def book_seconds(db, user_id, day, covered, cutoff, range_end) -> dict[int, tupl
         for bid, secs, pages in rows2:
             e = out.setdefault(bid, [0, 0, 0])
             e[0] += int(secs or 0); e[2] += int(pages or 0)
-        for c in _cluster_rows(db, user_id, day, cutoff, range_end):
+        for c in (_cluster_rows(db, user_id, day, cutoff, range_end) if sessions else ()):
             e = out.setdefault(c.book_id, [0, 0, 0])
             e[1] += 1
-    return {b: (v[0], v[1], v[2]) for b, v in out.items()}
+    return {b: (v[0], v[1] if sessions else None, v[2]) for b, v in out.items()}
 
 
 def book_month_seconds(db, user_id, day, covered, start_dt) -> dict[tuple[int, str], int]:

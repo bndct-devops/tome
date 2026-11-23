@@ -133,7 +133,7 @@ def compute_reading_dna(db: Session, user: User, tz_offset: int, tz_name: str | 
 
     # Pace (savorer ↔ speed demon) — true WPM = words ÷ reconciled read-time.
     if word_counts:
-        book_secs = rr.book_seconds(db, user.id, day_mod, covered, None, None)
+        book_secs = rr.book_seconds(db, user.id, day_mod, covered, None, None, sessions=False)
         words_sum = secs_sum = counted = 0
         for r in finished:
             if not r.word_count:

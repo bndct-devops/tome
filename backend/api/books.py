@@ -1438,7 +1438,7 @@ def get_reader_pacing(
 
     wpm = None
     covered = rr.covered_book_ids(db, current_user.id)
-    secs_by_book = rr.book_seconds(db, current_user.id, DayCtx(0), covered, None, None)
+    secs_by_book = rr.book_seconds(db, current_user.id, DayCtx(0), covered, None, None, sessions=False)
     rows = (
         db.query(Book.id, Book.word_count)
         .join(UserBookStatus, UserBookStatus.book_id == Book.id)
