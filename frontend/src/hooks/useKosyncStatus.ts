@@ -26,8 +26,17 @@ function computeStale(lastSync: string | null): boolean {
   return Date.now() - ts > STALE_MS
 }
 
+// The last answer, kept across mounts: the book page and the library each
+// mount their own header, and a badge that starts empty blinks on the way over.
+// Held per login, so signing out or impersonating never shows another
+// account's sync time.
+let last: { token: string | null; status: KosyncStatus } | null = null
+
+const currentToken = () => localStorage.getItem('tome_token')
+const remembered = () => (last && last.token === currentToken() ? last.status : null)
+
 export function useKosyncStatus(): KosyncStatus | null {
-  const [status, setStatus] = useState<KosyncStatus | null>(null)
+  const [status, setStatus] = useState<KosyncStatus | null>(remembered)
   const timerRef = useRef<number | null>(null)
 
   useEffect(() => {
@@ -35,16 +44,19 @@ export function useKosyncStatus(): KosyncStatus | null {
 
     async function fetchStatus() {
       if (typeof navigator !== 'undefined' && navigator.onLine === false) return
+      const token = currentToken()
       try {
         const r = await api.get<ApiResponse>('/auth/me/kosync')
         if (cancelled) return
-        setStatus({
+        const next = {
           linked: r.linked,
           lastSync: r.last_sync ?? null,
           lastDevice: r.last_device ?? null,
           syncedDocuments: r.synced_documents ?? 0,
           isStale: computeStale(r.last_sync ?? null),
-        })
+        }
+        last = { token, status: next }
+        setStatus(next)
       } catch {
         // Leave previous status in place on transient errors
       }

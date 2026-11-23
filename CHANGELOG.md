@@ -109,6 +109,8 @@ All notable changes to Tome are documented here. Format loosely follows
   a book does, and Back brings it home. The series page is complete in its
   first frame instead of filling in over several, and a cover opened from a
   tilted thumbnail lands flat.
+- The sync time in the top bar no longer blinks out for a moment when you go
+  between a book page and the library.
 - New goal: the suggested targets stay readable while the highlight moves
   between them, and a menu no longer lets the buttons behind it show through
   as it opens.
