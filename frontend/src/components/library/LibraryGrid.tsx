@@ -7,11 +7,14 @@
  * where nobody sees them. The caller calls `prepare()` on the handle right
  * before the state change, while the old cards are still in place.
  *
- * The cards render in blocks of 60 (the page size), each block its own
- * AnimatePresence: a new list that replaces hundreds of loaded cards removes
- * the blocks past the first at once instead of fading cards nobody sees.
- * Blocks below the screen follow a view switch or selection mode a moment
- * after the visible ones, so the visible part moves without a long frame.
+ * The cards render in blocks of 30, each block its own AnimatePresence: a
+ * new list that replaces hundreds of loaded cards removes the blocks past the
+ * first at once instead of fading cards nobody sees. Only the blocks on screen
+ * follow a view switch or selection mode at once; the others keep their props
+ * (so they do not render again), sit as empty boxes under one style rule, and
+ * catch up a block at a time after, the first card on screen held in place.
+ * Coming back to a long list renders the blocks around where it was left;
+ * the ones above are boxes of the same size until they fill in.
  *
  * A list change: the old cards stay (dimmed by the caller) until the new list
  * is in. Cards in both lists glide to their new place; the ones that leave
@@ -21,7 +24,8 @@
  * stack's place, and the other volumes on screen fly into it. Ungrouping: the
  * volumes come out of the stack they were in.
  */
-import { forwardRef, memo, useCallback, useEffect, useImperativeHandle, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
+import { flushSync } from 'react-dom'
+import { forwardRef, memo, useCallback, useEffect, useId, useImperativeHandle, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { AnimatePresence, m, type Variants } from 'motion/react'
 import type { Book, ReadingStatus } from '@/lib/books'
 import { BookCard, type ViewMode } from '@/components/BookCard'
@@ -43,16 +47,25 @@ const SWITCH_SETTLE_MS = SWITCH_S * 1000 + 60
 const SELECT_SETTLE_MS = 160
 const STEP_MS = 24
 // A remount (back to the Library) shows the blocks around the place it
-// returns to first, the rest one block per step after.
+// returns to first, the rest one block per step after: blocks below appear,
+// blocks above replace boxes of the same size (the screen stays put).
 const MOUNT_SETTLE_MS = 380
+// A list row's height, a little under the real one (so the estimate of what
+// fits on screen errs on the side of more).
+const LIST_ROW = 60
 
 export type PrepareKind = 'view' | 'list' | 'size' | 'select'
+
+/** Where the list was left: the first card on screen, its top below the top
+ *  of <main>, and its height (the size of the boxes drawn for the cards above
+ *  it until they render). */
+export interface ResumePoint { index: number; offset: number; height: number }
 
 export interface LibraryGridHandle {
   /** Right before a state change that moves the cards, while the old ones are on screen. */
   prepare(kind: PrepareKind, opts?: { toGrouped?: boolean }): void
-  /** Index of the first card on screen (for the way back). */
-  firstVisible(): number
+  /** The first card on screen (for the way back). */
+  resumePoint(): ResumePoint
 }
 
 interface Props {
@@ -65,9 +78,12 @@ interface Props {
   selecting: boolean
   focusedIndex: number | null
   refreshing: boolean
-  /** The first card on screen when the list was last left: its block and the
-   *  next render at once, the others after. */
-  resumeAt?: number
+  /** Coming back to where the list was left: the blocks around that card
+   *  render at once, at the same place on screen; the others after. */
+  resume?: ResumePoint
+  /** A long list shown again from the top: the first blocks render at once,
+   *  the others after. */
+  staged?: boolean
   onToggle: (id: number, shift: boolean) => void
   onTag: (tag: string) => void
   onSeries: (series: string) => void
@@ -81,7 +97,12 @@ const isStack = (grouped: boolean, b: Book) => grouped && !!b.series && b.status
 /** The cards that take part: indices `from`..`to` of the new list and the
  *  keys that were on screen. `version` changes with every prepared change,
  *  `travel` with every view switch (cover and title hand-over). */
-interface Win { from: number; to: number; keys: Set<string>; version: number; travel: number }
+interface Win {
+  from: number; to: number; keys: Set<string>; version: number; travel: number
+  /** The cards on screen after the change (estimated for a view switch): the
+   *  blocks that hold them change at once, the others follow. */
+  shownFrom: number; shownTo: number
+}
 
 /** Shared between the grid and its cards without re-rendering them. */
 interface Shared {
@@ -94,6 +115,8 @@ interface Shared {
 }
 
 type Exit = { key: string; series: string | null }
+
+const OUT_OF_WIN: Win = { from: -1, to: -2, keys: new Set(), version: 0, travel: 0, shownFrom: 0, shownTo: 0 }
 
 function reduced() {
   // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
@@ -140,8 +163,6 @@ interface ItemProps {
   dep: string
   travelDep: string
   switching: boolean
-  /** Below the screen, still in the old view for a moment: drawn as an empty box. */
-  lagging: string | null
   shared: RefObject<Shared>
   variants: Variants
   onToggle: Props['onToggle']
@@ -154,7 +175,7 @@ interface ItemProps {
 
 const LibraryItem = memo(function LibraryItem({
   ref: presenceRef, book, itemKey, index, stack, view, focused, selected, selecting, status, progress, rating,
-  dep, travelDep, switching, lagging, shared, variants,
+  dep, travelDep, switching, shared, variants,
   onToggle, onTag, onSeries, onAuthor, onQuickLook, onOpenSeries,
 }: ItemProps) {
   const ref = useRef<HTMLDivElement | null>(null)
@@ -210,8 +231,7 @@ const LibraryItem = memo(function LibraryItem({
       animate="shown"
       exit="leave"
       transition={{ layout: { duration: switching ? SWITCH_S : GLIDE_S, ease: EASE }, duration: 0.15 }}
-      className={cn(lagging && 'library-lag')}
-      style={lagging ? { containIntrinsicSize: lagging } : undefined}
+      data-block={Math.floor(index / CHUNK)}
     >
       {stack ? (
         <SeriesStackCard
@@ -251,18 +271,17 @@ const LibraryItem = memo(function LibraryItem({
 // The URL BookCard shows, so the quick look starts from the cached picture.
 const coverUrlOf = (book: Book) => coverSrc(book.id, { w: 400, v: book.updated_at })
 
-interface ChunkProps extends Omit<Props, 'books' | 'focusedIndex' | 'refreshing' | 'resumeAt' | 'gridSize'> {
+interface ChunkProps extends Omit<Props, 'books' | 'focusedIndex' | 'refreshing' | 'resume' | 'staged' | 'gridSize'> {
   items: Book[]
   start: number
   focused: number | null
   win: Win
   switching: boolean
-  lagging: string | null
   shared: RefObject<Shared>
   variants: Variants
 }
 
-const Chunk = memo(function Chunk({ items, start, grouped, view, statuses, selected, selecting, focused, win, switching, lagging, shared, variants, ...cb }: ChunkProps) {
+const Chunk = memo(function Chunk({ items, start, grouped, view, statuses, selected, selecting, focused, win, switching, shared, variants, ...cb }: ChunkProps) {
   return (
     <AnimatePresence mode="popLayout" initial={false} presenceAffectsLayout={false}>
       {items.map((book, j) => {
@@ -288,7 +307,6 @@ const Chunk = memo(function Chunk({ items, start, grouped, view, statuses, selec
             dep={dep}
             travelDep={inWin ? String(win.travel) : 'x'}
             switching={switching && inWin}
-            lagging={lagging}
             shared={shared}
             variants={variants}
             {...cb}
@@ -297,6 +315,12 @@ const Chunk = memo(function Chunk({ items, start, grouped, view, statuses, selec
       })}
     </AnimatePresence>
   )
+})
+
+/** A block above the screen that has not rendered yet: one empty box per
+ *  card, so the grid places the cards below exactly where they will be. */
+const PlaceholderBlock = memo(function PlaceholderBlock({ count, height }: { count: number; height: number }) {
+  return Array.from({ length: count }, (_, i) => <div key={i} aria-hidden="true" style={{ height }} />)
 })
 
 /** Slices of `books` per block, the same arrays as last time where nothing changed. */
@@ -321,10 +345,10 @@ function slice(books: Book[], prev: Book[][]): Book[][] {
 }
 
 export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function LibraryGrid(props, handle) {
-  const { books, grouped, view, gridSize, statuses, selected, selecting, focusedIndex, refreshing, resumeAt } = props
+  const { books, grouped, view, gridSize, statuses, selected, selecting, focusedIndex, refreshing, resume, staged } = props
   const gridRef = useRef<HTMLDivElement | null>(null)
   // Set by prepare() in the same batch as the caller's change.
-  const [win, setWin] = useState<Win>({ from: 0, to: CHUNK * 2, keys: new Set(), version: 0, travel: 0 })
+  const [win, setWin] = useState<Win>({ from: 0, to: CHUNK * 2, keys: new Set(), version: 0, travel: 0, shownFrom: 0, shownTo: CHUNK * 2 })
   const anchor = useRef<{ key: string; top: number } | null>(null)
   const [switchView, setSwitchView] = useState<{ to: 'grid' | 'list'; n: number } | null>(null)
   const shared = useRef<Shared>({ grid: gridRef, stackOf: new Map(), grouped, spreadFrom: null })
@@ -354,16 +378,42 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     return { a, b, keys, items, top }
   }, [])
 
+  // Keeps the first real card on screen where it is across a commit that
+  // changes cards above it (blocks catching up). Committed synchronously, so
+  // no scroll lands between the two readings. What the scroll position could
+  // not take (it rounds) carries over to the next step instead of adding up.
+  const residual = useRef(0)
+  const keepAnchor = useCallback((update: () => void) => {
+    const grid = gridRef.current
+    const main = grid?.closest('main')
+    const m = main ? measure() : null
+    let el: HTMLElement | null = null
+    if (m) for (let i = m.a; i < m.items.length && !el; i++) if (m.items[i].dataset.item) el = m.items[i]
+    const before = el ? el.getBoundingClientRect().top - residual.current : undefined
+    flushSync(update)
+    residual.current = 0
+    if (!el || !main || before == null || !el.isConnected) return
+    main.scrollTop += el.getBoundingClientRect().top - before
+    residual.current = el.getBoundingClientRect().top - before
+  }, [measure])
+
   // The first card on screen, kept up to date while scrolling, so leaving the
   // page reads it without forcing a layout.
-  const lastVisible = useRef(0)
+  const lastVisible = useRef<ResumePoint>({ index: 0, offset: 0, height: 0 })
   useEffect(() => {
     const main = gridRef.current?.closest('main')
     if (!main) return
     let raf = 0
     const onScroll = () => {
       if (raf) return
-      raf = requestAnimationFrame(() => { raf = 0; lastVisible.current = measure()?.a ?? 0 })
+      raf = requestAnimationFrame(() => {
+        raf = 0
+        const m = measure()
+        const el = m?.items[m.a]
+        if (!m || !el || !el.dataset.item) return
+        const r = el.getBoundingClientRect()
+        lastVisible.current = { index: m.a, offset: r.top - m.top, height: r.height }
+      })
     }
     onScroll()
     main.addEventListener('scroll', onScroll, { passive: true })
@@ -373,14 +423,31 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
   useImperativeHandle(handle, () => ({
     prepare(kind, opts) {
       const m = measure()
+      // A view switch keeps the first card on screen in place: the new view
+      // shows about a screenful of its own after it.
+      let shown = m ? m.b - m.a + 1 : CHUNK * 2
+      const main = gridRef.current?.closest('main')
+      if (m && main && kind === 'view') {
+        const height = main.clientHeight
+        if (view !== 'list') shown = Math.ceil(height / LIST_ROW) + 2
+        else {
+          const gap = gridSize < 150 ? 12 : 20
+          const cols = Math.max(1, Math.floor((gridRef.current!.clientWidth + gap) / (Math.min(gridSize, window.innerWidth * 0.42) + gap)))
+          shown = cols * (Math.ceil(height / (gridSize * 1.5 + 40)) + 1)
+        }
+      }
       setWin(old => ({
         from: m ? m.a - MARGIN : old.from,
         to: m ? m.b + MARGIN : old.to,
         keys: m && kind !== 'select' ? m.keys : old.keys,
         version: old.version + (kind === 'select' ? 0 : 1),
         travel: old.travel + (kind === 'view' ? 1 : 0),
+        shownFrom: m ? m.a : old.shownFrom,
+        shownTo: m ? m.a + shown : old.shownTo,
       }))
       if (kind === 'select') return
+      // A new list before the way back has filled in: everything renders.
+      if (kind === 'list') setMount(s => (s.from > 0 ? { ...s, from: 0 } : s))
       if (kind === 'view' && m) {
         const first = m.items[m.a]
         anchor.current = first?.dataset.item ? { key: first.dataset.item, top: first.getBoundingClientRect().top - m.top } : null
@@ -401,10 +468,10 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
         }
       }
     },
-    firstVisible() {
+    resumePoint() {
       return lastVisible.current
     },
-  }), [measure])
+  }), [measure, view, gridSize])
 
   // What the exits read while the new list commits: set before any card's
   // layout effect (where the exits start) runs.
@@ -420,11 +487,16 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
   // ── Blocks that follow later ───────────────────────────────────────────
   const listView = view === 'list'
   const [shown, setShown] = useState({ view, selecting, selected })
-  // Blocks past `upTo` still show the view, selection mode and selection of
-  // before the change; select all / none re-renders every card otherwise.
-  const [lag, setLag] = useState<{ view: ViewMode; selecting: boolean; selected: Set<number>; upTo: number; delay: number } | null>(null)
-  const [firstMount] = useState(() => resumeAt != null ? Math.floor(resumeAt / CHUNK) + 1 : Infinity)
-  const [mountedUpTo, setMountedUpTo] = useState(firstMount)
+  // Blocks outside `from`..`upTo` (above and below the screen) still show the
+  // view, selection mode and selection of before the change; select all /
+  // none or a view switch re-renders every card otherwise.
+  const [lag, setLag] = useState<{ view: ViewMode; selecting: boolean; selected: Set<number>; from: number; upTo: number; delay: number } | null>(null)
+  // Coming back: blocks `from`..`upTo` render, the ones above are boxes, the
+  // ones below are not there yet.
+  const [mount, setMount] = useState(() => {
+    const from = resume ? Math.floor(resume.index / CHUNK) : 0
+    return { from, upTo: resume || staged ? from + 1 : Infinity, settled: !resume && !staged }
+  })
   if (shown.selected !== selected && shown.view === view && shown.selecting === selecting) setShown({ view, selecting, selected })
   if (shown.view !== view || shown.selecting !== selecting) {
     const viewChanged = shown.view !== view
@@ -433,7 +505,8 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
       view: lag ? lag.view : shown.view,
       selecting: lag ? lag.selecting : shown.selecting,
       selected: lag ? lag.selected : shown.selected,
-      upTo: Math.max(0, Math.floor(Math.max(win.to, 0) / CHUNK)),
+      from: Math.floor(Math.max(win.shownFrom, 0) / CHUNK),
+      upTo: Math.floor(Math.max(win.shownTo, 0) / CHUNK),
       delay: viewChanged ? SWITCH_SETTLE_MS : SELECT_SETTLE_MS,
     })
     if (viewChanged) setSwitchView(s => ({ to: listView ? 'list' : 'grid', n: (s?.n ?? 0) + 1 }))
@@ -446,17 +519,39 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
 
   const blocks = useBlocks(books)
   const lastBlock = blocks.length - 1
+  // One block per step: below the screen first, then above it.
   useEffect(() => {
     if (!lag) return
-    if (lag.upTo >= lastBlock) { setLag(null); return }
-    const id = setTimeout(() => setLag(l => l && { ...l, upTo: l.upTo + 1, delay: STEP_MS }), lag.delay)
+    if (lag.upTo >= lastBlock && lag.from <= 0) { setLag(null); return }
+    const id = setTimeout(() => {
+      if (lag.upTo < lastBlock) setLag(l => l && { ...l, upTo: l.upTo + 1, delay: STEP_MS })
+      else keepAnchor(() => setLag(l => l && { ...l, from: l.from - 1, delay: STEP_MS }))
+    }, lag.delay)
     return () => clearTimeout(id)
-  }, [lag, lastBlock])
+  }, [lag, lastBlock, keepAnchor])
   useEffect(() => {
-    if (mountedUpTo >= lastBlock) return
-    const id = setTimeout(() => setMountedUpTo(n => n + 1), mountedUpTo === firstMount ? MOUNT_SETTLE_MS : STEP_MS)
+    if (mount.upTo >= lastBlock && mount.from <= 0) return
+    const id = setTimeout(() => {
+      if (mount.upTo < lastBlock) setMount(s => ({ ...s, upTo: s.upTo + 1, settled: true }))
+      else keepAnchor(() => setMount(s => ({ ...s, from: s.from - 1, settled: true })))
+    }, mount.settled ? STEP_MS : MOUNT_SETTLE_MS)
     return () => clearTimeout(id)
-  }, [mountedUpTo, lastBlock, firstMount])
+  }, [mount, lastBlock, keepAnchor])
+
+  // Coming back: the card that was first on screen goes where it was.
+  useLayoutEffect(() => {
+    const grid = gridRef.current
+    const main = grid?.closest('main')
+    const book = resume ? books[resume.index] : undefined
+    if (!resume || !book || !grid || !main) return
+    const el = grid.querySelector<HTMLElement>(`[data-item="${CSS.escape(String(book.id))}"]`)
+    if (!el) return
+    const top = main.getBoundingClientRect().top + resume.offset
+    main.scrollTop += el.getBoundingClientRect().top - top
+    residual.current = el.getBoundingClientRect().top - top
+    // Only on arrival.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   // The view switch keeps the first card on screen where it was.
   useLayoutEffect(() => {
@@ -469,9 +564,19 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     if (el) main.scrollTop = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop - a.top
   }, [view])
 
-  // A lagging card is an empty box of about the size it will have.
-  // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS value
-  const lagSize = listView ? 'auto 69px' : `auto ${Math.round(gridSize * 1.5 + 64)}px`
+  // A card in a block still in the other view is an empty box of about the
+  // size it will have. One rule for all of them: those blocks keep their props
+  // and do not render again.
+  const gridId = useId()
+  let lagRule = ''
+  if (lag && (lag.view === 'list') !== listView) {
+    const behind: string[] = []
+    for (let c = 0; c <= Math.min(lastBlock, mount.upTo); c++) if (c < lag.from || c > lag.upTo) behind.push(`[data-block="${c}"]`)
+    /* eslint-disable lingui/no-unlocalized-strings -- CSS */
+    const size = listView ? 'auto 69px' : `auto ${Math.round(gridSize * 1.5 + 64)}px`
+    if (behind.length) lagRule = `[data-library-grid="${gridId}"] > :is(${behind.join(',')}) { content-visibility: hidden; contain-intrinsic-size: ${size}; }`
+    /* eslint-enable lingui/no-unlocalized-strings */
+  }
 
   const gridClass = listView
     // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
@@ -484,42 +589,49 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     : { gridTemplateColumns: `repeat(auto-fill, minmax(min(${gridSize}px, 42vw), 1fr))` }
 
   return (
-    <div
-      ref={gridRef}
-      data-view-switch={switchView?.to}
-      className={cn(gridClass, 'transition-opacity duration-150', refreshing && 'opacity-50')}
-      style={gridStyle}
-    >
-      {blocks.map((items, c) => {
-        if (c > mountedUpTo) return null
-        const behind = !!lag && c > lag.upTo
-        const blockView = behind ? lag.view : view
-        return (
-          <Chunk
-            key={c}
-            items={items}
-            start={c * CHUNK}
-            grouped={grouped}
-            view={blockView}
-            statuses={statuses}
-            selected={behind ? lag.selected : selected}
-            selecting={behind ? lag.selecting : selecting}
-            focused={focusedIndex != null && focusedIndex >= c * CHUNK && focusedIndex < (c + 1) * CHUNK ? focusedIndex : null}
-            win={win}
-            switching={!!switchView}
-            lagging={behind && (blockView === 'list') !== listView ? lagSize : null}
-            shared={shared}
-            variants={variants}
-            onToggle={props.onToggle}
-            onTag={props.onTag}
-            onSeries={props.onSeries}
-            onAuthor={props.onAuthor}
-            onQuickLook={props.onQuickLook}
-            onOpenSeries={props.onOpenSeries}
-          />
-        )
-      })}
-    </div>
+    <>
+      {lagRule && <style>{lagRule}</style>}
+      <div
+        ref={gridRef}
+        data-library-grid={gridId}
+        data-view-switch={switchView?.to}
+        className={cn(gridClass, 'transition-opacity duration-150', refreshing && 'opacity-50')}
+        style={gridStyle}
+      >
+        {blocks.map((items, c) => {
+          if (c > mount.upTo) return null
+          if (c < mount.from) return <PlaceholderBlock key={c} count={items.length} height={resume?.height ?? 0} />
+          const behind = !!lag && (c > lag.upTo || c < lag.from)
+          // A block with no card in the window gets the same props as before,
+          // so a view switch or a selection change does not render it again.
+          const inWin = (c * CHUNK <= win.to && c * CHUNK + items.length - 1 >= win.from) || (win.keys.size > 0 && items.some(b => win.keys.has(String(b.id))))
+          const blockView = behind ? lag.view : view
+          return (
+            <Chunk
+              key={c}
+              items={items}
+              start={c * CHUNK}
+              grouped={grouped}
+              view={blockView}
+              statuses={statuses}
+              selected={behind ? lag.selected : selected}
+              selecting={behind ? lag.selecting : selecting}
+              focused={focusedIndex != null && focusedIndex >= c * CHUNK && focusedIndex < (c + 1) * CHUNK ? focusedIndex : null}
+              win={inWin ? win : OUT_OF_WIN}
+              switching={!!switchView && inWin}
+              shared={shared}
+              variants={variants}
+              onToggle={props.onToggle}
+              onTag={props.onTag}
+              onSeries={props.onSeries}
+              onAuthor={props.onAuthor}
+              onQuickLook={props.onQuickLook}
+              onOpenSeries={props.onOpenSeries}
+            />
+          )
+        })}
+      </div>
+    </>
   )
 })
 

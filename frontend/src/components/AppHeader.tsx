@@ -7,7 +7,7 @@ import { SyncStatusBadge } from '@/components/SyncStatusBadge'
 import { NotificationBell } from '@/components/NotificationBell'
 import { WhatsNewPanel } from '@/components/WhatsNewPanel'
 import { CommandPalette } from '@/components/CommandPalette'
-import { noteLocation } from '@/components/SectionNav'
+import { noteLocation } from '@/lib/areaBack'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { cn } from '@/lib/utils'
 

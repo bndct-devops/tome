@@ -19,10 +19,13 @@ function stillPointer(): boolean {
   return window.matchMedia('(prefers-reduced-motion: reduce)').matches || !window.matchMedia('(hover: hover) and (pointer: fine)').matches
 }
 
-// Pressing a cover (.cover-lift:active, components/motion/motion.css) sets
-// --cover-press; the transform always multiplies it in.
-const PRESS = 'scale(var(--cover-press, 1))'
-const REST = `rotateY(0deg) rotateX(0deg) translateY(0px) scale(1) ${PRESS}`
+// The tilt's own transition. Not in the resting style: a grid of covers mounts with no
+// transition on them, and the first pointer move over a cover turns it on (a cover that
+// brings its own `transition` inline keeps it). Pressing (.cover-lift:active,
+// components/motion/motion.css) scales the wrapper with the CSS `scale` property, on
+// its own shorter transition, so the press never waits for the tilt's.
+export const TILT_TRANSITION = 'transform 200ms ease-out'
+const REST = 'rotateY(0deg) rotateX(0deg) translateY(0px) scale(1)'
 
 /**
  * The cover tilt the Library and Series cards have: the card follows the
@@ -48,9 +51,10 @@ export function useTilt(enabled = true, degrees: number = COVER_TILT.degrees, { 
     // A layer only for the cover under the pointer: hundreds of always-on
     // layers make a big grid slow to paint and to capture.
     clearTimeout(settle.current)
+    if (!node.style.transition) node.style.transition = TILT_TRANSITION
     if (node.style.willChange !== 'transform') node.style.willChange = 'transform'
     tilted.current = true
-    node.style.transform = `rotateY(${x * degrees}deg) rotateX(${y * -degrees}deg) translateY(-${lift}px) scale(${scale}) ${PRESS}`
+    node.style.transform = `rotateY(${x * degrees}deg) rotateX(${y * -degrees}deg) translateY(-${lift}px) scale(${scale})`
     if (glare) {
       node.style.setProperty('--glare-x', `${fx * 100}%`)
       node.style.setProperty('--glare-y', `${fy * 100}%`)
@@ -72,7 +76,7 @@ export function useTilt(enabled = true, degrees: number = COVER_TILT.degrees, { 
     /** Spread on the wrapper: it gives the perspective and listens to the pointer. */
     wrapperProps: { style: { perspective: '600px' } as const, onMouseMove, onMouseLeave },
     /** Spread on the element that tilts. */
-    tiltProps: { ref: setEl, style: { transform: PRESS, transition: 'transform 200ms ease-out', transformStyle: 'preserve-3d' } as const },
+    tiltProps: { ref: setEl, style: { transform: undefined, transition: undefined, transformStyle: 'preserve-3d' } as { transform?: string; transition?: string; transformStyle: 'preserve-3d' } },
   }
 }
 

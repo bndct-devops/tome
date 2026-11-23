@@ -17,7 +17,7 @@ import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, rangeSig, stagger, useEntry, type Entry } from '@/components/stats/kit/motion'
 import { tipAttrs, useTips } from '@/components/stats/kit/tip'
 import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, big, dec1, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
-import { rangeQuery, statsPrefetch, useStatsGet } from '@/components/stats/kit/useStatsGet'
+import { habitsPath, statsCacheGet, statsPrefetch, useStatsGet } from '@/components/stats/kit/useStatsGet'
 import { hourModel, readingDayOf } from '@/components/stats/overview/model'
 import { ChartEmpty, Lengths, Months, Pace, Rhythm, Timeline } from './charts'
 import { bucketCounts, byWeekday, formatShares, monthsHeight, paceChange, paceModel, paceTicks, rhythmHeight, timelineHeight, timelineRows, type FormatShare } from './model'
@@ -48,15 +48,20 @@ const PH = {
 export function HabitsPage({ stats, pending, days, custom, requested }: DesignedPageProps) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const desktop = width >= DESKTOP_MIN
-  const habitsQ = useStatsGet<HabitsResponse>('/stats/habits?' + rangeQuery(requested.days, requested.custom))
+  // Asked for the requested range (it starts together with /stats), drawn for the range on
+  // screen: StatsPage moves `days`/`custom` on only once both answers are in, so every
+  // section changes in the same frame and until then all keep the old range, dimmed.
+  const asked = useStatsGet<HabitsResponse>(habitsPath(requested.days, requested.custom))
+  const onScreen = statsCacheGet<HabitsResponse>(habitsPath(days, custom))
+  const habitsQ = onScreen !== undefined ? { data: onScreen, pending: false } : asked
   const habits = habitsQ.data
   // The other preset ranges' answers, quietly, once this one is in (StatsPage does the same for /stats).
-  const habitsIn = !!habits && !habitsQ.pending
+  const habitsIn = !!asked.data && !asked.pending
   useEffect(() => {
     if (!habitsIn) return
     const ctl = new AbortController()
     const others = RANGES.filter((r) => requested.custom || r.days !== requested.days)
-    statsPrefetch(others.map((r) => ({ url: '/stats/habits?' + rangeQuery(r.days, null) })), ctl.signal)
+    statsPrefetch(others.map((r) => ({ url: habitsPath(r.days, null) })), ctl.signal)
     return () => ctl.abort()
   }, [habitsIn, requested.days, requested.custom])
   const left = Math.floor(((width - 11 * GAP) / 12) * 7 + 6 * GAP)

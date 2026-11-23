@@ -1,5 +1,6 @@
-import { forwardRef, useState, type CSSProperties, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { forwardRef, useLayoutEffect, useRef, useState, type CSSProperties, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { Check } from 'lucide-react'
+import { cancelFrame, frame } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { Glide, GlideGroup } from './Glide'
 import { PRESS_LABEL } from '@/components/motion/press'
@@ -59,7 +60,8 @@ export const Checkbox = forwardRef<HTMLInputElement, ChoiceProps>(function Check
     <label className={cn('inline-flex items-start gap-2.5 cursor-pointer select-none', disabled && 'opacity-50 cursor-not-allowed', className)}>
       <span className="relative mt-0.5 inline-flex h-[18px] w-[18px] shrink-0">
         <input ref={ref} type="checkbox" disabled={disabled} className="peer absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed" {...rest} />
-        <span className="pointer-events-none inline-flex h-full w-full items-center justify-center rounded-[5px] bg-card ring-1 ring-muted-foreground/45 transition-colors peer-checked:bg-primary peer-checked:ring-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring [&>svg]:opacity-0 peer-checked:[&>svg]:opacity-100">
+        {/* data-check-box: a list that selects hundreds of rows at once stops this fade by that name. */}
+        <span data-check-box className="pointer-events-none inline-flex h-full w-full items-center justify-center rounded-[5px] bg-card ring-1 ring-muted-foreground/45 transition-colors peer-checked:bg-primary peer-checked:ring-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring [&>svg]:opacity-0 peer-checked:[&>svg]:opacity-100">
           <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
         </span>
       </span>
@@ -102,6 +104,51 @@ const LEAVE_MS = [90, 53, 41, 34, 30, 27]
 // indicator starts a frame after the click.
 const LABEL_HALF_MS = 50 - 16
 
+// While the indicator travels it covers the pills between the old choice and
+// the new one, whose labels share its colour. For that time every label is
+// painted in two colours split where the indicator's edges are (the page's
+// background colour over the indicator, its text colour elsewhere), so each
+// part of every label reads in every frame. Two rect reads per frame; the
+// labels do not move in the row, so theirs are read once. It runs in motion's frame loop
+// after the indicator is drawn for the frame, so the split never lags it.
+function followIndicator(row: HTMLElement): () => void {
+  const labels = Array.from(row.querySelectorAll<HTMLElement>('[role="radio"] > span:last-child'))
+  // Offsets in the row (the row itself may move while the page changes under it).
+  const at = (r: DOMRect, o: DOMRect) => ({ left: r.left - o.left, right: r.right - o.left, top: r.top - o.top, bottom: r.bottom - o.top, width: r.width, height: r.height })
+  const origin = row.getBoundingClientRect()
+  const boxes = labels.map(l => at(l.getBoundingClientRect(), origin))
+  const chosen = row.querySelector('[aria-checked="true"]')
+  const target = chosen && at(chosen.getBoundingClientRect(), origin)
+  const start = performance.now()
+  let still = 0
+  const clear = () => labels.forEach(l => {
+    l.style.removeProperty('color'); l.style.removeProperty('background-image')
+    l.style.removeProperty('background-clip'); l.style.removeProperty('-webkit-background-clip')
+  })
+  const step = () => {
+    const el = row.querySelector('[aria-checked="true"] > span[aria-hidden]')
+    if (!el || !target) { stop(); return }
+    const ind = at(el.getBoundingClientRect(), row.getBoundingClientRect())
+    labels.forEach((l, i) => {
+      const box = boxes[i]
+      const over = Math.min(box.bottom, ind.bottom) - Math.max(box.top, ind.top) > box.height / 2
+      const a = over ? Math.max(0, Math.min(box.width, ind.left - box.left)) : 0
+      const z = over ? Math.max(0, Math.min(box.width, ind.right - box.left)) : 0
+      l.style.color = 'transparent'
+      l.style.setProperty('-webkit-background-clip', 'text')
+      l.style.backgroundClip = 'text'
+      // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS
+      l.style.backgroundImage = `linear-gradient(90deg, var(--foreground) ${a}px, var(--background) ${a}px, var(--background) ${z}px, var(--foreground) ${z}px)`
+    })
+    const landed = Math.abs(ind.left - target.left) < 0.5 && Math.abs(ind.width - target.width) < 0.5 && Math.abs(ind.top - target.top) < 0.5
+    still = landed ? still + 1 : 0
+    if ((still >= 2 && performance.now() - start > 80) || performance.now() - start > 900) stop()
+  }
+  const stop = () => { cancelFrame(step); clear() }
+  frame.postRender(step, true)
+  return stop
+}
+
 /** A row of exclusive choices as pills (sort order, scope, layout preset). */
 export function PillGroup<T extends string>({ value, onChange, options, size = 'md', className, 'aria-label': ariaLabel }: {
   value: T
@@ -123,11 +170,19 @@ export function PillGroup<T extends string>({ value, onChange, options, size = '
     ? ARRIVE_MS[pills - 1] - LABEL_HALF_MS
     : v === step.prev ? Math.max(0, LEAVE_MS[pills - 1] - LABEL_HALF_MS) : 0
 
+  const rowRef = useRef<HTMLDivElement>(null)
+  const shown = useRef(value)
+  useLayoutEffect(() => {
+    if (shown.current === value || !rowRef.current) return
+    shown.current = value
+    return followIndicator(rowRef.current)
+  }, [value])
+
   // The filled pill is one indicator that glides to the chosen option; it sits
   // over the other pills' fills and under every label.
   return (
     <GlideGroup value={value}>
-      <div role="radiogroup" aria-label={ariaLabel} className={cn('isolate inline-flex flex-wrap gap-1.5', className)}>
+      <div ref={rowRef} role="radiogroup" aria-label={ariaLabel} className={cn('isolate inline-flex flex-wrap gap-1.5', className)}>
         {options.map(o => (
           <button
             key={o.value}

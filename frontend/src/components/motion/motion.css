@@ -13,13 +13,20 @@
   white-space: pre;
 }
 
-/* CoverLift: a short press on a lifting cover. The tilt transform reads
-   --cover-press (see lib/tilt.ts). */
+/* CoverLift and every lifting cover (lib/tilt.ts): a short press. It scales the
+   wrapper with the `scale` property, apart from the tilt's transform and its
+   200 ms transition, so the press takes 120 ms. Nothing under reduced motion. */
+.cover-lift {
+  transition: scale 120ms var(--spring);
+}
 .cover-lift:active {
-  --cover-press: 0.97;
+  scale: 0.97;
 }
 @media (prefers-reduced-motion: reduce) {
+  .cover-lift {
+    transition: none;
+  }
   .cover-lift:active {
-    --cover-press: 1;
+    scale: none;
   }
 }

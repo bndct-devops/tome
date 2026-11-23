@@ -40,6 +40,18 @@ All notable changes to Tome are documented here. Format loosely follows
 - A book's page shows its cover and title at once when opened from a list,
   and moving to the next or previous volume keeps the page on screen instead
   of reloading it.
+- A book's page is complete sooner: Tome starts loading a book while the
+  pointer rests on its cover, the parts of the page arrive in order without
+  pushing each other around, and the answers for the reading-time estimate,
+  the series and the finish-by goal are computed several times faster.
+- Long lists stay quick: returning to a library scrolled far down, switching
+  it between grid and list, opening the Admin metadata table, selecting
+  everything in it or in the Bindery, and a Hardcover page with hundreds of
+  books no longer stall for a moment.
+- On a book's page a long series name in the breadcrumb is shortened with an
+  ellipsis before the actions drop to a second line.
+- The wish dialog changes height smoothly between its steps and no longer
+  jumps while you type.
 - A cover that is still loading holds its place in its own colour instead of
   a grey shimmer, so a page of covers already looks like your library before
   the pictures arrive. Tome works out the colours of existing covers in the
@@ -58,6 +70,16 @@ All notable changes to Tome are documented here. Format loosely follows
   reloading the whole app.
 - Buttons and pills fade between their colours on hover again; pressing them
   had dropped the colour transition.
+- The calendar's day card never shows one day's date over another day's
+  numbers while a day loads: the previous day stays, dimmed, and the card
+  changes in one step. On a phone the day sheet rises once, at its full
+  height.
+- Changing the range on the Stats Habits tab changes every block together
+  instead of the session figures following a moment later.
+- The scroll arrow on Home's Also reading row no longer stays on a row that
+  fits after you put another book in the top spot.
+- On a series page the rating row holds its place while it loads, so the
+  lines below it do not move.
 
 ## [3.2.0] - 2026-11-22 - "Chapbook"
 

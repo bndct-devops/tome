@@ -130,6 +130,9 @@ export function rangeQuery(days: number, custom: CustomRange | null): string {
   return `${range}&tz_offset=${new Date().getTimezoneOffset()}`
 }
 
+/** The Habits page's own ranged request. The Stats frame waits for it too, so a range lands in one step. */
+export const habitsPath = (days: number, custom: CustomRange | null) => '/stats/habits?' + rangeQuery(days, custom)
+
 /**
  * `path` is relative to /api (e.g. `/stats/habits?days=90&tz_offset=-60`); null fetches nothing.
  * A /stats answer already asked for during this visit is not asked for again; other paths

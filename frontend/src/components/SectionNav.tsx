@@ -11,6 +11,7 @@ import { Glide, GlideGroup, PageBody, PageHeader, SectionTitle } from '@/compone
 import { m } from 'motion/react'
 import { TomeMark } from '@/components/TomeMark'
 import { crossFade, isPlainClick, routeCommitted } from '@/lib/coverTransition'
+import { leaveAreaDelta } from '@/lib/areaBack'
 
 // Where a sidebar-placed SectionNav puts its desktop list. SectionSidebar
 // (rendered by AppShell, a parent) registers the element; the nav subscribes,
@@ -21,33 +22,12 @@ function registerSlot(el: HTMLElement | null) { slotEl = el; slotSubs.forEach(f 
 function subscribeSlot(f: () => void) { slotSubs.add(f); return () => { slotSubs.delete(f) } }
 const readSlot = () => slotEl
 
-// Where Back on a Settings or Admin page goes: the page before the user
-// entered that area, however many sections they visited since. Kept from the
-// router's history index (`idx` in history.state); AppHeader, which every app
-// page renders, reports each location here.
-const AREA = /^\/(settings|admin)(\/|$)/
-let areaStart: number | null = null
-let lastIdx: number | null = null
-const historyIdx = () => (window.history.state as { idx?: unknown } | null)?.idx
-
-/** Records a location for the Settings / Admin Back button. */
-// eslint-disable-next-line react-refresh/only-export-components -- the Back button's history lives beside it
-export function noteLocation(pathname: string) {
-  const idx = historyIdx()
-  if (typeof idx !== 'number') return
-  if (!AREA.test(pathname)) areaStart = null
-  // Entered the area, came back to before its start, or arrived from a page
-  // that reported nothing (so the entries in between are unknown).
-  else if (areaStart == null || idx < areaStart || (lastIdx != null && idx > lastIdx + 1)) areaStart = idx
-  lastIdx = idx
-}
-
 /** Leaves Settings / Admin for the page the user came from, else Home. */
 function useLeaveArea() {
   const navigate = useNavigate()
   return () => {
-    const idx = historyIdx()
-    if (typeof idx === 'number' && areaStart != null && areaStart > 0 && idx >= areaStart) navigate(areaStart - 1 - idx)
+    const delta = leaveAreaDelta()
+    if (delta != null) navigate(delta)
     else navigate('/')
   }
 }

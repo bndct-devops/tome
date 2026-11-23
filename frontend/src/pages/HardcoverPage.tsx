@@ -139,6 +139,25 @@ const CELL_VARIANTS = {
 // wrapper on each of hundreds of cards costs more on mount than it shows).
 const MOVING_MAX = 120
 
+// A big grid's first frame holds this many cards (more than a screen); the
+// rest follow in steps after it, so opening the page never stalls a frame.
+const FIRST_CARDS = 30
+const CARD_STEP = 30
+
+const BIG_CELL = 'supports-[overflow-clip-margin:1px]:[content-visibility:auto] [contain-intrinsic-size:auto_420px] [overflow-clip-margin:56px]'
+
+/** How many of `total` cards to render: `FIRST_CARDS` at once, then `CARD_STEP` more after each painted frame. Never shrinks. */
+function useCardsShown(total: number) {
+  const [shown, setShown] = useState(FIRST_CARDS)
+  useEffect(() => {
+    if (shown >= total) return
+    let timer = 0
+    const frame = requestAnimationFrame(() => { timer = window.setTimeout(() => setShown(n => n + CARD_STEP)) })
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
+  }, [shown, total])
+  return shown
+}
+
 /** The state over a cover. `animated`: a new state cross-fades with the old one. */
 function StateBadge({ label, animated, className }: { label: string; animated: boolean; className: string }) {
   const cls = cn('absolute top-2 left-2 inline-flex items-center h-6 px-2.5 rounded-full text-[12px] font-semibold backdrop-blur-sm', className)
@@ -156,7 +175,9 @@ function MaybePresence({ on, children }: { on: boolean; children: ReactNode }) {
 
 /** One grid cell: glides, leaves and arrives when `moving`, else a plain box. */
 function CellBox({ moving, dep, children, ref }: { moving: boolean; dep: number; children: ReactNode; ref?: Ref<HTMLDivElement> }) {
-  if (!moving) return <div ref={ref} className="flex flex-col min-w-0">{children}</div>
+  // A big grid skips the layout and paint of cards off screen. The clip margin
+  // keeps the cover's shadow, so this is used only where the margin works.
+  if (!moving) return <div ref={ref} className={cn('flex flex-col min-w-0', BIG_CELL)}>{children}</div>
   return (
     <m.div
       ref={ref}
@@ -325,6 +346,8 @@ export function HardcoverPage() {
   }
 
   const moving = cells.length <= MOVING_MAX
+  const cardsShown = useCardsShown(cells.length)
+  const cellsShown = cardsShown < cells.length ? cells.slice(0, cardsShown) : cells
 
   const counts = useMemo(() => {
     const c = { all: books?.length ?? 0, matched: 0, unmatched: 0, excluded: 0, errors: 0 }
@@ -508,7 +531,7 @@ export function HardcoverPage() {
               // track. A big grid is plain: no presence, no glides.
               <div key={moving ? shape.epoch : 'still'} className="relative grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-8">
                 <MaybePresence on={moving}>
-                {cells.map(cell => (
+                {cellsShown.map(cell => (
                   <CellBox key={cellKey(cell)} moving={moving} dep={shape.dep}>
                   {cell.kind === 'stack' ? (
                   <SeriesStackCard

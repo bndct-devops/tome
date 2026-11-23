@@ -17,7 +17,7 @@
 // one shows nothing. Figures of different days never run into each other.
 // Nothing fades up from zero inside a painted container, which is what reads
 // as flicker. All off under reduced motion.
-import { useEffect, useMemo, useState, useSyncExternalStore } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
@@ -145,6 +145,14 @@ const loadMonth = (month: string) =>
 const loadDay = (day: string) =>
   ask<DayResponse>(`/stats/calendar/day?day=${day}&tz_offset=${tzOffset()}`, r => dayCache.set(day, r))
 
+// A day under a resting pointer (or pressed) is asked before the click, so a
+// day away from the selection usually lands with it. A sweep across the grid
+// asks nothing: the pointer has to rest on a cell first.
+let intentTimer = 0
+const INTENT_MS = 140
+const dayIntent = (iso: string) => { clearTimeout(intentTimer); intentTimer = window.setTimeout(() => { loadDay(iso).catch(() => {}) }, INTENT_MS) }
+const dayIntentEnd = () => clearTimeout(intentTimer)
+
 // Background work waits for an idle moment, so it never competes with a step.
 function whenIdle(f: () => void): () => void {
   if ('requestIdleCallback' in window) {
@@ -265,6 +273,18 @@ export function ReadingCalendarPage() {
     return () => window.removeEventListener('keydown', onKey)
   })
 
+  // The phone sheet rises once, to its full height: it waits for the day (the
+  // cell shows the selection at once) and then stays up while days change in it.
+  const [sheetFailed, setSheetFailed] = useState<string | null>(null)
+  useEffect(() => {
+    if (wide || !selected) return
+    loadDay(selected).catch(() => setSheetFailed(selected))
+  }, [wide, selected])
+  const [sheetUp, setSheetUp] = useState(false)
+  const sheetReady = !wide && !!selected && (dayCache.has(selected) || sheetFailed === selected)
+  if (sheetReady && !sheetUp) setSheetUp(true)
+  if ((wide || !selected) && sheetUp) setSheetUp(false)
+
   // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
   const slide = dir == null ? '' : dir > 0 ? 'animate-in slide-in-from-right-8 duration-[240ms] ease-(--spring)' : 'animate-in slide-in-from-left-8 duration-[240ms] ease-(--spring)'
   const jump = (iso: string) => go({ month: iso.slice(0, 7), day: iso })
@@ -304,7 +324,7 @@ export function ReadingCalendarPage() {
         )}
       </PageBody>
       <AnimatePresence>
-        {!wide && selected && (
+        {!wide && selected && sheetUp && (
           <MobileSheet key="sheet" onClose={closeDay}>
             <DayCard day={selected} today={today} onClose={closeDay} />
           </MobileSheet>
@@ -443,6 +463,9 @@ function MonthGrid({ data, month, today, selected, fallback, held, onSelect, onJ
               key={iso}
               disabled={future}
               onClick={() => onSelect(iso)}
+              onPointerEnter={e => { if (e.pointerType === 'mouse' && !future) dayIntent(iso) }}
+              onPointerLeave={dayIntentEnd}
+              onPointerDown={() => { if (!future) loadDay(iso).catch(() => {}) }}
               aria-label={label}
               aria-pressed={isSelected}
               className={cn(
@@ -557,6 +580,42 @@ function chapterRange(chapters: string[], to: (a: string, b: string) => string):
   return to(chapters[0], chapters[chapters.length - 1])
 }
 
+// The card's frame: its height follows the content, gliding (260 ms) rather
+// than jumping when a day with more or less to show replaces the one there.
+// The content changes in one step; only the frame's edge travels. Started from
+// the resize observer, so the glide begins in the frame the content changes.
+const HEIGHT_MS = 260
+const SPRING = 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+const REDUCED = '(prefers-reduced-motion: reduce)'
+function CardFrame({ className, children }: { className?: string; children: React.ReactNode }) {
+  const outer = useRef<HTMLDivElement>(null)
+  const inner = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const box = outer.current, el = inner.current
+    if (!box || !el) return
+    let last = el.offsetHeight
+    let run: Animation | null = null
+    const ro = new ResizeObserver(() => {
+      const next = el.offsetHeight
+      if (next === last) return
+      // From the height drawn last, or from mid-glide, so a quick second change retargets.
+      const from = run ? box.getBoundingClientRect().height : last
+      last = next
+      run?.cancel()
+      if (window.matchMedia(REDUCED).matches) return
+      run = box.animate([{ height: `${from}px` }, { height: `${next}px` }], { duration: HEIGHT_MS, easing: SPRING })
+      run.onfinish = () => { run = null }
+    })
+    ro.observe(el)
+    return () => { ro.disconnect(); run?.cancel() }
+  }, [])
+  return (
+    <div ref={outer} className={cn('overflow-hidden', className)}>
+      <div ref={inner}>{children}</div>
+    </div>
+  )
+}
+
 function DayCard({ day: dayProp, today, onClose }: { day: string | null; today: string; onClose?: () => void }) {
   const { t } = useLingui()
   useSyncExternalStore(subscribeCache, readCacheRev)
@@ -575,10 +634,14 @@ function DayCard({ day: dayProp, today, onClose }: { day: string | null; today: 
   const data = fresh ?? painted
   // A different day is on its way: keep this one, dimmed after a moment, rather than flashing empty.
   const dim = useDelayed(!!data && !!dayProp && data.date !== dayProp, DIM_MS)
+  // The sheet is its own frame; on desktop the card is.
+  const frame = onClose ? undefined : CARD
   if (!dayProp) {
-    return <p className={cn(CARD, 'px-6 py-16 text-center text-sm text-muted-foreground')}><Trans>No reading this month yet.</Trans></p>
+    return <CardFrame className={frame}><p className="px-6 py-16 text-center text-sm text-muted-foreground"><Trans>No reading this month yet.</Trans></p></CardFrame>
   }
-  const day = dayProp
+  // Heading and body always belong to the same day: the one drawn. While a
+  // new day loads the old card stays whole, dimmed, and changes in one step.
+  const day = data?.date ?? dayProp
 
   const title = parseDay(day).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
   const header = (
@@ -594,14 +657,15 @@ function DayCard({ day: dayProp, today, onClose }: { day: string | null; today: 
       )}
     </div>
   )
-  // In the sheet (onClose set) the sheet is the frame, so the header can show
-  // while the day loads; on desktop nothing is drawn until there is a day.
-  if (!data) return onClose ? <div className="space-y-4 p-6">{header}</div> : null
-  const body = cn('transition-opacity duration-150', dim && 'opacity-40', !onClose && CARD)
+  // The sheet opens only once its day is in (or failed to load), so this is
+  // the failure case; on desktop nothing is drawn until there is a day.
+  if (!data) return onClose ? <CardFrame><div className="space-y-4 p-6">{header}</div></CardFrame> : null
+  const body = cn('transition-opacity duration-150', dim && 'opacity-40')
   if (data.books.length === 0) {
     const n = data.streak?.day ?? 0, len = data.streak?.length ?? 0
     const streakLine = data.streak?.is_best ? t`Day ${n} of your best streak (${len} days)` : t`Day ${n} of a ${len}-day streak`
     return (
+      <CardFrame className={frame}>
       <div className={cn('space-y-4 p-6', body)}>
         {header}
         {data.reader_day ? (
@@ -622,6 +686,7 @@ function DayCard({ day: dayProp, today, onClose }: { day: string | null; today: 
           </div>
         )}
       </div>
+      </CardFrame>
     )
   }
 
@@ -675,6 +740,7 @@ function DayCard({ day: dayProp, today, onClose }: { day: string | null; today: 
   const shades = ['var(--primary)', 'color-mix(in oklch, var(--primary) 45%, var(--muted-foreground))', 'var(--muted-foreground)']
 
   return (
+    <CardFrame className={frame}>
     <div className={cn('space-y-6 p-6', body)}>
       {header}
       <p className="font-display text-lg leading-snug text-foreground">{quip}</p>
@@ -722,6 +788,7 @@ function DayCard({ day: dayProp, today, onClose }: { day: string | null; today: 
         </p>
       </div>
     </div>
+    </CardFrame>
   )
 }
 

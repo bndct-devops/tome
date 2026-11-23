@@ -19,7 +19,7 @@ import type { MessageDescriptor } from '@lingui/core'
 import { useToast } from '@/contexts/ToastContext'
 import { useSidebarLists } from '@/lib/sidebarLists'
 import type { ViewMode } from '@/components/BookCard'
-import { LibraryGrid, LibrarySkeleton, type LibraryGridHandle, type StatusMap } from '@/components/library/LibraryGrid'
+import { LibraryGrid, LibrarySkeleton, type LibraryGridHandle, type ResumePoint, type StatusMap } from '@/components/library/LibraryGrid'
 import { CountLabel, ToggleFill, ReserveLabel } from '@/components/library/Toolbar'
 import { StarRating } from '@/components/StarRating'
 import { SeriesRating } from '@/components/SeriesRating'
@@ -233,7 +233,7 @@ let listCache: {
   hasMore: boolean
   scrollTop: number
   /** The first card on screen when the list was left. */
-  firstVisible: number
+  resume: ResumePoint | null
   locationKey: string
 } | null = null
 
@@ -886,6 +886,10 @@ export function DashboardPage() {
     return p.toString()
   }
   const [seed] = useState(() => (listCache && listCache.key === listKey() ? listCache : null))
+  // Back to a long list: it renders around the card that was first on screen.
+  const [resume] = useState(() => (
+    seed && seed.resume && navigationType === 'POP' && seed.locationKey === location.key && seed.books.length > 120 && seed.resume.height > 0 ? seed.resume : undefined
+  ))
   const seededRef = useRef(!!seed)
   const loadedKeyRef = useRef(seed?.key ?? '')
   const [books, setBooks] = useState<Book[]>(() => seed?.books ?? [])
@@ -1053,17 +1057,18 @@ export function DashboardPage() {
     if (!loadedKeyRef.current) return
     listCache = {
       key: loadedKeyRef.current, books, grouped: listGrouped, total: totalCount, statuses: readingStatuses, hasMore,
-      scrollTop: listCache?.scrollTop ?? 0, firstVisible: listCache?.firstVisible ?? 0, locationKey: listCache?.locationKey ?? '',
+      scrollTop: listCache?.scrollTop ?? 0, resume: listCache?.resume ?? null, locationKey: listCache?.locationKey ?? '',
     }
   }, [books, listGrouped, totalCount, readingStatuses, hasMore])
   useLayoutEffect(() => {
     const main = bodyRef.current?.closest('main') ?? null
-    // Back/forward to the entry the list was left from: same place as before.
-    if (seed && navigationType === 'POP' && seed.locationKey === location.key && main) main.scrollTop = seed.scrollTop
+    // Back/forward to the entry the list was left from: same place as before
+    // (a long list: LibraryGrid puts its first card back instead).
+    if (seed && navigationType === 'POP' && seed.locationKey === location.key && main && !resume) main.scrollTop = seed.scrollTop
     return () => {
       if (listCache && main) {
         listCache.scrollTop = main.scrollTop
-        listCache.firstVisible = libraryGridRef.current?.firstVisible() ?? 0
+        listCache.resume = libraryGridRef.current?.resumePoint() ?? null
         listCache.locationKey = locationKeyRef.current
       }
     }
@@ -2417,7 +2422,8 @@ export function DashboardPage() {
               selecting={selectionMode}
               focusedIndex={focusedIndex}
               refreshing={refreshing}
-              resumeAt={seed && seed.books.length > PAGE_SIZE * 2 ? seed.firstVisible : undefined}
+              resume={resume}
+              staged={!resume && !!seed && seed.books.length > 120}
               onToggle={onToggleCard}
               onTag={onTagCard}
               onSeries={onSeriesCard}

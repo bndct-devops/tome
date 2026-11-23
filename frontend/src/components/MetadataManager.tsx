@@ -1,4 +1,4 @@
-import { memo, useEffect, useState, useRef, useCallback } from 'react'
+import { memo, startTransition, useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { useNavigate } from 'react-router-dom'
 import { t, msg, plural } from '@lingui/core/macro'
@@ -73,6 +73,23 @@ const MISSING_FIELD_OPTIONS = [
 /** Header cell text: 12px small caps, like every hairline table. */
 // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
 const HEAD = 'text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground'
+
+// The table's first frame holds this many rows (more than a screen); the rest
+// follow in steps after it, so opening a big library never stalls a frame.
+const FIRST_ROWS = 40
+const ROW_STEP = 60
+
+/** How many of `total` rows to render: `FIRST_ROWS` at once, then `ROW_STEP` more after each painted frame. Never shrinks. */
+function useRowsShown(total: number) {
+  const [shown, setShown] = useState(FIRST_ROWS)
+  useEffect(() => {
+    if (shown >= total) return
+    let timer = 0
+    const frame = requestAnimationFrame(() => { timer = window.setTimeout(() => setShown(n => n + ROW_STEP)) })
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
+  }, [shown, total])
+  return shown
+}
 
 /** "Missing" filter: a pill that opens a small checklist. */
 function MissingFilter({ open, setOpen, selected, onToggle }: {
@@ -261,6 +278,7 @@ const MetaRow = memo(function MetaRow({ book, selected, onToggle, setBooks }: {
           <img
             src={API + coverSrc(book.id, { w: 160 })}
             alt=""
+            loading="lazy"
             className="w-7 h-10 object-cover rounded-[4px]"
           />
         ) : (
@@ -1164,8 +1182,10 @@ export function MetadataManager() {
   })
 
   const { handleToggle } = useShiftSelect(sorted.map(b => b.id))
+  const rowsShown = useRowsShown(sorted.length)
 
   function toggleSelect(id: number, shiftKey: boolean) {
+    if (shiftKey) tableRef.current?.setAttribute('data-snap', '')
     setSelected(prev => {
       const index = sorted.findIndex(b => b.id === id)
       return handleToggle(id, index, shiftKey, prev)
@@ -1177,11 +1197,29 @@ export function MetadataManager() {
   useEffect(() => { toggleRef.current = toggleSelect })
   const onToggleRow = useCallback((id: number, shiftKey: boolean) => toggleRef.current(id, shiftKey), [])
 
+  // Many rows changing at once snap instead of fading their colours (hundreds
+  // of colour transitions starting in one frame cost more than they show),
+  // and render in slices (a transition), so a big table never holds up a frame.
+  // data-snap stops the rows' and the checkboxes' (data-check-box)
+  // transitions; the selectors name only those so toggling it restyles little.
+  const tableRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const el = tableRef.current
+    if (!el?.hasAttribute('data-snap')) return
+    let timer = 0
+    const frame = requestAnimationFrame(() => { timer = window.setTimeout(() => el.removeAttribute('data-snap')) })
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
+  }, [selected])
+  function setSelectedMany(next: Set<number>) {
+    tableRef.current?.setAttribute('data-snap', '')
+    startTransition(() => setSelected(next))
+  }
+
   function toggleSelectAll() {
     if (selected.size === sorted.length) {
-      setSelected(new Set())
+      setSelectedMany(new Set())
     } else {
-      setSelected(new Set(sorted.map(b => b.id)))
+      setSelectedMany(new Set(sorted.map(b => b.id)))
     }
   }
 
@@ -1415,7 +1453,7 @@ export function MetadataManager() {
             {standardizeLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
             <Trans>Standardize</Trans>
           </Pill>
-          <Pill variant="quiet" icon onClick={() => setSelected(new Set())} aria-label={t`Clear selection`} title={t`Clear selection`}>
+          <Pill variant="quiet" icon onClick={() => setSelectedMany(new Set())} aria-label={t`Clear selection`} title={t`Clear selection`}>
             <X className="w-4 h-4" />
           </Pill>
         </div>
@@ -1432,7 +1470,7 @@ export function MetadataManager() {
 
       {/* Table: rows on hairlines */}
       {(!loading || books.length > 0) && (
-        <div className={cn('overflow-auto max-h-[calc(100vh-220px)] border-y border-border/70 transition-opacity duration-150', loading && 'opacity-50 pointer-events-none')}>
+        <div ref={tableRef} className={cn('overflow-auto max-h-[calc(100vh-220px)] border-y border-border/70 transition-opacity duration-150 data-snap:[&_tr]:transition-none data-snap:[&_[data-check-box]]:transition-none', loading && 'opacity-50 pointer-events-none')}>
           <table className="w-full min-w-[1120px] table-fixed text-[13px]">
             <thead className="sticky top-0 z-10 bg-background">
               <tr className="border-b border-border/70">
@@ -1458,7 +1496,7 @@ export function MetadataManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/70">
-              {sorted.map(book => (
+              {(rowsShown < sorted.length ? sorted.slice(0, rowsShown) : sorted).map(book => (
                 <MetaRow key={book.id} book={book} selected={selected.has(book.id)} onToggle={onToggleRow} setBooks={setBooks} />
               ))}
               {sorted.length === 0 && (

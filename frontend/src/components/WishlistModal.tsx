@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react'
+import { useState, useEffect, useLayoutEffect, useRef, useCallback, type ReactNode } from 'react'
 import { Trans, Plural } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { Search, Loader2, BookOpen, Layers, ChevronLeft } from 'lucide-react'
@@ -6,7 +6,7 @@ import { AnimatePresence, m } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
 import { FormLabel, Input, Pill, PillGroup, Textarea } from '@/components/page'
-import { EASE, Unfold, listItem } from '@/components/motion'
+import { EASE, EASE_CSS, Unfold, listItem } from '@/components/motion'
 import {
   searchWishCandidates,
   searchWishSeries,
@@ -30,6 +30,101 @@ const RESULT_ROW = 'group w-full flex items-start gap-4 py-3 text-left touch-fee
 // from part opacity; the step it replaces goes at once.
 const STEP_IN = { opacity: 0.5, y: 6 }
 const STEP_TRANSITION = { duration: 0.16, ease: EASE }
+
+/* eslint-disable lingui/no-unlocalized-strings -- CSS values and a media query */
+const STEP_MS = 260
+const HEIGHT_MOVE = `height ${STEP_MS}ms ${EASE_CSS}`
+const TOP_MOVE = `top ${STEP_MS}ms ${EASE_CSS}`
+const reducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches
+/* eslint-enable lingui/no-unlocalized-strings */
+
+/**
+ * The dialog's body at a height that moves: when the content changes height (a step
+ * replaced, results arriving) the box runs from the old height to the new one, clipped
+ * while it moves, and the content is laid out at its final size from the first frame.
+ * The panel, centred on the screen, is moved down by half the change (`top`, laid out in
+ * the same frame as the height, see GoalDialog), so its top edge stays where it opened
+ * and the dialog grows or shrinks at the bottom only. Written to the DOM straight from
+ * the ResizeObserver, before the frame paints.
+ */
+function SteadyHeight({ children }: { children: ReactNode }) {
+  const outer = useRef<HTMLDivElement>(null)
+  const inner = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const box = outer.current, el = inner.current
+    if (!box || !el) return
+    let last: number | null = null
+    // The panel's height at the first measure: the height its top edge was centred for.
+    let base: number | null = null
+    const apply = () => {
+      const next = el.offsetHeight
+      const prev = last
+      last = next
+      if (prev === next) return
+      const panel = el.closest<HTMLElement>('[role="dialog"]')
+      if (prev == null || !panel) {
+        base = panel?.offsetHeight ?? null
+        box.style.height = `${next}px`
+        // A number to run from: `top: auto` does not animate.
+        if (panel) panel.style.top = '0px'
+        return
+      }
+      // Layout sizes throughout: the panel is scaled while it opens, and a change can come
+      // while the last one still runs (its drawn size then is neither the old nor the new).
+      const to = panel.offsetHeight - box.offsetHeight + next
+      const room = (window.innerHeight - to) / 2 - 16
+      const y = base == null || room <= 0 ? 0 : Math.max(-room, Math.min((to - base) / 2, room))
+      const animate = !reducedMotion()
+      box.style.transition = animate ? HEIGHT_MOVE : ''
+      box.style.overflow = animate ? 'hidden' : ''
+      box.style.height = `${next}px`
+      panel.style.transition = animate ? TOP_MOVE : ''
+      panel.style.top = `${y}px`
+    }
+    apply()
+    const ro = new ResizeObserver(apply)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+  return (
+    <div
+      ref={outer}
+      // Clipped only while it moves: focus rings at its edges show otherwise.
+      onTransitionEnd={(e) => { if (e.target === outer.current && e.propertyName === 'height') outer.current.style.overflow = '' }}
+    >
+      <div ref={inner} className="flow-root">{children}</div>
+    </div>
+  )
+}
+
+/**
+ * The search results' place. While a query stands it keeps the tallest height its results
+ * have had, so results coming and going as the reader types do not bob the dialog; it lets
+ * go when the query is cleared.
+ */
+function ResultsArea({ hold, className, outerClassName, children }: { hold: boolean; className?: string; outerClassName?: string; children: ReactNode }) {
+  const outer = useRef<HTMLDivElement>(null)
+  const inner = useRef<HTMLDivElement>(null)
+  const tallest = useRef(0)
+  useLayoutEffect(() => {
+    const box = outer.current, el = inner.current
+    if (!box || !el) return
+    if (!hold) { tallest.current = 0; box.style.minHeight = ''; return }
+    const apply = () => {
+      const h = el.offsetHeight
+      if (h > tallest.current) { tallest.current = h; box.style.minHeight = `${h}px` }
+    }
+    apply()
+    const ro = new ResizeObserver(apply)
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [hold])
+  return (
+    <div ref={outer} className={cn('!mb-0', outerClassName)}>
+      <div ref={inner} className={cn('flow-root', className)}>{children}</div>
+    </div>
+  )
+}
 
 function Thumb({ url, series = false }: { url: string | null; series?: boolean }) {
   // OpenLibrary answers a missing cover with a 1x1 image, not a 404: treat a
@@ -63,6 +158,9 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
   const [candidates, setCandidates] = useState<WishSearchResult[]>([])
   const [seriesResults, setSeriesResults] = useState<WishSeriesResult[]>([])
   const [searching, setSearching] = useState(false)
+  // The query the last finished search was for: "No results" only for that one, not
+  // for a query whose search has not started yet.
+  const [searchedFor, setSearchedFor] = useState('')
   const [selected, setSelected] = useState<WishSearchResult | null>(null)
   const [selectedSeries, setSelectedSeries] = useState<WishSeriesResult | null>(null)
   const [manualMode, setManualMode] = useState(false)
@@ -117,6 +215,7 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
       setSeriesResults([])
     } finally {
       setSearching(false)
+      setSearchedFor(q)
     }
   }, [])
 
@@ -246,6 +345,9 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
   /* eslint-enable lingui/no-unlocalized-strings */
 
   const inSearchState = !manualMode && !selected && !selectedSeries
+  const shownResults = searchMode === 'book' ? Math.min(candidates.length, 5) : seriesResults.length
+  const noResults = !!query && !searching && searchedFor === query && shownResults === 0
+  const hasResults = shownResults > 0 || noResults
   const step = manualMode ? 'manual' : selectedSeries ? 'series' : selected ? 'book' : 'search'
   // The first step shows with the dialog; only later changes rise in.
   const [lastStep, setLastStep] = useState(step)
@@ -280,6 +382,7 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
         </>
       }
     >
+      <SteadyHeight>
         <m.div
           key={step}
           initial={stepped ? STEP_IN : false}
@@ -317,66 +420,74 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
                 )}
               </div>
 
-              {/* Book candidates */}
-              {searchMode === 'book' && candidates.length > 0 && (
-                <div className="relative">
-                  <AnimatePresence mode="popLayout" initial={false}>
-                  {candidates.slice(0, 5).map((c, i) => (
-                    <m.button
-                      {...listItem}
-                      key={`${c.source}-${c.source_id}-${i}`}
-                      onClick={() => selectCandidate(c)}
-                      className={cn(RESULT_ROW, i > 0 && 'border-t border-border/70')}
-                    >
-                      <Thumb url={c.cover_url} />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[15px] font-semibold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">{c.title}</p>
-                        {c.author && <p className="mt-0.5 text-[14px] text-muted-foreground truncate">{c.author}</p>}
-                        {c.series && (
-                          <p className="text-[13px] text-muted-foreground truncate">
-                            {c.series}{c.series_index != null ? ` #${c.series_index}` : ''}
-                          </p>
-                        )}
-                        <span className="mt-1.5 inline-flex items-center h-6 px-2.5 rounded-full bg-secondary text-[12px] font-medium text-muted-foreground">
-                          {SOURCE_LABEL[c.source] ?? c.source}
-                        </span>
-                      </div>
-                    </m.button>
-                  ))}
-                  </AnimatePresence>
-                </div>
-              )}
+              {/* Results, in a place that keeps its height while the query stands */}
+              <ResultsArea
+                hold={!!query}
+                className={cn(hasResults && searchMode === 'book' && 'pb-4')}
+                // Last in the column in Series mode: an empty one takes back the gap above it.
+                outerClassName={cn(!hasResults && searchMode === 'series' && '-mt-4')}
+              >
+                {/* Book candidates */}
+                {searchMode === 'book' && candidates.length > 0 && (
+                  <div className="relative">
+                    <AnimatePresence mode="popLayout" initial={false}>
+                    {candidates.slice(0, 5).map((c, i) => (
+                      <m.button
+                        {...listItem}
+                        key={`${c.source}-${c.source_id}-${i}`}
+                        onClick={() => selectCandidate(c)}
+                        className={cn(RESULT_ROW, i > 0 && 'border-t border-border/70')}
+                      >
+                        <Thumb url={c.cover_url} />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[15px] font-semibold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">{c.title}</p>
+                          {c.author && <p className="mt-0.5 text-[14px] text-muted-foreground truncate">{c.author}</p>}
+                          {c.series && (
+                            <p className="text-[13px] text-muted-foreground truncate">
+                              {c.series}{c.series_index != null ? ` #${c.series_index}` : ''}
+                            </p>
+                          )}
+                          <span className="mt-1.5 inline-flex items-center h-6 px-2.5 rounded-full bg-secondary text-[12px] font-medium text-muted-foreground">
+                            {SOURCE_LABEL[c.source] ?? c.source}
+                          </span>
+                        </div>
+                      </m.button>
+                    ))}
+                    </AnimatePresence>
+                  </div>
+                )}
 
-              {/* Series results */}
-              {searchMode === 'series' && seriesResults.length > 0 && (
-                <div className="relative">
-                  <AnimatePresence mode="popLayout" initial={false}>
-                  {seriesResults.map((s, i) => (
-                    <m.button
-                      {...listItem}
-                      key={`${s.source}-${s.source_id}`}
-                      onClick={() => { setSelectedSeries(s); setError(null) }}
-                      className={cn(RESULT_ROW, i > 0 && 'border-t border-border/70')}
-                    >
-                      <Thumb url={s.cover_url} series />
-                      <div className="flex-1 min-w-0">
-                        <p className="text-[15px] font-semibold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">{s.name}</p>
-                        {s.author && <p className="mt-0.5 text-[14px] text-muted-foreground truncate">{s.author}</p>}
-                        {s.total != null && (
-                          <p className="text-[13px] text-muted-foreground"><Plural value={s.total} one="# volume" other="# volumes" /></p>
-                        )}
-                      </div>
-                    </m.button>
-                  ))}
-                  </AnimatePresence>
-                </div>
-              )}
+                {/* Series results */}
+                {searchMode === 'series' && seriesResults.length > 0 && (
+                  <div className="relative">
+                    <AnimatePresence mode="popLayout" initial={false}>
+                    {seriesResults.map((s, i) => (
+                      <m.button
+                        {...listItem}
+                        key={`${s.source}-${s.source_id}`}
+                        onClick={() => { setSelectedSeries(s); setError(null) }}
+                        className={cn(RESULT_ROW, i > 0 && 'border-t border-border/70')}
+                      >
+                        <Thumb url={s.cover_url} series />
+                        <div className="flex-1 min-w-0">
+                          <p className="text-[15px] font-semibold text-foreground line-clamp-2 leading-snug group-hover:text-primary transition-colors">{s.name}</p>
+                          {s.author && <p className="mt-0.5 text-[14px] text-muted-foreground truncate">{s.author}</p>}
+                          {s.total != null && (
+                            <p className="text-[13px] text-muted-foreground"><Plural value={s.total} one="# volume" other="# volumes" /></p>
+                          )}
+                        </div>
+                      </m.button>
+                    ))}
+                    </AnimatePresence>
+                  </div>
+                )}
 
-              {query && !searching && (
-                (searchMode === 'book' ? candidates.length === 0 : seriesResults.length === 0) && (
-                  <p className="text-[14px] text-muted-foreground text-center py-4"><Trans>No results found.</Trans></p>
-                )
-              )}
+                {noResults && (
+                  (searchMode === 'book' ? candidates.length === 0 : seriesResults.length === 0) && (
+                    <p className="text-[14px] text-muted-foreground text-center py-4"><Trans>No results found.</Trans></p>
+                  )
+                )}
+              </ResultsArea>
 
               {/* Manual fallback (book mode only) */}
               {searchMode === 'book' && (
@@ -525,6 +636,7 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
         <Unfold open={!!error}>
           <p className="pt-4 text-[13px] text-destructive">{error}</p>
         </Unfold>
+      </SteadyHeight>
 
     </ModalShell>
   )

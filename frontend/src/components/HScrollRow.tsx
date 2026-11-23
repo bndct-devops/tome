@@ -38,23 +38,49 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
   const [canLeft, setCanLeft] = useState(false)
   const [canRight, setCanRight] = useState(false)
 
-  const update = useCallback(() => {
+  const measure = useCallback(() => {
     const el = ref.current
-    if (!el) return
-    setCanLeft(el.scrollLeft > 4)
-    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+    if (!el) return null
+    // The right edge comes from the last child's layout box, not scrollWidth:
+    // a child that is mid-animation (a transform) widens scrollWidth for a
+    // moment, and nothing reports when it settles.
+    const last = el.lastElementChild as HTMLElement | null
+    const end = last
+      ? last.offsetLeft - el.offsetLeft + last.offsetWidth + parseFloat(getComputedStyle(el).paddingRight || '0')
+      : 0
+    return { left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < end - 4 }
   }, [])
+
+  // A chevron goes away at once but appears only if the overflow is still
+  // there a moment later: an item that is leaving stays in the row for its
+  // exit, and the row would flash a chevron for content that fits.
+  const pending = useRef(0)
+  const update = useCallback(() => {
+    const now = measure()
+    if (!now) return
+    window.clearTimeout(pending.current)
+    setCanLeft(v => v && now.left)
+    setCanRight(v => v && now.right)
+    if (now.left || now.right) {
+      pending.current = window.setTimeout(() => {
+        const later = measure()
+        if (!later) return
+        setCanLeft(later.left)
+        setCanRight(later.right)
+      }, 220)
+    }
+  }, [measure])
 
   useEffect(() => {
     const el = ref.current
     if (!el) return
-    update()
+    // Reports once on observe, which is the first measurement.
     const ro = new ResizeObserver(update)
     ro.observe(el)
     // Covers async children (cover images) growing the scroll width
     const mo = new MutationObserver(update)
     mo.observe(el, { childList: true, subtree: true })
-    return () => { ro.disconnect(); mo.disconnect() }
+    return () => { ro.disconnect(); mo.disconnect(); window.clearTimeout(pending.current) }
   }, [update])
 
   const nudge = (dir: 1 | -1) => {

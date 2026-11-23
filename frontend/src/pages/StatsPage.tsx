@@ -24,7 +24,7 @@ import { SessionsPage } from '@/components/stats/sessions/SessionsPage'
 import { GoalsTab } from '@/components/goals/GoalsTab'
 import { saveSelection } from '@/components/goals/actions'
 import type { StatsTab } from '@/components/stats/kit/page'
-import { beginStatsVisit, dropStatsCache, statsCacheGet, statsFetch, statsFresh, statsPrefetch, useDelayed } from '@/components/stats/kit/useStatsGet'
+import { beginStatsVisit, dropStatsCache, habitsPath, statsCacheGet, statsFetch, statsFresh, statsPrefetch, useDelayed } from '@/components/stats/kit/useStatsGet'
 import { TipLayer } from '@/components/stats/kit/TipLayer'
 import { EASE, finishEntries, reducedMotion } from '@/components/stats/kit/motion'
 import { PAGE_W, loadBoardsFlag, loadLocalDashboard, saveBoardsFlag, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
@@ -90,6 +90,9 @@ function loadView(): ViewState {
   return { tab, days: typeof days === 'number' ? days : 30, board: typeof saved.board === 'string' ? saved.board : null }
 }
 
+// A tab's ranged requests besides /api/stats: a range change waits for these too.
+const extraPaths = (tab: TabId, days: number, custom: CustomRange | null): string[] => (tab === 'habits' ? [habitsPath(days, custom)] : [])
+
 const rangeKey = (days: number, custom: CustomRange | null) => (custom ? `start=${custom.start}&end=${custom.end}` : `days=${days}`)
 
 // Waits a moment before it shows (a chunk or an answer that lands sooner shows nothing); its place is kept.
@@ -146,22 +149,28 @@ export function StatsPage() {
   }, [])
   // A range asked for during this visit is not asked for again. Coming back to a stats
   // tab asks again only when its answer was dropped meanwhile (an edit on the Sessions tab).
+  // A tab's own ranged requests (extraPaths) go out with it, and the answer is taken only
+  // once all of them are in, so the whole page moves to the new range in one step.
   useEffect(() => {
-    if (!wantStats || statsCache.fresh(key)) return
+    const extras = extraPaths(tab, days, custom)
+    if (!wantStats || (statsCache.fresh(key) && extras.every(statsFresh))) return
     setFailed(false)
     // A slow answer for a range the user has already left must not paint over
     // the current one: only the latest request may set state.
     let current = true
-    statsCache
-      .fetch(key)
-      .then((r) => { if (current) setStats({ key, data: r, days, custom }) })
+    const main = statsCache.fresh(key) ? Promise.resolve(statsCache.get(key) as StatsResponse) : statsCache.fetch(key)
+    // A failed extra does not hold the range back: its page shows its own failure.
+    const rest = extras.map((u) => (statsFresh(u) ? Promise.resolve() : statsFetch(u).then(() => {}, () => {})))
+    Promise.all([main, ...rest])
+      .then(([r]) => { if (current) setStats({ key, data: r, days, custom }) })
       .catch(() => { if (current) setFailed(true) })
     return () => { current = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- key names days and custom
   }, [key, wantStats, tab, rev])
-  // A cached range shows from the first frame; any other keeps the previous answer on
-  // screen, dimmed (after a short wait), until its own lands.
-  const hit = wantStats ? statsCache.get(key) : undefined
+  // A range whose answers are all cached shows from the first frame; any other keeps the
+  // previous answer on screen, dimmed (after a short wait), until all of its own have landed.
+  const cachedMain = wantStats ? statsCache.get(key) : undefined
+  const hit = cachedMain && extraPaths(tab, days, custom).every((u) => statsCacheGet(u) !== undefined) ? cachedMain : undefined
   const shown: Answer | null = hit ? { key, data: hit, days, custom } : stats
   const pending = !hit && !!stats && stats.key !== key
   const showPending = useDelayed(pending)
@@ -293,9 +302,10 @@ export function StatsPage() {
     return () => cancelAnimationFrame(raf)
   }, [anchor, shownTab, data])
 
-  const rangeLabel = custom
+  // The eyebrow names the range on screen: while a new one loads it keeps the old one, with the page.
+  const rangeLabel = ((days: number, custom: CustomRange | null) => custom
     ? (() => { const from = fmtDay(custom.start), to = fmtDay(custom.end); return t`${from} to ${to}` })()
-    : days === 0 ? t`All time` : days === 365 ? t`Last 12 months` : t`Last ${days} days`
+    : days === 0 ? t`All time` : days === 365 ? t`Last 12 months` : t`Last ${days} days`)(shown?.days ?? days, shown ? shown.custom : custom)
   // Sessions lists every session; Taste is all time. Neither follows the range.
   // Library is all time too, except three sections that carry the range as a chip; it keeps the range control.
   const rangeless = shownTab === 'sessions'

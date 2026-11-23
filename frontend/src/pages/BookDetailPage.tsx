@@ -9,6 +9,8 @@ import {
   ExternalLink,
 } from 'lucide-react'
 import { useAuth, isAdmin, isMember } from '@/contexts/AuthContext'
+import { useSidebarLists } from '@/lib/sidebarLists'
+import { refreshDeviceInventories, useDeviceInventories } from '@/lib/deviceBooks'
 import { useToast } from '@/contexts/ToastContext'
 import { FinishByPill } from '@/components/goals/FinishByPill'
 import { Trans, useLingui } from '@lingui/react/macro'
@@ -26,6 +28,7 @@ import { AppShell } from '@/components/AppShell'
 import { QuickLook } from '@/components/QuickLook'
 import { Glide, GlideGroup, PageBody, SectionTitle, Stat, StatStrip, Field, Pill, Input, Select, Swap, Textarea, FormLabel, INPUT_CLASS, PRESS, PRESS_LABEL } from '@/components/page'
 import { BookLink, CoverLift, EASE, EASE_CSS, Pop, RunningNumber, SeriesLink, Unfold, listItem, type BookPreview } from '@/components/motion'
+import { bookRequests, dropBookSeed, fetchBookSeed, heroCoverSrc, peekBookSeed, seriesDetailUrl, type BookSeed, type BookSeedKey } from '@/components/motion/nav'
 import { ModalShell, isModalOpen } from '@/components/ModalShell'
 import { NamedIcon } from '@/lib/icons'
 import { coverSrc } from '@/lib/covers'
@@ -37,7 +40,7 @@ import type { BookDetail, BookFile, Library as LibraryType, BookStatus, ReadingS
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { progressPercent, cn, formatDuration, formatDate } from '@/lib/utils'
-import { describePace, formatEstimateDays, formatEstimateHours, type BookEstimate } from '@/lib/backlog'
+import { describePace, formatEstimateDays, formatEstimateHours, type BookEstimate, type EstimatePace } from '@/lib/backlog'
 
 interface Facets {
   authors: string[]
@@ -202,8 +205,12 @@ const RAIL_COVER_CLS = 'mx-auto w-[200px] sm:w-[220px] lg:mx-0 lg:col-start-1 lg
 const COVER_CLS = 'relative aspect-[2/3] overflow-hidden rounded-[12px] bg-muted'
 const MAIN_COL_CLS = 'order-2 flex min-w-0 flex-col gap-7 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2'
 const HERO_CLS = 'min-w-0 max-w-[680px]'
-// min-h-7: the previous/next buttons arrive later and must not grow the row.
-const CRUMBS_CLS = 'flex min-h-7 min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground'
+// min-h-9: the previous/next buttons arrive later and must not grow the row,
+// and the crumbs sit at the actions' height whether or not those share their line.
+// Counts as 16rem wide when the row decides whether to wrap, then takes the
+// room that is left: a long series name is cut with an ellipsis (it is printed
+// in full above the title) before the actions drop to a second line.
+const CRUMBS_CLS = 'flex min-h-9 min-w-0 flex-1 basis-64 items-center gap-1.5 text-[13px] text-muted-foreground'
 const SERIES_LINE_CLS = 'block text-left text-[12px] font-bold uppercase tracking-[0.1em] text-primary hover:underline underline-offset-4'
 const TITLE_CLS = 'mt-2 font-display text-[30px] sm:text-[34px] font-bold leading-[1.05] text-foreground'
 const AUTHOR_CLS = 'mt-1.5 block text-left text-[16px] text-muted-foreground hover:text-primary transition-colors'
@@ -213,7 +220,11 @@ const RISE_TO = { opacity: 1, y: 0, transition: { duration: 0.24, ease: EASE } }
 
 // The header row's height at a viewport width, as the last page drew it: its
 // actions wrap at narrow widths, so the preview reserves what the page used.
-let headerRow: { width: number; height: number } | null = null
+// Kept across visits (per browser) so the first book of a visit reserves it too.
+const HEADER_ROW_KEY = 'tome_book_header_row'
+let headerRow: { width: number; height: number } | null = (() => {
+  try { return JSON.parse(localStorage.getItem(HEADER_ROW_KEY) ?? 'null') } catch { return null }
+})()
 // The hero's title block as this book drew it: while the next book's lines
 // stand in, the block keeps at least this height, so the rows under it (and
 // the status pills' indicator) do not move before the page changes.
@@ -222,8 +233,15 @@ let heroTitleH = 0
 /** The hero cover. Opened from a card it starts with the card's thumbnail
  *  (already in the cache, so it paints at once) and the full-size image fades
  *  in over it once loaded; a direct visit shows the full image as before. */
+function cached(src: string): boolean {
+  const img = new Image()
+  img.src = src
+  return img.complete && img.naturalWidth > 0
+}
+
 function HeroCover({ thumb, full, alt, color }: { thumb?: string | null; full: string | null; alt: string; color?: string | null }) {
-  const [readySrc, setReadySrc] = useState<string | null>(null)
+  // Already fetched (asked for ahead): shown at once instead of fading in over the thumbnail.
+  const [readySrc, setReadySrc] = useState<string | null>(() => (full && cached(full) ? full : null))
   if (!thumb) return <CoverImage src={full} alt={alt} loading="eager" color={color} iconClassName="w-12 h-12" />
   return (
     <>
@@ -243,30 +261,16 @@ function HeroCover({ thumb, full, alt, color }: { thumb?: string | null; full: s
   )
 }
 
-// What a book page loads. The page fetches these on arrival; moving from one
-// book to another (previous/next, the series strip) fetches them ahead, while
-// the old page stays up.
-type SeedKey = 'book' | 'status' | 'adjacent' | 'kosync' | 'annotations' | 'stats' | 'estimate' | 'series'
-interface Seed {
-  /** Answers already in when the page mounted. */
-  values: Partial<Record<SeedKey, unknown>>
-  /** Every request, answered or not: the page takes the rest from here instead of asking again. */
-  pending: Partial<Record<SeedKey, Promise<unknown>>>
+// What a book page loads (components/motion/nav.ts): asked for ahead when a
+// link to the book is pressed or hovered, else on arrival; moving from one
+// book to another fetches them while the old page stays up.
+type SeedKey = BookSeedKey
+interface Seed extends Pick<BookSeed, 'values' | 'pending'> {
+  /** Handed over by a move from another book, which has waited for it already. */
+  waited?: boolean
 }
-
-const tzOffset = () => new Date().getTimezoneOffset()
-function bookRequests(id: string): Record<Exclude<SeedKey, 'series'>, string> {
-  return {
-    book: `/books/${id}`,
-    status: `/books/${id}/status`,
-    adjacent: `/books/${id}/adjacent`,
-    kosync: `/books/${id}/kosync-progress`,
-    annotations: `/books/${id}/annotations?include_clippings=1&tz_offset=${tzOffset()}`,
-    stats: `/books/${id}/reading-stats?tz_offset=${tzOffset()}`,
-    estimate: `/books/${id}/estimate?tz_offset=${tzOffset()}`,
-  }
-}
-const seriesDetailUrl = (name: string) => `/books/series-detail?name=${encodeURIComponent(name)}`
+const SEED_KEYS: SeedKey[] = ['book', 'status', 'adjacent', 'kosync', 'annotations', 'stats', 'estimate', 'series']
+const complete = (s: BookSeed) => SEED_KEYS.every(k => k in s.values)
 
 // The longest the old page waits, dimmed, for the next book's answers.
 const SWAP_CAP_MS = 1200
@@ -277,6 +281,24 @@ const REVEAL_CAP_MS = 900
 // Libraries change rarely: the last answer draws the Libraries pill at once on
 // the next book instead of it arriving and moving the actions beside it.
 let lastLibraries: LibraryType[] | null = null
+
+// Whether this visit has asked for the device lists (see devicesIn).
+let devicesAsked = false
+const DEVICES_CAP_MS = 500
+
+// The reader's pace from the last estimate (it is the same for every book):
+// a book with a word count shows its estimate from it at once, the way the
+// server works it out (backend/services/backlog_estimate.py), until its own answer lands.
+let lastPace: EstimatePace | null = null
+function estimateFromPace(words: number, pace: EstimatePace): BookEstimate {
+  const seconds = Math.round(words / (pace.wpm || pace.default_wpm) * 60)
+  return {
+    seconds,
+    days: pace.minutes_per_day ? Math.round(seconds / 60 / pace.minutes_per_day * 10) / 10 : null,
+    method: pace.wpm ? 'words' : 'default',
+    pace,
+  }
+}
 
 /**
  * One book page. Moving to another book keeps the page up: the next book's
@@ -289,24 +311,27 @@ let lastLibraries: LibraryType[] | null = null
 export function BookDetailPage() {
   const { id } = useParams<{ id: string }>()
   const location = useLocation()
-  const [page, setPage] = useState<{ id: string | undefined; seed: Seed | null }>({ id, seed: null })
+  // Opened from a link that asked ahead: the page mounts with what is in.
+  const [page, setPage] = useState<{ id: string | undefined; seed: Seed | null }>(() => {
+    const s = id ? peekBookSeed(Number(id)) : null
+    // A copy: the page reads which answers came with it once, at its mount.
+    return { id, seed: s && { values: { ...s.values }, pending: s.pending } }
+  })
+  // A move whose answers are all in already swaps in this render, without a dimmed frame.
+  const ready = id && id !== page.id ? peekBookSeed(Number(id)) : null
+  if (id && ready && complete(ready)) setPage({ id, seed: { values: { ...ready.values }, pending: ready.pending, waited: true } })
   useEffect(() => {
     if (!id || id === page.id) return
     let live = true
-    const pending: Seed['pending'] = {}
-    for (const [k, url] of Object.entries(bookRequests(id)) as [SeedKey, string][]) pending[k] = api.get(url)
-    pending.series = (pending.book as Promise<BookDetail>).then(b =>
-      b.series ? api.get<{ books: SeriesVolume[] }>(seriesDetailUrl(b.series)).then(d => d.books ?? []) : [])
-    const values: Seed['values'] = {}
-    const settled = (Object.entries(pending) as [SeedKey, Promise<unknown>][])
-      .map(([k, p]) => p.then(v => { values[k] = v }, () => {}))
-    const swap = () => { if (live) { live = false; setPage({ id, seed: { values: { ...values }, pending } }) } }
+    const s = peekBookSeed(Number(id)) ?? fetchBookSeed(id)
+    const swap = () => { if (live) { live = false; setPage({ id, seed: { values: { ...s.values }, pending: s.pending, waited: true } }) } }
     const timer = setTimeout(swap, SWAP_CAP_MS)
-    Promise.all(settled).then(swap)
+    s.all.then(swap)
     return () => { live = false; clearTimeout(timer) }
   }, [id, page.id])
   const next = id && id !== page.id ? (readPreview(location.state, Number(id)) ?? { id: Number(id), title: '' }) : null
-  return <BookDetailView key={page.id} id={page.id ?? ''} seed={page.seed} next={next} />
+  // The shell stays across books (its sidebar asks nothing again); each book gets its own mount.
+  return <AppShell><BookDetailView key={page.id} id={page.id ?? ''} seed={page.seed} next={next} /></AppShell>
 }
 
 function BookDetailView({ id, seed, next }: {
@@ -329,12 +354,29 @@ function BookDetailView({ id, seed, next }: {
   const [heldHeader] = useState(() => (headerRow?.width === window.innerWidth ? headerRow.height : null))
   useLayoutEffect(() => {
     const el = headerRef.current
-    if (el) headerRow = { width: window.innerWidth, height: el.offsetHeight }
+    if (!el || (headerRow?.width === window.innerWidth && headerRow.height === el.offsetHeight)) return
+    headerRow = { width: window.innerWidth, height: el.offsetHeight }
+    try { localStorage.setItem(HEADER_ROW_KEY, JSON.stringify(headerRow)) } catch { /* storage off */ }
   })
   const { user } = useAuth()
   const { toast } = useToast()
   const [book, setBook] = useState<BookDetail | null>(() => seeded<BookDetail>('book') ?? null)
   const [loading, setLoading] = useState(() => !known('book'))
+  // The "On <device>" pills sit in the hero above the status row: the first
+  // page of a visit waits (briefly) for the device lists so they do not arrive
+  // later and push everything under them down.
+  const devicesNow = useDeviceInventories()
+  const [devicesIn, setDevicesIn] = useState(() => devicesAsked || devicesNow.length > 0)
+  useEffect(() => {
+    if (devicesIn) return
+    devicesAsked = true
+    let live = true
+    const done = () => { if (live) setDevicesIn(true) }
+    const cap = setTimeout(done, DEVICES_CAP_MS)
+    refreshDeviceInventories().finally(done)
+    return () => { live = false; clearTimeout(cap) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
+  }, [])
   const bookTypes = useBookTypes()
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
@@ -346,7 +388,11 @@ function BookDetailView({ id, seed, next }: {
   const [error, setError] = useState<string | null>(null)
   const [fetchModalOpen, setFetchModalOpen] = useState(false)
   const [coverPickerOpen, setCoverPickerOpen] = useState(false)
-  const [libraries, setLibraries] = useState<LibraryType[]>(() => lastLibraries ?? [])
+  // The sidebar's copy of the libraries (same answer) draws the Libraries pill at
+  // once when this page has none yet; it is refreshed below either way.
+  const sidebarLibraries = useSidebarLists(user?.id).libraries
+  const [libraries, setLibraries] = useState<LibraryType[]>(() => lastLibraries ?? sidebarLibraries)
+  const [librariesIn, setLibrariesIn] = useState(() => lastLibraries != null || sidebarLibraries.length > 0)
   const [libMenuOpen, setLibMenuOpen] = useState(false)
   const libMenuRef = useRef<HTMLDivElement>(null)
   const [libPending, setLibPending] = useState<Set<number>>(new Set())
@@ -380,15 +426,16 @@ function BookDetailView({ id, seed, next }: {
   const [confirmingHighlight, setConfirmingHighlight] = useState<number | string | null>(null)
   const [highlightsOpen, setHighlightsOpen] = useState(true)
   const [readingStats, setReadingStats] = useState<ReadingStatsResponse | null>(() => seeded<ReadingStatsResponse>('stats') ?? null)
-  const [estimate, setEstimate] = useState<BookEstimate | null>(() => seeded<BookEstimate>('estimate') ?? null)
+  const [estimate, setEstimate] = useState<BookEstimate | null>(() => { const e = seeded<BookEstimate>('estimate'); if (e) lastPace = e.pace; return e ?? null })
   // The late answers: the sections under the hero wait for them (or REVEAL_CAP_MS)
   // and arrive together, so none of them lands later and pushes the others.
   const [settled, setSettled] = useState(() => ({ stats: known('stats'), annotations: known('annotations'), estimate: known('estimate') }))
   const settle = (k: keyof typeof settled) => setSettled(v => (v[k] ? v : { ...v, [k]: true }))
   // A page handed its answers by the move from another book has waited already.
-  const [capped, setCapped] = useState(() => seed != null)
-  // Mounted with everything in (a move from another book): the sections just appear.
-  const [rise] = useState(() => !(known('book') && known('stats') && known('annotations') && known('estimate')))
+  const [capped, setCapped] = useState(() => !!seed?.waited)
+  // Mounted with everything a block needs: it just appears with the page.
+  const [rise] = useState(() => !(known('book') && known('stats') && known('annotations')))
+  const [riseRail] = useState(() => rise || !known('estimate'))
   // Per-book session list (#150) - collapsed by default; the always-available
   // place to trim/delete a runaway session (the Stats tiles are removable).
   const [sessionsOpen, setSessionsOpen] = useState(false)
@@ -407,6 +454,9 @@ function BookDetailView({ id, seed, next }: {
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false)
   const downloadMenuRef = useRef<HTMLDivElement>(null)
   const [seriesVolumes, setSeriesVolumes] = useState<SeriesVolume[]>(() => seeded<SeriesVolume[]>('series') ?? [])
+  const [seriesIn, setSeriesIn] = useState(() => known('series'))
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- media query (Tailwind lg)
+  const [railBeside] = useState(() => window.matchMedia('(min-width: 64rem)').matches)
   const seriesSeeded = useRef(known('series'))
   const seriesPending = useRef(seed && !known('series') ? (seed.pending.series as Promise<SeriesVolume[]> | undefined) ?? null : null)
   const [quickLookId, setQuickLookId] = useState<number | null>(null)
@@ -481,26 +531,30 @@ function BookDetailView({ id, seed, next }: {
     }
   }, [downloadMenuOpen])
 
-  useEffect(() => {
+  // Before paint: "Show more" arriving a frame late would push the sections under it.
+  useLayoutEffect(() => {
     const el = descRef.current
     if (!el) { setDescClamped(false); return }
     const measure = () => { if (!descExpanded) setDescClamped(el.scrollHeight > el.clientHeight + 1) }
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
-  }, [book?.description, editing, descExpanded, loading])
+  }, [book?.description, editing, descExpanded, loading, devicesIn, settled, capped])
 
+  const bookIn = book != null
   useEffect(() => {
+    if (!bookIn) return
     const name = book?.series
     // The first answer came with the page, or is on its way with it.
     if (seriesSeeded.current) { seriesSeeded.current = false; return }
     const first = seriesPending.current
     seriesPending.current = null
-    if (!name) { setSeriesVolumes([]); return }
+    if (!name) { setSeriesVolumes([]); setSeriesIn(true); return }
     ;(first ?? api.get<{ books: SeriesVolume[] }>(seriesDetailUrl(name)).then(d => d.books ?? []))
       .then(setSeriesVolumes)
       .catch(() => setSeriesVolumes([]))
-  }, [book?.series])
+      .finally(() => setSeriesIn(true))
+  }, [bookIn, book?.series])
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
@@ -544,6 +598,7 @@ function BookDetailView({ id, seed, next }: {
 
   useEffect(() => {
     if (!id) return
+    dropBookSeed(Number(id))
     // The shell scrolls inside <main>; a new book starts at its top.
     document.querySelector('main')?.scrollTo(0, 0)
     const urls = bookRequests(id)
@@ -554,7 +609,9 @@ function BookDetailView({ id, seed, next }: {
       ?.then(b => { setBook(b); setDraft(b); setLocalLibIds(b.library_ids ?? []) })
       .catch(() => setError(t`Book not found`))
       .finally(() => setLoading(false))
-    api.get<LibraryType[]>('/libraries').then(l => { lastLibraries = l; setLibraries(l) }).catch(() => toast.error(t`Failed to load libraries`))
+    // With a copy from the last book the refresh waits until the page is in (one request fewer while it loads).
+    const libs = () => api.get<LibraryType[]>('/libraries').then(l => { lastLibraries = l; setLibraries(l); setLibrariesIn(true) }).catch(() => toast.error(t`Failed to load libraries`))
+    const libsLater = librariesIn ? setTimeout(libs, 1500) : (libs(), undefined)
     load<BookStatus>('status')?.then(s => { setBookStatus(s.status); setStatusKnown(true); setProgressPct(s.progress_pct); setCfi(s.cfi ?? null); setProgressAnimated(false); setRating(s.rating ?? null); setReview(s.review ?? ''); setEditingReview(false) }).catch(() => setStatusKnown(true))
     load<typeof adjacent>('adjacent')?.then(setAdjacent).catch(() => {})
     load<KosyncStatus>('kosync')
@@ -566,9 +623,9 @@ function BookDetailView({ id, seed, next }: {
       .catch(() => {})  // KOSync is optional - silent fail is fine
     load<Annotation[]>('annotations')?.then(setAnnotations).catch(() => {}).finally(() => settle('annotations'))
     load<ReadingStatsResponse>('stats')?.then(setReadingStats).catch(() => {}).finally(() => settle('stats'))
-    load<BookEstimate>('estimate')?.then(setEstimate).catch(() => {}).finally(() => settle('estimate'))
+    load<BookEstimate>('estimate')?.then(e => { lastPace = e.pace; setEstimate(e) }).catch(() => {}).finally(() => settle('estimate'))
     const cap = setTimeout(() => setCapped(true), REVEAL_CAP_MS)
-    return () => clearTimeout(cap)
+    return () => { clearTimeout(cap); clearTimeout(libsLater) }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount (the page is keyed on the book)
   }, [id])
 
@@ -590,10 +647,10 @@ function BookDetailView({ id, seed, next }: {
     if (nextId != null) document.querySelector('main')?.scrollTo(0, 0)
   }, [nextId])
 
-  // Animate progress bar from 0 after it loads
+  // Animate progress bar from 0 after it loads (one frame at 0 first)
   useEffect(() => {
     if (progressPct != null && progressPct > 0 && !progressAnimated) {
-      const t = setTimeout(() => setProgressAnimated(true), 100)
+      const t = setTimeout(() => setProgressAnimated(true), 20)
       return () => clearTimeout(t)
     }
   }, [progressPct, progressAnimated])
@@ -789,8 +846,8 @@ function BookDetailView({ id, seed, next }: {
   // Until the book is in: the page frame, its hero from the preview when a
   // link handed one over, else the cover's box and the title's lines held
   // empty (no loader in the middle of an empty page).
-  if (loading) return (
-    <AppShell>
+  if (loading || !devicesIn) return (
+    <>
       <PageBody width="wide">
         <div className={cn(HEADER_CLS, 'content-start')} style={heldHeader ? { minHeight: heldHeader } : undefined}>
           <nav className={CRUMBS_CLS} aria-label={t`Breadcrumb`}>
@@ -826,16 +883,16 @@ function BookDetailView({ id, seed, next }: {
       {/* The page's children are a list (PageBody, then its dialogs); the same
           shape here lets React keep the hero element when the page arrives. */}
       {null}
-    </AppShell>
+    </>
   )
 
   if (error || !book) return (
-    <AppShell>
+    <>
       <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
         <p className="text-muted-foreground">{error ?? t`Book not found`}</p>
         <Link to="/" className="text-sm text-primary hover:underline"><Trans>Back to library</Trans></Link>
       </div>
-    </AppShell>
+    </>
   )
 
   // ── Pieces ──────────────────────────────────────────────────────────────────
@@ -901,7 +958,20 @@ function BookDetailView({ id, seed, next }: {
     finally { setDownloadingId(null) }
   }
 
-  const below = (settled.stats && settled.annotations && settled.estimate) || capped
+  // The main column waits for its late answers (reading stats, highlights) so
+  // neither lands later and pushes the other; the rail also for the estimate.
+  const below = (settled.stats && settled.annotations) || capped
+  // A book with a word count always gets an estimate: its slot is held (filled
+  // at once from the last pace seen), so the rail need not wait for the answer.
+  const shownEstimate = estimate ?? (book.word_count && lastPace ? estimateFromPace(book.word_count, lastPace) : null)
+  // Past the cap the sections still arrive in order: one never lands above one
+  // already shown (the reading blocks before highlights, both before the series).
+  const statsIn = settled.stats
+  const notesIn = statsIn && settled.annotations
+  // On a phone the rail comes after the whole column, the series strip included.
+  const belowRail = railBeside
+    ? (below && (settled.estimate || !!book.word_count)) || capped
+    : notesIn && seriesIn && (settled.estimate || !!book.word_count || capped)
   // While the next book loads, everything of this one but the hero's lines dims and stops taking input.
   const dim = cn('transition-opacity duration-150', next && 'pointer-events-none opacity-40')
   const readable = book.files.some(f => ['epub', 'cbz', 'cbr', 'pdf'].includes(f.format))
@@ -1011,10 +1081,12 @@ function BookDetailView({ id, seed, next }: {
         </Pill>
       )}
       {/* A book without a file is a personal reading record: it never goes into a library. */}
-      {member && book.status !== 'no_file' && libraries.some(l => l.can_edit) && (
+      {/* An admin edits every library: until the list is in, the pill holds its place unseen. */}
+      {member && book.status !== 'no_file' && (libraries.some(l => l.can_edit) || (!librariesIn && isAdmin(user))) && (
         <div className="relative" ref={libMenuRef}>
           <Pill variant="quiet" onClick={() => setLibMenuOpen(o => !o)} aria-expanded={libMenuOpen} aria-label={t`Libraries`}
-            className={cn(libMenuOpen && 'bg-secondary text-foreground')}>
+            disabled={!librariesIn} aria-hidden={!librariesIn || undefined} tabIndex={librariesIn ? undefined : -1}
+            className={cn(libMenuOpen && 'bg-secondary text-foreground', !librariesIn && 'invisible')}>
             <LibraryIcon className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Libraries</Trans></span>
             {localLibIds.length > 0 && (
               <span className="ml-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-secondary px-1.5 text-[12px] font-semibold tabular-nums text-foreground">
@@ -1086,7 +1158,7 @@ function BookDetailView({ id, seed, next }: {
       ) : (
       <HeroCover
         thumb={book.cover_path ? preview?.cover : null}
-        full={book.cover_path ? `/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}` : null}
+        full={book.cover_path ? heroCoverSrc(book) : null}
         alt={book.title}
         color={book.cover_color ?? preview?.coverColor}
       />
@@ -1141,13 +1213,15 @@ function BookDetailView({ id, seed, next }: {
       {book.files.length > 0 && <Field label={t`Format`} value={book.files.map(f => f.format.toUpperCase()).join(', ')} />}
       {/* How long the whole book would take at your pace (#187). In-progress
           books additionally get "Est. remaining" in the Reading section. */}
-      {estimate?.seconds != null && (
+      {shownEstimate?.seconds != null ? (
         <Field label={t`Est. read time`} value={
-          <span title={[estimate.days != null ? formatEstimateDays(estimate.days) : null, describePace(estimate.pace, estimate.method)].filter(Boolean).join(' · ')}>
-            {formatEstimateHours(estimate.seconds)}
+          <span title={[shownEstimate.days != null ? formatEstimateDays(shownEstimate.days) : null, describePace(shownEstimate.pace, shownEstimate.method)].filter(Boolean).join(' · ')}>
+            {formatEstimateHours(shownEstimate.seconds)}
           </span>
         } />
-      )}
+      ) : !settled.estimate && book.word_count ? (
+        <Field label={t`Est. read time`} value={<span className="invisible">{formatEstimateHours(3600)}</span>} />
+      ) : null}
       {/* Hardcover match, only when the sync matcher has linked this book */}
       {book.hardcover_slug && (
         // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
@@ -1229,7 +1303,7 @@ function BookDetailView({ id, seed, next }: {
   )
   const railDetails = (
     <m.aside className="order-3 mx-auto w-full max-w-[420px] lg:order-none lg:mx-0 lg:max-w-none lg:col-start-1 lg:row-start-2"
-      initial={rise ? RISE_FROM : false} animate={RISE_TO}>
+      initial={riseRail ? RISE_FROM : false} animate={RISE_TO}>
       <div className={dim} inert={!!next}>
       <div className={cn(smallCaps, 'mb-3')}><Trans>Details</Trans></div>
       <Swap id={editing ? 'edit' : 'view'}>{details}</Swap>
@@ -1340,7 +1414,7 @@ function BookDetailView({ id, seed, next }: {
     <div className="mt-5 max-w-[560px]">
       <div className="flex items-center gap-3">
         <div className="h-[6px] flex-1 overflow-hidden rounded-full" style={{ background: 'var(--rail)' }}>
-          <div className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
+          <div className="h-full rounded-full bg-primary transition-[width] duration-300 ease-(--spring)"
             style={{ width: progressAnimated ? `${Math.min(100, pctShown)}%` : '0%' }} />
         </div>
         <span className="min-w-[3.25em] text-right text-[17px] font-bold proportional-nums text-foreground"><RunningNumber value={pctShown} className="proportional-nums" />%</span>
@@ -1726,7 +1800,7 @@ function BookDetailView({ id, seed, next }: {
   ) : null
 
   return (
-    <AppShell>
+    <>
       {/* Phones: the app-wide keyboard-shortcut button (App.tsx) sits over the
           book's action pills, and a phone has no keyboard to use it with. */}
       {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
@@ -1750,21 +1824,21 @@ function BookDetailView({ id, seed, next }: {
               <div className={dim} inert={!!next}>
               <m.div className="flex flex-col gap-7" initial={rise ? RISE_FROM : false} animate={RISE_TO}>
                 {descriptionSection}
-                {readingSection}
-                {readingStats?.intensity && (
+                {statsIn && readingSection}
+                {statsIn && readingStats?.intensity && (
                   <IntensityBlock data={readingStats.intensity} bookId={Number(id)} onChange={refreshStats} />
                 )}
-                {readingStats?.chapters && readingStats.chapters.length > 0 && (
+                {statsIn && readingStats?.chapters && readingStats.chapters.length > 0 && (
                   <ChapterTimesBlock chapters={readingStats.chapters} />
                 )}
-                {sessionsSection}
-                {highlightsSection}
-                {seriesSection}
+                {statsIn && sessionsSection}
+                {notesIn && highlightsSection}
+                {notesIn && seriesSection}
               </m.div>
               </div>
             )}
           </div>
-          {below && railDetails}
+          {belowRail && railDetails}
         </div>
       </PageBody>
 
@@ -1812,7 +1886,7 @@ function BookDetailView({ id, seed, next }: {
         />
       )}
       </AnimatePresence>
-    </AppShell>
+    </>
   )
 }
 

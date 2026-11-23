@@ -21,17 +21,27 @@ interface SeriesRatingData {
 export function SeriesRating({ seriesName, isUnserialized }: { seriesName: string; isUnserialized?: boolean }) {
   const { toast } = useToast()
   const [data, setData] = useState<SeriesRatingData | null>(null)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     if (isUnserialized || !seriesName) return
     let cancelled = false
     api.get<SeriesRatingData>(`/series/${encodeURIComponent(seriesName)}/rating`)
       .then(d => { if (!cancelled) setData(d) })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setFailed(true) })
     return () => { cancelled = true }
   }, [seriesName, isUnserialized])
 
-  if (isUnserialized || !data) return null
+  if (isUnserialized || (!data && failed)) return null
+  // While it loads, the row holds its place (the hero below it stays put).
+  if (!data) {
+    return (
+      <div className="mt-2 flex items-center gap-2.5 invisible" aria-hidden="true" inert>
+        <StarRating value={null} />
+        <span className="text-[13px]">{'\u00a0'}</span>
+      </div>
+    )
+  }
 
   const rating = data.rating
   async function save(next: number | null) {

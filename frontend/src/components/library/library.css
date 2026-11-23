@@ -5,12 +5,6 @@
   pointer-events: none;
 }
 
-/* A block below the screen that has not caught up with a view switch yet:
-   an empty box of about its new size (contain-intrinsic-size inline). */
-.library-lag {
-  content-visibility: hidden;
-}
-
 /* ReserveLabel: the label shows in a cell as wide as the widest of
    data-reserve's lines. Generated content stays out of the accessible name. */
 .reserve-label {

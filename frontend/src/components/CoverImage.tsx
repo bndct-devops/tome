@@ -54,7 +54,7 @@ export function CoverImage({
           onError={() => setErrored(true)}
           className={cn(
             'w-full h-full object-cover',
-            !instant && 'transition-[opacity,transform] duration-300',
+            !instant && 'transition-[opacity,transform] duration-300 motion-reduce:transition-none',
             loaded ? 'opacity-100' : 'opacity-0',
             imgClassName,
           )}

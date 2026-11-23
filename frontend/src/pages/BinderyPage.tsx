@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { startTransition, useEffect, useLayoutEffect, useState, useCallback, useMemo, useRef } from 'react'
 import { AnimatePresence, LayoutGroup, m } from 'motion/react'
 import {
   RefreshCw, Loader2, BookOpen, Check, X, Trash2, Search,
@@ -975,19 +975,39 @@ export function BinderyPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- a token that changes with these
   const listDep = useMemo(() => ({}), [items, unreviewed, groups, collapsedFolders, listEpoch])
 
+  // Many rows changing at once snap instead of fading their colours: hundreds
+  // of colour transitions starting in one frame cost more than they show.
+  // data-snap stops the rows' and the checkboxes' (data-check-box)
+  // transitions; the selectors name only those so toggling it restyles little.
+  const listRef = useRef<HTMLDivElement>(null)
+  const snapRows = () => listRef.current?.setAttribute('data-snap', '')
+  useLayoutEffect(() => {
+    const el = listRef.current
+    if (!el?.hasAttribute('data-snap')) return
+    let timer = 0
+    const frame = requestAnimationFrame(() => { timer = window.setTimeout(() => el.removeAttribute('data-snap')) })
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
+  }, [selected])
+
   function toggleSelect(path: string, shiftKey: boolean) {
+    if (shiftKey) snapRows()
     setSelected(prev => {
       const index = listItems.findIndex(i => i.path === path)
       return handleToggle(path, index, shiftKey, prev)
     })
   }
 
+  // Selecting or clearing many rows at once renders in slices (a transition),
+  // so a long list never holds up a frame.
   function selectAll() {
-    setSelected(new Set(listItems.map(i => i.path)))
+    const all = new Set(listItems.map(i => i.path))
+    snapRows()
+    startTransition(() => setSelected(all))
   }
 
   function clearSelection() {
-    setSelected(new Set())
+    snapRows()
+    startTransition(() => setSelected(new Set()))
   }
 
   function toggleFolder(folder: string) {
@@ -1001,13 +1021,14 @@ export function BinderyPage() {
 
   function selectFolder(folder: string) {
     const folderPaths = listItems.filter(i => i.folder === folder).map(i => i.path)
-    setSelected(prev => {
+    snapRows()
+    startTransition(() => setSelected(prev => {
       const next = new Set(prev)
       const allSelected = folderPaths.every(p => next.has(p))
       if (allSelected) folderPaths.forEach(p => next.delete(p))
       else folderPaths.forEach(p => next.add(p))
       return next
-    })
+    }))
   }
 
   // ---------------------------------------------------------------------------
@@ -1635,7 +1656,8 @@ export function BinderyPage() {
                   {/* As wide as its widest label, so Accept all never moves. */}
                   <SameWidth active={hasSelection ? 1 : 0}>{[
                     t`Select all`,
-                    <RunningNumber key="n" value={selectedArr.length} format={x => { const n = Math.round(x); return t`${n} selected · Clear` }} />,
+                    // Starts where the reserved width starts: a growing count only extends to the right.
+                    <span key="n" className="w-full text-left"><RunningNumber value={selectedArr.length} format={x => { const n = Math.round(x); return t`${n} selected · Clear` }} /></span>,
                     (() => { const n = '8'.repeat(String(listItems.length).length); return t`${n} selected · Clear` })(),
                   ]}</SameWidth>
                 </Pill>
@@ -1827,7 +1849,7 @@ export function BinderyPage() {
               </div>
             </Unfold>
 
-            <div className="relative mt-3 divide-y divide-border/70">
+            <div ref={listRef} className="relative mt-3 divide-y divide-border/70 data-snap:[&_.group]:transition-none data-snap:[&_[data-check-box]]:transition-none">
               <AnimatePresence initial={false} onExitComplete={bumpList}>
               {folders.map(folder => {
                 const folderItems = listItems.filter(i => i.folder === folder)
