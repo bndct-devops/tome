@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { AnimatePresence, m } from 'motion/react'
@@ -13,7 +13,6 @@ import { useSidebarLists } from '@/lib/sidebarLists'
 import { refreshDeviceInventories, useDeviceInventories } from '@/lib/deviceBooks'
 import { useToast } from '@/contexts/ToastContext'
 import { FinishByPill } from '@/components/goals/FinishByPill'
-import { shortDate } from '@/components/goals/text'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { MetadataFetchModal } from '@/components/MetadataFetchModal'
@@ -208,10 +207,10 @@ const MAIN_COL_CLS = 'order-2 flex min-w-0 flex-col gap-7 lg:order-none lg:col-s
 const HERO_CLS = 'min-w-0 max-w-[680px]'
 // min-h-9: the previous/next buttons arrive later and must not grow the row,
 // and the crumbs sit at the actions' height whether or not those share their line.
-// Counts as 16rem wide when the row decides whether to wrap, then takes the
+// Counts as 14rem wide when the row decides whether to wrap, then takes the
 // room that is left: a long series name is cut with an ellipsis (it is printed
 // in full above the title) before the actions drop to a second line.
-const CRUMBS_CLS = 'flex min-h-9 min-w-0 flex-1 basis-64 items-center gap-1.5 text-[13px] text-muted-foreground'
+const CRUMBS_CLS = 'flex min-h-9 min-w-0 flex-1 basis-56 items-center gap-1.5 text-[13px] text-muted-foreground'
 const SERIES_LINE_CLS = 'block text-left text-[12px] font-bold uppercase tracking-[0.1em] text-primary hover:underline underline-offset-4'
 const TITLE_CLS = 'mt-2 font-display text-[30px] sm:text-[34px] font-bold leading-[1.05] text-foreground'
 const AUTHOR_CLS = 'mt-1.5 block text-left text-[16px] text-muted-foreground hover:text-primary transition-colors'
@@ -231,23 +230,14 @@ let headerRow: { width: number; height: number } | null = (() => {
 // the status pills' indicator) do not move before the page changes.
 let heroTitleH = 0
 
-/** The finish-by pill's widest label, unseen: "Finish by…" and a goal's day in every month
- *  ("Finish by Sep 28") stacked, so its slot fits any of them. A day in another year adds the
- *  year; reserving that too would wrap the header at widths where it fits on one line now. */
+/** The finish-by pill's usual label, unseen, so its slot is held on books that have none.
+ *  A goal's day ("Finish by Sep 28") is wider and is not reserved: that width would wrap
+ *  the header in a narrow window on every book. */
 function FinishByReserve() {
-  const { i18n } = useLingui()
-  const labels = useMemo(() => {
-    const y = new Date().getFullYear()
-    const days = Array.from({ length: 12 }, (_, i) => shortDate(`${y}-${String(i + 1).padStart(2, '0')}-28`))
-    return [t`Finish by…`, ...days.map(day => t`Finish by ${day}`)]
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- the labels follow the locale
-  }, [i18n.locale])
   return (
     <Pill variant="quiet" tabIndex={-1}>
       <CalendarCheck className="h-4 w-4" />
-      <span className="hidden sm:grid">
-        {labels.map(l => <span key={l} className="col-start-1 row-start-1 whitespace-nowrap">{l}</span>)}
-      </span>
+      <span className="hidden whitespace-nowrap sm:inline"><Trans>Finish by…</Trans></span>
     </Pill>
   )
 }
@@ -1196,7 +1186,7 @@ function BookDetailView({ id, seed, next }: {
       </Pill>
     </div>
   ) : (
-    <div className="-mr-2 flex flex-wrap items-center justify-end gap-0.5">
+    <div className="-mr-2 ml-auto flex flex-wrap items-center justify-end gap-0.5">
       {/* First, so its late arrival or longer label ("Finish by Dec 31") moves nothing to its right. */}
       {/* Its slot is held on every book at its widest label (unseen under it), so a read volume,
           which has none, or one with a goal leaves the actions and the previous/next arrows where they were. */}
@@ -1952,7 +1942,7 @@ function BookDetailView({ id, seed, next }: {
             while its later parts (previous/next, Finish by) arrive. */}
         <div ref={headerRef} className={cn(HEADER_CLS, 'content-start')} style={preview && heldHeader ? { minHeight: heldHeader } : undefined}>
           {crumbs}
-          <div className={cn('min-w-0', dim)} inert={!!next}><Swap id={actionsMode}>{pageActions}</Swap></div>
+          <div className={cn('ml-auto min-w-0', dim)} inert={!!next}><Swap id={actionsMode}>{pageActions}</Swap></div>
         </div>
 
         <div className={GRID_CLS}>

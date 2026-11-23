@@ -6005,7 +6005,6 @@ msgstr "Finish a couple of books of each type so Tome can measure your pace."
 #~ msgstr "Finish by {d}"
 
 #: src/components/goals/FinishByPill.tsx
-#: src/pages/BookDetailPage.tsx
 msgid "Finish by {day}"
 msgstr "Finish by {day}"
 

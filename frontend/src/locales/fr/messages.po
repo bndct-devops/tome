@@ -5994,7 +5994,6 @@ msgstr "Terminez quelques livres de chaque type pour que Tome puisse mesurer vot
 #~ msgstr ""
 
 #: src/components/goals/FinishByPill.tsx
-#: src/pages/BookDetailPage.tsx
 msgid "Finish by {day}"
 msgstr ""
 
