@@ -10,7 +10,7 @@ import { boxes, moved, forgetStats, gate, STATS_RE, GOALS_RE, GOALS_LIST_RE, HIS
 // Seed `stats` is a reader without goals and with little history (the dialog offers
 // presets); `goals-history` reads most days of the last three months (suggestions).
 
-type Goal = { id: number; kind: string; target: number; status: string; period_start: string; due_date?: string }
+type Goal = { id: number; kind: string; target: number; status: string; period_start: string; due_date?: string; book_type_label?: string | null }
 const year = new Date().getFullYear()
 const now = (page: Page) => page.locator('[data-box="goals-now"]')
 const cards = (page: Page) => now(page).getByRole('listitem')
@@ -206,15 +206,34 @@ test('Dialog: suggested targets from the reader\'s own days, presets without his
   for (const v of ['15', '30', '60']) await expect(dialog(page).getByRole('radio', { name: v, exact: true })).toBeVisible()
 })
 
-test('Home: one row of the goals that need attention; a card opens it on the Goals tab, See all the tab', async ({ page }) => {
+test('Home: one row of the goals that need attention; a card opens it on the Goals tab, See all the tab', async ({ page, request }) => {
   seed('goals')
   await login(page)
   await page.goto('/')
   const home = page.locator('[data-box="home-goals"]')
-  // Six goals: behind first (Light Novels, Minutes a week), then ahead (Comics), then the first reached (Manga).
+  // Six goals, four shown, the ones that need the reader first: behind, then not yet
+  // reached, then ahead, then reached. The year goals hold their status all year (Light
+  // Novels behind, Comics ahead, Manga reached); the two weekly goals change with the day
+  // of the week (nothing read yet on its first day, reading days reached late in it), so
+  // the order is checked against the statuses the server gives today.
   await expect(home.getByRole('listitem')).toHaveCount(4)
   const names = await home.getByRole('listitem').evaluateAll((els) => els.map((e) => e.querySelector('[class*="text-muted-foreground"]')?.textContent))
-  expect(names).toEqual([`Books in ${year} · Light Novels`, 'Minutes a week', `Books in ${year} · Comics`, `Books in ${year} · Manga`])
+  const kindName: Record<string, string> = { books_per_year: `Books in ${year}`, minutes_per_week: 'Minutes a week', days_per_week: 'Reading days a week' }
+  const label = (g: Goal) => (kindName[g.kind] ?? g.kind) + (g.book_type_label ? ` · ${g.book_type_label}` : '')
+  const need: Record<string, number> = { behind: 0, expired: 0, open: 1, on_pace: 1, ahead: 2, reached: 3, completed: 3 }
+  const goals = (await goalsFromApi(request)).goals
+  expect(goals).toHaveLength(6)
+  const shown = names.map((n) => goals.find((g) => label(g) === n))
+  expect(shown.every(Boolean), `cards: ${names}`).toBe(true)
+  const ranks = shown.map((g) => need[g!.status])
+  expect(ranks, `cards: ${names}`).toEqual([...ranks].sort((a, b) => a - b))
+  const left = goals.filter((g) => !shown.includes(g)).map((g) => need[g.status])
+  expect(Math.min(...left), `cards: ${names}`).toBeGreaterThanOrEqual(Math.max(...ranks))
+  // Among the same need, the older goal first.
+  for (let i = 1; i < shown.length; i++) if (ranks[i] === ranks[i - 1] && ranks[i] !== 1) expect(shown[i]!.id).toBeGreaterThan(shown[i - 1]!.id)
+  expect(names[0]).toBe(`Books in ${year} · Light Novels`)
+  expect(names).toContain('Minutes a week')
+  expect(names).toContain(`Books in ${year} · Comics`)
   const all = home.getByRole('link', { name: 'See all 6 goals' })
   await expect(all).toHaveAttribute('href', '/stats?tab=goals')
   await home.getByRole('listitem').filter({ hasText: 'Minutes a week' }).getByRole('button').click()
