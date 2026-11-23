@@ -140,3 +140,53 @@ def test_shade_scale_is_personal_not_monthly(client: TestClient, make_book, admi
     book = make_book(title="Eta")
     _session(db, user.id, book.id, D, secs=600)
     assert _month(client)["scale_seconds"] == 1800  # 30-minute floor
+
+
+def test_all_time_parts_match_the_shared_helpers(make_book, admin_user, db: Session):
+    """The calendar computes its all-time pieces (shade scale, streak days, first
+    day, usual pace, month seconds) in one page-stat pass of its own. They must
+    equal what the shared reconciled helpers give, across a DST switch."""
+    from backend.services import reading_calendar as rc
+    from backend.services import reconciled_reading as rr
+    from backend.services.reading_day import DayCtx
+    from backend.services.streaks import reconciled_streak_summary
+
+    user, _ = admin_user
+    a, b, c = make_book(title="Theta"), make_book(title="Iota"), make_book(title="Kappa")
+    epoch = lambda dt: int((dt - datetime(1970, 1, 1)).total_seconds())  # noqa: E731
+    # Vienna leaves summer time on 2026-10-25 01:00 UTC; rows near 02:00-03:00 UTC
+    # land on different reading days depending on the offset in force.
+    for k, start in enumerate([datetime(2026, 10, 23, 23, 0), datetime(2026, 10, 24, 2, 30),
+                               datetime(2026, 10, 25, 2, 30), datetime(2026, 10, 26, 2, 30),
+                               datetime(2026, 3, 29, 1, 30), datetime(2026, 3, 29, 2, 30)]):
+        for i in range(5):
+            db.add(PageStat(user_id=user.id, book_id=a.id, page=k * 5 + i + 1, total_pages=40,
+                            start_time=epoch(start) + i * 120, duration_seconds=100 + k * 37, device="kindle"))
+    _session(db, user.id, a.id, datetime(2026, 10, 24, 2, 30), secs=500, device="kindle")  # superseded
+    _session(db, user.id, b.id, datetime(2026, 10, 27, 20, 0), secs=4000, pages=50)
+    _session(db, user.id, b.id, datetime(2026, 10, 29, 20, 0), secs=30, pages=1)  # web, too short for a streak day
+    _session(db, user.id, None, datetime(2026, 10, 30, 20, 0), secs=900, device="kindle")
+    _session(db, user.id, c.id, datetime(2026, 9, 1, 3, 0), secs=2000, pages=20, device="phone")
+    db.commit()
+
+    for day in (DayCtx(-60, "Europe/Vienna"), DayCtx(-120, None), DayCtx(300, "America/New_York"),
+                DayCtx(-330, "Asia/Kolkata")):
+        covered = rr.covered_book_ids(db, user.id)
+        pages = rc._page_days(db, user.id, day)
+        assert rc._active_days(db, user.id, day, covered, pages) == rr.active_days(db, user.id, day, covered)
+        secs = sorted(v[0] for v in rr.daily_map(db, user.id, day, covered, None, None).values() if v[0] > 0)
+        assert rc._shade_scale(db, user.id, day, covered, pages) == max(1800, secs[min(len(secs) - 1, int(len(secs) * 0.9))])
+        usual = rr.book_seconds(db, user.id, day, covered, None, None)
+        assert rc._usual(db, user.id, covered, [a.id, b.id, c.id]) == {k: (v[0], v[2]) for k, v in usual.items() if k}
+        for m in (3, 9, 10):
+            view = rc.month_view(db, user.id, day, 2026, m)
+            assert view["streaks"] == reconciled_streak_summary(
+                db, user.id, day.tz_offset_minutes, tz_name=day.tz_name).as_dict()
+            first, last = datetime(2026, m, 1).date(), datetime(2026, m, 28).date()
+            full = {d: sum(x.secs for x in bk.values()) for d, bk in rc._collect(db, user.id, day, first, last, covered).items()}
+            assert rc._month_seconds(db, user.id, day, covered, pages, first, last) == {d: s for d, s in full.items()}
+            grid = rc._collect(db, user.id, day, first, last, covered, detail=False)
+            assert {d: {k: (v.secs, v.pages) for k, v in bk.items()} for d, bk in grid.items()} == \
+                {d: {k: (v.secs, v.pages) for k, v in bk.items()} for d, bk in rc._collect(db, user.id, day, first, last, covered).items()}
+        first_ps = min(r.start_time for r in db.query(PageStat).filter(PageStat.user_id == user.id))
+        assert pages.first_start == first_ps

@@ -217,6 +217,9 @@ def get_stats(
     # Books whose time comes from imported KOReader page-stats (those win; their live
     # sessions are excluded to avoid double-counting). Empty -> identical to session-only.
     covered = rr.covered_book_ids(db, current_user.id)
+    if covered:
+        # This answer reads every page-stat row (streaks, lifetime): read them once, up front.
+        rr._page_rows(db, current_user.id, None)
 
     total_seconds, total_sessions, pages_turned = rr.totals(
         db, current_user.id, day_ctx, covered, cutoff, range_end
@@ -1101,24 +1104,28 @@ def get_stats(
     # A page read on 2+ distinct reading days is a re-read. We rank books by how
     # many of their pages got revisited. Pure page-stats, no plugin work.
     from backend.models.ko_stats import PageStat as _PageStat
-    _day = day_ctx.epoch_day(_PageStat.start_time)
-    _reread_pages_sq = (
-        db.query(
-            _PageStat.book_id.label("book_id"),
-            _PageStat.page.label("page"),
+    _rows = rr._page_rows(db, current_user.id, None) if covered else None
+    if _rows is not None:
+        reread_counts = rr.revisited_pages(_rows, day_ctx)
+    else:
+        _day = day_ctx.epoch_day(_PageStat.start_time)
+        _reread_pages_sq = (
+            db.query(
+                _PageStat.book_id.label("book_id"),
+                _PageStat.page.label("page"),
+            )
+            .filter(_PageStat.user_id == current_user.id)
+            # Page N is only "the same page" within one pagination — after a font
+            # change, page 10 is different content, not a revisit.
+            .group_by(_PageStat.book_id, _PageStat.total_pages, _PageStat.page)
+            .having(func.count(func.distinct(_day)) > 1)
+            .subquery()
         )
-        .filter(_PageStat.user_id == current_user.id)
-        # Page N is only "the same page" within one pagination — after a font
-        # change, page 10 is different content, not a revisit.
-        .group_by(_PageStat.book_id, _PageStat.total_pages, _PageStat.page)
-        .having(func.count(func.distinct(_day)) > 1)
-        .subquery()
-    )
-    reread_counts = dict(
-        db.query(_reread_pages_sq.c.book_id, func.count())
-        .group_by(_reread_pages_sq.c.book_id)
-        .all()
-    )
+        reread_counts = dict(
+            db.query(_reread_pages_sq.c.book_id, func.count())
+            .group_by(_reread_pages_sq.c.book_id)
+            .all()
+        )
     reread_books: list[dict] = []
     if reread_counts:
         rr_ids = list(reread_counts.keys())

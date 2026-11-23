@@ -12,12 +12,13 @@ both sides of a DST switch, and a month of rows is small.
 from __future__ import annotations
 
 import calendar
+from bisect import bisect_left
 from collections import defaultdict
 from dataclasses import dataclass, field
 from datetime import date, datetime, timedelta, timezone
 from typing import Optional
 
-from sqlalchemy import func
+from sqlalchemy import func, text
 from sqlalchemy.orm import Session
 
 from backend.models.book import Book, BookChapter
@@ -25,15 +26,16 @@ from backend.models.ko_stats import PageStat
 from backend.models.tome_sync import ReadingSession
 from backend.models.user_book_status import UserBookStatus
 from backend.services import reconciled_reading as rr
-from backend.services.reading_day import DayCtx
+from backend.services.reading_day import DayCtx, effective_hours
 from backend.services.kosync_stats import reader_days
-from backend.services.streaks import _runs, reconciled_streak_summary
+from backend.services.streaks import _runs, streak_session_clause, streak_summary_from_dates
 
 # Same gap rule as the stats session log: a new sitting after 30 idle minutes.
 SITTING_GAP_SECONDS = rr.SESSION_GAP_SECONDS
 # Books opened for less than this on a day (an accidental open, a peek) still
 # count in the day's totals but aren't listed as something you read.
 MIN_LISTED_SECONDS = 60
+_EPOCH_ORDINAL = date(1970, 1, 1).toordinal()
 
 
 def _epoch(dt: datetime) -> int:
@@ -54,31 +56,51 @@ class _BookDay:
     pages_attributed: bool = False
 
 
-def _collect(db: Session, user_id: int, day: DayCtx, first: date, last: date) -> dict[str, dict[int, _BookDay]]:
-    """day_iso -> book_id -> _BookDay for reading days first..last inclusive."""
-    covered = rr.covered_book_ids(db, user_id)
+def _collect(db: Session, user_id: int, day: DayCtx, first: date, last: date,
+             covered: list[int], detail: bool = True) -> dict[str, dict[int, _BookDay]]:
+    """day_iso -> book_id -> _BookDay for reading days first..last inclusive.
+    ``detail=False`` fills only seconds and pages from page-stats (the month grid)."""
     lo = datetime.combine(first - timedelta(days=2), datetime.min.time())
     hi = datetime.combine(last + timedelta(days=3), datetime.min.time())
     out: dict[str, dict[int, _BookDay]] = defaultdict(lambda: defaultdict(_BookDay))
     lo_iso, hi_iso = first.isoformat(), last.isoformat()
 
     if covered:
-        rows = (
-            rr._ps_filtered(db, user_id, lo, hi)
-            .with_entities(PageStat.book_id, PageStat.page, PageStat.total_pages,
-                           PageStat.start_time, PageStat.duration_seconds)
-            .all()
-        )
-        for bid, page, total, start, dur in rows:
-            d = day.py_day(int(start)).isoformat()
-            if not (lo_iso <= d <= hi_iso):
-                continue
-            e = out[d][bid]
-            e.secs += int(dur or 0)
-            e.pages += 1  # one row per page dwell, like the stats page counts them
-            if total:
-                e.fractions.append(min(max(page / total, 0.0), 1.0))
-            e.reads.append((int(start), int(start) + int(dur or 0)))
+        # The reading day comes from SQL (the epoch_day offsets) so it is not
+        # worked out per row in Python; rows outside first..last are dropped there.
+        # "+user_id" steers SQLite to the start_time index: the window, not every row of the user.
+        lo_ord, hi_ord = first.toordinal() - _EPOCH_ORDINAL, last.toordinal() - _EPOCH_ORDINAL
+        params = {"uid": user_id, "lo": _epoch(lo), "hi": _epoch(hi), "dlo": lo_ord, "dhi": hi_ord}
+        shifted = (f"(start_time + {_epoch_shift_sql(day)}) / 86400 AS d FROM ko_page_stats "
+                   "WHERE start_time >= :lo AND start_time < :hi AND +user_id = :uid")
+        names: dict[int, str] = {}
+
+        def name(d_ord: int) -> str:
+            got = names.get(d_ord)
+            if got is None:
+                got = names[d_ord] = date.fromordinal(_EPOCH_ORDINAL + d_ord).isoformat()
+            return got
+
+        # Ordered by id: the order the old per-row read saw, which breaks ties in the book lists.
+        if not detail:
+            for bid, d_ord, secs, n in db.execute(text(
+                f"SELECT book_id, d, SUM(duration_seconds), COUNT(*) FROM (SELECT id, book_id, duration_seconds, {shifted}) "
+                "WHERE d BETWEEN :dlo AND :dhi GROUP BY book_id, d ORDER BY MIN(id)"
+            ), params).all():
+                e = out[name(d_ord)][bid]
+                e.secs += int(secs or 0)
+                e.pages += int(n)
+        else:
+            for bid, page, total, start, dur, d_ord in db.execute(text(
+                "SELECT book_id, page, total_pages, start_time, duration_seconds, d FROM (SELECT id, book_id, page, "
+                f"total_pages, start_time, duration_seconds, {shifted}) WHERE d BETWEEN :dlo AND :dhi ORDER BY id"
+            ), params).all():
+                e = out[name(d_ord)][bid]
+                e.secs += int(dur or 0)
+                e.pages += 1  # one row per page dwell, like the stats page counts them
+                if total:
+                    e.fractions.append(min(max(page / total, 0.0), 1.0))
+                e.reads.append((int(start), int(start) + int(dur or 0)))
 
     sessions = (
         rr._rs_filtered(db, user_id, covered, lo, hi)
@@ -182,19 +204,81 @@ def _unique_best(day_secs: dict[str, int]) -> Optional[str]:
     return top[0][0]
 
 
-def _shade_scale(db: Session, user_id: int, day: DayCtx) -> int:
+def _epoch_shift_sql(day: DayCtx) -> str:
+    """Integer SQL seconds that ``DayCtx.epoch_day`` adds to ``start_time``: the
+    same fixed offset, or the same per-row CASE over the zone's transitions."""
+    if day.tz_name is None:
+        return str(effective_hours(day.tz_offset_minutes, day.rollover_hours) * 3600)
+    trans = day._trans()
+    shift = day.rollover_hours * 60
+    whens = " ".join(f"WHEN start_time >= {int(i)} THEN {(int(o) - shift) * 60}" for i, o in reversed(trans[1:]))
+    first = (int(trans[0][1]) - shift) * 60
+    return f"CASE {whens} ELSE {first} END" if whens else str(first)
+
+
+@dataclass
+class _PageDays:
+    """All-time page-stat seconds and rows per reading day, and the first row."""
+    by_day: dict[date, tuple[int, int]]
+    first_start: Optional[int]
+
+
+def _page_days(db: Session, user_id: int, day: DayCtx) -> _PageDays:
+    """One grouped pass over the user's page-stats. Day ``n`` since the epoch is
+    the date ``epoch_day`` would give (start_time is positive, so SQLite's
+    integer division floors)."""
+    sql = text(
+        f"SELECT (start_time + {_epoch_shift_sql(day)}) / 86400 AS d, SUM(duration_seconds), COUNT(*), "
+        "MIN(start_time) FROM ko_page_stats WHERE user_id = :uid GROUP BY d"
+    )
+    by_day: dict[date, tuple[int, int]] = {}
+    first: Optional[int] = None
+    for d, secs, n, mn in db.execute(sql, {"uid": user_id}).all():
+        by_day[date.fromordinal(_EPOCH_ORDINAL + int(d))] = (int(secs or 0), int(n))
+        first = int(mn) if first is None else min(first, int(mn))
+    return _PageDays(by_day, first)
+
+
+
+def _shade_scale(db: Session, user_id: int, day: DayCtx, covered: list[int], pages: _PageDays) -> int:
     """Seconds that count as a full-colour day: your 90th-percentile reading
     day, all time (at least 30 min). A fixed personal scale keeps a month of
-    short days light instead of stretching its longest one to full colour."""
-    covered = rr.covered_book_ids(db, user_id)
-    secs = sorted(v[0] for v in rr.daily_map(db, user_id, day, covered, None, None).values() if v[0] > 0)
+    short days light instead of stretching its longest one to full colour.
+    Per-day seconds as ``rr.daily_map`` over all time counts them."""
+    rows = (
+        rr._rs_filtered(db, user_id, covered, None, None)
+        .with_entities(day.dt_day(ReadingSession.started_at).label("day"),
+                       func.coalesce(func.sum(ReadingSession.duration_seconds), 0))
+        .group_by("day").all()
+    )
+    per_day: dict[str, int] = {d: int(s or 0) for d, s in rows}
+    if covered:
+        for d, (s, _n) in pages.by_day.items():
+            k = d.isoformat()
+            per_day[k] = per_day.get(k, 0) + s
+    secs = sorted(v for v in per_day.values() if v > 0)
     if not secs:
         return 1800
     return max(1800, secs[min(len(secs) - 1, int(len(secs) * 0.9))])
 
 
-def _first_reading_day(db: Session, user_id: int, day: DayCtx) -> Optional[date]:
-    ps = db.query(func.min(PageStat.start_time)).filter(PageStat.user_id == user_id).scalar()
+def _active_days(db: Session, user_id: int, day: DayCtx, covered: list[int], pages: _PageDays) -> set[date]:
+    """The streak's day set, as ``rr.active_days`` builds it."""
+    rs_days = {
+        r[0] for r in
+        rr._rs_filtered(db, user_id, [], None, None)
+        .filter(streak_session_clause())
+        .with_entities(day.dt_day(ReadingSession.started_at)).distinct().all()
+        if r[0]
+    }
+    out = {date.fromisoformat(d) for d in rs_days}
+    if covered:
+        out |= set(pages.by_day)
+    return out
+
+
+def _first_reading_day(db: Session, user_id: int, day: DayCtx, pages: _PageDays) -> Optional[date]:
+    ps = pages.first_start
     rs = db.query(func.min(ReadingSession.started_at)).filter(ReadingSession.user_id == user_id).scalar()
     cands = [day.py_day(int(ps))] if ps else []
     if rs:
@@ -212,8 +296,10 @@ def _week_start_of(db: Session, user_id: int) -> str:
 def month_view(db: Session, user_id: int, day: DayCtx, year: int, month: int) -> dict:
     first = date(year, month, 1)
     last = date(year, month, calendar.monthrange(year, month)[1])
+    covered = rr.covered_book_ids(db, user_id)
+    pages = _page_days(db, user_id, day)
     # One day either side so streak bands can run across the month edge.
-    data = _collect(db, user_id, day, first - timedelta(days=1), last + timedelta(days=1))
+    data = _collect(db, user_id, day, first - timedelta(days=1), last + timedelta(days=1), covered, detail=False)
     finished = _finished_days(db, user_id, day, first, last)
     meta = _book_meta(db, {b for books in data.values() for b in books} | {b for ids in finished.values() for b in ids})
     ends = _end_days(db, user_id, day, {b for books in data.values() for b in books})
@@ -235,7 +321,7 @@ def month_view(db: Session, user_id: int, day: DayCtx, year: int, month: int) ->
             "finished": [meta[b] for b in done if b in meta],
         })
     in_month = [d for d in days if first.isoformat() <= d["date"] <= last.isoformat()]
-    first_day = _first_reading_day(db, user_id, day)
+    first_day = _first_reading_day(db, user_id, day, pages)
     # Days a KOSync reader was read on before it synced to Tome: reading days
     # with no time, pages or books (kosync_stats.reader_days).
     all_reader = reader_days(db, user_id)
@@ -259,10 +345,58 @@ def month_view(db: Session, user_id: int, day: DayCtx, year: int, month: int) ->
             "books_finished": sum(len(d["finished"]) for d in in_month),
             "best_day": _unique_best({d["date"]: d["seconds"] for d in in_month}),
         },
-        "scale_seconds": _shade_scale(db, user_id, day),
-        "streaks": reconciled_streak_summary(db, user_id, day.tz_offset_minutes, tz_name=day.tz_name,
-                                             week_start=_week_start_of(db, user_id)).as_dict(),
+        "scale_seconds": _shade_scale(db, user_id, day, covered, pages),
+        # Same as streaks.reconciled_streak_summary, from the page-day pass above.
+        "streaks": streak_summary_from_dates(_active_days(db, user_id, day, covered, pages) | all_reader,
+                                             day.today(), _week_start_of(db, user_id)).as_dict(),
     }
+
+
+def _usual(db: Session, user_id: int, covered: list[int], book_ids) -> dict[int, tuple[int, int]]:
+    """book_id -> all-time (seconds, pages), as ``rr.book_seconds`` counts them,
+    for just these books."""
+    if not book_ids:
+        return {}
+    ids = list(book_ids)
+    out: dict[int, list[int]] = {
+        bid: [int(s or 0), int(p or 0)] for bid, s, p in
+        rr._rs_filtered(db, user_id, covered, None, None)
+        .filter(ReadingSession.book_id.in_(ids))
+        .with_entities(ReadingSession.book_id,
+                       func.coalesce(func.sum(ReadingSession.duration_seconds), 0),
+                       func.coalesce(func.sum(ReadingSession.pages_turned), 0))
+        .group_by(ReadingSession.book_id).all()
+    }
+    if covered:
+        for bid, s, n in (
+            db.query(PageStat.book_id, func.sum(PageStat.duration_seconds), func.count(PageStat.id))
+            .filter(PageStat.user_id == user_id, PageStat.book_id.in_(ids))
+            .group_by(PageStat.book_id).all()
+        ):
+            e = out.setdefault(bid, [0, 0])
+            e[0] += int(s or 0); e[1] += int(n or 0)
+    return {b: (v[0], v[1]) for b, v in out.items()}
+
+
+def _month_seconds(db: Session, user_id: int, day: DayCtx, covered: list[int], pages: _PageDays,
+                   first: date, last: date) -> dict[str, int]:
+    """day_iso -> seconds for first..last, the per-day sums of ``_collect``."""
+    out: dict[str, int] = defaultdict(int)
+    if covered:
+        for d, (s, _n) in pages.by_day.items():
+            if first <= d <= last:
+                out[d.isoformat()] += s
+    lo = datetime.combine(first - timedelta(days=2), datetime.min.time())
+    hi = datetime.combine(last + timedelta(days=3), datetime.min.time())
+    for started, dur in (
+        rr._rs_filtered(db, user_id, covered, lo, hi)
+        .filter(ReadingSession.book_id.isnot(None))
+        .with_entities(ReadingSession.started_at, ReadingSession.duration_seconds).all()
+    ):
+        d = day.py_day(_epoch(started))
+        if first <= d <= last:
+            out[d.isoformat()] += int(dur or 0)
+    return out
 
 
 def _sittings(reads: list[tuple[int, int]]) -> list[tuple[int, int]]:
@@ -277,23 +411,26 @@ def _sittings(reads: list[tuple[int, int]]) -> list[tuple[int, int]]:
 
 def _chapters(chapters: list[BookChapter], fractions: list[float], spans: list[tuple[float, float]]) -> list[str]:
     hit = []
+    fs = sorted(fractions)
+    at_end = bool(fs) and fs[-1] >= 1.0
     for c in chapters:
-        if any(c.start_fraction <= f < c.end_fraction or (f >= 1.0 and c.end_fraction >= 1.0) for f in fractions) \
+        i = bisect_left(fs, c.start_fraction)
+        if (i < len(fs) and fs[i] < c.end_fraction) or (at_end and c.end_fraction >= 1.0) \
                 or any(a < c.end_fraction and b > c.start_fraction for a, b in spans):
             hit.append(c.title)
     return hit
 
 
 def day_view(db: Session, user_id: int, day: DayCtx, d: date) -> dict:
-    books = _collect(db, user_id, day, d, d).get(d.isoformat(), {})
+    covered = rr.covered_book_ids(db, user_id)
+    books = _collect(db, user_id, day, d, d, covered).get(d.isoformat(), {})
     total_secs = sum(b.secs for b in books.values())
     total_pages = sum(b.pages for b in books.values())
     books = {bid: b for bid, b in books.items() if b.secs >= MIN_LISTED_SECONDS}
     finished_ids = set(_finished_days(db, user_id, day, d, d).get(d.isoformat(), []))
     meta = _book_meta(db, set(books) | finished_ids)
 
-    covered = rr.covered_book_ids(db, user_id)
-    usual = rr.book_seconds(db, user_id, day, covered, None, None)  # all-time (secs, sessions, pages)
+    usual = _usual(db, user_id, covered, books)  # all-time (secs, pages) of the listed books
 
     chapter_map: dict[int, list[BookChapter]] = defaultdict(list)
     if books:
@@ -303,20 +440,26 @@ def day_view(db: Session, user_id: int, day: DayCtx, d: date) -> dict:
     # A book "started" today when today is its first reading day ever.
     ends = _end_days(db, user_id, day, books)
     started = set()
-    for bid in books:
-        ps = db.query(func.min(PageStat.start_time)).filter(PageStat.user_id == user_id, PageStat.book_id == bid).scalar()
-        rs = db.query(func.min(ReadingSession.started_at)).filter(
-            ReadingSession.user_id == user_id, ReadingSession.book_id == bid).scalar()
-        firsts = ([day.py_day(int(ps))] if ps else []) + ([day.py_day(_epoch(rs))] if rs else [])
-        if firsts and min(firsts) == d:
-            started.add(bid)
+    if books:
+        ids = list(books)
+        ps_first = dict(db.query(PageStat.book_id, func.min(PageStat.start_time))
+                        .filter(PageStat.user_id == user_id, PageStat.book_id.in_(ids))
+                        .group_by(PageStat.book_id).all())
+        rs_first = dict(db.query(ReadingSession.book_id, func.min(ReadingSession.started_at))
+                        .filter(ReadingSession.user_id == user_id, ReadingSession.book_id.in_(ids))
+                        .group_by(ReadingSession.book_id).all())
+        for bid in books:
+            ps, rs = ps_first.get(bid), rs_first.get(bid)
+            firsts = ([day.py_day(int(ps))] if ps else []) + ([day.py_day(_epoch(rs))] if rs else [])
+            if firsts and min(firsts) == d:
+                started.add(bid)
 
     out_books, all_sittings = [], []
     for bid, b in sorted(books.items(), key=lambda kv: -kv[1].secs):
         if bid not in meta:
             continue
         positions = b.fractions + [x for span in b.spans for x in span]
-        u_secs, _u_sessions, u_pages = usual.get(bid, (0, 0, 0))
+        u_secs, u_pages = usual.get(bid, (0, 0))
         sittings = _sittings(b.reads)
         all_sittings += [{"book_id": bid, "start": s, "end": e} for s, e in sittings]
         out_books.append({
@@ -335,12 +478,14 @@ def day_view(db: Session, user_id: int, day: DayCtx, d: date) -> dict:
         })
 
     # Streak position: which run of consecutive reading days this day sits in.
+    pages = _page_days(db, user_id, day)
     from_reader = reader_days(db, user_id)
-    active = rr.active_days(db, user_id, day, covered) | from_reader
+    active = _active_days(db, user_id, day, covered, pages) | from_reader
     streak = None
     if d in active:
-        run = next(r for r in _runs(sorted(active), 1) if r[0] <= d <= r[1])
-        longest = max(((r[1] - r[0]).days + 1 for r in _runs(sorted(active), 1)), default=0)
+        runs = _runs(sorted(active), 1)
+        run = next(r for r in runs if r[0] <= d <= r[1])
+        longest = max(((r[1] - r[0]).days + 1 for r in runs), default=0)
         length = (run[1] - run[0]).days + 1
         streak = {"day": (d - run[0]).days + 1, "length": length, "start": run[0].isoformat(),
                   "end": run[1].isoformat(), "is_best": length == longest}
@@ -348,7 +493,7 @@ def day_view(db: Session, user_id: int, day: DayCtx, d: date) -> dict:
     secs = total_secs
     m_first = d.replace(day=1)
     m_last = d.replace(day=calendar.monthrange(d.year, d.month)[1])
-    month_secs = {d_iso: sum(x.secs for x in bk.values()) for d_iso, bk in _collect(db, user_id, day, m_first, m_last).items()}
+    month_secs = _month_seconds(db, user_id, day, covered, pages, m_first, m_last)
     return {
         "date": d.isoformat(),
         "seconds": secs,

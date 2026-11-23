@@ -200,6 +200,27 @@ class DayCtx:
 
     # ── Python side ──────────────────────────────────────────────────────────
 
+    def shifted_epochs(self, starts: list[int], *, rollover: bool = True) -> list[int]:
+        """Python twin of ``epoch_shifted`` / ``epoch_day`` for ascending epoch
+        seconds: each value moved by exactly the modifier the SQL CASE picks for
+        it, so ``shifted // 86400`` is the same day and ``% 86400`` the same time."""
+        if self.tz_name is None:
+            hours = self.rollover_hours if rollover else 0
+            s = effective_hours(self.tz_offset_minutes, hours) * 3600
+            return [t + s for t in starts]
+        from bisect import bisect_left
+        shift = self.rollover_hours * 60 if rollover else 0
+        trans = self._trans()
+        # The CASE takes the latest transition at or before the row, else the first offset.
+        out: list[int] = []
+        lo = 0
+        for k, (_, off) in enumerate(trans):
+            hi = bisect_left(starts, trans[k + 1][0], lo) if k + 1 < len(trans) else len(starts)
+            s = (off - shift) * 60
+            out.extend([t + s for t in starts[lo:hi]])
+            lo = hi
+        return out
+
     def py_day(self, epoch_seconds: int) -> date:
         """Reading day of an epoch timestamp."""
         if self.tz_name is None:
