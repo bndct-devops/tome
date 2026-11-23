@@ -7,6 +7,7 @@ import { createPortal } from 'react-dom'
 import { Check, ChevronDown, ChevronLeft, ChevronRight, Search } from 'lucide-react'
 import { t } from '@lingui/core/macro'
 import { cn } from '@/lib/utils'
+import { GLIDE_FILL } from '@/components/page/glideTransition'
 import { api } from '@/lib/api'
 import { monthGrid, type WeekStart } from '@/lib/goalsModel'
 import { Cover } from '@/components/stats/kit/Kit'
@@ -314,10 +315,12 @@ export function DayPicker({ value, min, weekStart, onPick, children, active, ind
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className={cn('relative inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[14px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', active ? cn('text-background', !indicator && 'bg-foreground') : 'bg-secondary text-foreground hover:bg-surface-hover')}
+        className={cn('group/day relative inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[14px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', active ? 'text-background' : 'text-foreground', !indicator && 'transition-colors', !indicator && (active ? 'bg-foreground' : 'bg-secondary hover:bg-surface-hover'))}
       >
         {active && indicator}
-        {indicator ? <span className="relative z-[1] inline-flex items-center gap-1.5">{children}</span> : children}
+        {indicator ? <span data-split="" className="relative z-[1] inline-flex items-center gap-1.5">{children}</span> : children}
+        {/* With an indicator its fill sits under it, like the chips beside it (GLIDE_FILL). */}
+        {indicator && <span aria-hidden className={cn(GLIDE_FILL, 'group-hover/day:bg-surface-hover')} />}
       </button>
       {open && (
         <Card cardRef={card} pos={pos} label={t`Pick a day`}>

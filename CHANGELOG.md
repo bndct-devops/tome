@@ -101,6 +101,15 @@ All notable changes to Tome are documented here. Format loosely follows
   instead of below it. Admin Covers: a fixed cover no longer blinks. Admin
   Word counts: the text holds still when the button changes.
 - The Hardcover page scrolls smoothly in Safari.
+- **Group series is one clean motion.** It starts on the click instead of
+  after a pause, the title count changes once, and a series' volumes slide
+  under its first cover instead of piling up half-transparent with their
+  titles on top of each other.
+- Opening a series from a book page carries the cover across, like opening
+  a book does, and Back brings it home.
+- New goal: the suggested targets stay readable while the highlight moves
+  between them, and a menu no longer lets the buttons behind it show through
+  as it opens.
 
 ## [3.2.0] - 2026-11-22 - "Chapbook"
 

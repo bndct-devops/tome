@@ -48,6 +48,7 @@ export function Glide({ className, radius = 9999, behind = false, layoutId = 'gl
   return (
     <m.span
       aria-hidden
+      data-glide=""
       layoutId={present ? layoutId : undefined}
       layoutDependency={chosen ? chosen.value : undefined}
       transition={transition}

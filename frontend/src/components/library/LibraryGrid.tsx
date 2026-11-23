@@ -19,10 +19,16 @@
  * A list change: the old cards stay (dimmed by the caller) until the new list
  * is in. Cards in both lists glide to their new place; the ones that leave
  * fade out over the ones that arrive (`data-motion-pop-id` is on top, see
- * library.css), so the grid cross-changes instead of blinking. Grouping by
- * series: the stack takes the first volume's card, which glides to the
- * stack's place, and the other volumes on screen fly into it. Ungrouping: the
- * volumes come out of the stack they were in.
+ * library.css), so the grid cross-changes instead of blinking.
+ *
+ * Grouping by series (and back) is its own move, one commit and one motion
+ * (see GroupRun): the new list renders at once, the cards on screen are read
+ * once before and once after, and only those animate (transform and opacity,
+ * by hand). A stack is its first volume's card: that card's cover glides to
+ * the stack's place and is its top cover from the first frame. The other
+ * volumes on screen leave as bare covers that slide under it and fade; their
+ * cards are gone at once. Ungrouping is the mirror: the volumes come out from
+ * under the first one as bare covers and get their text when they land.
  */
 import { createPortal, flushSync } from 'react-dom'
 import { forwardRef, memo, useCallback, useEffect, useId, useImperativeHandle, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
@@ -46,6 +52,8 @@ const SWITCH_S = 0.32
 const SWITCH_SETTLE_MS = SWITCH_S * 1000 + 60
 const SELECT_SETTLE_MS = 160
 const STEP_MS = 24
+// Grouping by series and back.
+const GROUP_MS = 280
 // A remount (back to the Library) shows the blocks around the place it
 // returns to first, the rest one block per step after: blocks below appear,
 // blocks above replace boxes of the same size (the screen stays put).
@@ -106,18 +114,66 @@ interface Win {
 
 /** Shared between the grid and its cards without re-rendering them. */
 interface Shared {
-  grid: RefObject<HTMLDivElement | null>
-  /** Grouped list: series name -> the key of its stack. */
-  stackOf: Map<string, string>
   grouped: boolean
-  /** Ungrouping: where each series' stack was on screen. */
-  spreadFrom: Map<string, DOMRect> | null
-  /** Ungrouping: the volumes that arrived, animated together by the grid
-   *  (all reads before any write: WebKit lays out again after each animate()). */
-  spreadQueue: { el: HTMLElement; from: DOMRect }[]
+  /** A grouping change is on: the cards that leave go at once (GroupRun draws them). */
+  grouping: boolean
 }
 
-type Exit = { key: string; series: string | null }
+/** A card on screen when a grouping change was prepared. */
+interface GroupItem {
+  key: string
+  series: string | null
+  stack: boolean
+  card: DOMRect
+  cover: DOMRect
+  img: HTMLImageElement | null
+  radius: string
+  color: string
+  /** A bare cover of the previous change, still on its way. */
+  ghost: boolean
+}
+
+/** A grouping change between prepare() and the commit that shows it. */
+interface GroupSnap { toGrouped: boolean; items: GroupItem[] }
+
+/** A grouping change in motion: its animations, the layer of bare covers,
+ *  the cards marked for it, and the timer that ends it. */
+interface GroupRun { anims: Animation[]; layer: HTMLElement | null; marked: HTMLElement[]; timer: number }
+
+/** Reads the cards on screen (and the bare covers of a change still on its
+ *  way) for a grouping change. Reads only. */
+function snapGroup(grid: HTMLElement, top: number, bottom: number, bookOf: Map<string, Book>): GroupItem[] {
+  const out: GroupItem[] = []
+  const read = (el: HTMLElement, key: string, ghost: boolean) => {
+    const card = el.getBoundingClientRect()
+    if (card.bottom <= top || card.top >= bottom) return
+    const box = ghost ? el : coverOf(el)
+    const cover = box ? box.getBoundingClientRect() : card
+    const book = bookOf.get(key)
+    out.push({
+      key, ghost, card, cover,
+      series: ghost ? el.dataset.series || null : book?.series ?? null,
+      stack: !ghost && !!el.querySelector('[data-series-cover]'),
+      img: box?.querySelector('img') ?? null,
+      radius: box ? getComputedStyle(box).borderRadius : '0px',
+      color: box ? getComputedStyle(box).backgroundColor : '',
+    })
+  }
+  for (const el of grid.querySelectorAll<HTMLElement>(':scope > [data-item]:not([data-motion-pop-id])')) read(el, el.dataset.item!, false)
+  for (const el of grid.querySelectorAll<HTMLElement>(':scope > [data-group-ghosts] > [data-ghost]')) read(el, el.dataset.ghost!, true)
+  return out
+}
+
+/** Ends a grouping change at once: its motion stops where it would end. */
+function endGroupRun(run: GroupRun | null, grid: HTMLElement | null) {
+  if (run) {
+    clearTimeout(run.timer)
+    for (const a of run.anims) a.cancel()
+    run.layer?.remove()
+    for (const el of run.marked) { el.removeAttribute('data-emerge'); el.removeAttribute('data-group-top') }
+  }
+  grid?.removeAttribute('data-grouping')
+}
 
 const OUT_OF_WIN: Win = { from: -1, to: -2, keys: new Set(), version: 0, travel: 0, shownFrom: 0, shownTo: 0 }
 
@@ -146,24 +202,18 @@ function reduced() {
 
 function makeVariants(ref: RefObject<Shared>): Variants {
   const fade = { opacity: 0, transition: { duration: 0.15 } }
+  const gone = { opacity: 0, transition: { duration: 0 } }
   return {
-    shown: { opacity: 1, x: 0, y: 0, scale: 1 },
-    // A volume whose series is now a stack flies into it; any other card
-    // fades where it was.
-    leave: (c: Exit) => {
-      const shared = ref.current
-      const target = shared.grouped && c.series ? shared.stackOf.get(c.series) : undefined
-      const grid = shared.grid.current
-      if (!target || target === c.key || !grid || reduced()) return fade
-      const el = grid.querySelector<HTMLElement>(`[data-item="${CSS.escape(c.key)}"][data-motion-pop-id]`)
-      const to = grid.querySelector<HTMLElement>(`[data-item="${CSS.escape(target)}"]:not([data-motion-pop-id])`)
-      if (!el || !to) return fade
-      const x = to.offsetLeft - el.offsetLeft
-      const y = to.offsetTop - el.offsetTop
-      if (Math.abs(y) > window.innerHeight * 1.5) return fade
-      return { x, y, scale: 0.86, opacity: 0, transition: { duration: GLIDE_S, ease: EASE, opacity: { duration: GLIDE_S, ease: [0.4, 0, 1, 1] } } }
-    },
+    shown: { opacity: 1 },
+    // A grouping change draws the cards that leave as bare covers (GroupRun):
+    // the card itself goes at once. Any other card fades where it was.
+    leave: () => (ref.current.grouping ? gone : fade),
   }
+}
+
+/** The cover box of a card or stack. */
+function coverOf(el: HTMLElement): HTMLElement | null {
+  return el.querySelector<HTMLElement>('[data-series-cover], [data-cover-id]')
 }
 
 interface ItemProps {
@@ -184,7 +234,6 @@ interface ItemProps {
   dep: string
   travelDep: string
   switching: boolean
-  shared: RefObject<Shared>
   variants: Variants
   onToggle: Props['onToggle']
   onTag: Props['onTag']
@@ -196,7 +245,7 @@ interface ItemProps {
 
 const LibraryItem = memo(function LibraryItem({
   ref: presenceRef, book, itemKey, index, stack, view, focused, selected, selecting, status, progress, rating,
-  dep, travelDep, switching, shared, variants,
+  dep, travelDep, switching, variants,
   onToggle, onTag, onSeries, onAuthor, onQuickLook, onOpenSeries,
 }: ItemProps) {
   const ref = useRef<HTMLDivElement | null>(null)
@@ -205,7 +254,6 @@ const LibraryItem = memo(function LibraryItem({
     if (typeof presenceRef === 'function') presenceRef(node)
     else if (presenceRef) presenceRef.current = node
   }, [presenceRef])
-  const custom = useMemo<Exit>(() => ({ key: itemKey, series: book.series ?? null }), [itemKey, book.series])
   const onSelect = useMemo(
     () => (selecting && !stack ? (e: React.MouseEvent) => { e.preventDefault(); onToggle(book.id, e.shiftKey) } : undefined),
     [selecting, stack, onToggle, book.id],
@@ -216,17 +264,6 @@ const LibraryItem = memo(function LibraryItem({
     [onQuickLook, book.id, cover],
   )
   const openSeries = useCallback(() => { if (book.series) onOpenSeries(book.series) }, [onOpenSeries, book.series])
-
-  // Ungrouping: a volume that was inside a stack on screen comes out of it.
-  useLayoutEffect(() => {
-    const spread = shared.current.spreadFrom
-    const from = spread && book.series ? spread.get(book.series) : undefined
-    const el = ref.current?.firstElementChild as HTMLElement | null
-    if (!from || !el || reduced()) return
-    shared.current.spreadQueue.push({ el, from })
-    // Only on arrival.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
 
   return (
     <m.div
@@ -239,7 +276,6 @@ const LibraryItem = memo(function LibraryItem({
       data-dep={dep}
       data-epoch={travelDep}
       data-held={dep === 'x' ? '' : undefined}
-      custom={custom}
       variants={variants}
       initial={false}
       animate="shown"
@@ -291,11 +327,10 @@ interface ChunkProps extends Omit<Props, 'books' | 'focusedIndex' | 'refreshing'
   focused: number | null
   win: Win
   switching: boolean
-  shared: RefObject<Shared>
   variants: Variants
 }
 
-const Chunk = memo(function Chunk({ items, start, grouped, view, statuses, selected, selecting, focused, win, switching, shared, variants, ...cb }: ChunkProps) {
+const Chunk = memo(function Chunk({ items, start, grouped, view, statuses, selected, selecting, focused, win, switching, variants, ...cb }: ChunkProps) {
   return (
     <AnimatePresence mode="popLayout" initial={false} presenceAffectsLayout={false}>
       {items.map((book, j) => {
@@ -321,7 +356,6 @@ const Chunk = memo(function Chunk({ items, start, grouped, view, statuses, selec
             dep={dep}
             travelDep={inWin ? String(win.travel) : 'x'}
             switching={switching && inWin}
-            shared={shared}
             variants={variants}
             {...cb}
           />
@@ -419,7 +453,7 @@ const SpacerBlock = memo(function SpacerBlock({ heights, block }: { heights: num
 
 /** The grid's items in order (cards and boxes), without the cards on their way out. */
 function itemsOf(grid: HTMLElement): HTMLElement[] {
-  return Array.from(grid.querySelectorAll<HTMLElement>(':scope > :not([data-motion-pop-id])'))
+  return Array.from(grid.querySelectorAll<HTMLElement>(':scope > :not([data-motion-pop-id], [data-group-ghosts])'))
 }
 
 /** First and last item index between `lo` and `hi` (viewport px). */
@@ -460,8 +494,10 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
   const [win, setWin] = useState<Win>({ from: 0, to: CHUNK * 2, keys: new Set(), version: 0, travel: 0, shownFrom: 0, shownTo: CHUNK * 2 })
   const anchor = useRef<{ key: string; top: number } | null>(null)
   const [switchView, setSwitchView] = useState<{ to: 'grid' | 'list'; n: number } | null>(null)
-  const shared = useRef<Shared>({ grid: gridRef, stackOf: new Map(), grouped, spreadFrom: null, spreadQueue: [] })
-  // eslint-disable-next-line react-hooks/refs -- read when a card leaves, not while rendering
+  const shared = useRef<Shared>({ grouped, grouping: false })
+  const booksRef = useRef(books)
+  const groupSnap = useRef<GroupSnap | null>(null)
+  const groupRun = useRef<GroupRun | null>(null)
   const variants = useMemo(() => makeVariants(shared), [])
 
   // The visible index range, measured on the old cards.
@@ -471,7 +507,7 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     if (!grid || !main) return null
     const top = main.getBoundingClientRect().top
     const bottom = top + main.clientHeight
-    const items = Array.from(grid.children) as HTMLElement[]
+    const items = (Array.from(grid.children) as HTMLElement[]).filter(el => !el.hasAttribute('data-group-ghosts'))
     let a = -1, b = -1
     const keys = new Set<string>()
     for (let i = 0; i < items.length; i++) {
@@ -610,6 +646,31 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     prepare(kind, opts) {
       const l = windowedRef.current ? layoutNow() : null
       if (l) recordHeights(gridRef.current!, l)
+      const grid = gridRef.current
+      if (kind === 'list' && opts?.toGrouped != null && opts.toGrouped !== shared.current.grouped && grid) {
+        // Grouping by series or back: GroupRun moves the cards, so they keep
+        // their layout dependency (no layout animation of their own).
+        const main = grid.closest('main')
+        const bookOf = new Map(booksRef.current.map(b => [String(b.id), b]))
+        const top = main ? main.getBoundingClientRect().top : 0
+        const items = main ? snapGroup(grid, top, top + main.clientHeight, bookOf) : []
+        endGroupRun(groupRun.current, grid)
+        groupRun.current = null
+        groupSnap.current = { toGrouped: opts.toGrouped, items }
+        shared.current.grouping = true
+        grid.setAttribute('data-grouping', '')
+        const old = booksRef.current
+        setWin(w => {
+          const keys = new Set<string>()
+          for (let i = 0; i < old.length; i++) {
+            const k = String(old[i].id)
+            if ((i >= w.from && i <= w.to) || w.keys.has(k)) keys.add(k)
+          }
+          return { ...w, from: -1, to: -2, keys }
+        })
+        setMount(s => (s.from > 0 ? { ...s, from: 0 } : s))
+        return
+      }
       const m = measure()
       // A view switch keeps the first card on screen in place: the new view
       // shows about a screenful of its own after it.
@@ -645,51 +706,16 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
         const first = m.items[m.a]
         anchor.current = first?.dataset.item ? { key: first.dataset.item, top: first.getBoundingClientRect().top - m.top } : null
       }
-      if (kind === 'list') {
-        // Ungrouping: remember where the stacks on screen are.
-        shared.current.spreadFrom = null
-        if (opts?.toGrouped === false && shared.current.grouped && m) {
-          const from = new Map<string, DOMRect>()
-          for (const el of m.items) {
-            const k = el.dataset.item
-            if (!k || !m.keys.has(k)) continue
-            const cover = el.querySelector<HTMLElement>('[data-series-cover]')
-            const name = cover?.dataset.seriesCover
-            const card = el.firstElementChild as HTMLElement | null
-            if (name && card) from.set(name, card.getBoundingClientRect())
-          }
-          if (from.size) shared.current.spreadFrom = from
-        }
-      }
     },
     resumePoint() {
       return lastVisible.current
     },
   }), [measure, view, gridSize, layoutNow])
 
-  // What the exits read while the new list commits: set before any card's
-  // layout effect (where the exits start) runs.
   useInsertionEffect(() => {
+    booksRef.current = books
     shared.current.grouped = grouped
-    if (!grouped) return
-    const map = new Map<string, string>()
-    for (const b of books) if (isStack(true, b)) map.set(b.series!, String(b.id))
-    shared.current.stackOf = map
   }, [grouped, books])
-  useLayoutEffect(() => {
-    shared.current.spreadFrom = null
-    const queue = shared.current.spreadQueue
-    if (!queue.length) return
-    shared.current.spreadQueue = []
-    const moves = queue.map(q => ({ ...q, r: q.el.getBoundingClientRect() }))
-    for (const { el, from, r } of moves) {
-      if (r.bottom < 0 || r.top > window.innerHeight || (Math.abs(r.left - from.left) < 1 && Math.abs(r.top - from.top) < 1)) continue
-      el.animate([
-        { transform: `translate(${from.left - r.left}px, ${from.top - r.top}px) scale(0.86)`, opacity: 0.5 },
-        { transform: 'none', opacity: 1 },
-      ], { duration: GLIDE_S * 1000, easing: EASE_CSS })
-    }
-  })
 
   // ── Blocks that follow later ───────────────────────────────────────────
   const listView = view === 'list'
@@ -893,6 +919,136 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     if (el) main.scrollTop += el.getBoundingClientRect().top - p.top
   })
 
+  // ── Grouping by series and back (see the top of the file) ──
+  // On the commit that shows the new list: keep the first card on screen (or
+  // its series' stack) where it was, read every card that takes part, then
+  // start the motion. All reads before any write.
+  useLayoutEffect(() => {
+    const snap = groupSnap.current
+    if (!snap || snap.toGrouped !== grouped) return
+    groupSnap.current = null
+    const grid = gridRef.current
+    const main = grid?.closest('main')
+    const run: GroupRun = { anims: [], layer: null, marked: [], timer: 0 }
+    const finish = () => {
+      endGroupRun(run, grid ?? null)
+      if (groupRun.current === run) groupRun.current = null
+      shared.current.grouping = false
+    }
+    groupRun.current = run
+    if (!grid || !main) { run.timer = window.setTimeout(finish, 60); return }
+    const bookOf = new Map(books.map(b => [String(b.id), b]))
+    // The cards that leave are still here (their exit starts after this).
+    const els = Array.from(grid.querySelectorAll<HTMLElement>(':scope > [data-item]:not([data-motion-pop-id])')).filter(el => bookOf.has(el.dataset.item!))
+    const byKey = new Map(els.map(el => [el.dataset.item!, el]))
+    const stackKey = new Map<string, string>()
+    if (grouped) for (const b of books) if (isStack(true, b)) stackKey.set(b.series!, String(b.id))
+    const stackEl = (series: string | null) => (grouped && series ? byKey.get(stackKey.get(series) ?? '') : undefined)
+
+    // The first card on screen stays where it was (grouping: its series' stack).
+    const order = snap.items.filter(it => !it.ghost).sort((a, b) => a.card.top - b.card.top || a.card.left - b.card.left)
+    for (const it of order) {
+      const el = byKey.get(it.key) ?? stackEl(it.series)
+      if (!el) continue
+      const d = el.getBoundingClientRect().top - it.card.top
+      if (Math.abs(d) >= 1) main.scrollTop += d
+      break
+    }
+    if (reduced() || !snap.items.length) { run.timer = window.setTimeout(finish, 60); return }
+
+    const top = main.getBoundingClientRect().top
+    const h = main.clientHeight
+    const near = (r: DOMRect) => r.bottom > top - h / 2 && r.top < top + h * 1.5
+    const gridBox = grid.getBoundingClientRect()
+    const snapOf = new Map(snap.items.map(it => [it.key, it]))
+    // Ungrouping: the stacks that were on screen, by series.
+    const stackFrom = new Map<string, GroupItem>()
+    for (const it of snap.items) if (it.stack && it.series) stackFrom.set(it.series, it)
+
+    const moves: { el: HTMLElement; from: DOMRect; to: DOMRect; card: DOMRect; emerge: boolean; top: boolean }[] = []
+    for (const el of els) {
+      const key = el.dataset.item!
+      const old = snapOf.get(key)
+      const book = bookOf.get(key)
+      const from = old ? old.cover : !grouped && book?.series ? stackFrom.get(book.series)?.cover : undefined
+      if (!from || !book) continue
+      const card = el.getBoundingClientRect()
+      if (!old && !near(card)) continue
+      const box = coverOf(el)
+      moves.push({
+        el, from, card,
+        to: box ? box.getBoundingClientRect() : card,
+        emerge: !old || old.ghost,
+        top: !!old && !old.ghost && old.stack !== isStack(grouped, book),
+      })
+    }
+    const leaving = snap.items.filter(it => !byKey.has(it.key)).map(it => {
+      const target = stackEl(it.series)
+      const box = target ? coverOf(target) ?? target : null
+      const to = box ? box.getBoundingClientRect() : null
+      return { it, to: to && near(to) ? to : null }
+    })
+
+    const timing = { duration: GROUP_MS, easing: EASE_CSS }
+    for (const mv of moves) {
+      const dx = mv.from.left - mv.to.left
+      const dy = mv.from.top - mv.to.top
+      const k = mv.to.width > 0 ? mv.from.width / mv.to.width : 1
+      if (!mv.emerge && Math.abs(dx) < 0.5 && Math.abs(dy) < 0.5 && Math.abs(k - 1) < 0.01) continue
+      // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS
+      const origin = `${mv.to.left - mv.card.left}px ${mv.to.top - mv.card.top}px`
+      if (mv.emerge) mv.el.setAttribute('data-emerge', '')
+      if (mv.top) mv.el.setAttribute('data-group-top', '')
+      if (mv.emerge || mv.top) run.marked.push(mv.el)
+      run.anims.push(mv.el.animate([
+        { transform: `translate(${dx}px, ${dy}px) scale(${k})`, transformOrigin: origin },
+        { transform: 'none', transformOrigin: origin },
+      ], timing))
+    }
+    if (leaving.length) {
+      // The volumes that leave, as bare covers under the cards.
+      const layer = document.createElement('div')
+      layer.setAttribute('data-group-ghosts', '')
+      layer.setAttribute('aria-hidden', 'true')
+      const ghosts = leaving.map(({ it }) => {
+        const g = document.createElement('div')
+        g.setAttribute('data-ghost', it.key)
+        if (it.series) g.setAttribute('data-series', it.series)
+        Object.assign(g.style, {
+          left: `${it.cover.left - gridBox.left}px`, top: `${it.cover.top - gridBox.top}px`,
+          width: `${it.cover.width}px`, height: `${it.cover.height}px`,
+          borderRadius: it.radius, backgroundColor: it.color,
+        })
+        if (it.img?.currentSrc || it.img?.src) {
+          const img = document.createElement('img')
+          img.src = it.img.currentSrc || it.img.src
+          img.alt = ''
+          g.append(img)
+        }
+        layer.append(g)
+        return g
+      })
+      grid.append(layer)
+      run.layer = layer
+      leaving.forEach(({ it, to }, i) => {
+        const g = ghosts[i]
+        if (!to) {
+          run.anims.push(g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 150, easing: 'linear', fill: 'forwards' }))
+          return
+        }
+        const k = it.cover.width > 0 ? to.width / it.cover.width : 1
+        run.anims.push(g.animate([
+          { transform: 'none' },
+          { transform: `translate(${to.left - it.cover.left}px, ${to.top - it.cover.top}px) scale(${k})` },
+        ], { ...timing, fill: 'forwards' }))
+        // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS easing
+        run.anims.push(g.animate([{ opacity: 1 }, { opacity: 0 }], { duration: GROUP_MS, easing: 'cubic-bezier(0.4, 0, 1, 1)', fill: 'forwards' }))
+      })
+    }
+    run.timer = window.setTimeout(finish, GROUP_MS + 40)
+  }, [books, grouped])
+  useEffect(() => () => endGroupRun(groupRun.current, null), [])
+
   // Once per page load, when the page is idle: see LibraryWarmup.
   const [warm, setWarm] = useState(false)
   const endWarm = useCallback(() => setWarm(false), [])
@@ -967,7 +1123,6 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
               focused={focusedIndex != null && focusedIndex >= c * CHUNK && focusedIndex < (c + 1) * CHUNK ? focusedIndex : null}
               win={inWin ? win : OUT_OF_WIN}
               switching={!!switchView && inWin}
-              shared={shared}
               variants={variants}
               onToggle={props.onToggle}
               onTag={props.onTag}

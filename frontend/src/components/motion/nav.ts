@@ -3,14 +3,14 @@
  * to use them).
  *
  *   const openBook = useBookNav();     openBook(preview, cover?, { replace? })
- *   const openSeries = useSeriesNav(); openSeries(name, cover?)
+ *   const openSeries = useSeriesNav(); openSeries(name, cover?, { from? })
  */
 import { useCallback, type RefObject } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import {
-  findBookCover, findSeriesCover, openBookWithCover, openSeriesWithCover, previewState, seriesPreviewState,
-  type BookPreview,
+  bookHeroSelector, findBookCover, findSeriesCover, openBookWithCover, openSeriesWithCover, previewState,
+  seriesPreviewState, type BookPreview,
 } from '@/lib/coverTransition'
 
 export type CoverSource = HTMLElement | RefObject<HTMLElement | null> | null | undefined
@@ -194,12 +194,29 @@ export function hintSeries(name: string, cover: string | null): void {
   while (seriesHints.size > SERIES_HINT_MAX) seriesHints.delete(seriesHints.keys().next().value as string)
 }
 
-/** `open(name, cover?)`: navigates to the series page. */
+// Opened from a book page: its history entry keeps the book's preview, so
+// going back its hero paints in the first frame (full size, it is in the
+// cache) and the cover lands on it.
+function keepBookPreview(book: BookPreview) {
+  const h = window.history.state as { usr?: unknown } | null
+  if (!h) return
+  const usr = h.usr && typeof h.usr === 'object' ? h.usr : {}
+  window.history.replaceState({ ...h, usr: { ...usr, ...previewState(book) } }, '')
+}
+
+/** `open(name, cover?, { from? })`: navigates to the series page. `from`: the
+ *  book page it is opened from (going back, the cover lands on its hero
+ *  wherever it started, the page opening at its top). */
 export function useSeriesNav() {
   const navigate = useNavigate()
-  return useCallback((name: string, cover?: CoverSource, opts?: { near?: Element | null }) => {
+  return useCallback((name: string, cover?: CoverSource, opts?: { near?: Element | null; from?: BookPreview }) => {
     const el = resolve(cover, () => findSeriesCover(name, opts?.near))
-    const state = seriesPreviewState({ name, cover: coverThumb(el) ?? seriesHints.get(name)?.cover ?? null })
-    openSeriesWithCover(el, name, () => navigate(seriesPath(name), { state }))
+    const hint = seriesHints.get(name)?.cover
+    // From a book page the hint is the series hero itself (full size, decoded).
+    const pic = opts?.from ? hint ?? coverThumb(el) : coverThumb(el) ?? hint
+    const state = seriesPreviewState({ name, cover: pic ?? null })
+    if (opts?.from) keepBookPreview(opts.from)
+    openSeriesWithCover(el, name, () => navigate(seriesPath(name), { state }),
+      opts?.from ? [bookHeroSelector(opts.from.id)] : undefined)
   }, [navigate])
 }

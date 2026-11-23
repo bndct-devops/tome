@@ -17,8 +17,9 @@ import '@/styles/view-transitions.css'
  * Back: every navigation that starts here remembers the history entry it
  * left and what it opened. Popping back to that entry while the hero is on
  * screen holds the router's popstate, captures the page, replays the event
- * inside the transition and grows the hero back into the matching cover,
- * whatever page that is (a book page, a series, the library, Stats ...).
+ * inside the transition and grows the hero back into the cover it came from
+ * (a book page's hero, when a series was opened from it), whatever page that
+ * is (a book page, a series, the library, Stats ...).
  *
  * Also hosts the root cross-fade between pages (`crossFade`, used by
  * components/motion/TransitionRouter): one view transition at a time.
@@ -251,8 +252,23 @@ function run(from: HTMLElement, update: () => Promise<HTMLElement | null>) {
   if (!started) from.style.viewTransitionName = ''
 }
 
-// History entry a cover navigation left -> what it opened.
-const origins = new Map<string, Target>()
+// History entry a cover navigation left -> what it opened, and where the
+// hero lands going back: the element it grew from, else the next selector.
+const origins = new Map<string, { target: Target; back: string[] }>()
+
+const MARKERS = ['data-cover-id', 'data-series-cover', 'data-hero-cover', 'data-series-hero']
+
+/** The selector that finds `el` again on its page: the target's card marker
+ *  when it carries it, else its own marker. */
+function markerOf(el: HTMLElement, target: Target): string {
+  const card = coverSel(target)
+  if (el.matches(card)) return card
+  const attr = MARKERS.find(a => el.getAttribute(a))
+  return attr ? sel(attr, el.getAttribute(attr)!) : card
+}
+
+/** The book page's hero, as a place a cover may land on going back. */
+export const bookHeroSelector = (id: number) => sel('data-hero-cover', id)
 
 // The router's entry key; the entry the app was loaded on has only its index.
 function historyKey(state: unknown): string | null {
@@ -261,10 +277,10 @@ function historyKey(state: unknown): string | null {
   return typeof s?.idx === 'number' ? `idx:${s.idx}` : null
 }
 
-function open(target: Target, cover: HTMLElement | null, go: () => void) {
+function open(target: Target, cover: HTMLElement | null, go: () => void, back?: string[]) {
   const here = historyKey(window.history.state)
   if (here) {
-    if (cover) origins.set(here, target)
+    if (cover) origins.set(here, { target, back: [...new Set([...(back ?? [markerOf(cover, target)]), coverSel(target)])] })
     else origins.delete(here)
   }
   if (!cover || active || !transitionsSupported() || !onScreen(cover)) { skipActiveTransition(); go(); return }
@@ -286,9 +302,10 @@ export function openBookWithCover(cover: HTMLElement | null, bookId: number, go:
   open({ kind: 'book', id: bookId }, cover, go)
 }
 
-/** Navigates to a series page, growing `cover` into its hero. */
-export function openSeriesWithCover(cover: HTMLElement | null, name: string, go: () => void) {
-  open({ kind: 'series', name }, cover, go)
+/** Navigates to a series page, growing `cover` into its hero. Going back, the
+ *  hero lands on the first of `back` on screen (default: `cover` again). */
+export function openSeriesWithCover(cover: HTMLElement | null, name: string, go: () => void, back?: string[]) {
+  open({ kind: 'series', name }, cover, go, back)
 }
 
 /** True for a plain left click (no modifier) that a link handler may take over. */
@@ -321,9 +338,9 @@ if (typeof window !== 'undefined') {
   window.addEventListener('popstate', e => {
     if (passThrough || active || !transitionsSupported()) return
     const key = historyKey(e.state)
-    const target = key ? origins.get(key) : undefined
-    if (!target) return
-    const hero = visible(heroSel(target))
+    const origin = key ? origins.get(key) : undefined
+    if (!origin) return
+    const hero = visible(heroSel(origin.target))
     if (!hero) return
     e.stopImmediatePropagation()
     const state = e.state
@@ -332,7 +349,7 @@ if (typeof window !== 'undefined') {
       const committed = nextCommit(BACK_WAIT_MS)
       try { window.dispatchEvent(new PopStateEvent('popstate', { state })) } finally { passThrough = false }
       await committed
-      const card = visible(coverSel(target))
+      const card = origin.back.reduce<HTMLElement | null>((found, s) => found ?? visible(s), null)
       // No card where the hero could land: show the page as it is.
       if (!card) { skipActiveTransition(); return null }
       await decoded(card)

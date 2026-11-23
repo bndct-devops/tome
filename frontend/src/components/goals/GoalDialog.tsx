@@ -10,7 +10,7 @@
 // From a series or a book page the dialog comes small: that title, the day and
 // what it takes (no kinds, no search). Focus goes into the dialog when it opens
 // and back to whatever opened it when it closes.
-import { useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { CalendarDays, ChevronDown } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
@@ -18,6 +18,7 @@ import { t, plural } from '@lingui/core/macro'
 import { cn, formatDuration } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
 import { Glide, GlideGroup, Input, Pill, PillGroup } from '@/components/page'
+import { GLIDE_FILL, useIndicatorSplit } from '@/components/page/glideTransition'
 import { Cover } from '@/components/stats/kit/Kit'
 import { ChoiceMenu } from '@/components/stats/kit/Menu'
 import { dec1, num } from '@/components/stats/kit/tokens'
@@ -181,7 +182,7 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
                   <span className="inline-flex items-center gap-1.5">
                     {kindLabel(k)}
                     {mine && (
-                      <span className={cn('text-[12px] tabular-nums', on ? 'text-background/70' : 'text-muted-foreground')}>
+                      <span data-split="" style={PROGRESS_SPLIT} className={cn('text-[12px] tabular-nums', on ? 'text-background/70' : 'text-muted-foreground')}>
                         <span className="sr-only">{t`You have this one`} · </span>{progress(mine)}
                       </span>
                     )}
@@ -259,12 +260,11 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
 
 // ── The area under the kinds ──────────────────────────────────────────────────
 
-/**
- * A chip label's colour beside the gliding indicator: the chosen one turns light as the indicator
- * arrives (about 110 ms in), the one left turns dark at once (the indicator is already moving off).
- */
-const chipLabel = (on: boolean, light = 'text-background', dark = 'text-foreground') =>
-  cn('transition-colors duration-100', on ? cn(light, '[transition-delay:110ms] motion-reduce:[transition-delay:0ms]') : dark)
+// eslint-disable-next-line lingui/no-unlocalized-strings -- CSS values
+const PROGRESS_SPLIT = { '--split-out': 'var(--muted-foreground)', '--split-in': 'color-mix(in oklab, var(--background) 70%, var(--foreground))' } as CSSProperties
+/** A chip's muted third line: its colours on and off the indicator (useIndicatorSplit). */
+// eslint-disable-next-line lingui/no-unlocalized-strings -- CSS values
+const NOTE_SPLIT = { '--split-out': 'var(--muted-foreground)', '--split-in': 'color-mix(in oklab, var(--background) 75%, var(--foreground))' } as CSSProperties
 
 /* eslint-disable lingui/no-unlocalized-strings -- CSS values and a media query */
 const STEP_TOP = 'top 200ms ease-out'
@@ -386,6 +386,8 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter, counts, rule
   ruler?: boolean
 }) {
   const value = parsed.ok ? parsed.value : null
+  const cardsRef = useRef<HTMLDivElement>(null)
+  useIndicatorSplit(cardsRef, ruler ? null : value)
   // The server's three can share a number (steady reading, rounding to a step, a 7-day cap):
   // each number is offered once, under the first of its names (Steady before Keep it up before
   // Stretch); a lone one keeps no name.
@@ -430,7 +432,7 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter, counts, rule
         // Three across at every width: the number first, what it is, how often you reached it.
         // One indicator per kind (keyed): a new kind's chips draw it in place, a pick within them glides it.
         <GlideGroup key={kind} value={ruler ? undefined : value}>
-        <div className="isolate grid grid-cols-3 gap-2" role="radiogroup" aria-label={t`Suggested targets`}>
+        <div ref={ruler ? undefined : cardsRef} className="isolate grid grid-cols-3 gap-2" role="radiogroup" aria-label={t`Suggested targets`}>
           {chips.map((c) => {
             const on = value === c.value
             return (
@@ -440,14 +442,16 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter, counts, rule
                 role="radio"
                 aria-checked={on}
                 onClick={() => setText(String(c.value))}
-                className={cn('relative min-w-0 rounded-xl px-3 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', !on && 'bg-secondary hover:bg-surface-hover')}
+                className="group/chip relative min-w-0 rounded-xl px-3 py-2 text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
               >
                 {/* Nothing in a chip is cut: a long note wraps and the chip grows (the three stay one height). */}
-                <span className={cn('relative z-[1] block text-[17px] font-bold leading-6 tabular-nums [overflow-wrap:anywhere]', chipLabel(on))}>{num(c.value)}</span>
-                {chips.length > 1 && <span className={cn('relative z-[1] block text-[13px] font-semibold leading-5', chipLabel(on))}>{CHIP_TITLE[c.label ?? 'keep_it_up']()}</span>}
-                <span className={cn('relative z-[1] block text-[12px] leading-snug [overflow-wrap:anywhere]', chipLabel(on, 'text-background/75', 'text-muted-foreground'))}>{chipNote(s!, c)}</span>
+                <span data-split="" className={cn('relative z-[1] block text-[17px] font-bold leading-6 tabular-nums [overflow-wrap:anywhere]', on ? 'text-background' : 'text-foreground')}>{num(c.value)}</span>
+                {chips.length > 1 && <span data-split="" className={cn('relative z-[1] block text-[13px] font-semibold leading-5', on ? 'text-background' : 'text-foreground')}>{CHIP_TITLE[c.label ?? 'keep_it_up']()}</span>}
+                <span data-split="" style={NOTE_SPLIT} className={cn('relative z-[1] block text-[12px] leading-snug [overflow-wrap:anywhere]', on ? 'text-background/75' : 'text-muted-foreground')}>{chipNote(s!, c)}</span>
                 {/* Last, so a chip's first span is still its number. */}
-                {on && !ruler && <Glide className="bg-foreground" radius={12} />}
+                {/* 14 px: the card's rounded-xl, so its corners match the card it leaves and the one it reaches. */}
+                {on && !ruler && <Glide className="bg-foreground" radius={14} />}
+                <span aria-hidden className={cn(GLIDE_FILL, 'group-hover/chip:bg-surface-hover')} />
               </button>
             )
           })}
@@ -516,13 +520,15 @@ function FinishBody({ editing, fixed, today, weekStart, target, setTarget, taken
   const chips = dateChips(today)
   const chipOn = chips.find((c) => c.date === due)
   const p = preview && preview.due_date === due ? preview : null
+  const dayRow = useRef<HTMLDivElement>(null)
+  useIndicatorSplit(dayRow, chipOn?.id ?? 'day')
   return (
     <div className="space-y-4">
       {!editing && !fixed && (
         <FinishTargetPicker value={target} onPick={setTarget} taken={new Set([...taken].filter((k) => !target || k !== targetKey(target)))} />
       )}
       <GlideGroup value={chipOn?.id ?? 'day'}>
-      <div className="isolate flex flex-wrap items-center gap-1.5" role="group" aria-label={t`By`}>
+      <div ref={dayRow} className="isolate flex flex-wrap items-center gap-1.5" role="group" aria-label={t`By`}>
         {chips.map((c) => {
           const on = chipOn?.id === c.id
           return (
@@ -532,10 +538,11 @@ function FinishBody({ editing, fixed, today, weekStart, target, setTarget, taken
               aria-pressed={on}
               title={longDate(c.date)}
               onClick={() => setDue(c.date)}
-              className={cn('relative inline-flex h-9 items-center rounded-full px-4 text-[14px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', !on && 'bg-secondary hover:bg-surface-hover')}
+              className={cn('group/chip relative inline-flex h-9 items-center rounded-full px-4 text-[14px] font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', on ? 'text-background' : 'text-foreground')}
             >
               {on && <Glide className="bg-foreground" />}
-              <span className={cn('relative z-[1]', chipLabel(on))}>{c.label}</span>
+              <span data-split="" className="relative z-[1]">{c.label}</span>
+              <span aria-hidden className={cn(GLIDE_FILL, 'group-hover/chip:bg-surface-hover')} />
             </button>
           )
         })}

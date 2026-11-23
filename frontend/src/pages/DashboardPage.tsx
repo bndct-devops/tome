@@ -254,6 +254,15 @@ function coversReady(books: Book[], signal?: AbortSignal): Promise<void> {
   ])
 }
 
+/** A first page fetched ahead for the Group series toggle (`res` once it is in). */
+interface GroupList {
+  key: string
+  at: number
+  res: { data: Book[]; headers: Headers } | null
+  promise: Promise<{ data: Book[]; headers: Headers } | null>
+}
+const GROUP_LIST_TTL = 30_000
+
 /** A function whose identity never changes and that always calls the latest `fn`. */
 function useStableCallback<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
   const ref = useRef(fn)
@@ -878,13 +887,14 @@ export function DashboardPage() {
   const locationKeyRef = useRef(location.key)
   locationKeyRef.current = location.key
   // Filters + sort of the list the current `books` belong to.
-  const listKey = () => {
+  const listKeyFor = (grouped: boolean) => {
     const p = buildFilterParams()
     p.set('sort', sort)
     p.set('order', order)
-    if (groupActive) p.set('group_by_series', 'true')
+    if (grouped) p.set('group_by_series', 'true')
     return p.toString()
   }
+  const listKey = () => listKeyFor(groupActive)
   const [seed] = useState(() => (listCache && listCache.key === listKey() ? listCache : null))
   // Back to a long list: it renders around the card that was first on screen.
   const [resume] = useState(() => (
@@ -930,6 +940,11 @@ export function DashboardPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const PAGE_SIZE = 60
+  // Group series: the list the toggle switches to, fetched while the pointer
+  // is on the toggle (and the list it leaves, kept for the way back), so a
+  // click regroups the cards at once. Keyed by listKey; cleared by any reset.
+  const groupLists = useRef(new Map<string, GroupList>())
+  const groupToggled = useRef(false)
 
   function buildFilterParams(): URLSearchParams {
     const params = new URLSearchParams()
@@ -963,12 +978,20 @@ export function DashboardPage() {
     const skip = reset ? 0 : booksRef.current.length
     const limit = quiet ? Math.max(PAGE_SIZE, Math.ceil(booksRef.current.length / PAGE_SIZE) * PAGE_SIZE) : PAGE_SIZE
     const key = listKey()
+    // The Group series toggle's list, fetched ahead (see prefetchGroup).
+    let ahead: GroupList | undefined
+    if (reset) {
+      const found = groupToggled.current && !quiet ? groupLists.current.get(key) : undefined
+      groupToggled.current = false
+      if (found) groupLists.current.delete(key)
+      if (found && performance.now() - found.at < GROUP_LIST_TTL) ahead = found
+    }
 
     if (reset) {
       abortRef.current?.abort()
       abortRef.current = new AbortController()
       if (booksRef.current.length === 0) setLoading(true)
-      else if (!quiet) setRefreshing(true)
+      else if (!quiet && !ahead?.res) setRefreshing(true)
       hasMoreRef.current = true
       setHasMore(true)
     } else {
@@ -986,63 +1009,73 @@ export function DashboardPage() {
     params.set('skip', String(skip))
     params.set('limit', String(limit))
     if (groupActive) params.set('group_by_series', 'true')
-    api.getWithHeaders<Book[]>(`/books?${params}`, signal)
+
+    const apply = ({ data: newBooks, headers }: { data: Book[]; headers: Headers }) => {
+      if (signal?.aborted) return
+      if (reset) {
+        loadedKeyRef.current = key
+        const raw = headers.get('x-total-count')
+        setTotalCount(raw !== null ? Number(raw) : null)
+      }
+      let merged: Book[]
+      if (reset) {
+        // The cards on screen are measured before they move.
+        if (!quiet) libraryGridRef.current?.prepare('list', { toGrouped: groupActive })
+        merged = shareBooks(booksRef.current, newBooks)
+        setListGrouped(groupActive)
+      } else {
+        const seen = new Set(booksRef.current.map(b => b.id))
+        merged = [...booksRef.current, ...newBooks.filter(b => !seen.has(b.id))]
+      }
+      booksRef.current = merged
+      setBooks(merged)
+      hasMoreRef.current = newBooks.length === limit
+      setHasMore(newBooks.length === limit)
+      if (newBooks.length > 0) {
+        api.post<Record<string, { status: string; progress_pct: number | null; rating: number | null }>>('/books/statuses', { book_ids: newBooks.map(b => b.id) })
+          .then(map => {
+            const s: StatusMap = {}
+            Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct, rating: val.rating ?? null } })
+            setReadingStatuses(prev => ({ ...prev, ...s }))
+          })
+          .catch(() => {})
+      } else if (reset) {
+        setReadingStatuses({})
+      }
+    }
+    const settle = () => {
+      if (reset) {
+        // An aborted reset was superseded by a newer one that owns the
+        // loading flags - leave them alone.
+        if (signal?.aborted) return
+        setLoading(false)
+        setRefreshing(false)
+      } else {
+        // Always clear, even when aborted: this request is finished and a
+        // stuck loadingMore would stall the infinite scroll for good.
+        setLoadingMore(false)
+      }
+    }
+    // Already in: the new list shows in this same commit.
+    if (ahead?.res) {
+      apply(ahead.res)
+      settle()
+      return
+    }
+    const fetchPage = () => api.getWithHeaders<Book[]>(`/books?${params}`, signal)
       // A new list over a shown one waits (dimmed, briefly) for its first
       // covers, so the cards that arrive have their pictures.
       .then(async res => {
         if (reset && !quiet && booksRef.current.length > 0) await coversReady(res.data.slice(0, 30), signal)
         return res
       })
-      .then(({ data: newBooks, headers }) => {
-        if (signal?.aborted) return
-        if (reset) {
-          loadedKeyRef.current = key
-          const raw = headers.get('x-total-count')
-          setTotalCount(raw !== null ? Number(raw) : null)
-        }
-        let merged: Book[]
-        if (reset) {
-          // The cards on screen are measured before they move.
-          if (!quiet) libraryGridRef.current?.prepare('list', { toGrouped: groupActive })
-          merged = shareBooks(booksRef.current, newBooks)
-          setListGrouped(groupActive)
-        } else {
-          const seen = new Set(booksRef.current.map(b => b.id))
-          merged = [...booksRef.current, ...newBooks.filter(b => !seen.has(b.id))]
-        }
-        booksRef.current = merged
-        setBooks(merged)
-        hasMoreRef.current = newBooks.length === limit
-        setHasMore(newBooks.length === limit)
-        if (newBooks.length > 0) {
-          api.post<Record<string, { status: string; progress_pct: number | null; rating: number | null }>>('/books/statuses', { book_ids: newBooks.map(b => b.id) })
-            .then(map => {
-              const s: StatusMap = {}
-              Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct, rating: val.rating ?? null } })
-              setReadingStatuses(prev => ({ ...prev, ...s }))
-            })
-            .catch(() => {})
-        } else if (reset) {
-          setReadingStatuses({})
-        }
-      })
+    ;(ahead ? ahead.promise.then(res => res ?? fetchPage()) : fetchPage())
+      .then(apply)
       .catch(err => {
         if (err instanceof Error && err.name === 'AbortError') return
         toastError(t`Failed to load books`)
       })
-      .finally(() => {
-        if (reset) {
-          // An aborted reset was superseded by a newer one that owns the
-          // loading flags - leave them alone.
-          if (signal?.aborted) return
-          setLoading(false)
-          setRefreshing(false)
-        } else {
-          // Always clear, even when aborted: this request is finished and a
-          // stuck loadingMore would stall the infinite scroll for good.
-          setLoadingMore(false)
-        }
-      })
+      .finally(settle)
   }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLanguage, filterLibrary, filterReadingStatus, filterMinRating, filterMinWords, filterMaxWords, filterMissing, contentType, filterOwnership, filterAddedBy, filterOnDevice, filterNotOnDevice, groupActive])
 
   useEffect(() => {
@@ -1051,6 +1084,35 @@ export function DashboardPage() {
       loadBooks(true, true)
     } else loadBooks()
   }, [loadBooks])
+
+  // The Group series toggle's next list: fetched when the pointer reaches the
+  // toggle (or it takes focus), with its first covers, so the click shows it
+  // in the same frame instead of after the request.
+  function prefetchGroup() {
+    if (filterSeries) return
+    const key = listKeyFor(!groupActive)
+    const have = groupLists.current.get(key)
+    if (have && performance.now() - have.at < GROUP_LIST_TTL) return
+    for (const [k, v] of groupLists.current) if (performance.now() - v.at > GROUP_LIST_TTL) groupLists.current.delete(k)
+    const params = new URLSearchParams(key)
+    params.set('skip', '0')
+    params.set('limit', String(PAGE_SIZE))
+    const entry: GroupList = { key, at: performance.now(), res: null, promise: Promise.resolve(null) }
+    entry.promise = api.getWithHeaders<Book[]>(`/books?${params}`)
+      .then(async res => { await coversReady(res.data.slice(0, 30)); entry.res = res; return res })
+      .catch(() => null)
+    groupLists.current.set(key, entry)
+  }
+  function toggleGroup() {
+    const key = listKey()
+    // The list shown now is the way back, already in.
+    if (!filterSeries && books.length > 0 && loadedKeyRef.current === key) {
+      const res = { data: books.slice(0, PAGE_SIZE), headers: new Headers(totalCount != null ? { 'x-total-count': String(totalCount) } : {}) }
+      groupLists.current.set(key, { key, at: performance.now(), res, promise: Promise.resolve(res) })
+    }
+    groupToggled.current = !filterSeries
+    persistGroup(!groupBySeries)
+  }
 
   // Keep the list (and, on leaving, the scroll position) for the way back.
   useEffect(() => {
@@ -1869,6 +1931,8 @@ export function DashboardPage() {
                   const n = totalCount ?? books.length
                   return (
                     <CountLabel
+                      // Grouping changes what is counted: the new figure shows at once, not run to.
+                      key={listGrouped ? 'titles' : 'books'}
                       className={cn('transition-opacity duration-150', refreshing && 'opacity-50')}
                       value={n}
                       text={listGrouped
@@ -1924,7 +1988,10 @@ export function DashboardPage() {
                 {/* Group by series toggle */}
                 <Pill
                   variant="quiet"
-                  onClick={() => persistGroup(!groupBySeries)}
+                  onClick={toggleGroup}
+                  onPointerEnter={prefetchGroup}
+                  onPointerDown={prefetchGroup}
+                  onFocus={prefetchGroup}
                   title={groupBySeries ? t`Show individual volumes` : t`Group volumes by series`}
                   aria-label={t`Group by series`}
                   aria-pressed={groupBySeries}

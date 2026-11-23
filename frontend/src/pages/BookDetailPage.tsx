@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { AnimatePresence, m } from 'motion/react'
@@ -27,12 +27,12 @@ import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { AppShell } from '@/components/AppShell'
 import { QuickLook } from '@/components/QuickLook'
 import { Glide, GlideGroup, PageBody, SectionTitle, Stat, StatStrip, Field, Pill, Input, Select, Swap, Textarea, FormLabel, INPUT_CLASS, PRESS, PRESS_LABEL } from '@/components/page'
-import { BookLink, CoverLift, EASE, EASE_CSS, Pop, RunningNumber, SeriesLink, Unfold, listItem, type BookPreview } from '@/components/motion'
+import { BookLink, CoverLift, EASE, EASE_CSS, Pop, RunningNumber, SeriesLink, Unfold, listItem, useSeriesNav, type BookPreview } from '@/components/motion'
 import { bookRequests, dropBookSeed, fetchBookSeed, heroCoverSrc, hintSeries, peekBookSeed, seriesDetailUrl, type BookSeed, type BookSeedKey } from '@/components/motion/nav'
 import { ModalShell, isModalOpen } from '@/components/ModalShell'
 import { NamedIcon } from '@/lib/icons'
 import { coverSrc } from '@/lib/covers'
-import { readPreview } from '@/lib/coverTransition'
+import { isPlainClick, readPreview } from '@/lib/coverTransition'
 import { SessionLog, SessionLogHint } from '@/components/stats/SessionLog'
 import { InfoHint } from '@/components/InfoHint'
 import { api } from '@/lib/api'
@@ -332,6 +332,16 @@ function cached(src: string): boolean {
   return img.complete && img.naturalWidth > 0
 }
 
+/** The series' first cover in the "In this series" strip of the section
+ *  holding `link`, when it shows whole (not scrolled out of the strip). */
+function stripCover(link: Element): HTMLElement | null {
+  const el = link.closest('section')?.querySelector<HTMLElement>('[data-series-cover]')
+  const strip = el?.parentElement?.closest<HTMLElement>('.overflow-x-auto')
+  if (!el || !strip) return null
+  const r = el.getBoundingClientRect(), s = strip.getBoundingClientRect()
+  return r.left >= s.left - 1 && r.right <= s.right + 1 ? el : null
+}
+
 function HeroCover({ thumb, full, alt, color }: { thumb?: string | null; full: string | null; alt: string; color?: string | null }) {
   // Already fetched (asked for ahead): shown at once instead of fading in over the thumbnail.
   const [readySrc, setReadySrc] = useState<string | null>(() => (full && cached(full) ? full : null))
@@ -435,6 +445,7 @@ function BookDetailView({ id, seed, next }: {
 }) {
   const { t, i18n } = useLingui()
   const navigate = useNavigate()
+  const openSeries = useSeriesNav()
   const location = useLocation()
   // What the card that opened this page knew: the hero paints from it at once.
   // Read once: the router state moves on to the next book before this page goes.
@@ -1130,6 +1141,21 @@ function BookDetailView({ id, seed, next }: {
 
   // Pointed at or pressed before this page went idle: the series hero is asked for then.
   const warm = () => { if (book.series && seriesHeroId != null) hintSeries(book.series, coverSrc(seriesHeroId, { w: 400 })) }
+  // Opening the series: the cover nearest the link grows into the series
+  // hero (the crumb: this book's hero; "Open series": the series' first
+  // cover in the strip below it); going back it lands on this hero.
+  const toSeries = (from: 'hero' | 'strip') => (e: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (!book.series || !isPlainClick(e)) return
+    e.preventDefault()
+    const el = from === 'hero' ? coverRef.current : stripCover(e.currentTarget) ?? coverRef.current
+    openSeries(book.series, el, {
+      near: e.currentTarget,
+      from: {
+        id: book.id, title: book.title, author: book.author, series: book.series, series_index: book.series_index,
+        cover: book.cover_path ? heroCoverSrc(book) : null, coverColor: book.cover_color,
+      },
+    })
+  }
   const warmSeries = { onPointerEnter: warm, onPointerDown: warm, onFocus: warm }
 
   const crumbs = (
@@ -1138,7 +1164,7 @@ function BookDetailView({ id, seed, next }: {
       {book.series && seriesHref ? (
         <>
           <span aria-hidden>/</span>
-          <SeriesLink name={book.series} {...warmSeries} className="truncate hover:text-foreground transition-colors">{book.series}</SeriesLink>
+          <SeriesLink name={book.series} {...warmSeries} onClick={toSeries('hero')} className="truncate hover:text-foreground transition-colors">{book.series}</SeriesLink>
         </>
       ) : adjacent?.mode === 'author' && book.author ? (
         <>
@@ -1886,7 +1912,7 @@ function BookDetailView({ id, seed, next }: {
   const seriesSection = seriesVolumes.length > 1 && book.series ? (
     <section>
       <SectionTitle size={20} action={
-        <SeriesLink name={book.series} {...warmSeries} className="text-primary hover:underline underline-offset-4"><Trans>Open series</Trans></SeriesLink>
+        <SeriesLink name={book.series} {...warmSeries} onClick={toSeries('strip')} className="text-primary hover:underline underline-offset-4"><Trans>Open series</Trans></SeriesLink>
       }>
         <Trans>In this series</Trans>
       </SectionTitle>
@@ -1905,6 +1931,7 @@ function BookDetailView({ id, seed, next }: {
                   setQuickLookId(v.id)
                 }}
                 data-cover-id={here ? undefined : v.id}
+                data-series-cover={v.id === seriesHeroId ? book.series : undefined}
                 className={cn(
                   'relative block aspect-[2/3] w-full overflow-hidden rounded-[8px] bg-muted transition-opacity duration-150',
                   here ? 'cursor-default ring-2 ring-primary ring-offset-2 ring-offset-background'
