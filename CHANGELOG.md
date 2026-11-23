@@ -63,6 +63,10 @@ All notable changes to Tome are documented here. Format loosely follows
   and the loading shimmer. Fades remain.
 
 ### Fixed
+- **Highlights page: KOReader highlights on a book without a file.** A
+  highlight made in KOReader on a book that Tome only knows from an Xteink
+  reader's sync showed on the book's page but was missing from the
+  Highlights page and from the "On this day" card on Home. Both now list it.
 - **Back on a Settings or Admin page leaves the page.** It goes to the page
   you came from, however many sections you visited, instead of stepping back
   through each section.

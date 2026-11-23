@@ -31,7 +31,7 @@ from sqlalchemy.orm import Session
 from backend.core.database import get_db
 from backend.core.security import get_current_user
 from backend.core.permissions import book_visibility_filter, user_can_see_book
-from backend.models.book import Book
+from backend.models.book import READING_STATUSES, Book
 from backend.models.kosync import KOSyncClipping
 from backend.models.tome_sync import Annotation, AnnotationTombstone
 from backend.models.user import User
@@ -106,7 +106,7 @@ def list_annotations(
         .join(Book, Annotation.book_id == Book.id)
         .filter(
             Annotation.user_id == current_user.id,
-            Book.status == "active",
+            Book.status.in_(READING_STATUSES),
             book_visibility_filter(db, current_user),
         )
     )
@@ -411,7 +411,7 @@ def annotation_spotlight(
         .join(Book, Annotation.book_id == Book.id)
         .filter(
             Annotation.user_id == current_user.id,
-            Book.status == "active",
+            Book.status.in_(READING_STATUSES),
             Annotation.highlighted_text.isnot(None),
             Annotation.highlighted_text != "",
             book_visibility_filter(db, current_user),
