@@ -194,6 +194,64 @@ export function hintSeries(name: string, cover: string | null): void {
   while (seriesHints.size > SERIES_HINT_MAX) seriesHints.delete(seriesHints.keys().next().value as string)
 }
 
+// A series page's answers, asked for ahead the same way (from a book page:
+// on idle, and again on hover, press or focus of a link to the series), so
+// the series page paints complete in its first frame.
+export interface SeriesSeed {
+  values: { detail?: unknown; arcs?: unknown; meta?: unknown; rating?: unknown; stats?: unknown }
+  /** Resolves once every request has answered or failed. */
+  all: Promise<void>
+  at: number
+}
+const SERIES_SEED_MAX = 4
+// A seed older than this is not used by the series page.
+const SERIES_SEED_LIFETIME_MS = 15000
+const seriesSeeds = new Map<string, SeriesSeed>()
+
+/** Starts a series page's requests, unless a seed younger than `maxAgeMs` exists. */
+export function prefetchSeries(name: string, maxAgeMs = SERIES_SEED_LIFETIME_MS): void {
+  const s = seriesSeeds.get(name)
+  if (s && Date.now() - s.at < maxAgeMs) return
+  const values: SeriesSeed['values'] = {}
+  const ask = (k: keyof SeriesSeed['values'], url: string) => api.get(url).then(v => { values[k] = v }, () => {})
+  const all = Promise.all([
+    ask('detail', seriesDetailUrl(name)),
+    ask('arcs', `/series/${encodeURIComponent(name)}/arcs`),
+    ask('meta', '/series/meta-map'),
+    // Asked for by SeriesRating and SeriesReadingStats on their own (peekSeriesPart).
+    ask('rating', `/series/${encodeURIComponent(name)}/rating`),
+    ask('stats', `/series/${encodeURIComponent(name)}/reading-stats`),
+  ]).then(() => {})
+  seriesSeeds.delete(name)
+  seriesSeeds.set(name, { values, all, at: Date.now() })
+  while (seriesSeeds.size > SERIES_SEED_MAX) seriesSeeds.delete(seriesSeeds.keys().next().value as string)
+}
+
+/** The asked-ahead answers for a series when complete and fresh. */
+export function peekSeriesSeed(name: string): { detail: unknown; arcs: unknown; meta: unknown } | null {
+  const s = seriesSeeds.get(name)
+  if (!s || Date.now() - s.at > SERIES_SEED_LIFETIME_MS) return null
+  const { detail, arcs, meta } = s.values
+  return detail && arcs && meta ? { detail, arcs, meta } : null
+}
+
+/** One asked-ahead answer of a series page part (`rating`, `stats`), when fresh:
+ *  a part can start from it instead of holding an empty slot. */
+export function peekSeriesPart(name: string, part: 'rating' | 'stats'): unknown {
+  const s = seriesSeeds.get(name)
+  return s && Date.now() - s.at <= SERIES_SEED_LIFETIME_MS ? s.values[part] : undefined
+}
+
+/** Resolves when the series' seed is in, or after `ms`. */
+function seriesSeedSettled(name: string, ms: number): Promise<void> {
+  const s = seriesSeeds.get(name)
+  if (!s) return Promise.resolve()
+  return Promise.race([s.all, new Promise<void>(r => setTimeout(r, ms))])
+}
+// The longest a series link waits for its seed before navigating (the old
+// page stays frozen in the meantime).
+const SERIES_SEED_WAIT_MS = 200
+
 // Opened from a book page: its history entry keeps the book's preview, so
 // going back its hero paints in the first frame (full size, it is in the
 // cache) and the cover lands on it.
@@ -216,7 +274,12 @@ export function useSeriesNav() {
     const pic = opts?.from ? hint ?? coverThumb(el) : coverThumb(el) ?? hint
     const state = seriesPreviewState({ name, cover: pic ?? null })
     if (opts?.from) keepBookPreview(opts.from)
-    openSeriesWithCover(el, name, () => navigate(seriesPath(name), { state }),
-      opts?.from ? [bookHeroSelector(opts.from.id)] : undefined)
+    // From a book page the series' answers were asked for ahead: the page
+    // opens once they are in (briefly), complete in its first frame.
+    openSeriesWithCover(el, name, () => navigate(seriesPath(name), { state }), opts?.from ? {
+      back: [bookHeroSelector(opts.from.id)],
+      ready: seriesSeedSettled(name, SERIES_SEED_WAIT_MS),
+      cut: true,
+    } : undefined)
   }, [navigate])
 }

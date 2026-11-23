@@ -106,7 +106,9 @@ All notable changes to Tome are documented here. Format loosely follows
   under its first cover instead of piling up half-transparent with their
   titles on top of each other.
 - Opening a series from a book page carries the cover across, like opening
-  a book does, and Back brings it home.
+  a book does, and Back brings it home. The series page is complete in its
+  first frame instead of filling in over several, and a cover opened from a
+  tilted thumbnail lands flat.
 - New goal: the suggested targets stay readable while the highlight moves
   between them, and a menu no longer lets the buttons behind it show through
   as it opens.

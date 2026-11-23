@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { peekSeriesPart } from '@/components/motion/nav'
 import { useToast } from '@/contexts/ToastContext'
 import { StarRating } from '@/components/StarRating'
 import { t } from '@lingui/core/macro'
@@ -20,7 +21,8 @@ interface SeriesRatingData {
  */
 export function SeriesRating({ seriesName, isUnserialized }: { seriesName: string; isUnserialized?: boolean }) {
   const { toast } = useToast()
-  const [data, setData] = useState<SeriesRatingData | null>(null)
+  // A link that asked for the series ahead has the answer already: no late row.
+  const [data, setData] = useState<SeriesRatingData | null>(() => (peekSeriesPart(seriesName, 'rating') as SeriesRatingData | undefined) ?? null)
   const [failed, setFailed] = useState(false)
 
   useEffect(() => {

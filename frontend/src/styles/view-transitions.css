@@ -18,6 +18,21 @@ html[data-cover-transition]::view-transition-old(root),
 html[data-cover-transition]::view-transition-new(root) {
   animation-duration: 180ms;
 }
+/* Between a book page and its series (lib/coverTransition `cut`): the page
+   changes at once, so no title, pill or bar is ever drawn twice; only the
+   cover moves, and its picture changes with a short cross-fade. */
+html[data-cover-cut]::view-transition-old(root) {
+  animation: none;
+  opacity: 0;
+}
+html[data-cover-cut]::view-transition-new(root) {
+  animation: none;
+}
+html[data-cover-cut]::view-transition-old(book-cover),
+html[data-cover-cut]::view-transition-new(book-cover) {
+  animation-duration: 160ms;
+  animation-timing-function: ease-out;
+}
 
 /* Page to page (components/motion/TransitionRouter): a short root cross-fade.
    The overlay lets the pointer through (also during a cover transition), so a

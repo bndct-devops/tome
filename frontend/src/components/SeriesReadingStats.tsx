@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { ChevronDown } from 'lucide-react'
 import { api } from '@/lib/api'
+import { peekSeriesPart } from '@/components/motion/nav'
 import { cn, formatDuration, formatDate } from '@/lib/utils'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
@@ -108,12 +109,15 @@ interface SeriesReadingStatsProps {
   seriesName: string
 }
 
+const seededStats = (name: string) => (peekSeriesPart(name, 'stats') as SeriesStatsResponse | undefined) ?? null
+
 export function SeriesReadingStats({ seriesName }: SeriesReadingStatsProps) {
-  const [data, setData] = useState<SeriesStatsResponse | null>(null)
+  // A link that asked for the series ahead has the answer already: the block is there in the first frame.
+  const [data, setData] = useState<SeriesStatsResponse | null>(() => seededStats(seriesName))
   const [open, setOpen] = useState(true)
 
   useEffect(() => {
-    setData(null)
+    setData(seededStats(seriesName))
     api.get<SeriesStatsResponse>(
       `/series/${encodeURIComponent(seriesName)}/reading-stats`
     ).then(setData).catch(() => {})

@@ -48,6 +48,7 @@ import { QuickLook, type QuickLookPreview } from '@/components/QuickLook'
 import { Unfold, Pop, CoverLift, RunningNumber, BookLink, useSeriesNav, useBookNav, coverThumb, listItem, EASE, EASE_CSS } from '@/components/motion'
 import { GlideGroup, Glide } from '@/components/page/Glide'
 import { findSeriesCover, openSeriesWithCover, readSeriesPreview, seriesPreviewState } from '@/lib/coverTransition'
+import { peekSeriesSeed } from '@/components/motion/nav'
 import { SortMenu } from '@/components/library/SortMenu'
 import { FinishByPill } from '@/components/goals/FinishByPill'
 import { PageBody, PageHeader, SectionTitle, Pill, PillGroup, Select, Input, FormLabel, INPUT_CLASS } from '@/components/page'
@@ -337,15 +338,22 @@ export function DashboardPage() {
   const [seriesLoaded, setSeriesLoaded] = useState(false)
   // Volumes just marked read: their badges grow in (once, not on every load).
   const [justMarked, setJustMarked] = useState(false)
-  const [expandedSeries, setExpandedSeries] = useState<string | null>(null)
-  const [seriesDetail, setSeriesDetail] = useState<SeriesDetail | null>(null)
+  // Opened from a book page, the series' answers were asked for ahead
+  // (components/motion/nav): the detail paints complete in its first frame.
+  const [seriesSeed] = useState(() => {
+    const name = tab === 'series' ? searchParams.get('series_detail') : null
+    const seed = name ? peekSeriesSeed(name) : null
+    return seed && name ? { name, ...seed } : null
+  })
+  const [expandedSeries, setExpandedSeries] = useState<string | null>(seriesSeed?.name ?? null)
+  const [seriesDetail, setSeriesDetail] = useState<SeriesDetail | null>((seriesSeed?.detail as SeriesDetail | undefined) ?? null)
   const [shareSeries, setShareSeries] = useState<string | null>(null)
   const [seriesDetailLoading, setSeriesDetailLoading] = useState(false)
   const [markingAllRead, setMarkingAllRead] = useState(false)
   // Series meta (status badges) - keyed by series name
-  const [seriesMetaMap, setSeriesMetaMap] = useState<Record<string, SeriesStatus>>({})
+  const [seriesMetaMap, setSeriesMetaMap] = useState<Record<string, SeriesStatus>>((seriesSeed?.meta as Record<string, SeriesStatus> | undefined) ?? {})
   // Arcs for the currently open series detail
-  const [seriesArcs, setSeriesArcs] = useState<Arc[]>([])
+  const [seriesArcs, setSeriesArcs] = useState<Arc[]>((seriesSeed?.arcs as Arc[] | undefined) ?? [])
   // Manage series modal
   const [manageSeriesOpen, setManageSeriesOpen] = useState(false)
   const [seriesDescExpanded, setSeriesDescExpanded] = useState(false)
@@ -1504,7 +1512,7 @@ export function DashboardPage() {
                 const readPct = total ? (readN / total) * 100 : 0
                 const readingPct = total ? (readingN / total) * 100 : 0
                 const heroCoverId = seriesList.find(s => s.name === seriesDetail.name)?.cover_book_id
-                  ?? seriesDetail.books[0]?.id ?? null
+                  ?? (seriesDetail.books.find(b => b.cover_path) ?? seriesDetail.books[0])?.id ?? null
                 const heroCoverColor = seriesDetail.books.find(b => b.id === heroCoverId)?.cover_color
                 const sections = groupVolumesByArc(seriesDetail.books, seriesArcs)
                 const hasArcs = seriesArcs.length > 0

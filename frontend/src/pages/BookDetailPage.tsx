@@ -28,7 +28,7 @@ import { AppShell } from '@/components/AppShell'
 import { QuickLook } from '@/components/QuickLook'
 import { Glide, GlideGroup, PageBody, SectionTitle, Stat, StatStrip, Field, Pill, Input, Select, Swap, Textarea, FormLabel, INPUT_CLASS, PRESS, PRESS_LABEL } from '@/components/page'
 import { BookLink, CoverLift, EASE, EASE_CSS, Pop, RunningNumber, SeriesLink, Unfold, listItem, useSeriesNav, type BookPreview } from '@/components/motion'
-import { bookRequests, dropBookSeed, fetchBookSeed, heroCoverSrc, hintSeries, peekBookSeed, seriesDetailUrl, type BookSeed, type BookSeedKey } from '@/components/motion/nav'
+import { bookRequests, dropBookSeed, fetchBookSeed, heroCoverSrc, hintSeries, peekBookSeed, prefetchSeries, seriesDetailUrl, type BookSeed, type BookSeedKey } from '@/components/motion/nav'
 import { ModalShell, isModalOpen } from '@/components/ModalShell'
 import { NamedIcon } from '@/lib/icons'
 import { coverSrc } from '@/lib/covers'
@@ -331,6 +331,9 @@ function cached(src: string): boolean {
   img.src = src
   return img.complete && img.naturalWidth > 0
 }
+
+// A series link asks for the series' answers again when they are older than this.
+const SERIES_WARM_MS = 3000
 
 /** The series' first cover in the "In this series" strip of the section
  *  holding `link`, when it shows whole (not scrolled out of the strip). */
@@ -667,7 +670,7 @@ function BookDetailView({ id, seed, next }: {
   useEffect(() => {
     const name = book?.series
     if (!name || seriesHeroId == null) return
-    const hint = () => hintSeries(name, coverSrc(seriesHeroId, { w: 400 }))
+    const hint = () => { hintSeries(name, coverSrc(seriesHeroId, { w: 400 })); prefetchSeries(name) }
     if (typeof window.requestIdleCallback !== 'function') {
       const timer = setTimeout(hint, 300)
       return () => clearTimeout(timer)
@@ -1140,13 +1143,19 @@ function BookDetailView({ id, seed, next }: {
   }
 
   // Pointed at or pressed before this page went idle: the series hero is asked for then.
-  const warm = () => { if (book.series && seriesHeroId != null) hintSeries(book.series, coverSrc(seriesHeroId, { w: 400 })) }
+  // Its answers are asked for again then when a few seconds old (a status may have changed).
+  const warm = () => {
+    if (!book.series) return
+    if (seriesHeroId != null) hintSeries(book.series, coverSrc(seriesHeroId, { w: 400 }))
+    prefetchSeries(book.series, SERIES_WARM_MS)
+  }
   // Opening the series: the cover nearest the link grows into the series
   // hero (the crumb: this book's hero; "Open series": the series' first
   // cover in the strip below it); going back it lands on this hero.
   const toSeries = (from: 'hero' | 'strip') => (e: ReactMouseEvent<HTMLAnchorElement>) => {
     if (!book.series || !isPlainClick(e)) return
     e.preventDefault()
+    prefetchSeries(book.series, SERIES_WARM_MS)
     const el = from === 'hero' ? coverRef.current : stripCover(e.currentTarget) ?? coverRef.current
     openSeries(book.series, el, {
       near: e.currentTarget,

@@ -233,12 +233,29 @@ async function decoded(el: Element) {
   ])
 }
 
-function run(from: HTMLElement, update: () => Promise<HTMLElement | null>) {
+// A hover tilt (lib/tilt.ts) on the cover or a wrapper: settled at once
+// before the capture, so the cover leaves flat and the flight carries no
+// perspective into its landing.
+function flatten(from: HTMLElement) {
+  for (let el: HTMLElement | null = from, i = 0; el && i < 4; el = el.parentElement, i++) {
+    if (!el.style.transform) continue
+    const transition = el.style.transition
+    el.style.transition = 'none'
+    el.style.transform = ''
+    void el.offsetWidth
+    el.style.transition = transition
+  }
+}
+
+function run(from: HTMLElement, update: () => Promise<HTMLElement | null>, cut = false) {
   // Names are set only while the transition is still waiting for them: an
   // update cut off by the cap must not name an element later.
   let open = true
   let to: HTMLElement | null = null
+  const root = document.documentElement
+  flatten(from)
   from.style.viewTransitionName = NAME
+  if (cut) root.dataset.coverCut = ''
   const started = capturedUpdate('cover', WAIT_MS, async () => {
     const until = performance.now() + WAIT_MS - 10
     from.style.viewTransitionName = ''
@@ -246,6 +263,7 @@ function run(from: HTMLElement, update: () => Promise<HTMLElement | null>) {
     if (open && el && performance.now() < until) { to = el; el.style.viewTransitionName = NAME }
   }, () => {
     open = false
+    delete root.dataset.coverCut
     from.style.viewTransitionName = ''
     if (to) to.style.viewTransitionName = ''
   })
@@ -254,7 +272,7 @@ function run(from: HTMLElement, update: () => Promise<HTMLElement | null>) {
 
 // History entry a cover navigation left -> what it opened, and where the
 // hero lands going back: the element it grew from, else the next selector.
-const origins = new Map<string, { target: Target; back: string[] }>()
+const origins = new Map<string, { target: Target; back: string[]; cut: boolean }>()
 
 const MARKERS = ['data-cover-id', 'data-series-cover', 'data-hero-cover', 'data-series-hero']
 
@@ -277,20 +295,39 @@ function historyKey(state: unknown): string | null {
   return typeof s?.idx === 'number' ? `idx:${s.idx}` : null
 }
 
-function open(target: Target, cover: HTMLElement | null, go: () => void, back?: string[]) {
+interface OpenOptions {
+  /** Where the hero lands going back, the first on screen (default: the cover again). */
+  back?: string[]
+  /** Navigate once this settles (the old page stays frozen until then, within the cap). */
+  ready?: Promise<void>
+  /** Between a book page and its series: the page changes at once instead of
+   *  cross-fading (the two heroes and titles sit in the same places, a
+   *  cross-fade double-exposes them); only the cover moves. */
+  cut?: boolean
+}
+
+function open(target: Target, cover: HTMLElement | null, go: () => void, opts: OpenOptions = {}) {
   const here = historyKey(window.history.state)
   if (here) {
-    if (cover) origins.set(here, { target, back: [...new Set([...(back ?? [markerOf(cover, target)]), coverSel(target)])] })
+    if (cover) origins.set(here, { target, back: [...new Set([...(opts.back ?? [markerOf(cover, target)]), coverSel(target)])], cut: !!opts.cut })
     else origins.delete(here)
   }
-  if (!cover || active || !transitionsSupported() || !onScreen(cover)) { skipActiveTransition(); go(); return }
+  if (!cover || active || !transitionsSupported() || !onScreen(cover)) {
+    skipActiveTransition()
+    if (opts.ready) void opts.ready.then(go)
+    else go()
+    return
+  }
   run(cover, async () => {
-    go()
+    if (opts.ready) await opts.ready
+    // Applied inside this transition (the router must not start its own).
+    applying = true
+    try { go() } finally { applying = false }
     // The hero paints in the first commit (it holds the card's preview).
     const hero = await waitFor(heroSel(target), WAIT_MS - 130)
     if (hero) await decoded(hero)
     return hero
-  })
+  }, opts.cut)
 }
 
 /**
@@ -302,10 +339,9 @@ export function openBookWithCover(cover: HTMLElement | null, bookId: number, go:
   open({ kind: 'book', id: bookId }, cover, go)
 }
 
-/** Navigates to a series page, growing `cover` into its hero. Going back, the
- *  hero lands on the first of `back` on screen (default: `cover` again). */
-export function openSeriesWithCover(cover: HTMLElement | null, name: string, go: () => void, back?: string[]) {
-  open({ kind: 'series', name }, cover, go, back)
+/** Navigates to a series page, growing `cover` into its hero (see OpenOptions). */
+export function openSeriesWithCover(cover: HTMLElement | null, name: string, go: () => void, opts?: OpenOptions) {
+  open({ kind: 'series', name }, cover, go, opts)
 }
 
 /** True for a plain left click (no modifier) that a link handler may take over. */
@@ -354,6 +390,6 @@ if (typeof window !== 'undefined') {
       if (!card) { skipActiveTransition(); return null }
       await decoded(card)
       return card
-    })
+    }, origin.cut)
   }, true)
 }
