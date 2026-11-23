@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { Bookmark } from 'lucide-react'
 import { api } from '@/lib/api'
 import { EntityModal } from '@/components/EntityModal'
@@ -24,14 +25,18 @@ export function SaveFilterButton({ params, onSaved }: Props) {
 
   return (
     <>
-      {modalOpen && (
-        <EntityModal
-          title={t`Add shelf`}
-          defaultIcon="Bookmark"
-          onSave={handleSave}
-          onClose={() => setModalOpen(false)}
-        />
-      )}
+      {/* Kept for its exit while it closes. */}
+      <AnimatePresence>
+        {modalOpen && (
+          <EntityModal
+            key="add-shelf"
+            title={t`Add shelf`}
+            defaultIcon="Bookmark"
+            onSave={handleSave}
+            onClose={() => setModalOpen(false)}
+          />
+        )}
+      </AnimatePresence>
       <Pill
         variant="quiet"
         onClick={() => setModalOpen(true)}

@@ -4,9 +4,8 @@ import { t, msg, plural } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { Loader2, BookOpen, ExternalLink, Check, ChevronLeft, Search } from 'lucide-react'
-import { BookAnimation } from '@/components/BookAnimation'
 import { ModalShell } from '@/components/ModalShell'
-import { Checkbox, Input, Pill } from '@/components/page'
+import { Checkbox, Input, Pill, Swap } from '@/components/page'
 import { cn, stripMarkdown } from '@/lib/utils'
 import type { BookDetail, MetadataCandidate } from '@/lib/books'
 
@@ -209,6 +208,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
       size="lg"
       footer={footer}
     >
+      <Swap id={step === 'diff' && selected ? 'diff' : 'search'}>
       {/* ── Search step ─────────────────────────────────────────── */}
       {step === 'search' && (
         <div className="flex flex-col gap-4">
@@ -234,10 +234,22 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
 
           {error && <p className="text-[14px] text-destructive">{error}</p>}
 
+          {/* The first search: rows of the results' own size, so the list lands without a jump. */}
           {loading && candidates.length === 0 && (
-            <div className="flex flex-col items-center justify-center gap-3 py-8">
-              <BookAnimation variant="refresh" className="block h-12 w-12 text-primary" />
-              <p className="text-[14px] text-muted-foreground"><Trans>Searching…</Trans></p>
+            <div aria-busy>
+              <p className="mb-1 text-[13px] text-muted-foreground"><Trans>Searching…</Trans></p>
+              <ul className="border-t border-border/70">
+                {[0, 1, 2].map(i => (
+                  <li key={i} className="flex gap-3.5 border-b border-border/70 py-3">
+                    <div className="h-[72px] w-12 shrink-0 rounded-[8px] bg-muted" />
+                    <div className="flex min-w-0 flex-1 flex-col gap-2 pt-0.5">
+                      <div className="h-3 w-20 rounded bg-muted/70" />
+                      <div className="h-4 w-3/5 rounded bg-muted" />
+                      <div className="h-3.5 w-2/5 rounded bg-muted/70" />
+                    </div>
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -390,6 +402,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
           {error && <p className="text-[14px] text-destructive">{error}</p>}
         </div>
       )}
+      </Swap>
     </ModalShell>
   )
 }

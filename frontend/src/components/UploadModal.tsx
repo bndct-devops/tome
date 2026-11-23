@@ -5,7 +5,9 @@ import { useBookTypes } from '@/lib/bookTypes'
 import { useToast } from '@/contexts/ToastContext'
 import { ModalShell } from '@/components/ModalShell'
 import { cn } from '@/lib/utils'
-import { FormLabel, Pill, Select } from '@/components/page'
+import { FormLabel, Pill, Select, Swap } from '@/components/page'
+import { AnimatePresence, m } from 'motion/react'
+import { Unfold, listItem } from '@/components/motion'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 
@@ -187,9 +189,11 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
     }
   }
 
-  // Fresh state on every open; content stays intact during the exit animation.
+  // Fresh state for the next open, reset as it closes: ModalShell keeps showing
+  // the last open content through its exit, and the next open starts empty
+  // instead of folding the old list away while the dialog comes in.
   useEffect(() => {
-    if (isOpen) {
+    if (!isOpen) {
       setItems([])
       setBulkType('')
       setSummary(null)
@@ -264,7 +268,7 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
         />
 
         {/* Bulk type selector */}
-        {items.length > 1 && (
+        <Unfold open={items.length > 1} gap={16}>
           <div className="flex items-center gap-3">
             <FormLabel htmlFor="upload-set-all" className="mb-0 shrink-0"><Trans>Set all to</Trans></FormLabel>
             <Select
@@ -279,13 +283,14 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
               ))}
             </Select>
           </div>
-        )}
+        </Unfold>
 
         {/* File list: rows on hairlines */}
-        {items.length > 0 && (
+        <Unfold open={items.length > 0} gap={16}>
           <ul className="border-t border-border/70">
+            <AnimatePresence initial={false}>
             {items.map(item => (
-              <li key={item.id} className="border-b border-border/70 py-3">
+              <m.li key={item.id} {...listItem} className="border-b border-border/70 py-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
                   <div className="flex min-w-0 flex-1 items-center gap-2.5">
                     {formatIcon(item.file)}
@@ -313,10 +318,10 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
                     <ItemStatus item={item} onRemove={removeItem} />
                   </span>
                 </div>
-                {item.status === 'error' && item.errorMsg && (
+                <Unfold open={item.status === 'error' && !!item.errorMsg}>
                   <p className="mt-1.5 pl-[26px] text-[13px] text-destructive">{item.errorMsg}</p>
-                )}
-                {item.status === 'duplicate' && (
+                </Unfold>
+                <Unfold open={item.status === 'duplicate'}>
                   <p className="mt-1.5 pl-[26px] text-[13px] text-warning">
                     <Trans>Already in your library, will be skipped.</Trans>{' '}
                     <a
@@ -328,27 +333,36 @@ export function UploadModal({ isOpen, onClose, onDone, onUploaded, onWishMatches
                       <Trans>View book</Trans>
                     </a>
                   </p>
-                )}
-              </li>
+                </Unfold>
+              </m.li>
             ))}
+            </AnimatePresence>
           </ul>
-        )}
+        </Unfold>
 
         {/* Summary */}
-        {summary && (
-          <p className={cn('flex items-center gap-2 text-[14px]', summary.failed === 0 ? 'text-success' : 'text-warning')}>
-            {summary.failed === 0
-              ? <CheckCircle2 className="h-4 w-4 shrink-0" />
-              : <AlertCircle className="h-4 w-4 shrink-0" />}
-            {summaryText}
-          </p>
-        )}
+        <Unfold open={!!summary} gap={16}>
+          {summary && (
+            <p className={cn('flex items-center gap-2 text-[14px]', summary.failed === 0 ? 'text-success' : 'text-warning')}>
+              {summary.failed === 0
+                ? <CheckCircle2 className="h-4 w-4 shrink-0" />
+                : <AlertCircle className="h-4 w-4 shrink-0" />}
+              {summaryText}
+            </p>
+          )}
+        </Unfold>
       </div>
     </ModalShell>
   )
 }
 
+/** The row's status; a change of state swaps the icon in place. */
 function ItemStatus({ item, onRemove }: { item: UploadItem; onRemove: (id: string) => void }) {
+  const kind = item.status === 'duplicate' ? 'pending' : item.status
+  return <Swap id={kind} className="grid place-items-center"><StatusIcon item={item} onRemove={onRemove} /></Swap>
+}
+
+function StatusIcon({ item, onRemove }: { item: UploadItem; onRemove: (id: string) => void }) {
   if (item.status === 'pending' || item.status === 'duplicate') {
     return (
       <Pill variant="destructive" icon onClick={() => onRemove(item.id)} title={t`Remove`} aria-label={t`Remove`} className="h-8 w-8">

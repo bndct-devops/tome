@@ -5,7 +5,8 @@ import { Calendar, ChevronLeft, ChevronRight } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
-import { Glide, GlideGroup, Pill } from '@/components/page'
+import { Glide, GlideGroup, Pill, PRESS } from '@/components/page'
+import { Pop } from '@/components/motion'
 import { cn } from '@/lib/utils'
 import { RANGES, fmtDay, type CustomRange } from './range'
 import { inWeekOrder, rowOfJsDay } from '@/lib/weekStart'
@@ -49,7 +50,7 @@ function RangeCalendar({ from, to, onPick }: { from: string; to: string; onPick:
               type="button"
               onClick={() => onPick(iso)}
               className={cn(
-                'flex h-8 items-center justify-center rounded-full text-[13px] transition',
+                'touch-feedback flex h-8 items-center justify-center rounded-full text-[13px]', PRESS,
                 isEnd ? 'bg-primary font-semibold text-primary-foreground' : between ? 'bg-primary/15 text-foreground' : 'text-foreground hover:bg-secondary',
               )}
             >
@@ -135,10 +136,9 @@ export function RangeControl({
         </div>
       </GlideGroup>
 
-      {open && (
-        <>
-          <div className="fixed inset-0 z-40" onPointerDown={() => setOpen(false)} />
-          <div className="absolute right-0 top-full z-50 mt-1.5 w-72 max-w-[calc(100vw-32px)] rounded-xl bg-card p-3 shadow-lg ring-1 ring-panel-ring">
+      {open && <div className="fixed inset-0 z-40" onPointerDown={() => setOpen(false)} />}
+      <Pop open={open} origin="top-right" className="absolute right-0 top-full z-50 mt-1.5 w-72 max-w-[calc(100vw-32px)] rounded-xl bg-card p-3 shadow-lg ring-1 ring-panel-ring">
+          <div>
             <RangeCalendar from={from} to={to} onPick={pick} />
             <div className="mt-3 border-t border-border/70 pt-3">
               <p className="text-[13px] text-muted-foreground">
@@ -169,8 +169,7 @@ export function RangeControl({
               </div>
             </div>
           </div>
-        </>
-      )}
+      </Pop>
     </div>
   )
 }

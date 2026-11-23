@@ -427,7 +427,7 @@ msgstr ""
 #~ msgid "{0, plural, one {# day streak since {from}} other {# day streak since {from}}}"
 #~ msgstr "{0, plural, one {# day streak since {from}} other {# day streak since {from}}}"
 
-#. placeholder {0}: hover.b.days.length
+#. placeholder {0}: held.b.days.length
 #. placeholder {0}: q.days
 #. placeholder {0}: s.days
 #: src/components/stats/library/Sections.tsx
@@ -455,7 +455,7 @@ msgstr "{0, plural, one {# entrée de fichier supprimée} other {# entrées de f
 msgid "{0, plural, one {# file in the database but missing from disk} other {# files in the database but missing from disk}}"
 msgstr "{0, plural, one {# fichier présent dans la base de données mais absent du disque} other {# fichiers présents dans la base de données mais absents du disque}}"
 
-#. placeholder {0}: confirmMove?.length ?? 0
+#. placeholder {0}: moveShown?.length ?? 0
 #: src/components/LibraryHealth.tsx
 msgid "{0, plural, one {# file is moved to its expected folder in the library. Empty folders left behind are removed.} other {# files are moved to their expected folders in the library. Empty folders left behind are removed.}}"
 msgstr ""
@@ -531,7 +531,7 @@ msgstr ""
 msgid "{0, plural, one {# not estimated} other {# not estimated}}"
 msgstr "{0, plural, one {# non estimé} other {# non estimés}}"
 
-#. placeholder {0}: openWishes.length
+#. placeholder {0}: Math.round(n)
 #: src/pages/WishlistPage.tsx
 msgid "{0, plural, one {# open} other {# open}}"
 msgstr ""
@@ -611,7 +611,7 @@ msgstr ""
 msgid "{0, plural, one {# result. Click one to fill the form.} other {# results. Click one to fill the form.}}"
 msgstr ""
 
-#. placeholder {0}: follows.length
+#. placeholder {0}: Math.round(n)
 #: src/pages/WishlistPage.tsx
 msgid "{0, plural, one {# series} other {# series}}"
 msgstr "{0, plural, one {# série} other {# séries}}"
@@ -7254,8 +7254,8 @@ msgid "Load more ({left} left)"
 msgstr "Charger davantage ({left} restants)"
 
 #: src/pages/HardcoverPage.tsx
-msgid "Loading books…"
-msgstr "Chargement des livres…"
+#~ msgid "Loading books…"
+#~ msgstr "Chargement des livres…"
 
 #: src/components/Sidebar.tsx
 msgid "Loading icons"
@@ -7278,15 +7278,11 @@ msgstr "Chargement de votre parcours de lecture…"
 
 #: src/components/ConnectPhoneModal.tsx
 #: src/components/HardcoverSync.tsx
-#: src/components/PositionHistoryModal.tsx
-#: src/components/ShareLinksOverview.tsx
 #: src/components/ShareShelfModal.tsx
 #: src/components/stats/BacklogEstimate.tsx
 #: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/GoalWidget.tsx
 #: src/pages/BinderyPage.tsx
-#: src/pages/HardcoverPage.tsx
-#: src/pages/SettingsPage.tsx
 #: src/pages/SharePage.tsx
 msgid "Loading…"
 msgstr "Chargement…"

@@ -19,6 +19,20 @@ html[data-cover-transition]::view-transition-new(root) {
   animation-duration: 180ms;
 }
 
+/* Page to page (components/motion/TransitionRouter): a short root cross-fade.
+   The overlay lets the pointer through (also during a cover transition), so a
+   click during it reaches the new page instead of being swallowed. */
+html[data-route-transition]::view-transition,
+html[data-cover-transition]::view-transition {
+  pointer-events: none;
+}
+html[data-route-transition]::view-transition-group(root),
+html[data-route-transition]::view-transition-old(root),
+html[data-route-transition]::view-transition-new(root) {
+  animation-duration: 120ms;
+  animation-timing-function: ease-out;
+}
+
 /* Library grid <-> list: the list-only columns arrive after the covers land. */
 @keyframes library-columns-in {
   from { opacity: 0; }
@@ -52,7 +66,10 @@ html[data-cover-transition]::view-transition-new(root) {
 @media (prefers-reduced-motion: reduce) {
   html[data-cover-transition]::view-transition-group(*),
   html[data-cover-transition]::view-transition-old(*),
-  html[data-cover-transition]::view-transition-new(*) {
+  html[data-cover-transition]::view-transition-new(*),
+  html[data-route-transition]::view-transition-group(*),
+  html[data-route-transition]::view-transition-old(*),
+  html[data-route-transition]::view-transition-new(*) {
     animation: none !important;
   }
   [data-view-switch="list"] .library-extra,

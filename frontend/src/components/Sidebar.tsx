@@ -18,10 +18,11 @@ import { Pill, Input, FormLabel, Checkbox, Glide, GlideGroup } from '@/component
 import { GLIDE } from '@/components/page/glideTransition'
 import { useToast } from '@/contexts/ToastContext'
 import { rememberOrder } from '@/lib/sidebarLists'
-import { m } from 'motion/react'
+import { AnimatePresence, m } from 'motion/react'
+import { EASE, Pop, RunningNumber, Unfold } from '@/components/motion'
 import { TomeMark } from '@/components/TomeMark'
 import { useAuth, isAdmin, isMember, type AuthUser } from '@/contexts/AuthContext'
-import { applyTheme, getStoredTheme, type ThemeId } from '@/lib/theme'
+import { getStoredTheme, switchTheme, type ThemeId } from '@/lib/theme'
 import { DOCS, docsLink } from '@/lib/docs'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { NamedIcon, loadAllIcons } from '@/lib/icons'
@@ -115,12 +116,12 @@ export function IconPicker({ value, onChange, inline = false }: { value: string;
           type="button"
           onClick={() => { setOpen(o => !o); setSearch('') }}
           aria-expanded={open}
-          className="inline-flex items-center gap-2 h-9 pl-2.5 pr-3.5 rounded-lg bg-secondary text-[14px] text-foreground hover:bg-surface-hover transition-colors"
+          className="inline-flex items-center gap-2 h-9 pl-2.5 pr-3.5 rounded-lg bg-secondary text-[14px] text-foreground hover:bg-surface-hover transition-colors touch-feedback"
         >
           <span className="grid place-items-center w-6 h-6 rounded-md bg-background/60"><NamedIcon icon={value} className="w-4 h-4" /></span>
           {open ? <Trans>Close icons</Trans> : <Trans>Change icon</Trans>}
         </button>
-        {open && <div className="mt-2 rounded-xl bg-secondary/50 p-2.5">{panel}</div>}
+        <Unfold open={open}><div className="mt-2 rounded-xl bg-secondary/50 p-2.5">{panel}</div></Unfold>
       </div>
     )
   }
@@ -130,17 +131,15 @@ export function IconPicker({ value, onChange, inline = false }: { value: string;
       <button
         type="button"
         onClick={() => { setOpen(o => !o); setSearch('') }}
-        className="flex items-center justify-center w-9 h-9 rounded-full bg-secondary hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
+        className="flex items-center justify-center w-9 h-9 rounded-full bg-secondary hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors touch-feedback"
         title={t`Choose icon`}
         aria-label={t`Choose icon`}
       >
         <NamedIcon icon={value} className="w-4 h-4" />
       </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-2 w-72">
-          {panel}
-        </div>
-      )}
+      <Pop open={open} origin="top-left" className="absolute left-0 top-full mt-1 z-50 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-2 w-72">
+        {panel}
+      </Pop>
     </div>
   )
 }
@@ -233,11 +232,25 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   const isAllBooks = !activeLibrary && !activeSavedFilter && activeTab === 'books'
   const isSeriesTab = activeTab === 'series'
 
+  // Collapse and expand: the width moves (200 ms) over content that keeps its
+  // full-width layout, clipped by the edge, so no label reflows. Expanding
+  // shows the list at once and the edge uncovers it; collapsing keeps the
+  // list (its labels fading) until the edge has passed, then the rail.
+  const [moving, setMoving] = useState(false)
+  const moveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(moveTimer.current), [])
   function toggleOpen() {
     const next = !open
     setOpen(next)
     localStorage.setItem(SIDEBAR_KEY, next ? 'open' : 'closed')
+    clearTimeout(moveTimer.current)
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setMoving(false); return }
+    setMoving(true)
+    moveTimer.current = setTimeout(() => setMoving(false), 220)
   }
+  const listShown = open || moving
+  const closing = !open && moving
 
   // Navigate to the dashboard (pathname '/') with these params. Using navigate
   // (not setSearchParams) means these work from a non-dashboard page too - the
@@ -432,8 +445,11 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           100% { transform: scale(1); }
         }
       `}</style>
+      {/* Mounted while open; AnimatePresence lets each dialog play its exit. */}
+      <AnimatePresence>
       {modalOpen && (
         <EntityModal
+          key="entity"
           title={modalTitle}
           initialName={modalInitialName}
           initialIcon={modalInitialIcon}
@@ -444,6 +460,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
       )}
       {shareShelf && (
         <ShareModal
+          key="share"
           title={shareShelf.name}
           endpoint={`/shelves/${shareShelf.id}/share`}
           noun="shelf"
@@ -452,6 +469,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
       )}
       {libModalOpen && (
         <LibraryModal
+          key="library"
           title={libModalTitle}
           initialName={libModalInitialName}
           initialIcon={libModalInitialIcon}
@@ -464,18 +482,21 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           onClose={() => setLibModalOpen(false)}
         />
       )}
+      </AnimatePresence>
       <aside className={cn(
         // Part of the frame: no line against the content panel, which is set
         // into the frame colour. The wordmark lives here, full height.
-        'shrink-0 flex-col bg-frame transition-all duration-200 motion-reduce:transition-none',
+        'shrink-0 flex-col bg-frame transition-[width] duration-200 ease-[var(--spring)] motion-reduce:transition-none',
         desktopHidden ? 'hidden' : 'hidden md:flex',
-        open ? 'w-64' : 'w-14'
-      )} data-shell-sidebar>
-        <div className={cn('group h-14 shrink-0 flex items-center gap-2 cursor-default', open ? 'px-5' : 'justify-center')}>
-          <TomeMark className="w-5 h-5 text-primary logo-bob" strokeWidth={7} />
-          {open && <span className="font-semibold text-[14px] text-foreground">Tome</span>}
+        open ? 'w-64' : 'w-14',
+        moving && 'overflow-hidden',
+      )} data-shell-sidebar data-closing={closing || undefined}>
+        {/* The mark sits at the rail's centre in both states, so it never moves. */}
+        <div className="group h-14 shrink-0 flex items-center gap-2 cursor-default w-64 px-[18px]">
+          <TomeMark className="w-5 h-5 shrink-0 text-primary logo-bob" strokeWidth={7} />
+          {listShown && <span className="sb-label font-semibold text-[14px] text-foreground">Tome</span>}
         </div>
-        {!open && (
+        {!listShown && (
           <GlideGroup>
           <m.div layoutScroll className="isolate flex flex-col items-center flex-1 overflow-y-auto py-2 space-y-0.5 overscroll-contain">
             {navItems.map(item => <NavEntry key={item.id} item={item} variant="rail" />)}
@@ -488,7 +509,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 onClick={() => selectLibrary(lib.id)}
                 aria-label={lib.name}
                 className={cn(
-                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all touch-feedback',
                   activeLibrary === lib.id
                     ? 'bg-primary/10 text-primary glide-host'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -510,7 +531,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 onClick={() => selectSavedFilter(sf)}
                 aria-label={sf.name}
                 className={cn(
-                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all touch-feedback',
                   activeSavedFilter === sf.id
                     ? 'bg-primary/10 text-primary glide-host'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -527,9 +548,9 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           </GlideGroup>
         )}
 
-        {open && (
+        {listShown && (
           <GlideGroup>
-          <m.nav layoutScroll className="isolate flex-1 overflow-y-auto px-3 pt-1 pb-4 overscroll-contain">
+          <m.nav layoutScroll className="isolate flex-1 w-64 shrink-0 overflow-y-auto px-3 pt-1 pb-4 overscroll-contain">
             {renderGroups('sidebar')}
             {libraryAndShelfSections(true, true)}
           </m.nav>
@@ -537,10 +558,10 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
         )}
 
         {/* User profile footer - single trigger, popover on click */}
-        {open && (
+        {listShown && (
           <UserMenu user={user} logout={logout} onCollapse={toggleOpen} />
         )}
-        {!open && (
+        {!listShown && (
           <CollapsedUserMenu user={user} logout={logout} onExpand={toggleOpen} />
         )}
       </aside>
@@ -663,7 +684,7 @@ type NavVariant = 'rail' | 'sidebar' | 'drawer'
 
 const NAV_VARIANTS: Record<NavVariant, { entryClassName: string; activeClassName: string; iconClassName: string; showLabel: boolean }> = {
   rail: {
-    entryClassName: 'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+    entryClassName: 'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all touch-feedback',
     activeClassName: 'bg-primary/10 text-primary',
     iconClassName: 'w-4 h-4',
     showLabel: false,
@@ -694,8 +715,10 @@ function NavEntry({ item, variant, onActivate }: { item: NavItem; variant: NavVa
     <>
       {active && glide && <Glide behind className="bg-primary/10" radius={8} />}
       <Icon className={cn(style.iconClassName, 'group-hover:animate-[wiggle_0.4s_ease-in-out]')} />
-      {style.showLabel && <span className="truncate">{label}</span>}
-      {badge && badge.count > 0 && <NavBadge variant={variant} {...badge} />}
+      {style.showLabel && <span className="sb-label truncate">{label}</span>}
+      <AnimatePresence initial={false}>
+        {badge && badge.count > 0 && <NavBadge key="badge" variant={variant} {...badge} />}
+      </AnimatePresence>
     </>
   )
   const entry = 'to' in item
@@ -710,13 +733,16 @@ function NavEntry({ item, variant, onActivate }: { item: NavItem; variant: NavVa
  * anything positioned inside it would be clipped.
  */
 function RailTip({ label, children }: { label: string; children: ReactNode }) {
+  // The place is kept after hiding, so the tip fades out where it stood.
   const [at, setAt] = useState<{ x: number; y: number } | null>(null)
+  const [shown, setShown] = useState(false)
   function show(el: Element | null) {
     if (!el) return
     const r = el.getBoundingClientRect()
     setAt({ x: r.right + 8, y: r.top + r.height / 2 })
+    setShown(true)
   }
-  const hide = () => setAt(null)
+  const hide = () => setShown(false)
   return (
     <span
       className="contents"
@@ -730,27 +756,42 @@ function RailTip({ label, children }: { label: string; children: ReactNode }) {
     >
       {children}
       {at && createPortal(
-        <span
+        <Pop
+          open={shown}
+          origin="left"
           aria-hidden
           className="pointer-events-none fixed z-[60] -translate-y-1/2 whitespace-nowrap rounded-lg bg-card px-2.5 py-1 text-[13px] text-foreground shadow-lg ring-1 ring-panel-ring"
           style={{ left: at.x, top: at.y }}
         >
           {label}
-        </span>,
+        </Pop>,
         document.body,
       )}
     </span>
   )
 }
 
+// Grows in when the count goes above zero and shrinks away at zero (160 ms);
+// a rising count runs to its new value with a short pulse.
+const BADGE_IN = { initial: { scale: 0 }, animate: { scale: 1 }, exit: { scale: 0 }, transition: { duration: 0.16, ease: EASE } } as const
+
 function NavBadge({ variant, count, pulse }: { variant: NavVariant; count: number; pulse: boolean }) {
-  const pulseClassName = pulse && 'animate-[badge-ping_0.4s_ease-in-out]'
+  const pulseClassName = pulse && 'animate-[badge-ping_0.3s_ease-in-out] motion-reduce:animate-none'
   // The rail is icon-only, too narrow for a number.
-  if (variant === 'rail') return <span className={cn('absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary', pulseClassName)} />
+  if (variant === 'rail') {
+    return (
+      <m.span {...BADGE_IN} className="absolute top-1 right-1 w-1.5 h-1.5">
+        {/* An <i>, so the link holds one span: the rail badge. */}
+        <i className={cn('block w-full h-full rounded-full bg-primary', pulseClassName)} />
+      </m.span>
+    )
+  }
   return (
-    <span className={cn('ml-auto min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-primary text-primary-foreground text-[12px] font-semibold tabular-nums', pulseClassName)}>
-      {count}
-    </span>
+    <m.span {...BADGE_IN} className="ml-auto grid">
+      <span className={cn('min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-primary text-primary-foreground text-[12px] font-semibold tabular-nums', pulseClassName)}>
+        <RunningNumber value={count} />
+      </span>
+    </m.span>
   )
 }
 
@@ -773,7 +814,7 @@ function ThemeMenuItems({ itemClass }: { itemClass: string }) {
           {/* hairline between the neutral core and the warm pair */}
           {id === 'amber' && <div className="h-px bg-border my-1" />}
           <button
-            onClick={() => { applyTheme(id); setCurrent(id) }}
+            onClick={() => { switchTheme(id); setCurrent(id) }}
             className={itemClass}
           >
             <Icon className="w-4 h-4 shrink-0" />
@@ -797,11 +838,11 @@ function MobileThemeRow() {
         return (
         <button
           key={id}
-          onClick={() => { applyTheme(id); setCurrent(id) }}
+          onClick={() => { switchTheme(id); setCurrent(id) }}
           title={themeName}
           aria-label={t`${themeName} theme`}
           className={cn(
-            'flex items-center justify-center w-9 h-9 rounded-lg transition-colors',
+            'flex items-center justify-center w-9 h-9 rounded-lg transition-colors touch-feedback',
             current === id
               ? 'bg-primary/10 text-primary'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -830,7 +871,7 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
   const close = useCallback(() => setOpen(false), [])
   useEscape(open, close)
 
-  const menuItem = 'flex items-center gap-2.5 w-full h-8 px-3 text-[14px] rounded-lg transition-colors hover:bg-secondary text-foreground/85 hover:text-foreground'
+  const menuItem = 'flex items-center gap-2.5 w-full h-8 px-3 text-[14px] rounded-lg transition-colors hover:bg-secondary text-foreground/85 hover:text-foreground touch-feedback'
   const destructive = menuItem + ' text-destructive/80 hover:text-destructive hover:bg-destructive/10'
 
   return (
@@ -839,7 +880,7 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
       <button
         onClick={onExpand}
         aria-label={t`Expand sidebar`}
-        className="flex items-center justify-center w-9 h-8 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
+        className="flex items-center justify-center w-9 h-8 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors touch-feedback"
       >
         <PanelLeftOpen className="w-4 h-4" />
       </button>
@@ -848,15 +889,14 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
       <button
         onClick={() => setOpen(o => !o)}
         aria-label={user?.username ?? t`User menu`}
-        className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-secondary transition-colors"
+        className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-secondary transition-colors touch-feedback"
       >
         <div className="flex w-8 h-8 items-center justify-center rounded-full bg-primary text-[12px] font-bold text-primary-foreground">
           {(user?.username ?? '?').slice(0, 1).toUpperCase()}
         </div>
       </button>
       </RailTip>
-      {open && (
-        <div className="absolute bottom-full left-1 mb-1 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 z-50 w-48">
+      <Pop open={open} origin="bottom-left" className="absolute bottom-full left-1 mb-1 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 z-50 w-48">
           <Link to="/settings" onClick={() => setOpen(false)} className={menuItem}>
             <Settings className="w-4 h-4 shrink-0" />
             <Trans>Settings</Trans>
@@ -879,8 +919,7 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
             <LogOut className="w-4 h-4 shrink-0" />
             <Trans>Log out</Trans>
           </button>
-        </div>
-      )}
+      </Pop>
     </div>
   )
 }
@@ -900,19 +939,19 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
   const close = useCallback(() => setOpen(false), [])
   useEscape(open, close)
 
-  const menuItem = 'flex items-center gap-2.5 w-full h-8 px-3 text-[14px] rounded-lg transition-colors hover:bg-secondary text-foreground/85 hover:text-foreground'
+  const menuItem = 'flex items-center gap-2.5 w-full h-8 px-3 text-[14px] rounded-lg transition-colors hover:bg-secondary text-foreground/85 hover:text-foreground touch-feedback'
   const destructive = menuItem + ' text-destructive/80 hover:text-destructive hover:bg-destructive/10'
 
   return (
-    <div ref={ref} className="relative shrink-0 px-3 py-3 flex items-center gap-1">
+    <div ref={ref} className="relative shrink-0 w-64 px-3 py-3 flex items-center gap-1">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-3 flex-1 min-w-0 px-1 py-1 rounded-lg hover:bg-secondary transition-colors text-left"
+        className="flex items-center gap-3 flex-1 min-w-0 px-1 py-1 rounded-lg hover:bg-secondary transition-colors text-left touch-feedback"
       >
         <div className="flex w-8 h-8 items-center justify-center rounded-full bg-primary text-[12px] font-bold text-primary-foreground shrink-0">
           {(user?.username ?? '?').slice(0, 1).toUpperCase()}
         </div>
-        <span className="min-w-0 flex-1">
+        <span className="sb-label min-w-0 flex-1">
           <span className="block truncate text-[14px] font-medium text-foreground">{user?.username}</span>
           {(user?.is_admin || user?.role === 'admin') && <span className="block text-[11px] leading-none text-muted-foreground"><Trans>Admin</Trans></span>}
         </span>
@@ -922,13 +961,12 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
         onClick={onCollapse}
         title={t`Collapse sidebar`}
         aria-label={t`Collapse sidebar`}
-        className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0 text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
+        className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0 text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors touch-feedback"
       >
         <PanelLeftClose className="w-4 h-4" />
       </button>
 
-      {open && (
-        <div className="absolute bottom-full left-3 right-3 mb-1 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 z-50">
+      <Pop open={open} origin="bottom" className="absolute bottom-full left-3 right-3 mb-1 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 z-50">
           <Link to="/settings" onClick={() => setOpen(false)} className={menuItem}>
             <Settings className="w-4 h-4 shrink-0" />
             <Trans>Settings</Trans>
@@ -951,15 +989,14 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
             <LogOut className="w-4 h-4 shrink-0" />
             <Trans>Log out</Trans>
           </button>
-        </div>
-      )}
+      </Pop>
     </div>
   )
 }
 
 /** A group label in the nav: small caps, no icon. */
 function GroupLabel({ children }: { children: React.ReactNode }) {
-  return <div className="px-3 mt-5 mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">{children}</div>
+  return <div className="sb-label px-3 mt-5 mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">{children}</div>
 }
 
 function Section({ title, onAdd, addLabel, onTitleClick, children }: {
@@ -972,12 +1009,12 @@ function Section({ title, onAdd, addLabel, onTitleClick, children }: {
 }) {
   return (
     <div>
-      <div className="flex items-center justify-between px-3 mt-5 mb-1">
+      <div className="sb-label flex items-center justify-between px-3 mt-5 mb-1">
         <button
           onClick={onTitleClick}
           className={cn(
             'text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80 transition-colors',
-            onTitleClick && 'hover:text-foreground cursor-pointer'
+            onTitleClick && 'hover:text-foreground cursor-pointer touch-feedback'
           )}
         >
           {title}
@@ -985,7 +1022,7 @@ function Section({ title, onAdd, addLabel, onTitleClick, children }: {
         {onAdd && (
           <button
             onClick={onAdd}
-            className="w-5 h-5 grid place-items-center rounded text-muted-foreground/70 hover:text-foreground hover:bg-secondary transition-colors"
+            className="w-5 h-5 grid place-items-center rounded text-muted-foreground/70 hover:text-foreground hover:bg-secondary transition-colors touch-feedback"
             title={addLabel}
             aria-label={addLabel}
           >
@@ -1015,7 +1052,7 @@ function SidebarItem({ grip, label, iconName, count, active, glideId, isPrivate,
   return (
     <div
       className={cn(
-        'group relative flex items-center gap-2.5 w-full h-9 px-3 rounded-lg text-[14px] transition-colors cursor-pointer',
+        'group relative flex items-center gap-2.5 w-full h-9 px-3 rounded-lg text-[14px] transition-colors cursor-pointer touch-feedback',
         active
           ? cn('bg-primary/10 text-foreground font-medium [&_svg]:text-primary', glideId && 'glide-host')
           : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -1026,7 +1063,7 @@ function SidebarItem({ grip, label, iconName, count, active, glideId, isPrivate,
       {active && glideId && <Glide key={glideId} behind className="bg-primary/10" radius={8} layoutId={glideId} />}
       {grip}
       <span className="shrink-0 sidebar-item-icon w-4 h-4 grid place-items-center">{getIcon(iconName, 'w-4 h-4')}</span>
-      <span className="truncate flex-1">{label}</span>
+      <span className="sb-label truncate flex-1">{label}</span>
       {isPrivate && (
         <span title={t`Private library`} className="shrink-0 flex items-center group-hover:hidden group-focus-within:hidden">
           <Lock className="w-3 h-3 text-muted-foreground/50" />
@@ -1034,15 +1071,15 @@ function SidebarItem({ grip, label, iconName, count, active, glideId, isPrivate,
       )}
       {/* A ghost "0" on an empty library was pure noise - no count reads cleaner. */}
       {count != null && count > 0 && !isPrivate && (
-        <span className="text-[12px] tabular-nums shrink-0 text-muted-foreground/70 group-hover:hidden group-focus-within:hidden">
-          {count}
+        <span className="sb-label text-[12px] tabular-nums shrink-0 text-muted-foreground/70 group-hover:hidden group-focus-within:hidden">
+          <RunningNumber value={count} />
         </span>
       )}
       <div className="hidden group-hover:flex group-focus-within:flex items-center gap-0.5 shrink-0">
         {onEdit && (
           <button
             onClick={e => { e.stopPropagation(); onEdit() }}
-            className="p-0.5 rounded hover:text-foreground transition-colors"
+            className="p-0.5 rounded hover:text-foreground transition-colors touch-feedback"
             title={t`Edit`}
             aria-label={t`Edit`}
           >
@@ -1052,7 +1089,7 @@ function SidebarItem({ grip, label, iconName, count, active, glideId, isPrivate,
         {onShare && (
           <button
             onClick={e => { e.stopPropagation(); onShare() }}
-            className="p-0.5 rounded hover:text-foreground transition-colors"
+            className="p-0.5 rounded hover:text-foreground transition-colors touch-feedback"
             title={t`Share`}
             aria-label={t`Share`}
           >
@@ -1062,7 +1099,7 @@ function SidebarItem({ grip, label, iconName, count, active, glideId, isPrivate,
         {onDelete && (
           <button
             onClick={async e => { e.stopPropagation(); await onDelete() }}
-            className="p-0.5 rounded hover:text-destructive transition-colors"
+            className="p-0.5 rounded hover:text-destructive transition-colors touch-feedback"
             title={t`Delete`}
             aria-label={t`Delete`}
           >

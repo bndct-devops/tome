@@ -1,7 +1,8 @@
-import { forwardRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { forwardRef, useState, type CSSProperties, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
 import { Glide, GlideGroup } from './Glide'
+import { PRESS_LABEL } from '@/components/motion/press'
 
 // Form controls in the refreshed vocabulary. One filled, borderless field
 // (bg-secondary, 36px, 14px text, ring on focus); selects get the chevron from
@@ -92,6 +93,15 @@ export const Radio = forwardRef<HTMLInputElement, ChoiceProps>(function Radio({ 
   )
 })
 
+// When the gliding indicator (GLIDE: spring, 0.3 s, bounce 0.14) is halfway
+// onto the chosen pill and halfway off the pill left, by how many pills it
+// travels (1 to 6+), in ms. Worked out from the spring's equation.
+const ARRIVE_MS = [90, 137, 160, 175, 185, 194]
+const LEAVE_MS = [90, 53, 41, 34, 30, 27]
+// The label's colour change (ease-in-out, 100 ms) is half done 50 ms in; the
+// indicator starts a frame after the click.
+const LABEL_HALF_MS = 50 - 16
+
 /** A row of exclusive choices as pills (sort order, scope, layout preset). */
 export function PillGroup<T extends string>({ value, onChange, options, size = 'md', className, 'aria-label': ariaLabel }: {
   value: T
@@ -101,10 +111,22 @@ export function PillGroup<T extends string>({ value, onChange, options, size = '
   className?: string
   'aria-label'?: string
 }) {
+  // The option chosen before this one, for how far the indicator travels.
+  const [step, setStep] = useState({ value, prev: value })
+  if (step.value !== value) setStep({ value, prev: step.value })
+  const index = (v: T) => options.findIndex(o => o.value === v)
+  const pills = Math.min(6, Math.max(1, Math.abs(index(value) - index(step.prev))))
+  // Each label turns over as the indicator passes its middle: the chosen one
+  // as it lands, the one left as it slides off. A shared timing left one of
+  // the two in the colour of what was behind it for most of a long glide.
+  const delay = (v: T) => v === value
+    ? ARRIVE_MS[pills - 1] - LABEL_HALF_MS
+    : v === step.prev ? Math.max(0, LEAVE_MS[pills - 1] - LABEL_HALF_MS) : 0
+
   // The filled pill is one indicator that glides to the chosen option; it sits
   // over the other pills' fills and under every label.
   return (
-    <GlideGroup>
+    <GlideGroup value={value}>
       <div role="radiogroup" aria-label={ariaLabel} className={cn('isolate inline-flex flex-wrap gap-1.5', className)}>
         {options.map(o => (
           <button
@@ -114,10 +136,10 @@ export function PillGroup<T extends string>({ value, onChange, options, size = '
             aria-checked={o.value === value}
             disabled={o.disabled}
             onClick={() => onChange(o.value)}
+            style={{ '--pg-delay': `${delay(o.value)}ms` } as CSSProperties}
             className={cn(
-              // Label colour over 300 ms, close to the indicator's travel: an instant
-              // swap left the new label in the inverse colour on a plain pill.
-              'relative rounded-full font-medium transition-colors duration-300 disabled:opacity-50',
+              'group/pg relative rounded-full font-medium transition-colors duration-100 ease-in-out disabled:opacity-50',
+              '[transition-delay:var(--pg-delay)] motion-reduce:[transition-delay:0ms]',
               size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-9 px-4 text-[14px]',
               o.value === value
                 ? 'text-background'
@@ -125,7 +147,7 @@ export function PillGroup<T extends string>({ value, onChange, options, size = '
             )}
           >
             {o.value === value && <Glide className="bg-foreground" />}
-            <span className="relative z-[1]">{o.label}</span>
+            <span className={cn('relative z-[1]', PRESS_LABEL)}>{o.label}</span>
           </button>
         ))}
       </div>

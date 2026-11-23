@@ -4,15 +4,17 @@
 // because there is nothing to downgrade. Low-res covers deep-link to the book
 // page instead, where the cover picker shows candidates to judge by eye.
 import { useEffect, useState } from 'react'
-import { Link } from 'react-router-dom'
+import { AnimatePresence, m } from 'motion/react'
 import { ExternalLink, ImageOff, Loader2, RefreshCw, Wand2 } from 'lucide-react'
+import { BookLink, listItem, Unfold } from '@/components/motion'
+import { RowsSkeleton } from '@/components/FormMotion'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
-import { Pill } from '@/components/page'
+import { Pill, PRESS, Swap } from '@/components/page'
 
 interface FlaggedBook {
   book_id: number
@@ -87,8 +89,11 @@ export function CoverAudit() {
 
   if (!data) {
     return (
-      <div className="flex items-center gap-2 py-10 justify-center text-[14px] text-muted-foreground">
-        <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Scanning covers…</Trans>
+      <div className="space-y-4">
+        <p className="flex items-center gap-2 h-9 text-[14px] text-muted-foreground">
+          <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Scanning covers…</Trans>
+        </p>
+        <RowsSkeleton rows={6} rowClassName="h-[69px]" />
       </div>
     )
   }
@@ -129,7 +134,7 @@ export function CoverAudit() {
       </div>
 
       {data.books.length > 0 && (
-        <div className="border-y border-border/70">
+        <div className={cn('border-y border-border/70 transition-opacity duration-150', loading && 'opacity-50')}>
           <div className="hidden sm:grid grid-cols-[3rem_minmax(0,1fr)_8rem_7rem_5.5rem] items-center gap-2 border-b border-border/70 py-2.5 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
             <span />
             <span><Trans>Book</Trans></span>
@@ -137,9 +142,11 @@ export function CoverAudit() {
             <span><Trans>Size</Trans></span>
             <span />
           </div>
+          <AnimatePresence initial={false}>
           {data.books.map(b => {
             const state = fix[b.book_id]
             const problem = (
+              <Swap id={state === 'fixed' ? 'fixed' : 'problem'} className="inline-block">
               <span
                 className={cn(
                   'font-medium',
@@ -149,14 +156,17 @@ export function CoverAudit() {
               >
                 {state === 'fixed' ? t`Fixed` : i18n._(REASON_LABEL[b.reason])}
               </span>
+              </Swap>
             )
             const size = b.width != null ? `${b.width}×${b.height}px` : '-'
             return (
-              <div
+              <m.div
                 key={b.book_id}
+                {...listItem}
                 className="grid grid-cols-[2.5rem_minmax(0,1fr)_auto] sm:grid-cols-[3rem_minmax(0,1fr)_8rem_7rem_5.5rem] items-center gap-x-3 sm:gap-x-2 border-b border-border/70 py-2.5 last:border-b-0"
               >
-                <span className="flex h-12 w-8 items-center justify-center overflow-hidden rounded bg-muted">
+                <span data-cover-id={b.book_id} className="flex h-12 w-8 items-center justify-center overflow-hidden rounded bg-muted">
+                  <Swap id={state === 'fixed' ? 'fixed' : b.reason} className="flex h-full w-full items-center justify-center">
                   {b.reason === 'missing' || state === 'fixed' ? (
                     state === 'fixed' ? (
                       <img src={`/api/books/${b.book_id}/cover?ts=${Date.now() % 100000}`} alt="" className="h-full w-full object-cover" />
@@ -166,6 +176,7 @@ export function CoverAudit() {
                   ) : (
                     <img src={`/api/books/${b.book_id}/cover`} alt="" className="h-full w-full object-cover" />
                   )}
+                  </Swap>
                 </span>
                 <span className="min-w-0">
                   <span className="block truncate text-[15px] text-foreground">
@@ -192,25 +203,28 @@ export function CoverAudit() {
                       {state === 'fixing' ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wand2 className="h-4 w-4" />}
                     </Pill>
                   )}
-                  <Link
-                    to={`/books/${b.book_id}`}
+                  <BookLink
+                    book={{ id: b.book_id, title: b.title, author: b.author, series: b.series, series_index: b.series_index }}
+                    // A missing cover has nothing to grow from; the page still paints at once.
+                    cover={b.reason === 'missing' && state !== 'fixed' ? null : undefined}
                     title={t`Open book (pick a cover by eye)`}
                     aria-label={t`Open book (pick a cover by eye)`}
-                    className="inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                    className={`inline-flex h-9 w-9 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground touch-feedback ${PRESS}`}
                   >
                     <ExternalLink className="h-4 w-4" />
-                  </Link>
+                  </BookLink>
                 </span>
-              </div>
+              </m.div>
             )
           })}
+          </AnimatePresence>
         </div>
       )}
-      {Object.values(fix).some(s => s === 'nocandidate' || s === 'failed') && (
+      <Unfold open={Object.values(fix).some(s => s === 'nocandidate' || s === 'failed')} gap={16}>
         <p className="text-[13px] text-muted-foreground">
           <Trans>Some books had no usable candidate or failed to apply. Open them and use the cover picker.</Trans>
         </p>
-      )}
+      </Unfold>
     </div>
   )
 }

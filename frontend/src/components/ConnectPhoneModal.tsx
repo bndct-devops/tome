@@ -10,7 +10,7 @@ import { CheckCircle, Loader2, RefreshCw, Smartphone } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
-import { Input, Pill } from '@/components/page'
+import { Input, Pill, PRESS, Swap } from '@/components/page'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 
@@ -168,7 +168,7 @@ export function ConnectPhoneModal({ onClose }: { onClose: () => void }) {
             {onPhone && !expired && (
               <a
                 href={payloadFor(issued, server ?? window.location.origin)}
-                className="inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground hover:brightness-110"
+                className={`inline-flex h-9 items-center gap-1.5 rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground hover:brightness-110 transition-[filter] touch-feedback ${PRESS}`}
               >
                 <Smartphone className="h-3.5 w-3.5" /> <Trans>Open in the Tome app</Trans>
               </a>
@@ -214,6 +214,7 @@ export function ConnectPhoneModal({ onClose }: { onClose: () => void }) {
         </div>
       )}
 
+      <Swap id={connected ? 'connected' : error ? 'error' : loopback && !server ? 'address' : !qr || !issued ? 'loading' : 'qr'}>
       {connected ? (
         <div className="flex flex-col items-center gap-2 py-8 text-[15px] text-success">
           <CheckCircle className="h-8 w-8" />
@@ -235,8 +236,9 @@ export function ConnectPhoneModal({ onClose }: { onClose: () => void }) {
           <img
             src={qr}
             alt=""
-            className={cn('h-56 w-56 rounded-xl bg-white p-2 transition-all', expired && 'opacity-20 blur-[2px]')}
+            className={cn('h-56 w-56 rounded-xl bg-white p-2 transition-[opacity,filter] duration-300', expired && 'opacity-20 blur-[2px]')}
           />
+          <Swap id={expired ? 'expired' : issued.code}>
           {expired ? (
             <p className="text-[14px] text-muted-foreground"><Trans>This code has expired.</Trans></p>
           ) : (
@@ -245,8 +247,10 @@ export function ConnectPhoneModal({ onClose }: { onClose: () => void }) {
               <span className="ml-3 tracking-normal tabular-nums text-muted-foreground">{minutes}:{seconds}</span>
             </p>
           )}
+          </Swap>
         </div>
       )}
+      </Swap>
     </ModalShell>,
     document.body,
   )

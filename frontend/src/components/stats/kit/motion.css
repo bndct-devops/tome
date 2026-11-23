@@ -105,3 +105,11 @@
 /* Goal marks (a day's dot, a volume): a quiet ring around the mark. */
 .k-dot[data-hot] { outline: 2px solid color-mix(in oklch, var(--foreground) 45%, transparent); outline-offset: 2px; }
 .k-dot { cursor: default; }
+
+/* Controls that arrive in a row already painted (Boards' edit tools as edit mode
+   starts): they rise from partial opacity, never from nothing. */
+.k-arrive { animation: k-arrive 150ms var(--k-ease) both; }
+@keyframes k-arrive { from { opacity: 0.35; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .k-arrive { animation: none; }
+}

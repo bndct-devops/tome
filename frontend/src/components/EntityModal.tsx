@@ -42,8 +42,8 @@ export function EntityModal({ title, initialName = '', initialIcon, defaultIcon 
   }
 
   return (
-    // Mounted-on-open by callers, so `open` is always true: animated enter,
-    // instant exit (the tree unmounts with the caller's conditional).
+    // Mounted while open by its callers; inside an AnimatePresence the exit
+    // plays too (ModalShell closes when its presence ends).
     <ModalShell
       open
       onClose={onClose}

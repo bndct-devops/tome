@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { AnimatePresence, m } from 'motion/react'
 import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
@@ -9,6 +10,7 @@ import { ModalShell } from '@/components/ModalShell'
 import type { Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { Pill, PillGroup, Input, Textarea, Select, FormLabel } from '@/components/page'
+import { listItem } from '@/components/motion'
 
 interface Props {
   seriesName: string
@@ -21,6 +23,8 @@ interface Props {
 type TabId = 'series' | 'arcs'
 
 interface ArcRow {
+  /** Stable while the dialog is open: rows glide when they reorder. */
+  uid: number
   /** undefined = new row (no id yet) */
   id?: number
   name: string
@@ -47,6 +51,8 @@ function hasOverlap(rows: ArcRow[], idx: number): boolean {
 function isInvalid(row: ArcRow): boolean {
   return row.start_index > row.end_index
 }
+
+let nextUid = 1
 
 function formatVol(n: number): string {
   return Number.isInteger(n) ? String(n) : String(n)
@@ -88,6 +94,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
     setArcsLoading(true)
     api.get<Arc[]>(`/series/${encodeURIComponent(seriesName)}/arcs`)
       .then(arcs => setArcRows(arcs.map(a => ({
+        uid: nextUid++,
         id: a.id,
         name: a.name,
         start_index: a.start_index,
@@ -108,6 +115,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
       ? first
       : sortedVols.find(v => v > maxEnd) ?? last
     setArcRows(prev => [...prev, {
+      uid: nextUid++,
       name: '',
       start_index: nextStart,
       end_index: nextStart,
@@ -188,7 +196,7 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
         </>
       }
     >
-      <div className="min-h-[260px]">
+      <div className="relative min-h-[260px]">
         <PillGroup
           size="sm"
           aria-label={t`Section`}
@@ -200,6 +208,9 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
           ]}
         />
 
+        {/* The section that leaves fades over the one that arrives. */}
+        <AnimatePresence mode="popLayout" initial={false}>
+        <m.div key={activeTab} exit={{ opacity: 0 }} transition={{ duration: 0.12 }} className="w-full">
         {activeTab === 'series' && (
           statusLoading ? (
             <div className="flex justify-center py-10">
@@ -236,12 +247,14 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
                   volumes before defining arcs.</Trans>
                 </p>
               )}
+              <AnimatePresence initial={false}>
               {sortedRows.map(({ originalIdx, ...row }) => {
                 const warn = isInvalid(row) || hasOverlap(arcRows, originalIdx)
                 return (
-                  <div
-                    key={originalIdx}
-                    className={cn('py-3 border-b border-border/70 flex flex-col gap-2', warn && 'bg-warning/10 -mx-3 px-3 rounded-lg')}
+                  <m.div
+                    key={row.uid}
+                    {...listItem}
+                    className={cn('py-3 border-b border-border/70 flex flex-col gap-2 transition-colors', warn && 'bg-warning/10 -mx-3 px-3 rounded-lg')}
                   >
                     <div className="flex flex-wrap items-end gap-2">
                       <div className="min-w-[160px] flex-1">
@@ -299,9 +312,10 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
                         {isInvalid(row) ? <Trans>Start is after end.</Trans> : <Trans>Overlaps another arc.</Trans>}
                       </p>
                     )}
-                  </div>
+                  </m.div>
                 )
               })}
+              </AnimatePresence>
               <Pill
                 variant="quiet"
                 onClick={addRow}
@@ -314,6 +328,8 @@ export function ManageSeriesModal({ seriesName, volumes, onClose, onSaved }: Pro
             </div>
           )
         )}
+        </m.div>
+        </AnimatePresence>
       </div>
     </ModalShell>
   )

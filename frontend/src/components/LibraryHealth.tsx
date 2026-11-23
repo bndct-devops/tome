@@ -2,11 +2,15 @@ import { useState } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { useShiftSelect } from '@/lib/useShiftSelect'
-import { FolderOpen, ArrowRight, Loader2, Check, AlertCircle, ChevronDown, ChevronRight, Trash, FileX } from 'lucide-react'
+import { FolderOpen, ArrowRight, Loader2, Check, AlertCircle, ChevronRight, Trash, FileX } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
-import { Pill } from '@/components/page'
+import { Pill, PRESS } from '@/components/page'
 import { ModalShell } from '@/components/ModalShell'
+import { AnimatePresence, m } from 'motion/react'
+import { LIST, listItem, Unfold } from '@/components/motion'
+import { Note, SameWidth } from '@/components/FormMotion'
+import { useHeld } from '@/lib/useHeld'
 
 interface HealthIssue {
   book_id: number
@@ -217,6 +221,8 @@ export function LibraryHealthTab() {
 
   const allFileIds = healthData?.issues.map(i => i.file_id) ?? []
   const { handleToggle } = useShiftSelect(allFileIds)
+  // The confirm dialog keeps its count while it closes.
+  const moveShown = useHeld(confirmMove)
 
   return (
     <div className="space-y-4">
@@ -226,8 +232,8 @@ export function LibraryHealthTab() {
             <p className="text-[14px] text-muted-foreground max-w-[60ch]">
               <Trans>Files whose place on disk no longer matches their series or author folder.</Trans>
             </p>
-            {healthData && (
-              <p className="text-[14px] text-foreground mt-1">
+            <Note value={healthData}>{healthData => (
+              <p className="text-[14px] text-foreground pt-1">
                 {(() => {
                   const total = healthData.total_files
                   if (healthData.misplaced_count === 0 && healthData.missing_count === 0) return t`All ${total} files are correctly placed.`
@@ -240,7 +246,7 @@ export function LibraryHealthTab() {
                   ].filter(Boolean).join(' · ') + '.'
                 })()}
               </p>
-            )}
+            )}</Note>
           </div>
           <div className="flex items-center gap-2 flex-wrap">
             {healthData && healthData.misplaced_count > 0 && (
@@ -258,12 +264,14 @@ export function LibraryHealthTab() {
                   disabled={reorganizing}
                   variant="primary"
                 >
-                  {reorganizing
-                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    : selected.size > 0
-                    ? (() => { const n = selected.size; return t`Reorganize selected (${n})` })()
-                    : t`Reorganize all`
-                  }
+                  <SameWidth active={reorganizing ? 1 : 0}>
+                    {[
+                      selected.size > 0
+                        ? (() => { const n = selected.size; return t`Reorganize selected (${n})` })()
+                        : t`Reorganize all`,
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" />,
+                    ]}
+                  </SameWidth>
                 </Pill>
               </>
             )}
@@ -273,29 +281,31 @@ export function LibraryHealthTab() {
               variant="secondary"
               title={t`Remove folders that contain only hidden files (.DS_Store, etc.)`}
             >
-              {purging ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash className="w-3.5 h-3.5" />}
-              {purging ? t`Purging...` : t`Purge empty folders`}
+              <SameWidth active={purging ? 1 : 0}>
+                {[<><Trash className="w-3.5 h-3.5" />{t`Purge empty folders`}</>, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Purging...`}</>]}
+              </SameWidth>
             </Pill>
             <Pill
               onClick={scan}
               disabled={loading}
               variant="secondary"
             >
-              {loading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <FolderOpen className="w-3.5 h-3.5" />}
-              {loading ? t`Scanning…` : t`Scan library`}
+              <SameWidth active={loading ? 1 : 0}>
+                {[<><FolderOpen className="w-3.5 h-3.5" />{t`Scan library`}</>, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Scanning…`}</>]}
+              </SameWidth>
             </Pill>
           </div>
         </div>
 
-        {error && (
-          <div className="mt-3 flex items-center gap-2 text-[14px] text-destructive">
+        <Note value={error}>{error => (
+          <div className="pt-3 flex items-center gap-2 text-[14px] text-destructive">
             <AlertCircle className="w-3.5 h-3.5 shrink-0" />
             {error}
           </div>
-        )}
+        )}</Note>
       </div>
 
-      {result && (
+      <Note value={result} gap={16}>{result => (
         <div className="space-y-1 border-y border-border/70 py-4 text-[14px]">
           <p className="font-medium text-success flex items-center gap-1.5">
             <Check className="w-3.5 h-3.5" />
@@ -312,9 +322,9 @@ export function LibraryHealthTab() {
             </ul>
           )}
         </div>
-      )}
+      )}</Note>
 
-      {purgeResult !== null && (
+      <Note value={purgeResult} gap={16}>{purgeResult => (
         <div className="space-y-1 border-y border-border/70 py-4 text-[14px]">
           <p className="font-medium text-success flex items-center gap-1.5">
             <Check className="w-3.5 h-3.5" />
@@ -326,9 +336,9 @@ export function LibraryHealthTab() {
             </ul>
           )}
         </div>
-      )}
+      )}</Note>
 
-      {missingResult && (
+      <Note value={missingResult} gap={16}>{missingResult => (
         <div className="space-y-1 border-y border-border/70 py-4 text-[14px]">
           <p className="font-medium text-success flex items-center gap-1.5">
             <Check className="w-3.5 h-3.5" />
@@ -353,9 +363,9 @@ export function LibraryHealthTab() {
             </ul>
           )}
         </div>
-      )}
+      )}</Note>
 
-      {healthData && healthData.missing.length > 0 && (
+      <Note value={healthData && healthData.missing.length > 0 ? healthData : null} gap={16}>{healthData => (
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border/70">
             <div className="flex items-baseline gap-2 min-w-0 flex-wrap">
@@ -365,16 +375,21 @@ export function LibraryHealthTab() {
                 {plural(healthData.missing.length, { one: '# file in the database but missing from disk', other: '# files in the database but missing from disk' })}
               </span>
             </div>
-            <div className="flex items-center gap-2 shrink-0 ml-auto">
-              {confirmRemoveMissing && (
-                <Pill
-                  onClick={() => setConfirmRemoveMissing(false)}
-                  disabled={removingMissing}
-                  variant="quiet"
-                >
-                  <Trans>Cancel</Trans>
-                </Pill>
-              )}
+            <div className="relative flex items-center gap-2 shrink-0 ml-auto">
+              {/* Cancel fades in beside the confirm; the confirm's label changes width, Cancel glides with it. */}
+              <AnimatePresence initial={false} mode="popLayout">
+                {confirmRemoveMissing && (
+                  <m.span key="cancel" layout="position" initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={LIST}>
+                    <Pill
+                      onClick={() => setConfirmRemoveMissing(false)}
+                      disabled={removingMissing}
+                      variant="quiet"
+                    >
+                      <Trans>Cancel</Trans>
+                    </Pill>
+                  </m.span>
+                )}
+              </AnimatePresence>
               <Pill
                 onClick={() => confirmRemoveMissing ? removeMissing() : setConfirmRemoveMissing(true)}
                 disabled={removingMissing}
@@ -391,33 +406,35 @@ export function LibraryHealthTab() {
             </div>
           </div>
           <ul className="divide-y divide-border/70">
-            {healthData.missing.map(m => {
-              const missingForBook = healthData.missing.filter(x => x.book_id === m.book_id).length
-              const wholeBook = missingForBook >= m.book_file_count
+            <AnimatePresence initial={false}>
+            {healthData.missing.map(entry => {
+              const missingForBook = healthData.missing.filter(x => x.book_id === entry.book_id).length
+              const wholeBook = missingForBook >= entry.book_file_count
               return (
-                <li key={m.file_id} className="flex items-start gap-3 py-3 text-[14px]">
+                <m.li key={entry.file_id} {...listItem} className="flex items-start gap-3 py-3 text-[14px]">
                   <div className="min-w-0 space-y-1 flex-1">
                     <p className="font-medium truncate">
-                      {m.title}
-                      {m.author && <span className="text-muted-foreground font-normal">, {m.author}</span>}
+                      {entry.title}
+                      {entry.author && <span className="text-muted-foreground font-normal">, {entry.author}</span>}
                     </p>
-                    <p className="text-[13px] text-muted-foreground font-mono truncate line-through">{m.path}</p>
+                    <p className="text-[13px] text-muted-foreground font-mono truncate line-through">{entry.path}</p>
                   </div>
-                  <span className="shrink-0 text-[12px] font-bold text-muted-foreground uppercase tracking-[0.1em]">{m.format}</span>
+                  <span className="shrink-0 text-[12px] font-bold text-muted-foreground uppercase tracking-[0.1em]">{entry.format}</span>
                   <span className={cn(
                     'shrink-0 text-[13px]',
                     wholeBook ? 'text-destructive' : 'text-muted-foreground',
                   )}>
                     {wholeBook ? t`book entry will be removed` : t`file entry only`}
                   </span>
-                </li>
+                </m.li>
               )
             })}
+            </AnimatePresence>
           </ul>
         </div>
-      )}
+      )}</Note>
 
-      {dryRunResult && (
+      <Note value={dryRunResult} gap={16}>{dryRunResult => (
         <div className="space-y-3">
           <div className="flex items-center justify-between gap-3 pb-3 border-b border-border/70">
             {(() => { const n = dryRunResult.moved.length; return (
@@ -456,20 +473,22 @@ export function LibraryHealthTab() {
             </Pill>
           </div>
         </div>
-      )}
+      )}</Note>
 
       {groups.length > 0 && (
         <div className="border-t border-border/70">
+          <AnimatePresence initial={false}>
           {groups.map((group, gi) => {
             const groupIds = group.issues.map(i => i.file_id)
             const allGroupSelected = groupIds.every(id => selected.has(id))
             const someGroupSelected = groupIds.some(id => selected.has(id))
 
             return (
-              <div key={gi} className="border-b border-border/70">
+              <m.div key={group.label} {...listItem} className="border-b border-border/70">
                 <button
                   onClick={() => toggleGroup(gi, !group.collapsed)}
-                  className="w-full flex items-center justify-between gap-3 px-2 -mx-2 py-3 rounded-lg hover:bg-secondary/60 transition-colors text-left"
+                  aria-expanded={!group.collapsed}
+                  className={`w-full flex items-center justify-between gap-3 px-2 -mx-2 py-3 rounded-lg hover:bg-secondary/60 transition-colors text-left touch-feedback ${PRESS}`}
                 >
                   <div className="flex items-center gap-2.5 min-w-0 flex-wrap">
                     <div
@@ -491,12 +510,10 @@ export function LibraryHealthTab() {
                       {group.folderCount > 1 && (() => { const n = group.folderCount; return t` in ${n} folders` })()}
                     </span>
                   </div>
-                  {group.collapsed
-                    ? <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />
-                    : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" />}
+                  <ChevronRight className={cn('w-3.5 h-3.5 text-muted-foreground transition-transform duration-200 ease-(--spring)', !group.collapsed && 'rotate-90')} />
                 </button>
 
-                {!group.collapsed && (
+                <Unfold open={!group.collapsed}>
                   <ul className="divide-y divide-border/70 pl-7">
                     {group.issues.map(issue => (
                       <li key={issue.file_id} className="flex items-start gap-3 py-3">
@@ -521,10 +538,11 @@ export function LibraryHealthTab() {
                       </li>
                     ))}
                   </ul>
-                )}
-              </div>
+                </Unfold>
+              </m.div>
             )
           })}
+          </AnimatePresence>
         </div>
       )}
 
@@ -546,7 +564,7 @@ export function LibraryHealthTab() {
         }
       >
         <p className="text-[14px] text-muted-foreground">
-          {plural(confirmMove?.length ?? 0, {
+          {plural(moveShown?.length ?? 0, {
             one: '# file is moved to its expected folder in the library. Empty folders left behind are removed.',
             other: '# files are moved to their expected folders in the library. Empty folders left behind are removed.',
           })}

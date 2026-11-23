@@ -6,6 +6,7 @@ import { cn } from '@/lib/utils'
 import { coverSrc } from '@/lib/covers'
 import { CoverImage } from '@/components/CoverImage'
 import { SectionTitle } from '@/components/page'
+import { CoverLift } from '@/components/motion'
 
 /** Text that is only a placeholder while loading: it keeps its line box, drawn as a block. */
 export function Ph({ on, children }: { on: boolean; children: ReactNode }) {
@@ -47,13 +48,21 @@ export function Track({ pct, className, style, tip, k }: { pct: number; classNam
   )
 }
 
-/** A cover in a fixed 2:3 box, as Home's rows draw them. `id` null draws the empty box. */
-export function Cover({ id, h, className }: { id: number | null; h: number; className?: string }) {
-  return (
-    <span className={cn('relative block shrink-0 overflow-hidden rounded-[8px] bg-muted', className)} style={{ height: h, width: Math.round((h * 2) / 3) }}>
+/**
+ * A cover in a fixed 2:3 box, as Home's rows draw them. `id` null draws the empty box.
+ * `book` marks the box as that book's cover (data-cover-id), so opening the book
+ * grows it into the book page (defaults to `id`); `series` marks it as that series'
+ * cover instead (data-series-cover). `lift`: a clickable cover, with the app's
+ * hover tilt and press (CoverLift).
+ */
+export function Cover({ id, h, className, book, series, lift = false }: { id: number | null; h: number; className?: string; book?: number | null; series?: string; lift?: boolean }) {
+  const mark = series != null ? null : book ?? id
+  const box = (
+    <span data-cover-id={mark ?? undefined} data-series-cover={series} className={cn('relative block shrink-0 overflow-hidden rounded-[8px] bg-muted', className)} style={{ height: h, width: Math.round((h * 2) / 3) }}>
       {id != null && <CoverImage src={coverSrc(id, { w: h > 60 ? 400 : 160 })} alt="" iconClassName="w-5 h-5" />}
     </span>
   )
+  return lift ? <CoverLift>{box}</CoverLift> : box
 }
 
 /** Section heading: Home's SectionTitle (24/700), a quiet note beside it or, with `right`, at the right edge. */

@@ -15,6 +15,26 @@ import { DUR, type Entry, type Phase } from './motion'
 
 const easeOut = (t: number) => 1 - Math.pow(1 - t, 3)
 
+/**
+ * Where a change may start counting so that no figure on the way is longer than
+ * the final one (the width reserved for it): a figure counting down from a much
+ * larger one starts at the largest value that fits, between the two. Figures are
+ * tabular, so their length stands in for their width.
+ */
+function fitStart(from: number, to: number, format: (n: number) => string): number {
+  const room = format(to).length
+  if (format(from).length <= room) return from
+  const whole = Number.isInteger(from) && Number.isInteger(to)
+  let lo = to, hi = from // format(lo) fits, format(hi) does not; |hi - lo| shrinks
+  for (let k = 0; k < 40 && Math.abs(hi - lo) > (whole ? 1 : 1e-6); k++) {
+    const mid = whole ? Math.trunc((lo + hi) / 2) : (lo + hi) / 2
+    if (mid === lo || mid === hi) break
+    if (format(mid).length <= room) lo = mid
+    else hi = mid
+  }
+  return lo
+}
+
 export function CountUp({ entry, value, format, delay = 0, align = 'start', className }: {
   entry: Entry
   value: number
@@ -33,7 +53,7 @@ export function CountUp({ entry, value, format, delay = 0, align = 'start', clas
   })
   // The frame loop, shared by the entry (from 0) and a change (from the figure shown).
   const loop = useRef({ raf: 0, shown: 0, running: false })
-  const api = useRef<{ show: (n: number) => void; stop: () => void; count: (from: number, wait: number) => void } | null>(null)
+  const api = useRef<{ show: (n: number) => void; stop: () => void; count: (from: number, wait: number, dur?: number) => void } | null>(null)
   useLayoutEffect(() => {
     const L = loop.current
     const show = (n: number) => {
@@ -41,13 +61,14 @@ export function CountUp({ entry, value, format, delay = 0, align = 'start', clas
       if (paint.current) paint.current.textContent = live.current.format(n)
     }
     const stop = () => { cancelAnimationFrame(L.raf); L.running = false }
-    const count = (from: number, wait: number) => {
+    // The entry counts from zero in DUR.count; a change settles in the shorter DUR.update.
+    const count = (from: number, wait: number, dur: number = DUR.count) => {
       stop()
       const t0 = performance.now() + wait
       const whole = Number.isInteger(from) && Number.isInteger(live.current.value)
       L.running = true
       const step = (now: number) => {
-        const t = Math.min(1, Math.max(0, (now - t0) / DUR.count))
+        const t = Math.min(1, Math.max(0, (now - t0) / dur))
         const v = live.current.value
         const n = from + (v - from) * easeOut(t)
         show(t >= 1 ? v : whole ? Math.round(n) : n)
@@ -78,7 +99,7 @@ export function CountUp({ entry, value, format, delay = 0, align = 'start', clas
     const p = entry.phase
     if (!a || p === 'play' || p === 'wait') return // the entry's loop reads the live value
     const L = loop.current
-    if (prev !== value && entry.update()) a.count(L.running ? L.shown : prev, 0)
+    if (prev !== value && entry.update()) a.count(fitStart(L.running ? L.shown : prev, value, live.current.format), 0, DUR.update)
     else if (!L.running) a.show(value)
   }, [entry, value, final])
   return (

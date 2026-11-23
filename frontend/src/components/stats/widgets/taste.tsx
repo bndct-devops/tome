@@ -1,4 +1,5 @@
 // Taste-tab stats widgets (ratings) - chart/content-only, shared by StatsPage and the Lab.
+import { BookLink } from '@/components/motion'
 import {
   ResponsiveContainer,
   BarChart,
@@ -42,7 +43,7 @@ function Stars({ value }: { value: number }) {
 
 function Cover({ id, has, alt }: { id: number | null; has: boolean; alt: string }) {
   return (
-    <div className="h-12 w-8 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center">
+    <div data-cover-id={id && has ? id : undefined} className="h-12 w-8 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center">
       {id && has ? (
         <img src={coverSrc(id, { w: 160 })} alt={alt} className="h-full w-full object-cover" loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
@@ -124,7 +125,7 @@ function RatedRow({ b }: { b: Ratings['books'][number] }) {
     <div className="flex items-center gap-2.5">
       <Cover id={b.book_id} has={b.has_cover} alt="" />
       <div className="min-w-0 flex-1">
-        <a href={`/books/${b.book_id}`} className="line-clamp-1 text-sm font-medium text-foreground hover:text-primary transition-colors">{b.title}</a>
+        <BookLink book={{ id: b.book_id, title: b.title }} className="line-clamp-1 text-sm font-medium text-foreground hover:text-primary transition-colors">{b.title}</BookLink>
         {b.author && <p className="truncate text-[13px] text-muted-foreground">{b.author}</p>}
       </div>
       <Stars value={b.rating} />

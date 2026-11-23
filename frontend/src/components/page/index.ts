@@ -6,3 +6,6 @@ export { Field } from './Field'
 export { Pill, type PillVariant, type PillSize } from './Pill'
 export { Input, Textarea, Select, FormLabel, Checkbox, Radio, PillGroup, INPUT_CLASS } from './Controls'
 export { Glide, GlideGroup } from './Glide'
+// Moved to the motion kit; still exported here for existing imports.
+export { PRESS, PRESS_LABEL } from '@/components/motion/press'
+export { Swap } from '@/components/motion/Swap'

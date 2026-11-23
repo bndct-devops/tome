@@ -3,13 +3,14 @@
 // these pieces so they read as one app even though they stay two pages.
 import { Fragment, useEffect, useRef, useSyncExternalStore, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { useLocation, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { ArrowLeft } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { cn } from '@/lib/utils'
 import { Glide, GlideGroup, PageBody, PageHeader, SectionTitle } from '@/components/page'
 import { m } from 'motion/react'
 import { TomeMark } from '@/components/TomeMark'
+import { crossFade, isPlainClick, routeCommitted } from '@/lib/coverTransition'
 
 // Where a sidebar-placed SectionNav puts its desktop list. SectionSidebar
 // (rendered by AppShell, a parent) registers the element; the nav subscribes,
@@ -19,6 +20,37 @@ const slotSubs = new Set<() => void>()
 function registerSlot(el: HTMLElement | null) { slotEl = el; slotSubs.forEach(f => f()) }
 function subscribeSlot(f: () => void) { slotSubs.add(f); return () => { slotSubs.delete(f) } }
 const readSlot = () => slotEl
+
+// Where Back on a Settings or Admin page goes: the page before the user
+// entered that area, however many sections they visited since. Kept from the
+// router's history index (`idx` in history.state); AppHeader, which every app
+// page renders, reports each location here.
+const AREA = /^\/(settings|admin)(\/|$)/
+let areaStart: number | null = null
+let lastIdx: number | null = null
+const historyIdx = () => (window.history.state as { idx?: unknown } | null)?.idx
+
+/** Records a location for the Settings / Admin Back button. */
+// eslint-disable-next-line react-refresh/only-export-components -- the Back button's history lives beside it
+export function noteLocation(pathname: string) {
+  const idx = historyIdx()
+  if (typeof idx !== 'number') return
+  if (!AREA.test(pathname)) areaStart = null
+  // Entered the area, came back to before its start, or arrived from a page
+  // that reported nothing (so the entries in between are unknown).
+  else if (areaStart == null || idx < areaStart || (lastIdx != null && idx > lastIdx + 1)) areaStart = idx
+  lastIdx = idx
+}
+
+/** Leaves Settings / Admin for the page the user came from, else Home. */
+function useLeaveArea() {
+  const navigate = useNavigate()
+  return () => {
+    const idx = historyIdx()
+    if (typeof idx === 'number' && areaStart != null && areaStart > 0 && idx >= areaStart) navigate(areaStart - 1 - idx)
+    else navigate('/')
+  }
+}
 
 export interface SectionNavItem {
   id: string
@@ -53,7 +85,9 @@ export const TABLE_HEAD = 'text-[12px] font-bold uppercase tracking-[0.1em] text
 export function SectionNav({ items, active, onSelect, label, hrefFor, placement = 'column' }: {
   items: SectionNavItem[]
   active: string | null
-  onSelect: (id: string, e: React.MouseEvent) => void
+  /** Button items (no `hrefFor`) only. With `hrefFor`, a plain click opens the
+   *  section here, replacing the history entry so Back leaves the page in one step. */
+  onSelect?: (id: string, e: React.MouseEvent) => void
   label: string
   hrefFor?: (id: string) => string
   /** `sidebar`: the desktop list renders inside the page's SectionSidebar instead of a column. */
@@ -61,6 +95,27 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
 }) {
   const pillRow = useRef<HTMLDivElement>(null)
   const slot = useSyncExternalStore(subscribeSlot, readSlot, () => null)
+  const navigate = useNavigate()
+
+  // A section is a place inside the page, not a step in the history: it
+  // replaces the entry, with the same short cross-fade a page change gets.
+  function open(id: string, e: React.MouseEvent) {
+    if (!hrefFor) { onSelect?.(id, e); return }
+    if (!isPlainClick(e)) return
+    e.preventDefault()
+    if (id !== active) {
+      const to = hrefFor(id)
+      // The fade ends at the router's commit, capped in crossFade.
+      crossFade(() => {
+        const landed = routeCommitted()
+        navigate(to, { replace: true })
+        return landed
+      })
+    }
+    // A new section starts at its top, also when the old one was scrolled.
+    const main = document.querySelector('main')
+    if (main && main.scrollTop > 0) main.scrollTo({ top: 0 })
+  }
 
   // Keep the active pill in view on phones. Scroll the row itself, sideways
   // only: scrollIntoView would also scroll <main> and cancel the section jump
@@ -80,7 +135,7 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
   function item(s: SectionNavItem, className: string, radius: number, overFills = false) {
     const isActive = s.id === active
     const common = {
-      onClick: (e: React.MouseEvent) => onSelect(s.id, e),
+      onClick: (e: React.MouseEvent) => open(s.id, e),
       'aria-current': isActive ? ('page' as const) : undefined,
       'data-section': s.id,
       className: cn('relative', className, isActive && 'glide-host'),
@@ -182,10 +237,7 @@ export function SectionLayout({ title, eyebrow, nav, sidebar = false, wide = fal
  * simply gone while the page is open.
  */
 export function SectionSidebar({ title }: { title: ReactNode }) {
-  const navigate = useNavigate()
-  const location = useLocation()
-  // The first entry of a session has the key "default": there is nothing to go back to.
-  const back = () => (location.key === 'default' ? navigate('/') : navigate(-1))
+  const back = useLeaveArea()
   return (
     <aside className="hidden md:flex w-64 shrink-0 flex-col bg-frame animate-[section-sidebar-in_240ms_var(--spring)]" data-shell-sidebar>
       <div className="group h-14 shrink-0 flex items-center gap-2 px-5 cursor-default">
@@ -196,7 +248,7 @@ export function SectionSidebar({ title }: { title: ReactNode }) {
         <button
           type="button"
           onClick={back}
-          className="flex w-full items-center gap-2.5 h-9 px-3 rounded-lg text-[14px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          className="flex w-full items-center gap-2.5 h-9 px-3 rounded-lg text-[14px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors touch-feedback"
         >
           <ArrowLeft className="w-4 h-4" />
           <Trans>Back</Trans>

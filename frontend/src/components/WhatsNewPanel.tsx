@@ -56,6 +56,8 @@ function splitEntry(e: WhatsNewEntry): { title: string; body: string } {
 
 export function WhatsNewPanel() {
   const [data, setData] = useState<WhatsNewResponse | null>(null)
+  // Dismissing closes the dialog and keeps the notes, so it can play its exit.
+  const [open, setOpen] = useState(true)
 
   useEffect(() => {
     if (checkedThisSession) return
@@ -79,7 +81,7 @@ export function WhatsNewPanel() {
 
   const dismiss = () => {
     localStorage.setItem(SEEN_KEY, data.version)
-    setData(null)
+    setOpen(false)
   }
 
   const groups = KIND_ORDER.filter((k) => data.entries.some((e) => e.kind === k)).concat(
@@ -92,7 +94,7 @@ export function WhatsNewPanel() {
   // center on the header bar instead of the viewport.
   return createPortal(
     <ModalShell
-      open
+      open={open}
       onClose={dismiss}
       eyebrow={<Trans>Just updated</Trans>}
       title={<Trans>What&apos;s new in Tome {version}</Trans>}

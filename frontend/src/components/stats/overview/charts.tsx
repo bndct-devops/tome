@@ -9,7 +9,7 @@ import type { CSSProperties } from 'react'
 import { formatDuration } from '@/lib/utils'
 import { t, plural } from '@lingui/core/macro'
 import { K, stagger, type Entry } from '@/components/stats/kit/motion'
-import { useTween } from '@/components/stats/kit/tween'
+import { useCrossFade, useTween } from '@/components/stats/kit/tween'
 import { useTips } from '@/components/stats/kit/tip'
 import { HEAT_GAP, columns, heatRadius, tiles, type Bar, type HourGrid, type YearModel } from './model'
 import { inWeekOrder } from '@/lib/weekStart'
@@ -61,7 +61,7 @@ export function BarsChart({ entry, W, H, bars, avg, monthStarts, nDays, weekly, 
   H: number
   bars: Bar[]
   avg: number
-  monthStarts: { index: number; label: string }[]
+  monthStarts: { index: number; date: string; label: string }[]
   nDays: number
   weekly: boolean
   best?: { date: string; seconds: number } | null
@@ -180,7 +180,7 @@ export function BarsChart({ entry, W, H, bars, avg, monthStarts, nDays, weekly, 
       {monthStarts.map((m) => {
         const x = Math.round(padL + (m.index / nDays) * plotW) + 0.5
         return (
-          <g key={m.index}>
+          <g key={m.date} data-k={`month-${m.date}`} data-kt="move">
             <line x1={x} x2={x} y1={by} y2={by + 5} stroke={TICK} shapeRendering="crispEdges" />
             <text x={x + 4} y={H - 6}>{m.label}</text>
           </g>
@@ -236,12 +236,15 @@ export function HourHeat({ entry, W, grid, byCol, colN, two, histH, loading }: {
   }, { x: 1, y: ncol })
   // The time per hour moves to the new range's heights; the cells take their new shade at once.
   const tw = useTween(entry, loading ? null : byCol, `${W}:${two}`)
+  // The cells take their new shade under a fading copy of the old ones.
+  const xf = useCrossFade(entry, loading ? null : grid.map((row) => row.map((c) => c.lv).join('')).join('|'), `${W}:${two}`)
   if (loading) return <Placeholder W={W} H={H} x={labelW} h={heatH} />
   const maxH = Math.max(1, ...byCol)
   const base = hy + histH
   const perHour = two ? 0.5 : 1
   return (
     <svg {...tips} className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading time by hour and weekday`}>
+      <g ref={xf}>
       {grid.map((row, r) => (
         <g key={r}>
           <text x={labelW - 8} y={r * rp + cell / 2 + 4} textAnchor="end">{days[r]}</text>
@@ -250,6 +253,7 @@ export function HourHeat({ entry, W, grid, byCol, colN, two, histH, loading }: {
           ))}
         </g>
       ))}
+      </g>
       <g ref={tw} className="k-bars">
       {byCol.map((s, k) => {
         const h = Math.round((s / maxH) * histH)
@@ -277,7 +281,7 @@ export function HourHeat({ entry, W, grid, byCol, colN, two, histH, loading }: {
 }
 
 // ── The year ──────────────────────────────────────────────────────────────────
-export function YearGrid({ W, year, weeks, loading }: { W: number; year: YearModel; weeks: number | null; loading?: boolean }) {
+export function YearGrid({ entry, W, year, weeks, loading }: { entry: Entry; W: number; year: YearModel; weeks: number | null; loading?: boolean }) {
   const firstCol = weeks ? Math.max(0, year.cols - weeks) : 0
   const n = weeks ?? year.cols
   const labelW = 22, gap = 3, top = 20
@@ -290,10 +294,13 @@ export function YearGrid({ W, year, weeks, loading }: { W: number; year: YearMod
     if (!c) return null
     return { title: fmtLong(c.date), value: c.s > 0 ? formatDuration(c.s) : t`No reading`, note: c.s > 0 ? sessionsLine(c.n, c.pages) : undefined }
   }, { x: 7, y: 1 })
+  // The days take their new shade (and the months their place) under a fading copy of the old ones.
+  const xf = useCrossFade(entry, loading ? null : `${firstCol}:${year.cells.map((c) => c.lv).join('')}`, `${W}:${n}`)
   if (loading) return <Placeholder W={W} H={H} x={labelW} y={top} />
   const dayLetters: [number, string][] = [[0, t`M`], [2, t`W`], [4, t`F`]]
   return (
     <svg {...tips} className="block fill-muted-foreground text-[11px] tabular-nums" width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading time per day, last 365 days`}>
+      <g ref={xf}>
       {year.months.map((m) => {
         const c = m.col - firstCol
         if (c < 0 || c > n - 2) return null
@@ -305,6 +312,7 @@ export function YearGrid({ W, year, weeks, loading }: { W: number; year: YearMod
         if (k < 0 || k >= n) return null
         return <rect key={c.date} className={`k-cell ${K.fade}`} style={stagger(k, n)} data-tip-i={i} x={xs[k]} y={top + c.row * rp} width={cell} height={cell} rx={cell >= 14 ? 3 : 2} fill={LV[c.lv]} />
       })}
+      </g>
     </svg>
   )
 }

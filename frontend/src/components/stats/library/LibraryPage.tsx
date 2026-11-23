@@ -15,6 +15,7 @@
 // track and bar has a tip (kit/tip.ts); series, authors and books are links.
 import { useEffect, useMemo, useState, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { BookLink, SeriesLink } from '@/components/motion'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { cn, formatDuration } from '@/lib/utils'
@@ -228,7 +229,7 @@ function SeriesSection({ stats, desktop, width, shape }: Common) {
       ? nextIdx == null ? ' ' : (
           <>
             {s.next_book_id != null ? (
-              <Link to={`/books/${s.next_book_id}`} className="pointer-events-auto relative font-medium text-foreground underline-offset-4 hover:text-primary hover:underline"><Trans>Next: Volume {nextIdx}</Trans></Link>
+              <BookLink book={{ id: s.next_book_id, title: s.series, series: s.series, series_index: s.next_index }} cover={null} className="pointer-events-auto relative font-medium text-foreground underline-offset-4 hover:text-primary hover:underline"><Trans>Next: Volume {nextIdx}</Trans></BookLink>
             ) : (
               <span className="font-medium text-foreground"><Trans>Next: Volume {nextIdx}</Trans></span>
             )}
@@ -237,7 +238,6 @@ function SeriesSection({ stats, desktop, width, shape }: Common) {
           </>
         )
       : <Ph on>{PH.next}</Ph>
-    const seriesHref = s ? `/?tab=series&series_detail=${encodeURIComponent(s.series)}` : ''
     const trackTip = s ? (() => {
       const r = num(s.read), tot = num(s.total)
       const left = s.total - s.read
@@ -249,8 +249,8 @@ function SeriesSection({ stats, desktop, width, shape }: Common) {
     // next volume's own link.
     return (
       <div key={s?.series ?? i} data-box={`series-card-${i}`} className={cn('relative flex min-w-0 items-center gap-4', s && 'group')} style={{ height: cardH }}>
-        {s && <Link to={seriesHref} aria-label={s.series} className="absolute inset-0 rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background" />}
-        <Cover id={s ? s.sample_book_id : null} h={coverH} className={cn('pointer-events-none', s && 'transition-transform duration-200 group-hover:-translate-y-0.5')} />
+        {s && <SeriesLink name={s.series} aria-label={s.series} className="absolute inset-0 rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background" />}
+        <Cover id={s ? s.sample_book_id : null} series={s?.series} h={coverH} className={cn('pointer-events-none', s && 'transition-transform duration-200 group-hover:-translate-y-0.5')} />
         <div className="pointer-events-none relative min-w-0 flex-1">
           <div className={cn('truncate font-semibold leading-[20px] text-foreground transition-colors group-hover:text-primary', desktop ? 'text-[16px]' : 'text-[15px]')}>
             {s ? s.series : <Ph on>{PH.series}</Ph>}
@@ -280,16 +280,16 @@ function SeriesSection({ stats, desktop, width, shape }: Common) {
         const name = s.series
         const read = t`${tot} of ${tot} read`
         return (
-          <Link
+          <SeriesLink
             key={s.series}
-            to={`/?tab=series&series_detail=${encodeURIComponent(s.series)}`}
+            name={s.series}
             aria-label={t`${name}, ${read}`}
             {...tipAttrs({ title: name, value: read, note: t`Complete` })}
             className={cn('group block rounded-[6px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', K.rise)}
             style={stagger(i, doneCount)}
           >
-            <Cover id={s.sample_book_id} h={DONE_COVER_H} className="rounded-[6px] transition-transform duration-200 group-hover:-translate-y-0.5" />
-          </Link>
+            <Cover id={s.sample_book_id} series={s.series} h={DONE_COVER_H} className="rounded-[6px]" lift />
+          </SeriesLink>
         )
       })}
       {doneList.length > shownDone.length && (() => {
@@ -484,7 +484,7 @@ function Authors({ stats, desktop, shape, range, dim }: Common & { range: Range;
             })() : undefined
             const row = cn('block', i >= cols && cn('border-t', HAIR))
             const body = (
-              <div data-k={a ? `a:${a.author}` : undefined} data-kt="move" className="grid h-full grid-cols-[minmax(0,1fr)_auto] grid-rows-[20px_17px_10px] content-center gap-x-4">
+              <div data-k={a ? `a:${a.author}` : undefined} data-kt="move" data-k-col={a ? String(i % cols) : undefined} className="grid h-full grid-cols-[minmax(0,1fr)_auto] grid-rows-[20px_17px_10px] content-center gap-x-4">
                 <span className="truncate text-[15px] font-semibold leading-[20px] text-foreground transition-colors group-hover:text-primary"><Ph on={!a}>{a?.author ?? PH.author}</Ph></span>
                 <span className="text-right text-[14px] leading-[20px] text-muted-foreground"><Ph on={!a}>{a ? <CountUp entry={e} value={a.seconds} format={formatDuration} align="end" /> : PH.dur}</Ph></span>
                 <span className="col-span-2 truncate text-[13px] leading-[17px] text-muted-foreground"><Ph on={!a}>{sub}</Ph></span>

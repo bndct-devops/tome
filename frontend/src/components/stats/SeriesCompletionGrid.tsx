@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom'
 import { FileText } from 'lucide-react'
 import { useChartColors } from '@/lib/useChartAccent'
 import { Trans } from '@lingui/react/macro'
@@ -27,13 +28,9 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
       {data.map(s => (
-        <a
+        <Link
           key={s.sample_book_id ?? s.series}
-          href={`/?tab=series`}
-          onClick={e => {
-            e.preventDefault()
-            window.location.href = `/?series=${encodeURIComponent(s.series)}&tab=books`
-          }}
+          to={`/?series=${encodeURIComponent(s.series)}&tab=books`}
           className="group bg-secondary/50 rounded-[14px] p-4 flex items-start gap-3 hover:bg-secondary transition-colors"
         >
           <div className="w-9 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
@@ -72,7 +69,7 @@ export function SeriesCompletionGrid({ data }: { data: SeriesCompletion[] }) {
               </span>
             </div>
           </div>
-        </a>
+        </Link>
       ))}
     </div>
   )

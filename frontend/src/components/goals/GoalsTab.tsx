@@ -8,6 +8,7 @@
 // the kit's Pending placeholder until the goals are in, and the detail's until
 // its history is in, so nothing drawn moves.
 import { useEffect, useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
@@ -100,7 +101,7 @@ export function GoalsTab() {
   return (
     <div ref={ref} className={cn('flex flex-col', desktop ? 'gap-10' : 'gap-8')}>
       {body}
-      {dialog && goals && <GoalDialog mode={dialog} goals={goals} onClose={() => setDialog(null)} onSaved={(g) => { setSel(g.id) }} />}
+      <AnimatePresence>{dialog && goals && <GoalDialog key="goal" mode={dialog} goals={goals} onClose={() => setDialog(null)} onSaved={(g) => { setSel(g.id) }} />}</AnimatePresence>
     </div>
   )
 }

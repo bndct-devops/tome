@@ -10,6 +10,8 @@ import { useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent, type 
 import { createPortal } from 'react-dom'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Pop } from '@/components/motion'
+import { PRESS } from '@/components/page'
 
 export type MenuOption = { id: string; label: string; group?: string | null }
 
@@ -107,8 +109,11 @@ export function ChoiceMenu({ value, options, groups = [], onPick, label, classNa
       >
         {children}
       </button>
-      {open && createPortal(
-        <div
+      {createPortal(
+        // Opens from the trigger's side (down, or up when placed above) and leaves the same way (Pop).
+        <Pop
+          open={open}
+          origin={`${pos?.up ? 'bottom' : 'top'}-${align === 'end' ? 'right' : 'left'}`}
           ref={menu}
           role="menu"
           aria-label={label}
@@ -131,7 +136,7 @@ export function ChoiceMenu({ value, options, groups = [], onPick, label, classNa
                     tabIndex={-1}
                     onClick={() => { close(); if (!active) onPick(o.id) }}
                     className={cn(
-                      'flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-[14px] outline-none transition-colors focus-visible:ring-2 focus-visible:ring-ring',
+                      'touch-feedback flex h-9 w-full items-center gap-2 rounded-lg px-3 text-left text-[14px] outline-none focus-visible:ring-2 focus-visible:ring-ring', PRESS,
                       active ? 'bg-secondary font-medium text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground focus:bg-secondary focus:text-foreground',
                     )}
                   >
@@ -142,7 +147,7 @@ export function ChoiceMenu({ value, options, groups = [], onPick, label, classNa
               })}
             </div>
           ))}
-        </div>,
+        </Pop>,
         document.body,
       )}
     </>

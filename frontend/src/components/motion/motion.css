@@ -1,0 +1,25 @@
+/* RunningNumber: while a figure runs, a hidden zero-height line before it
+   holds the start and end values, so the box is as wide as the wider one.
+   Generated content stays out of textContent and innerText. */
+.running-number {
+  display: inline-block;
+}
+.running-number[data-reserve]::before {
+  content: attr(data-reserve);
+  display: block;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: pre;
+}
+
+/* CoverLift: a short press on a lifting cover. The tilt transform reads
+   --cover-press (see lib/tilt.ts). */
+.cover-lift:active {
+  --cover-press: 0.97;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cover-lift:active {
+    --cover-press: 1;
+  }
+}

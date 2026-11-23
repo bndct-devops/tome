@@ -1,11 +1,12 @@
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { HelpCircle, ImageDown, Loader2, MoreHorizontal, Plus } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { AppShell } from '@/components/AppShell'
-import { Glide, GlideGroup, PageBody, PageHeader, Pill } from '@/components/page'
+import { Glide, GlideGroup, PageBody, PageHeader, Pill, PRESS, PRESS_LABEL } from '@/components/page'
+import { Pop } from '@/components/motion'
 import { BookAnimation } from '@/components/BookAnimation'
 import { DOCS, docsLink } from '@/lib/docs'
 import { api } from '@/lib/api'
@@ -13,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { boardsTabVisible, customBoardIds, readShowBoards } from '@/lib/statsBoards'
 import type { CompletionEstimate, StatsResponse } from '@/components/stats/shared'
 import { RangeControl } from '@/components/stats/RangeControl'
-import { fmtDay, type CustomRange } from '@/components/stats/range'
+import { fmtDay, RANGES, type CustomRange } from '@/components/stats/range'
 import { Overview } from '@/components/stats/overview/Overview'
 import { FullBleedTimeline } from '@/components/stats/FullBleedTimeline'
 import { HabitsPage } from '@/components/stats/habits/HabitsPage'
@@ -23,9 +24,9 @@ import { SessionsPage } from '@/components/stats/sessions/SessionsPage'
 import { GoalsTab } from '@/components/goals/GoalsTab'
 import { saveSelection } from '@/components/goals/actions'
 import type { StatsTab } from '@/components/stats/kit/page'
-import { dropStatsCache, statsCacheGet, statsFetch } from '@/components/stats/kit/useStatsGet'
+import { beginStatsVisit, dropStatsCache, statsCacheGet, statsFetch, statsFresh, statsPrefetch, useDelayed } from '@/components/stats/kit/useStatsGet'
 import { TipLayer } from '@/components/stats/kit/TipLayer'
-import { finishEntries } from '@/components/stats/kit/motion'
+import { EASE, finishEntries, reducedMotion } from '@/components/stats/kit/motion'
 import { PAGE_W, loadBoardsFlag, loadLocalDashboard, saveBoardsFlag, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
 import { tipAttrs } from '@/components/stats/kit/tip'
 
@@ -58,9 +59,11 @@ const PAGES: { id: TabId; label: MessageDescriptor }[] = [
 // an edit such as a deleted session drops them with the pages' own answers):
 // coming back to the page is instant, the fresh answer replaces it when it arrives.
 // One request per URL while it is in flight (statsFetch), also across tab switches mid-load.
+const statsUrl = (key: string) => `/stats?${key}&tz_offset=${new Date().getTimezoneOffset()}`
 const statsCache = {
   get: (key: string) => statsCacheGet<StatsResponse>(`/stats?${key}`),
-  fetch: (key: string) => statsFetch<StatsResponse>(`/stats?${key}&tz_offset=${new Date().getTimezoneOffset()}`, `/stats?${key}`),
+  fresh: (key: string) => statsFresh(`/stats?${key}`),
+  fetch: (key: string) => statsFetch<StatsResponse>(statsUrl(key), `/stats?${key}`),
 }
 
 // What the page shows (tab, range, board) is this browser's own view state. It
@@ -89,16 +92,26 @@ function loadView(): ViewState {
 
 const rangeKey = (days: number, custom: CustomRange | null) => (custom ? `start=${custom.start}&end=${custom.end}` : `days=${days}`)
 
+// Waits a moment before it shows (a chunk or an answer that lands sooner shows nothing); its place is kept.
 function Spinner() {
+  const late = useDelayed(true)
   return (
     <div className="flex justify-center py-32">
-      <BookAnimation variant="refresh" className="block h-10 w-10 text-primary" />
+      <span className="block h-10 w-10">{late && <BookAnimation variant="refresh" className="block h-10 w-10 text-primary" />}</span>
     </div>
   )
 }
 
+// A tab switch: the new tab is drawn at once and rises from partial opacity (opacity
+// only, on the content's wrapper, which is no box), so nothing waits and nothing moves.
+const TAB_SWAP: Keyframe[] = [{ opacity: 0.55 }, { opacity: 1 }]
+const TAB_SWAP_MS = 160
+// A changed eyebrow (range, or a tab with its own) the same way, quieter.
+const LABEL_SWAP: Keyframe[] = [{ opacity: 0.35 }, { opacity: 1 }]
+
 export function StatsPage() {
-  const [initial] = useState(loadView)
+  // A new visit: answers kept from earlier visits show at once and are asked for again.
+  const [initial] = useState(() => { beginStatsVisit(); return loadView() })
   const [tab, setTab] = useState<TabId>(initial.tab)
   const [days, setDays] = useState(initial.days)
   const [custom, setCustom] = useState<CustomRange | null>(null)
@@ -125,22 +138,16 @@ export function StatsPage() {
     return cached ? { key, data: cached, days, custom } : null
   })
   const [failed, setFailed] = useState(false)
-  // The range last asked for. Coming back to a stats tab asks again only when its
-  // answer was dropped from the cache meanwhile (an edit on the Sessions tab).
-  const asked = useRef<string | null>(null)
   // Bumped to ask again for the same range (an edit on a page, e.g. a book marked read on the Overview).
   const [rev, setRev] = useState(0)
   const refresh = useCallback(() => {
     dropStatsCache('/stats')
-    asked.current = null
     setRev((r) => r + 1)
   }, [])
+  // A range asked for during this visit is not asked for again. Coming back to a stats
+  // tab asks again only when its answer was dropped meanwhile (an edit on the Sessions tab).
   useEffect(() => {
-    if (!wantStats) return
-    const cached = statsCache.get(key)
-    if (cached && asked.current === key) return
-    asked.current = key
-    if (cached) setStats({ key, data: cached, days, custom })
+    if (!wantStats || statsCache.fresh(key)) return
     setFailed(false)
     // A slow answer for a range the user has already left must not paint over
     // the current one: only the latest request may set state.
@@ -152,9 +159,24 @@ export function StatsPage() {
     return () => { current = false }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- key names days and custom
   }, [key, wantStats, tab, rev])
-  // A range change keeps the previous answer on screen, dimmed, until this one lands.
-  const pending = !!stats && stats.key !== key
-  const data = stats?.data ?? null
+  // A cached range shows from the first frame; any other keeps the previous answer on
+  // screen, dimmed (after a short wait), until its own lands.
+  const hit = wantStats ? statsCache.get(key) : undefined
+  const shown: Answer | null = hit ? { key, data: hit, days, custom } : stats
+  const pending = !hit && !!stats && stats.key !== key
+  const showPending = useDelayed(pending)
+  const data = shown?.data ?? null
+
+  // Once the range on screen has its answer: the other preset ranges, quietly, one at a
+  // time, so switching to them later is instant. Started again after an edit drops them.
+  const ready = !!hit
+  useEffect(() => {
+    if (!wantStats || !ready) return
+    const ctl = new AbortController()
+    const others = RANGES.map((p) => `days=${p.days}`).filter((k) => k !== key)
+    statsPrefetch(others.map((k) => ({ url: statsUrl(k), key: `/stats?${k}` })), ctl.signal)
+    return () => ctl.abort()
+  }, [wantStats, ready, key, rev])
 
   // Second wave, started with the main request rather than after it.
   const [estimates, setEstimates] = useState<CompletionEstimate[] | null>(null)
@@ -238,6 +260,7 @@ export function StatsPage() {
     setShotBusy(true)
     // Sections still waiting to be scrolled to (or mid-entry) are drawn final in the image.
     finishEntries()
+    for (const a of contentRef.current?.getAnimations() ?? []) a.finish()
     const bg = getComputedStyle(document.body).backgroundColor
     import('html-to-image')
       .then(({ toPng }) => toPng(node, { pixelRatio: 2, backgroundColor: bg }))
@@ -282,11 +305,31 @@ export function StatsPage() {
 
   const tabs = useMemo(() => PAGES.filter((p) => p.id !== 'boards' || boardsShown), [boardsShown])
 
+  // The tab-switch rise (TAB_SWAP); not on the page's first frame.
+  const lastTab = useRef(shownTab)
+  useLayoutEffect(() => {
+    if (lastTab.current === shownTab) return
+    lastTab.current = shownTab
+    const el = contentRef.current
+    if (!el || reducedMotion()) return
+    for (const a of el.getAnimations()) a.cancel()
+    el.animate(TAB_SWAP, { duration: TAB_SWAP_MS, easing: EASE })
+  }, [shownTab])
+  const eyebrowText = rangeless ? 'sessions' : periods ? 'periods' : allTime || shownTab === 'library' ? 'all' : rangeLabel
+  const eyebrowRef = useRef<HTMLSpanElement>(null)
+  const lastEyebrow = useRef(eyebrowText)
+  useLayoutEffect(() => {
+    if (lastEyebrow.current === eyebrowText) return
+    lastEyebrow.current = eyebrowText
+    if (!eyebrowRef.current || reducedMotion()) return
+    eyebrowRef.current.animate(LABEL_SWAP, { duration: TAB_SWAP_MS, easing: EASE })
+  }, [eyebrowText])
+
   let content: ReactNode
   if (failed && !data) {
     content = <p className="py-32 text-center text-[14px] text-muted-foreground"><Trans>Couldn’t load stats.</Trans></p>
   } else if (shownTab === 'overview') {
-    content = <Overview stats={data} estimates={estimates} pending={pending} days={stats?.days ?? days} custom={stats ? stats.custom : custom} requested={{ days, custom }} onAllBooks={() => goto('library', 'stats-all-books')} onRefresh={refresh} onGoals={(id) => { if (id != null) saveSelection({ id, kind: '' }); goto('goals') }} />
+    content = <Overview stats={data} estimates={estimates} pending={pending} days={shown?.days ?? days} custom={shown ? shown.custom : custom} requested={{ days, custom }} onAllBooks={() => goto('library', 'stats-all-books')} onRefresh={refresh} onGoals={(id) => { if (id != null) saveSelection({ id, kind: '' }); goto('goals') }} />
   } else if (shownTab === 'goals') {
     content = <GoalsTab />
   } else if (shownTab === 'timeline') {
@@ -294,7 +337,7 @@ export function StatsPage() {
   } else if (shownTab === 'sessions') {
     content = <SessionsPage />
   } else if (shownTab === 'habits' || shownTab === 'library' || shownTab === 'taste') {
-    const props = { stats: data, pending, days: stats?.days ?? days, custom: stats ? stats.custom : custom, requested: { days, custom }, goto }
+    const props = { stats: data, pending, days: shown?.days ?? days, custom: shown ? shown.custom : custom, requested: { days, custom }, goto }
     content = shownTab === 'habits' ? <HabitsPage {...props} /> : shownTab === 'library' ? <LibraryPage {...props} /> : <TastePage {...props} />
   } else if (!data) {
     content = <Spinner />
@@ -327,7 +370,7 @@ export function StatsPage() {
         <div className="flex flex-col gap-5">
           <div className="relative">
             <PageHeader
-              eyebrow={rangeless ? <Trans>All sessions</Trans> : periods ? <Trans>This week, month and year</Trans> : allTime || shownTab === 'library' ? <Trans>All time</Trans> : rangeLabel}
+              eyebrow={<span ref={eyebrowRef} className="inline-block">{rangeless ? <Trans>All sessions</Trans> : periods ? <Trans>This week, month and year</Trans> : allTime || shownTab === 'library' ? <Trans>All time</Trans> : rangeLabel}</span>}
               title={
                 <span className="inline-flex items-center gap-2">
                   <Trans>Stats</Trans>
@@ -371,30 +414,26 @@ export function StatsPage() {
                     <Pill variant={menuOpen ? 'secondary' : 'quiet'} icon onClick={() => setMenuOpen((o) => !o)} aria-label={t`More`} aria-expanded={menuOpen}>
                       <MoreHorizontal className="h-4 w-4" />
                     </Pill>
-                    {menuOpen && (
-                      <>
-                        <div className="fixed inset-0 z-40" onPointerDown={() => setMenuOpen(false)} />
-                        <div className="absolute right-0 top-full z-50 mt-1.5 w-56 rounded-xl bg-card p-1.5 text-[14px] shadow-lg ring-1 ring-panel-ring">
-                          <button
-                            type="button"
-                            onClick={createBoard}
-                            disabled={!dashReady}
-                            className="flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-foreground transition hover:bg-secondary disabled:opacity-50"
-                          >
-                            <Plus className="h-3.5 w-3.5 text-muted-foreground" /> <Trans>New board</Trans>
-                          </button>
-                          <p className="px-2.5 pb-1 pt-0.5 text-[12px] leading-snug text-muted-foreground">
-                            <Trans>A board of your own, with tiles you place yourself.</Trans>
-                          </p>
-                        </div>
-                      </>
-                    )}
+                    {menuOpen && <div className="fixed inset-0 z-40" onPointerDown={() => setMenuOpen(false)} />}
+                    <Pop open={menuOpen} origin="top-right" className="absolute right-0 top-full z-50 mt-1.5 w-56 rounded-xl bg-card p-1.5 text-[14px] shadow-lg ring-1 ring-panel-ring">
+                      <button
+                        type="button"
+                        onClick={createBoard}
+                        disabled={!dashReady}
+                        className={cn('touch-feedback flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-foreground hover:bg-secondary disabled:opacity-50', PRESS)}
+                      >
+                        <Plus className="h-3.5 w-3.5 text-muted-foreground" /> <Trans>New board</Trans>
+                      </button>
+                      <p className="px-2.5 pb-1 pt-0.5 text-[12px] leading-snug text-muted-foreground">
+                        <Trans>A board of your own, with tiles you place yourself.</Trans>
+                      </p>
+                    </Pop>
                   </div>}
                 </div>
               }
             />
             {/* A range change in flight: a thin line under the header, placed so it moves nothing. */}
-            {pending && (
+            {showPending && (
               <div className="pointer-events-none absolute inset-x-0 -bottom-[11px] h-[2px] overflow-hidden rounded-full" style={{ background: 'color-mix(in oklch, var(--primary) 22%, transparent)' }} role="progressbar" aria-label={t`Loading the new range`}>
                 <div className="h-full w-[38%] rounded-full bg-primary" style={{ animation: 'stats-pending 1.1s ease-in-out infinite' }} />
               </div>
@@ -411,12 +450,12 @@ export function StatsPage() {
                 aria-selected={shownTab === p.id}
                 onClick={() => setTab(p.id)}
                 className={cn(
-                  'relative h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-[14px] font-medium transition-colors',
+                  'group/pg relative h-9 shrink-0 whitespace-nowrap rounded-full px-4 text-[14px] font-medium transition-colors',
                   shownTab === p.id ? 'text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
                 )}
               >
                 {shownTab === p.id && <Glide behind className="bg-secondary" />}
-                {i18n._(p.label)}
+                <span className={PRESS_LABEL}>{i18n._(p.label)}</span>
               </button>
             ))}
           </div>

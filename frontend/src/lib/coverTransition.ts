@@ -1,18 +1,37 @@
 import '@/styles/view-transitions.css'
 
 /**
- * The cover you click grows into the book page's hero cover, and Back sends
- * it to its place in the list. Built on the View Transitions API: the clicked
- * cover and the hero cover share one `view-transition-name` for the length of
- * the transition, the rest of the page cross-fades. Without the API, or under
- * reduced motion, navigation happens as before.
+ * The cover you click grows into the page's hero cover, and Back sends it to
+ * its place again. Built on the View Transitions API: the clicked cover and
+ * the hero share one `view-transition-name` for the length of the transition,
+ * the rest of the page cross-fades. Without the API, or under reduced motion,
+ * navigation happens as before.
  *
- * Covers mark themselves with `data-cover-id`, the hero with `data-hero-cover`.
+ * Markers:
+ *   book    covers `data-cover-id={book.id}`, the book page hero `data-hero-cover={id}`
+ *   series  covers `data-series-cover={name}`, the series page hero `data-series-hero={name}`
+ *
+ * Call sites do not use this module directly: `BookLink` / `useBookNav` and
+ * `useSeriesNav` in components/motion wrap it.
+ *
+ * Back: every navigation that starts here remembers the history entry it
+ * left and what it opened. Popping back to that entry while the hero is on
+ * screen holds the router's popstate, captures the page, replays the event
+ * inside the transition and grows the hero back into the matching cover,
+ * whatever page that is (a book page, a series, the library, Stats ...).
+ *
+ * Also hosts the root cross-fade between pages (`crossFade`, used by
+ * components/motion/TransitionRouter): one view transition at a time.
  */
 
 const NAME = 'book-cover'
 // How long the old picture may stay frozen while the new page renders.
 const WAIT_MS = 400
+// Going back: the longest wait for the page's first commit (it is usually
+// rendered from memory at once).
+const BACK_WAIT_MS = 200
+// Page to page: the longest the old picture stays frozen.
+const ROUTE_CAP_MS = 250
 
 /** What a card already knows, handed to the book page through router state so
  *  its hero paints at once instead of a loader. */
@@ -38,10 +57,123 @@ export function readPreview(state: unknown, id: number): BookPreview | null {
   return p && p.id === id ? p : null
 }
 
-let running = false
+/** What a series card knows, handed to the series page so its hero paints
+ *  while the series loads. */
+export interface SeriesPreview {
+  name: string
+  /** The cover the card showed. */
+  cover?: string | null
+}
+
+export function seriesPreviewState(preview: SeriesPreview) {
+  return { seriesPreview: preview }
+}
+
+export function readSeriesPreview(state: unknown, name: string): SeriesPreview | null {
+  const p = (state as { seriesPreview?: SeriesPreview } | null)?.seriesPreview
+  return p && p.name === name ? p : null
+}
+
+type Target = { kind: 'book'; id: number } | { kind: 'series'; name: string }
+
+const sel = (attr: string, value: string | number) => `[${attr}="${CSS.escape(String(value))}"]`
+const coverSel = (t: Target) => t.kind === 'book' ? sel('data-cover-id', t.id) : sel('data-series-cover', t.name)
+const heroSel = (t: Target) => t.kind === 'book' ? sel('data-hero-cover', t.id) : sel('data-series-hero', t.name)
+
 let passThrough = false
 
-function supported(): boolean {
+// ---------------------------------------------------------------------------
+// The one way the app starts a view transition. While the update callback is
+// pending the browser shows a frozen picture of the old page, so every update
+// here settles within a hard cap whatever happens inside it (a promise that
+// never resolves, a render error, a slow or failed chunk). One transition at a
+// time: a new one asked for while another is on screen skips the old one
+// (the page jumps to its new state at once) and applies its own update plainly.
+
+type Mark = 'route' | 'cover' | 'theme'
+const MARK_ATTR: Record<Mark, string> = { route: 'routeTransition', cover: 'coverTransition', theme: 'themeTransition' }
+
+let active: ViewTransition | null = null
+// True while an update callback runs its synchronous part: navigations made
+// there belong to the transition already on screen.
+let applying = false
+
+/** True while a view transition is on screen. */
+export function transitionRunning(): boolean {
+  return active != null
+}
+
+/** True while a transition's update applies a navigation (it brings its own picture). */
+export function insideTransitionUpdate(): boolean {
+  return applying || passThrough
+}
+
+/** Ends the transition on screen at once (the new state shows unanimated). */
+export function skipActiveTransition(): void {
+  active?.skipTransition()
+}
+
+const sleep = (ms: number) => new Promise<void>(r => setTimeout(r, ms))
+
+function callSafely<T>(update: () => T | Promise<T>): Promise<T | undefined> {
+  applying = true
+  try {
+    return Promise.resolve(update()).catch(() => undefined)
+  } catch {
+    return Promise.resolve(undefined)
+  } finally {
+    applying = false
+  }
+}
+
+/**
+ * Runs `update` inside a view transition, the frozen frame held for at most
+ * `capMs`. Under reduced motion, without the API, or when the transition
+ * cannot start, `update` runs plainly. Returns whether a transition started.
+ */
+export function capturedUpdate(mark: Mark, capMs: number, update: () => unknown, onDone?: () => void): boolean {
+  if (!transitionsSupported()) { void callSafely(update); onDone?.(); return false }
+  if (active) { active.skipTransition(); void callSafely(update); onDone?.(); return false }
+  const root = document.documentElement
+  let vt: ViewTransition
+  try {
+    vt = document.startViewTransition(() => Promise.race([callSafely(update), sleep(capMs)]).then(() => {}))
+  } catch {
+    void callSafely(update); onDone?.(); return false
+  }
+  active = vt
+  root.dataset[MARK_ATTR[mark]] = ''
+  vt.ready.catch(() => {})
+  vt.updateCallbackDone.catch(() => {})
+  vt.finished.catch(() => {}).finally(() => {
+    if (active === vt) active = null
+    delete root.dataset[MARK_ATTR[mark]]
+    onDone?.()
+  })
+  return true
+}
+
+// Commits of the router (TransitionRouter reports them): a wait for the new
+// page ends at its commit instead of at a guessed time.
+const commitWaiters = new Set<() => void>()
+
+/** Called by TransitionRouter after each committed location. */
+export function noteRouteCommit(): void {
+  const all = [...commitWaiters]
+  commitWaiters.clear()
+  all.forEach(f => f())
+}
+
+/** Resolves at the router's next commit, or after `ms`. */
+function nextCommit(ms: number): Promise<void> {
+  return new Promise(resolve => {
+    const done = () => { clearTimeout(t); commitWaiters.delete(done); resolve() }
+    const t = setTimeout(done, ms)
+    commitWaiters.add(done)
+  })
+}
+
+export function transitionsSupported(): boolean {
   return typeof document !== 'undefined'
     && typeof document.startViewTransition === 'function'
     && !window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -52,14 +184,40 @@ function onScreen(el: Element): boolean {
   return r.width > 0 && r.bottom > 0 && r.top < window.innerHeight && r.right > 0 && r.left < window.innerWidth
 }
 
-/** Resolves with the first element matching `selector`, or null after `ms`. */
-function waitFor(selector: string, ms: number): Promise<Element | null> {
-  const now = document.querySelector(selector)
+/** The on-screen element matching `selector`, the one nearest `near` when several are. */
+function visible(selector: string, near?: Element | null): HTMLElement | null {
+  const all = Array.from(document.querySelectorAll<HTMLElement>(selector)).filter(onScreen)
+  if (all.length <= 1 || !near) return all[0] ?? null
+  const n = near.getBoundingClientRect()
+  const dist = (el: HTMLElement) => {
+    const r = el.getBoundingClientRect()
+    return Math.hypot(r.left + r.width / 2 - n.left - n.width / 2, r.top + r.height / 2 - n.top - n.height / 2)
+  }
+  return all.reduce((a, b) => (dist(b) < dist(a) ? b : a))
+}
+
+/** The on-screen cover of a book, nearest `near` (the clicked link) when given. */
+export function findBookCover(id: number, near?: Element | null): HTMLElement | null {
+  return typeof document === 'undefined' ? null : visible(coverSel({ kind: 'book', id }), near)
+}
+
+/** The on-screen cover of a series, nearest `near` when given. */
+export function findSeriesCover(name: string, near?: Element | null): HTMLElement | null {
+  return typeof document === 'undefined' ? null : visible(coverSel({ kind: 'series', name }), near)
+}
+
+/** Resolves with an on-screen element matching `selector`, or null after `ms`.
+ *  Polls as well as observing: a restored scroll brings an element on screen
+ *  without a DOM change. */
+function waitFor(selector: string, ms: number): Promise<HTMLElement | null> {
+  const now = visible(selector)
   if (now) return Promise.resolve(now)
   return new Promise(resolve => {
-    const done = (el: Element | null) => { obs.disconnect(); clearTimeout(timer); resolve(el) }
-    const obs = new MutationObserver(() => { const el = document.querySelector(selector); if (el) done(el) })
+    const check = () => { const el = visible(selector); if (el) done(el) }
+    const done = (el: HTMLElement | null) => { obs.disconnect(); clearInterval(poll); clearTimeout(timer); resolve(el) }
+    const obs = new MutationObserver(check)
     obs.observe(document.body, { childList: true, subtree: true })
+    const poll = setInterval(check, 16)
     const timer = setTimeout(() => done(null), ms)
   })
 }
@@ -75,36 +233,62 @@ async function decoded(el: Element) {
 }
 
 function run(from: HTMLElement, update: () => Promise<HTMLElement | null>) {
-  running = true
-  const root = document.documentElement
-  root.dataset.coverTransition = ''
-  from.style.viewTransitionName = NAME
+  // Names are set only while the transition is still waiting for them: an
+  // update cut off by the cap must not name an element later.
+  let open = true
   let to: HTMLElement | null = null
-  const vt = document.startViewTransition(async () => {
+  from.style.viewTransitionName = NAME
+  const started = capturedUpdate('cover', WAIT_MS, async () => {
+    const until = performance.now() + WAIT_MS - 10
     from.style.viewTransitionName = ''
-    to = await update()
-    if (to) to.style.viewTransitionName = NAME
-  })
-  vt.finished.catch(() => {}).finally(() => {
+    const el = await update()
+    if (open && el && performance.now() < until) { to = el; el.style.viewTransitionName = NAME }
+  }, () => {
+    open = false
     from.style.viewTransitionName = ''
     if (to) to.style.viewTransitionName = ''
-    delete root.dataset.coverTransition
-    running = false
+  })
+  if (!started) from.style.viewTransitionName = ''
+}
+
+// History entry a cover navigation left -> what it opened.
+const origins = new Map<string, Target>()
+
+// The router's entry key; the entry the app was loaded on has only its index.
+function historyKey(state: unknown): string | null {
+  const s = state as { key?: unknown; idx?: unknown } | null
+  if (typeof s?.key === 'string') return s.key
+  return typeof s?.idx === 'number' ? `idx:${s.idx}` : null
+}
+
+function open(target: Target, cover: HTMLElement | null, go: () => void) {
+  const here = historyKey(window.history.state)
+  if (here) {
+    if (cover) origins.set(here, target)
+    else origins.delete(here)
+  }
+  if (!cover || active || !transitionsSupported() || !onScreen(cover)) { skipActiveTransition(); go(); return }
+  run(cover, async () => {
+    go()
+    // The hero paints in the first commit (it holds the card's preview).
+    const hero = await waitFor(heroSel(target), WAIT_MS - 130)
+    if (hero) await decoded(hero)
+    return hero
   })
 }
 
 /**
  * Navigates to a book page with the cover transition. `cover` is the clicked
- * cover's box; `go` performs the navigation.
+ * cover's box (null: no cover to grow, navigate plainly); `go` performs the
+ * navigation.
  */
 export function openBookWithCover(cover: HTMLElement | null, bookId: number, go: () => void) {
-  if (!cover || running || !supported() || !onScreen(cover)) { go(); return }
-  run(cover, async () => {
-    go()
-    const hero = await waitFor(`[data-hero-cover="${bookId}"]`, WAIT_MS) as HTMLElement | null
-    if (hero) await decoded(hero)
-    return hero
-  })
+  open({ kind: 'book', id: bookId }, cover, go)
+}
+
+/** Navigates to a series page, growing `cover` into its hero. */
+export function openSeriesWithCover(cover: HTMLElement | null, name: string, go: () => void) {
+  open({ kind: 'series', name }, cover, go)
 }
 
 /** True for a plain left click (no modifier) that a link handler may take over. */
@@ -112,24 +296,46 @@ export function isPlainClick(e: { button: number; metaKey: boolean; ctrlKey: boo
   return !e.defaultPrevented && e.button === 0 && !e.metaKey && !e.ctrlKey && !e.shiftKey && !e.altKey
 }
 
-// Back / forward from a book page to the library: the router's popstate
+/**
+ * Cross-fades the whole page around `update`, which applies the navigation
+ * and resolves once the new page is in. The frozen frame is held for at most
+ * ROUTE_CAP_MS. Under reduced motion and without the API the update runs
+ * plainly; while another transition is on screen that one is skipped.
+ */
+export function crossFade(update: () => unknown): void {
+  capturedUpdate('route', ROUTE_CAP_MS, update)
+}
+
+/** Resolves at the router's next commit, or after the route cap. */
+export function routeCommitted(): Promise<void> {
+  return nextCommit(ROUTE_CAP_MS)
+}
+
+// Back / forward to the entry a cover navigation left: the router's popstate
 // listener is held back (this capture listener on window runs first), the
 // old page is captured, then the event is replayed inside the transition.
+// The cover travels only when the card is on screen in the page's first
+// committed frame (the library restores its scroll in that commit); otherwise
+// the transition ends at once rather than holding the old picture.
 if (typeof window !== 'undefined') {
   window.addEventListener('popstate', e => {
-    if (passThrough || running || !supported()) return
-    const hero = document.querySelector<HTMLElement>('[data-hero-cover]')
-    if (!hero || !onScreen(hero) || window.location.pathname !== '/') return
-    const id = hero.dataset.heroCover
+    if (passThrough || active || !transitionsSupported()) return
+    const key = historyKey(e.state)
+    const target = key ? origins.get(key) : undefined
+    if (!target) return
+    const hero = visible(heroSel(target))
+    if (!hero) return
     e.stopImmediatePropagation()
     const state = e.state
     run(hero, async () => {
       passThrough = true
+      const committed = nextCommit(BACK_WAIT_MS)
       try { window.dispatchEvent(new PopStateEvent('popstate', { state })) } finally { passThrough = false }
-      const landed = await waitFor('[data-dashboard]', WAIT_MS)
-      if (!landed) return null
-      // The library restores its scroll in the same commit the cards arrive in.
-      const card = Array.from(document.querySelectorAll<HTMLElement>(`[data-cover-id="${id}"]`)).find(onScreen) ?? null
+      await committed
+      const card = visible(coverSel(target))
+      // No card where the hero could land: show the page as it is.
+      if (!card) { skipActiveTransition(); return null }
+      await decoded(card)
       return card
     })
   }, true)

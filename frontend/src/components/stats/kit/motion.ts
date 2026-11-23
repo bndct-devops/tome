@@ -31,16 +31,19 @@
 // inside a section, never on a [data-box] element, so no box moves.
 import { useLayoutEffect, useState, type CSSProperties } from 'react'
 import type { CustomRange } from '@/components/stats/range'
+import { EASE_CSS } from '@/components/motion/presets'
 import './motion.css'
 
 /** The app's motion ease (quick look, modals, menus, the library grid). */
-export const EASE = 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+export const EASE = EASE_CSS
 /** Durations in ms; mirrored as CSS variables in motion.css. */
-export const DUR = { grow: 520, fade: 300, draw: 420, drawDelay: 220, count: 650 } as const
+export const DUR = { grow: 520, fade: 300, draw: 420, drawDelay: 220, count: 650, update: 360 } as const
 /** Marks start at most `max` ms apart in all, `step` ms apart at most per mark. */
 export const STAGGER = { step: 24, max: 200 } as const
 /** Longest entry: the last mark's delay plus the longest animation. */
 const TOTAL = Math.max(DUR.grow + STAGGER.max, DUR.drawDelay + DUR.draw, DUR.count) + 80
+/** Longest change (phase 'update'): figures and marks settle in DUR.update, bars a little apart (tween.ts). */
+const UPDATE_TOTAL = DUR.update + 120 + 80
 
 /** Class names of the animated marks (see motion.css). */
 export const K = { grow: 'k-grow', growX: 'k-grow-x', fade: 'k-fade', rise: 'k-rise', draw: 'k-draw', wipe: 'k-wipe' } as const
@@ -102,7 +105,7 @@ export class Entry {
     if (p === 'play') {
       played.set(this.scope, this.sig ?? '')
       this.timer = window.setTimeout(() => this.set('done'), TOTAL)
-    } else if (p === 'update') this.timer = window.setTimeout(() => this.set('done'), TOTAL)
+    } else if (p === 'update') this.timer = window.setTimeout(() => this.set('done'), UPDATE_TOTAL)
     else if (p === 'wait') this.observe()
     for (const fn of this.subs) fn(p)
   }
@@ -131,7 +134,7 @@ export class Entry {
     if (this.phase !== 'update') this.set('update')
     else {
       window.clearTimeout(this.timer)
-      this.timer = window.setTimeout(() => this.set('done'), TOTAL)
+      this.timer = window.setTimeout(() => this.set('done'), UPDATE_TOTAL)
     }
     return true
   }
@@ -141,7 +144,7 @@ export class Entry {
   /** Re-arm after a remount of the effect (StrictMode runs effects twice). */
   resume() {
     if (this.phase === 'wait') this.observe()
-    else if (this.phase === 'play' || this.phase === 'update') this.timer = window.setTimeout(() => this.set('done'), TOTAL)
+    else if (this.phase === 'play' || this.phase === 'update') this.timer = window.setTimeout(() => this.set('done'), this.phase === 'play' ? TOTAL : UPDATE_TOTAL)
   }
 
   stop() {

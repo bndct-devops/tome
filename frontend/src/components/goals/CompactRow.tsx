@@ -6,6 +6,7 @@ import { ChevronRight } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { cn } from '@/lib/utils'
+import { PRESS } from '@/components/page'
 import type { Goal } from '@/lib/goals'
 import { COMPACT_MAX } from '@/lib/goalsModel'
 import { Heading, Ph } from '@/components/stats/kit/Kit'
@@ -73,7 +74,7 @@ export function CompactRow({ goals, count, today, desktop, open }: {
               className={cn('min-w-0', desktop ? cn('px-6', i === 0 && 'pl-0', i > 0 && cn('border-l', HAIR)) : cn(i % 2 === 0 ? 'pr-3' : cn('border-l pl-4', HAIR)))}
             >
               {g ? (
-                <button type="button" onClick={() => open(g.id)} className="block w-full rounded-[8px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background">
+                <button type="button" onClick={() => open(g.id)} className={cn('block w-full rounded-[8px] text-left touch-feedback focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background', PRESS)}>
                   {inner}
                 </button>
               ) : <div aria-hidden="true">{inner}</div>}

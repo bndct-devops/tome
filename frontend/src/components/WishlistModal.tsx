@@ -2,9 +2,11 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import { Trans, Plural } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { Search, Loader2, BookOpen, Layers, ChevronLeft } from 'lucide-react'
+import { AnimatePresence, m } from 'motion/react'
 import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
-import { FormLabel, Input, Pill, Textarea } from '@/components/page'
+import { FormLabel, Input, Pill, PillGroup, Textarea } from '@/components/page'
+import { EASE, Unfold, listItem } from '@/components/motion'
 import {
   searchWishCandidates,
   searchWishSeries,
@@ -22,14 +24,19 @@ interface Props {
 
 type Mode = 'book' | 'series'
 
-const RESULT_ROW = 'group w-full flex items-start gap-4 py-3 text-left'
+const RESULT_ROW = 'group w-full flex items-start gap-4 py-3 text-left touch-feedback'
+
+// A new step of the dialog (search, manual form, confirm) rises into place
+// from part opacity; the step it replaces goes at once.
+const STEP_IN = { opacity: 0.5, y: 6 }
+const STEP_TRANSITION = { duration: 0.16, ease: EASE }
 
 function Thumb({ url, series = false }: { url: string | null; series?: boolean }) {
   // OpenLibrary answers a missing cover with a 1x1 image, not a 404: treat a
   // tiny image like a failed one and draw the placeholder icon instead.
-  const [failed, setFailed] = useState(false)
-  useEffect(() => { setFailed(false) }, [url])
-  const show = !!url && !failed
+  const [failedUrl, setFailedUrl] = useState<string | null>(null)
+  const show = !!url && failedUrl !== url
+  const setFailed = () => setFailedUrl(url)
   return (
     <div className="w-11 h-16 rounded-[8px] bg-muted shrink-0 overflow-hidden flex items-center justify-center" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
       {show ? (
@@ -37,8 +44,8 @@ function Thumb({ url, series = false }: { url: string | null; series?: boolean }
           src={url}
           alt=""
           className="w-full h-full object-cover"
-          onError={() => setFailed(true)}
-          onLoad={e => { if (e.currentTarget.naturalWidth <= 2) setFailed(true) }}
+          onError={setFailed}
+          onLoad={e => { if (e.currentTarget.naturalWidth <= 2) setFailed() }}
         />
       ) : series ? (
         <Layers className="w-4 h-4 text-muted-foreground/60" />
@@ -239,6 +246,11 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
   /* eslint-enable lingui/no-unlocalized-strings */
 
   const inSearchState = !manualMode && !selected && !selectedSeries
+  const step = manualMode ? 'manual' : selectedSeries ? 'series' : selected ? 'book' : 'search'
+  // The first step shows with the dialog; only later changes rise in.
+  const [lastStep, setLastStep] = useState(step)
+  const [stepped, setStepped] = useState(false)
+  if (lastStep !== step) { setLastStep(step); setStepped(true) }
 
   return (
     <ModalShell
@@ -268,29 +280,25 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
         </>
       }
     >
-        <div className="space-y-4">
+        <m.div
+          key={step}
+          initial={stepped ? STEP_IN : false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={STEP_TRANSITION}
+          className="space-y-4"
+        >
           {inSearchState && (
             <>
               {/* Book / Series mode: Series only when Hardcover is configured */}
               {seriesAvailable && (
-                <div className="flex items-center gap-1.5">
-                  <Pill
-                    variant={searchMode === 'book' ? 'secondary' : 'quiet'}
-                    onClick={() => switchMode('book')}
-                    aria-pressed={searchMode === 'book'}
-                  >
-                    <BookOpen className="w-4 h-4" />
-                    <Trans>Book</Trans>
-                  </Pill>
-                  <Pill
-                    variant={searchMode === 'series' ? 'secondary' : 'quiet'}
-                    onClick={() => switchMode('series')}
-                    aria-pressed={searchMode === 'series'}
-                  >
-                    <Layers className="w-4 h-4" />
-                    <Trans>Series</Trans>
-                  </Pill>
-                </div>
+                <PillGroup
+                  value={searchMode}
+                  onChange={switchMode}
+                  options={[
+                    { value: 'book', label: <span className="inline-flex items-center gap-1.5"><BookOpen className="w-4 h-4" /><Trans>Book</Trans></span> },
+                    { value: 'series', label: <span className="inline-flex items-center gap-1.5"><Layers className="w-4 h-4" /><Trans>Series</Trans></span> },
+                  ]}
+                />
               )}
 
               {/* Search box */}
@@ -311,9 +319,11 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
 
               {/* Book candidates */}
               {searchMode === 'book' && candidates.length > 0 && (
-                <div>
+                <div className="relative">
+                  <AnimatePresence mode="popLayout" initial={false}>
                   {candidates.slice(0, 5).map((c, i) => (
-                    <button
+                    <m.button
+                      {...listItem}
                       key={`${c.source}-${c.source_id}-${i}`}
                       onClick={() => selectCandidate(c)}
                       className={cn(RESULT_ROW, i > 0 && 'border-t border-border/70')}
@@ -331,16 +341,19 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
                           {SOURCE_LABEL[c.source] ?? c.source}
                         </span>
                       </div>
-                    </button>
+                    </m.button>
                   ))}
+                  </AnimatePresence>
                 </div>
               )}
 
               {/* Series results */}
               {searchMode === 'series' && seriesResults.length > 0 && (
-                <div>
+                <div className="relative">
+                  <AnimatePresence mode="popLayout" initial={false}>
                   {seriesResults.map((s, i) => (
-                    <button
+                    <m.button
+                      {...listItem}
                       key={`${s.source}-${s.source_id}`}
                       onClick={() => { setSelectedSeries(s); setError(null) }}
                       className={cn(RESULT_ROW, i > 0 && 'border-t border-border/70')}
@@ -353,8 +366,9 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
                           <p className="text-[13px] text-muted-foreground"><Plural value={s.total} one="# volume" other="# volumes" /></p>
                         )}
                       </div>
-                    </button>
+                    </m.button>
                   ))}
+                  </AnimatePresence>
                 </div>
               )}
 
@@ -452,28 +466,20 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
                 </div>
               </div>
 
-              <div className="flex items-center gap-1.5">
-                <Pill
-                  variant={!wishWholeSeries ? 'secondary' : 'quiet'}
-                  onClick={() => setWishWholeSeries(false)}
-                  aria-pressed={!wishWholeSeries}
-                >
-                  <Trans>This volume</Trans>
-                </Pill>
-                <Pill
-                  variant={wishWholeSeries ? 'secondary' : 'quiet'}
-                  onClick={() => {
-                    setWishWholeSeries(true)
-                    setSeriesNameDraft(deriveSeriesName(selected))
-                  }}
-                  aria-pressed={wishWholeSeries}
-                >
-                  <Layers className="w-4 h-4" />
-                  <Trans>Whole series</Trans>
-                </Pill>
-              </div>
+              <PillGroup
+                value={wishWholeSeries ? 'series' : 'volume'}
+                onChange={v => {
+                  if (v === 'volume') { setWishWholeSeries(false); return }
+                  setWishWholeSeries(true)
+                  setSeriesNameDraft(deriveSeriesName(selected))
+                }}
+                options={[
+                  { value: 'volume', label: <Trans>This volume</Trans> },
+                  { value: 'series', label: <span className="inline-flex items-center gap-1.5"><Layers className="w-4 h-4" /><Trans>Whole series</Trans></span> },
+                ]}
+              />
 
-              {wishWholeSeries && (
+              <Unfold open={wishWholeSeries} gap={16}>
                 <div>
                   <FormLabel><Trans>Series name</Trans></FormLabel>
                   <Input
@@ -483,7 +489,7 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
                     />
                   <p className="mt-1.5 text-[13px] text-muted-foreground"><Trans>For precise series tracking, use the <strong>Series</strong> tab instead.</Trans></p>
                 </div>
-              )}
+              </Unfold>
             </>
           )}
 
@@ -515,10 +521,10 @@ export function WishlistModal({ open, onClose, onCreated }: Props) {
             </>
           )}
 
-          {error && (
-            <p className="text-[13px] text-destructive">{error}</p>
-          )}
-        </div>
+        </m.div>
+        <Unfold open={!!error}>
+          <p className="pt-4 text-[13px] text-destructive">{error}</p>
+        </Unfold>
 
     </ModalShell>
   )

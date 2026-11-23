@@ -1,0 +1,30 @@
+/* LibraryGrid: a card that leaves (popped out by AnimatePresence) fades over
+   the one arriving in its place, so the grid cross-changes. */
+[data-item][data-motion-pop-id] {
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* A block below the screen that has not caught up with a view switch yet:
+   an empty box of about its new size (contain-intrinsic-size inline). */
+.library-lag {
+  content-visibility: hidden;
+}
+
+/* ReserveLabel: the label shows in a cell as wide as the widest of
+   data-reserve's lines. Generated content stays out of the accessible name. */
+.reserve-label {
+  display: inline-grid;
+  justify-items: start;
+}
+.reserve-label::before {
+  content: attr(data-reserve);
+  grid-area: 1 / 1;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: pre;
+}
+.reserve-label > span {
+  grid-area: 1 / 1;
+}

@@ -5,6 +5,7 @@ import { useToast } from '@/contexts/ToastContext'
 import type { BookFile } from '@/lib/books'
 import { SendToDeviceModal } from '@/components/SendToDeviceModal'
 import { Trans } from '@lingui/react/macro'
+import { Pop } from '@/components/motion'
 import { t } from '@lingui/core/macro'
 
 interface SendStatus {
@@ -28,9 +29,13 @@ interface SendButtonProps {
  * the caret offers "Send via email…" (the existing SMTP modal). When the inbox
  * is off, it is the plain "Send to Device" button (email modal only).
  */
+// The last answer, so a later page draws the right button at once instead of
+// switching from the plain one to the split one (and moving its neighbours).
+let lastStatus: SendStatus | null = null
+
 export function SendButton({ books, variant = 'rail', disabled, hint }: SendButtonProps) {
   const { toast } = useToast()
-  const [status, setStatus] = useState<SendStatus | null>(null)
+  const [status, setStatus] = useState<SendStatus | null>(lastStatus)
   const [modalOpen, setModalOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [sending, setSending] = useState(false)
@@ -38,7 +43,7 @@ export function SendButton({ books, variant = 'rail', disabled, hint }: SendButt
 
   useEffect(() => {
     api.get<SendStatus>('/smtp-status')
-      .then(setStatus)
+      .then(st => { lastStatus = st; setStatus(st) })
       .catch(() => setStatus({ configured: false, koreader: false }))
   }, [])
 
@@ -125,15 +130,13 @@ export function SendButton({ books, variant = 'rail', disabled, hint }: SendButt
             className={`${half} rounded-r-full border-l border-background/70 pl-2.5 pr-3.5`}>
             <ChevronDown className="w-4 h-4 text-muted-foreground" />
           </button>
-          {menuOpen && (
-            <div role="menu" className="absolute left-0 top-full z-40 mt-1.5 min-w-[13rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-card p-1 shadow-lg ring-1 ring-panel-ring">
+          <Pop open={menuOpen} origin="top-left" role="menu" className="absolute left-0 top-full z-40 mt-1.5 min-w-[13rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-card p-1 shadow-lg ring-1 ring-panel-ring">
               <button type="button" role="menuitem" onClick={() => { setMenuOpen(false); setModalOpen(true) }}
                 className="flex w-full items-center gap-2.5 rounded-lg px-3 py-2 text-[14px] text-foreground hover:bg-secondary transition-colors">
                 <Mail className="w-4 h-4 text-muted-foreground" />
                 <Trans>Send via email…</Trans>
               </button>
-            </div>
-          )}
+          </Pop>
         </div>
         <SendToDeviceModal open={modalOpen} onClose={() => setModalOpen(false)} books={books} />
       </>
@@ -185,8 +188,7 @@ export function SendButton({ books, variant = 'rail', disabled, hint }: SendButt
         >
           <ChevronDown className="w-3.5 h-3.5" />
         </button>
-        {menuOpen && (
-          <div role="menu" className="absolute right-0 top-full mt-1.5 z-20 min-w-[12rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-card p-1 shadow-lg ring-1 ring-panel-ring">
+        <Pop open={menuOpen} origin="top-right" role="menu" className="absolute right-0 top-full mt-1.5 z-20 min-w-[12rem] max-w-[calc(100vw-2rem)] overflow-hidden rounded-xl bg-card p-1 shadow-lg ring-1 ring-panel-ring">
             <button
               role="menuitem"
               onClick={() => { setMenuOpen(false); setModalOpen(true) }}
@@ -195,8 +197,7 @@ export function SendButton({ books, variant = 'rail', disabled, hint }: SendButt
               <Mail className="w-3.5 h-3.5 text-muted-foreground" />
               <Trans>Send via email…</Trans>
             </button>
-          </div>
-        )}
+        </Pop>
       </div>
       <SendToDeviceModal open={modalOpen} onClose={() => setModalOpen(false)} books={books} />
     </>

@@ -4,10 +4,12 @@
 // when recovering from a false 100%.
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { AnimatePresence, m } from 'motion/react'
 import { Loader2, RotateCcw } from 'lucide-react'
 import { api } from '@/lib/api'
 import { ModalShell } from '@/components/ModalShell'
 import { Pill } from '@/components/page'
+import { listItem } from '@/components/motion'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 
@@ -42,6 +44,7 @@ function deviceLabel(device: string | null): string {
   return device
 }
 
+/** Mount it inside `<AnimatePresence>` so it closes with its exit. */
 export function PositionHistoryModal({ bookId, onClose, onRestored }: {
   bookId: number
   onClose: () => void
@@ -76,21 +79,31 @@ export function PositionHistoryModal({ bookId, onClose, onRestored }: {
       footer={<Pill variant="quiet" onClick={onClose}><Trans>Close</Trans></Pill>}
     >
       {!data ? (
-        <div className="flex items-center justify-center gap-2 py-8 text-[14px] text-muted-foreground">
-          <Loader2 className="h-4 w-4 animate-spin" /> <Trans>Loading…</Trans>
-        </div>
+        // Rows of the list's own height while it loads, so the dialog does not grow when it lands.
+        <ul className="border-t border-border/70" aria-busy>
+          {[0, 1, 2, 3].map(i => (
+            <li key={i} className="flex h-[61.5px] items-center gap-3 border-b border-border/70">
+              <span className="h-4 w-12 rounded bg-muted" />
+              <span className="flex min-w-0 flex-1 flex-col gap-1.5">
+                <span className="h-3.5 w-24 rounded bg-muted" />
+                <span className="h-3 w-16 rounded bg-muted/70" />
+              </span>
+            </li>
+          ))}
+        </ul>
       ) : data.history.length === 0 ? (
         <p className="py-6 text-center text-[14px] text-muted-foreground">
           <Trans>No position changes recorded yet. History starts with the next sync.</Trans>
         </p>
       ) : (
         <ul className="border-t border-border/70">
+          <AnimatePresence initial={false}>
           {data.history.map((h, i) => {
             const isCurrent =
               i === 0 && data.current != null &&
               Math.abs(h.percentage - data.current.percentage) < 0.0005
             return (
-              <li key={h.id} className="flex items-center gap-3 border-b border-border/70 py-2.5">
+              <m.li key={h.id} {...listItem} className="flex items-center gap-3 border-b border-border/70 py-2.5">
                 <span className="w-14 shrink-0 text-[15px] font-semibold tabular-nums text-foreground">
                   {Math.round(h.percentage * 1000) / 10}%
                 </span>
@@ -110,9 +123,10 @@ export function PositionHistoryModal({ bookId, onClose, onRestored }: {
                     <Trans>Restore</Trans>
                   </Pill>
                 )}
-              </li>
+              </m.li>
             )
           })}
+          </AnimatePresence>
         </ul>
       )}
       <p className="pt-4 text-[13px] leading-relaxed text-muted-foreground">

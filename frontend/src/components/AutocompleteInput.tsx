@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import { Pop } from '@/components/motion'
 
 interface AutocompleteInputProps {
   value: string
@@ -94,8 +95,7 @@ export function AutocompleteInput({
         placeholder={placeholder}
         className={className ?? 'w-full bg-muted rounded-lg px-3 py-1.5 focus:outline-none focus:ring-2 focus:ring-ring'}
       />
-      {open && filtered.length > 0 && (
-        <div className="absolute left-0 top-full mt-1 z-50 bg-card rounded-xl shadow-lg ring-1 ring-panel-ring p-1.5 w-full min-w-48 max-h-48 overflow-y-auto">
+      <Pop open={open && filtered.length > 0} origin="top-left" className="absolute left-0 top-full mt-1 z-50 bg-card rounded-xl shadow-lg ring-1 ring-panel-ring p-1.5 w-full min-w-48 max-h-48 overflow-y-auto">
           {filtered.map((s, i) => (
             <div
               key={s}
@@ -108,8 +108,7 @@ export function AutocompleteInput({
               {s}
             </div>
           ))}
-        </div>
-      )}
+      </Pop>
     </div>
   )
 }

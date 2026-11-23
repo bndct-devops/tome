@@ -4,10 +4,13 @@ import { CheckCircle } from 'lucide-react'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { useAuth } from '@/contexts/AuthContext'
 import { Pill } from '@/components/page'
+import { AnimatePresence, m } from 'motion/react'
+import { Unfold, stepSwap } from '@/components/motion'
 import { AuthError, AuthField, AuthFrame, AuthInput, AuthPanel, Spinner } from '@/components/auth/AuthPanel'
 import { forgetReaderCode, normaliseReaderCode, rememberReaderCode } from '@/lib/afterLogin'
 
 type Step = 'checking' | 'confirm' | 'enter' | 'linking' | 'linked'
+
 
 /**
  * Where the QR code on a CrossPoint reader leads: the signed-in user checks
@@ -23,6 +26,9 @@ export function LinkReaderPage() {
   const [typed, setTyped] = useState('')
   const [step, setStep] = useState<Step>(code ? 'checking' : 'enter')
   const [error, setError] = useState<string | null>(null)
+  // The last message stays in the box while it folds away.
+  const [shownError, setShownError] = useState(error)
+  if (error && error !== shownError) setShownError(error)
   // Bumped to ask again about the code already in the address.
   const [attempt, setAttempt] = useState(0)
   // The stored sign-in was refused (expired): treat as signed out.
@@ -72,7 +78,7 @@ export function LinkReaderPage() {
   }
 
   if (loading) {
-    return <AuthFrame><div className="text-primary"><Spinner className="w-6 h-6" /></div></AuthFrame>
+    return <AuthFrame><div className="appear-late text-primary"><Spinner className="w-6 h-6" /></div></AuthFrame>
   }
 
   if (!user || expired) {
@@ -91,9 +97,12 @@ export function LinkReaderPage() {
   }
 
   const name = user.username
+  const panel = step === 'checking' || step === 'linking' ? 'wait' : step
 
   return (
     <AuthFrame>
+      <AnimatePresence mode="wait" initial={false}>
+      <m.div key={panel} {...stepSwap} className="w-full flex justify-center">
       {step === 'linked' ? (
         <AuthPanel
           eyebrow={<Trans>Connect a reader</Trans>}
@@ -148,7 +157,7 @@ export function LinkReaderPage() {
               else setParams({ code: next })
             }}
           >
-            {error && <AuthError>{error}</AuthError>}
+            <Unfold open={!!error} gap={20}><AuthError>{shownError}</AuthError></Unfold>
             <AuthField label={<Trans>Code on the reader</Trans>}>
               <AuthInput
                 value={typed}
@@ -168,6 +177,8 @@ export function LinkReaderPage() {
           </form>
         </AuthPanel>
       )}
+      </m.div>
+      </AnimatePresence>
     </AuthFrame>
   )
 }

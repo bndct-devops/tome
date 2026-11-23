@@ -19,6 +19,8 @@ import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 import { coverSrc } from '@/lib/covers'
 import { useRegisterOverlay, useShellInset } from '@/components/ModalShell'
+import { EASE, listItem, useBookNav } from '@/components/motion'
+import { Glide, GlideGroup } from '@/components/page'
 
 interface BookHit {
   id: number
@@ -41,6 +43,10 @@ interface Item {
   icon: React.ReactNode
   to: string
   bookId?: number
+  title?: string
+  author?: string | null
+  series?: string | null
+  seriesIndex?: number | null
 }
 
 const GROUP_LABEL: Record<string, MessageDescriptor> = {
@@ -76,6 +82,8 @@ function rankFilter(pool: string[], q: string, cap: number): string[] {
 export function CommandPalette() {
   const { user } = useAuth()
   const navigate = useNavigate()
+  const openBook = useBookNav()
+  const panelRef = useRef<HTMLDivElement>(null)
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [books, setBooks] = useState<BookHit[]>([])
@@ -147,6 +155,10 @@ export function CommandPalette() {
           icon: <BookOpen className="h-4 w-4" />,
           to: `/books/${b.id}`,
           bookId: b.id,
+          title: b.title,
+          author: b.author,
+          series: b.series,
+          seriesIndex: b.series_index,
         })
       }
       for (const s of rankFilter(facets?.series ?? [], q, 4)) {
@@ -176,12 +188,18 @@ export function CommandPalette() {
 
   useEffect(() => setSelected(0), [items.length, query])
 
+  // A book opens with its cover growing from the result's thumbnail.
   const go = useCallback(
     (item: Item) => {
+      if (item.bookId != null) {
+        const cover = panelRef.current?.querySelector<HTMLElement>(`[data-cover-id="${item.bookId}"]`) ?? null
+        openBook({ id: item.bookId, title: item.title ?? item.label, author: item.author, series: item.series, series_index: item.seriesIndex }, cover)
+      } else {
+        navigate(item.to)
+      }
       setOpen(false)
-      navigate(item.to)
     },
-    [navigate],
+    [navigate, openBook],
   )
 
   const inset = useShellInset()
@@ -197,7 +215,7 @@ export function CommandPalette() {
       {open && (
       <m.div
         key="veil"
-        className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm"
+        className="dialog-veil fixed inset-0 z-50"
         onClick={() => setOpen(false)}
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
@@ -215,9 +233,9 @@ export function CommandPalette() {
         initial={{ opacity: 0, scale: 0.97, y: -4 }}
         animate={{ opacity: 1, scale: 1, y: 0 }}
         exit={{ opacity: 0, scale: 0.97, y: -4 }}
-        transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+        transition={{ duration: 0.16, ease: EASE }}
       >
-        <div className="pointer-events-auto h-fit w-full max-w-xl overflow-hidden rounded-xl bg-card shadow-lg ring-1 ring-panel-ring">
+        <div ref={panelRef} className="pointer-events-auto h-fit w-full max-w-xl overflow-hidden rounded-xl bg-card shadow-lg ring-1 ring-panel-ring">
           <div className="flex items-center gap-2 border-b border-border/70 px-4">
             <Search className="h-4 w-4 shrink-0 text-muted-foreground" />
             <input
@@ -247,32 +265,43 @@ export function CommandPalette() {
             {items.length === 0 && (
               <p className="px-4 py-6 text-center text-[14px] text-muted-foreground">{t`No matches.`}</p>
             )}
-            {groups.map((g) => {
+            {/* One flat list (group labels and rows), so as results arrive
+                while typing the rows that stay glide to their new place
+                instead of the list re-flowing; rows that no longer match fade
+                out (listItem). The selection is one highlight that glides
+                from row to row. */}
+            <GlideGroup>
+            <div className="isolate">
+            <AnimatePresence initial={false}>
+            {groups.flatMap((g) => {
               const groupItems = items.filter((i) => i.group === g)
-              if (!groupItems.length) return null
-              return (
-                <div key={g}>
-                  <p className="px-4 pb-1 pt-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
-                    {i18n._(GROUP_LABEL[g])}
-                  </p>
-                  {groupItems.map((item) => {
+              if (!groupItems.length) return []
+              return [
+                <m.p key={`g-${g}`} {...listItem} className="px-4 pb-1 pt-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
+                  {i18n._(GROUP_LABEL[g])}
+                </m.p>,
+                ...groupItems.map((item) => {
                     const idx = items.indexOf(item)
                     return (
-                      <button
+                      <m.button
                         key={item.key}
+                        {...listItem}
                         onClick={() => go(item)}
                         onMouseMove={() => setSelected(idx)}
                         className={cn(
-                          'flex w-full items-center gap-3 px-4 py-2 text-left text-[14px]',
-                          idx === selected ? 'bg-secondary text-foreground' : 'text-muted-foreground',
+                          'relative flex w-full items-center gap-3 px-4 py-2 text-left text-[14px]',
+                          idx === selected ? 'text-foreground' : 'text-muted-foreground',
                         )}
                       >
+                        {idx === selected && <Glide behind radius={0} className="bg-secondary" layoutId="palette-sel" />}
                         {item.bookId != null ? (
-                          <img
-                            src={coverSrc(item.bookId, { w: 160 })}
-                            alt=""
-                            className="h-8 w-[22px] shrink-0 rounded-sm object-cover"
-                          />
+                          <span data-cover-id={item.bookId} className="block h-8 w-[22px] shrink-0 overflow-hidden rounded-sm">
+                            <img
+                              src={coverSrc(item.bookId, { w: 160 })}
+                              alt=""
+                              className="h-full w-full object-cover"
+                            />
+                          </span>
                         ) : (
                           <span className="grid h-8 w-[22px] shrink-0 place-items-center">{item.icon}</span>
                         )}
@@ -280,12 +309,14 @@ export function CommandPalette() {
                           <span className="block truncate text-foreground">{item.label}</span>
                           {item.sub && <span className="block truncate text-[13px]">{item.sub}</span>}
                         </span>
-                      </button>
+                      </m.button>
                     )
-                  })}
-                </div>
-              )
+                  }),
+              ]
             })}
+            </AnimatePresence>
+            </div>
+            </GlideGroup>
           </div>
         </div>
       </m.div>

@@ -5,10 +5,12 @@
 // reconciled (imported KOReader history included), from GET /stats/timeline.
 import { useEffect, useMemo, useRef, useState } from 'react'
 import { createPortal } from 'react-dom'
-import { useNavigate } from 'react-router-dom'
+import { useBookNav, Pop } from '@/components/motion'
+import { PRESS } from '@/components/page'
+import { useHeld } from '@/lib/useHeld'
 import { Minus, Plus } from 'lucide-react'
 import { api } from '@/lib/api'
-import { formatDate, formatDuration } from '@/lib/utils'
+import { cn, formatDate, formatDuration } from '@/lib/utils'
 import { useChartColors } from '@/lib/useChartAccent'
 import { useAuth } from '@/contexts/AuthContext'
 import { Trans } from '@lingui/react/macro'
@@ -142,9 +144,11 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
     y: number
     day: { date: string; seconds: number } | null
   } | null>(null)
+  // The card's last content, kept while it fades out.
+  const held = useHeld(hover)
   const scrollRef = useRef<HTMLDivElement>(null)
   const colors = useChartColors()
-  const navigate = useNavigate()
+  const openBook = useBookNav()
   // Touch: first tap on a bar shows the tooltip, second tap navigates  - 
   // tap-navigating instantly made "inspect" impossible on phones.
   // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
@@ -255,7 +259,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
           onClick={() => setZoom((z) => Math.max(0, z - 1))}
           disabled={zoom === 0 || atFitFloor}
           aria-label={t`Zoom out`}
-          className="grid h-8 w-8 place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:opacity-40"
+          className={cn('touch-feedback grid h-8 w-8 place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:opacity-40', PRESS)}
         >
           <Minus className="h-3.5 w-3.5" />
         </button>
@@ -263,7 +267,7 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
           onClick={() => setZoom((z) => Math.min(ZOOMS.length - 1, z + 1))}
           disabled={zoom === ZOOMS.length - 1}
           aria-label={t`Zoom in`}
-          className="grid h-8 w-8 place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:opacity-40"
+          className={cn('touch-feedback grid h-8 w-8 place-items-center rounded-full bg-secondary text-muted-foreground transition-colors hover:bg-surface-hover hover:text-foreground disabled:opacity-40', PRESS)}
         >
           <Plus className="h-3.5 w-3.5" />
         </button>
@@ -335,7 +339,8 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
                             setHover(hoverFor(b, e.clientX, e.clientY, e.currentTarget))
                             return
                           }
-                          navigate(`/books/${b.book_id}`)
+                          // The book page paints its hero at once; a bar has no cover to grow.
+                          openBook({ id: b.book_id, title: b.title, author: b.author, series: b.series, series_index: b.series_index }, null)
                         }}
                         onMouseMove={(e) => {
                           if (!coarse) setHover(hoverFor(b, e.clientX, e.clientY, e.currentTarget))
@@ -381,36 +386,41 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
         </div>
       </div>
 
-      {hover &&
-        createPortal(
+      {createPortal(
           // Portaled to <body>: inside a dashboard tile an ancestor transform would
           // re-anchor position:fixed to the tile and trap z-index in its stacking
           // context, putting the tooltip far from the cursor and behind siblings.
-          <div
+          // One card while the pointer moves between bars (it follows, never re-mounts);
+          // it fades in once and out when the pointer leaves the bars.
+          <Pop
+            open={!!hover}
+            origin="top-left"
             className="pointer-events-none fixed z-50 flex max-w-[300px] gap-2.5 rounded-lg bg-card px-3 py-2 text-[13px] shadow-lg ring-1 ring-panel-ring"
-            style={{ left: Math.min(hover.x + 14, window.innerWidth - 320), top: Math.min(hover.y + 16, window.innerHeight - 110) }}
+            style={held ? { left: Math.min(held.x + 14, window.innerWidth - 320), top: Math.min(held.y + 16, window.innerHeight - 110) } : undefined}
           >
-            {hover.b.has_cover && (
-              <img src={coverSrc(hover.b.book_id, { w: 160 })} alt="" className="h-14 w-10 shrink-0 rounded object-cover" />
+            {held && <>
+            {held.b.has_cover && (
+              <img src={coverSrc(held.b.book_id, { w: 160 })} alt="" className="h-14 w-10 shrink-0 rounded object-cover" />
             )}
             <div className="min-w-0">
-              <div className="truncate font-semibold">{hover.b.title}</div>
-              {hover.b.author && <div className="truncate text-muted-foreground">{hover.b.author}</div>}
+              <div className="truncate font-semibold">{held.b.title}</div>
+              {held.b.author && <div className="truncate text-muted-foreground">{held.b.author}</div>}
               <div className="mt-1 text-muted-foreground">
-                {(() => { const first = formatDate(hover.b.first_day), last = formatDate(hover.b.last_day); return t`${first} to ${last}` })()} · {plural(hover.b.days.length, { one: '# day', other: '# days' })}
+                {(() => { const first = formatDate(held.b.first_day), last = formatDate(held.b.last_day); return t`${first} to ${last}` })()} · {plural(held.b.days.length, { one: '# day', other: '# days' })}
               </div>
               <div className="text-muted-foreground">
-                {formatDuration(hover.b.total_seconds)}
-                {hover.b.finished_on ? (() => { const d = formatDate(hover.b.finished_on); return t` · finished ${d}` })() : ''}
+                {formatDuration(held.b.total_seconds)}
+                {held.b.finished_on ? (() => { const d = formatDate(held.b.finished_on); return t` · finished ${d}` })() : ''}
               </div>
-              {hover.day && (
+              {held.day && (
                 <div className="mt-1 border-t border-border/60 pt-1" style={{ color: colors.accent }}>
-                  {formatDate(hover.day.date)} ·{' '}
-                  {hover.day.seconds > 0 ? formatDuration(hover.day.seconds) : t`no reading`}
+                  {formatDate(held.day.date)} ·{' '}
+                  {held.day.seconds > 0 ? formatDuration(held.day.seconds) : t`no reading`}
                 </div>
               )}
             </div>
-          </div>,
+            </>}
+          </Pop>,
           document.body,
         )}
     </div>

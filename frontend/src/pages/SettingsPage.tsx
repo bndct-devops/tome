@@ -1,9 +1,9 @@
 import { TelemetrySettings } from '@/components/TelemetryConsentCard'
 import { useState, useEffect, useMemo, useRef } from 'react'
-import { Link, Navigate, useLocation, useNavigate, useParams } from 'react-router-dom'
+import { Link, Navigate, useLocation, useParams } from 'react-router-dom'
 import {
   ArrowUpCircle, Eye, EyeOff, Download, Check, RefreshCw, Loader2,
-  Copy, Trash2, Plus, Key, Smartphone, Monitor, CheckCircle, Info, X, ChevronDown, ChevronUp, ChevronRight,
+  Copy, Trash2, Plus, Key, Smartphone, Monitor, CheckCircle, Info, X, ChevronDown, ChevronRight,
   AlertTriangle, ExternalLink, Send, QrCode, ScanLine,
 } from 'lucide-react'
 import { ConnectPhoneModal } from '@/components/ConnectPhoneModal'
@@ -18,7 +18,7 @@ import { ShareLinksOverview } from '@/components/ShareLinksOverview'
 import { HardcoverSync } from '@/components/HardcoverSync'
 import { SectionLayout, SectionNav, SectionSidebar, PanelSection } from '@/components/SectionNav'
 import { AppShell } from '@/components/AppShell'
-import { Pill, PillGroup, Input, Select, Checkbox, FormLabel, Textarea } from '@/components/page'
+import { Pill, PillGroup, Input, Select, Checkbox, FormLabel, Textarea, Glide, GlideGroup, PRESS, Swap } from '@/components/page'
 import { saveWeekStart, type WeekStart } from '@/lib/goals'
 import { ModalShell } from '@/components/ModalShell'
 import { api } from '@/lib/api'
@@ -29,7 +29,7 @@ import {
   type ApiTokenListItem,
 } from '@/lib/tokens'
 import {
-  applyTheme, getStoredTheme, THEMES, type ThemeId,
+  switchTheme, getStoredTheme, THEMES, type ThemeId,
   type CustomTheme, loadCustomThemes, saveCustomTheme, deleteCustomTheme, parseThemeColors,
 } from '@/lib/theme'
 import { isMember, useAuth } from '@/contexts/AuthContext'
@@ -38,6 +38,9 @@ import { t, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import { LOCALES, getActiveLocale, setLocale } from '@/lib/i18n'
 import { boardsTabVisible, customBoardIds, readShowBoards, withShowBoards } from '@/lib/statsBoards'
+import { AnimatePresence, m } from 'motion/react'
+import { listItem, Unfold } from '@/components/motion'
+import { Note, RowsSkeleton, SameWidth } from '@/components/FormMotion'
 import { loadBoardsFlag, loadLocalDashboard, saveBoardsFlag } from '@/components/stats/boards/types'
 
 interface ApiKey {
@@ -96,7 +99,6 @@ const MOVED_ANCHORS: Record<string, SectionId> = {
 
 export function SettingsPage() {
   const { t } = useLingui()
-  const navigate = useNavigate()
   const location = useLocation()
   const { section } = useParams<{ section?: string }>()
   // One small confirm dialog for every destructive action on these pages.
@@ -143,15 +145,6 @@ export function SettingsPage() {
             items={navItems}
             active={section}
             hrefFor={id => `/settings/${id}`}
-            onSelect={(id, e) => {
-              // Plain clicks stay in the app; modified clicks open a new tab.
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
-              e.preventDefault()
-              if (id !== section) navigate(`/settings/${id}`)
-              // A new section starts at its top, also when the old one was scrolled.
-              const main = document.querySelector('main')
-              if (main && main.scrollTop > 0) main.scrollTo({ top: 0 })
-            }}
             label={t`Settings sections`}
             placement="sidebar"
           />
@@ -319,12 +312,13 @@ function AccountSection() {
                   disabled={profileSaving || !profileChanged}
                   variant="primary" className="shrink-0"
                 >
-                  {profileSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                  {profileSaving ? t`Saving…` : t`Save changes`}
+                  <SameWidth active={profileSaving ? 1 : 0}>
+                    {[t`Save changes`, <><RefreshCw className="w-3.5 h-3.5 animate-spin" />{t`Saving…`}</>]}
+                  </SameWidth>
                 </Pill>
               </form>
-              {profileError && <p className="text-[13px] text-destructive mt-2">{profileError}</p>}
-              {profileSuccess && <p className="text-[13px] text-success mt-2"><Trans>Profile updated</Trans></p>}
+              <Note value={profileError}>{e => <p className="text-[13px] text-destructive pt-2">{e}</p>}</Note>
+              <Unfold open={profileSuccess}><p className="text-[13px] text-success pt-2"><Trans>Profile updated</Trans></p></Unfold>
             </div>
 
             {/* Password */}
@@ -359,16 +353,17 @@ function AccountSection() {
                   label={t`Also revoke my API tokens, plugin keys and OPDS PINs`}
                   description={t`Devices and scripts that use them stop working until you set them up again.`}
                 />
-                {pwError && <p className="text-[13px] text-destructive pt-0.5">{pwError}</p>}
-                {pwSuccess && <p className="text-[13px] text-success pt-0.5"><Trans>Password updated successfully</Trans></p>}
+                <Note value={pwError} gap={12}>{e => <p className="text-[13px] text-destructive pt-0.5">{e}</p>}</Note>
+                <Unfold open={pwSuccess} gap={12}><p className="text-[13px] text-success pt-0.5"><Trans>Password updated successfully</Trans></p></Unfold>
                 <div className="pt-1">
                   <Pill
                     type="submit"
                     disabled={pwSaving || !currentPassword || !newPassword || !confirmPassword}
                     variant="secondary"
                   >
-                    {pwSaving && <RefreshCw className="w-3.5 h-3.5 animate-spin" />}
-                    {pwSaving ? t`Saving…` : t`Update password`}
+                    <SameWidth active={pwSaving ? 1 : 0}>
+                      {[t`Update password`, <><RefreshCw className="w-3.5 h-3.5 animate-spin" />{t`Saving…`}</>]}
+                    </SameWidth>
                   </Pill>
                 </div>
               </form>
@@ -379,17 +374,17 @@ function AccountSection() {
             {ssoEnabled && (
               <div className="py-6 first:pt-0 last:pb-0">
                 <p className="text-[15px] font-semibold text-foreground mb-3"><Trans>Single sign-on</Trans></p>
-                {ssoMsg && (
+                <Note value={ssoMsg}>{msg => (
                   <div className={cn(
                     'flex items-center gap-2 text-sm p-3 rounded-lg mb-3 border',
-                    ssoMsg.ok
+                    msg.ok
                       ? 'text-success bg-success/10 border-success/20'
                       : 'text-destructive bg-destructive/10 border-destructive/20'
                   )}>
-                    {ssoMsg.ok ? <Check className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
-                    {ssoMsg.text}
+                    {msg.ok ? <Check className="w-4 h-4 shrink-0" /> : <AlertTriangle className="w-4 h-4 shrink-0" />}
+                    {msg.text}
                   </div>
-                )}
+                )}</Note>
                 {user?.oidc_linked ? (
                   <p className="flex items-center gap-2 text-sm text-muted-foreground">
                     <Check className="w-4 h-4 text-success" />
@@ -477,7 +472,9 @@ function QuickConnectBlock({ onConnected }: { onConnected: () => void }) {
                     <QrCode className="w-3.5 h-3.5" />
                     <Trans>Connect a phone</Trans>
                   </Pill>
-                  {showConnectPhone && <ConnectPhoneModal onClose={() => { setShowConnectPhone(false); onConnected() }} />}
+                  <AnimatePresence>
+                    {showConnectPhone && <ConnectPhoneModal key="connect-phone" onClose={() => { setShowConnectPhone(false); onConnected() }} />}
+                  </AnimatePresence>
                 </>
               )}
               <form onSubmit={handleQcAuthorize} className="flex items-end gap-2 max-w-sm">
@@ -499,17 +496,18 @@ function QuickConnectBlock({ onConnected }: { onConnected: () => void }) {
                   disabled={qcAuthorizing || qcCode.trim().length !== 6}
                   variant="secondary" className="shrink-0"
                 >
-                  {qcAuthorizing && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {qcAuthorizing ? t`Authorizing...` : t`Authorize`}
+                  <SameWidth active={qcAuthorizing ? 1 : 0}>
+                    {[t`Authorize`, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Authorizing...`}</>]}
+                  </SameWidth>
                 </Pill>
               </form>
-              {qcError && <p className="text-[13px] text-destructive mt-2">{qcError}</p>}
-              {qcSuccess && (
-                <div className="flex items-center gap-1.5 text-[13px] text-success mt-2">
+              <Note value={qcError}>{e => <p className="text-[13px] text-destructive pt-2">{e}</p>}</Note>
+              <Unfold open={qcSuccess}>
+                <div className="flex items-center gap-1.5 text-[13px] text-success pt-2">
                   <CheckCircle className="w-3.5 h-3.5" />
                   <Trans>Device authorized. The new device is now signed in.</Trans>
                 </div>
-              )}
+              </Unfold>
             </div>
   )
 }
@@ -526,14 +524,17 @@ function DevicesBlock({ ask, reloadKey }: { ask: Ask; reloadKey: number }) {
   const [clientDevicesAllUsers, setClientDevicesAllUsers] = useState(false)
   const [clientDevicesTick, setClientDevicesTick] = useState(0)
   const [clientDevicesAll, setClientDevicesAll] = useState(false)
+  // The request the list on screen answers; while a newer one runs the list stays, dimmed.
+  const devicesWanted = `${clientDevicesAllUsers}-${clientDevicesTick}-${reloadKey}`
+  const [devicesShown, setDevicesShown] = useState(devicesWanted)
 
   useEffect(() => {
     let alive = true
     listDevices(clientDevicesAllUsers)
-      .then(list => { if (alive) setClientDevices(list) })
-      .catch(() => { if (alive) setClientDevices([]) })
+      .then(list => { if (alive) { setClientDevices(list); setDevicesShown(devicesWanted) } })
+      .catch(() => { if (alive) { setClientDevices([]); setDevicesShown(devicesWanted) } })
     return () => { alive = false }
-  }, [clientDevicesAllUsers, clientDevicesTick, reloadKey])
+  }, [clientDevicesAllUsers, clientDevicesTick, reloadKey, devicesWanted])
 
   function handleRevokeClientDevice(d: ClientDevice) {
     const name = d.name
@@ -582,12 +583,12 @@ function DevicesBlock({ ask, reloadKey }: { ask: Ask; reloadKey: number }) {
                         aria-checked={clientDevicesAllUsers}
                         onClick={() => setClientDevicesAllUsers(v => !v)}
                         className={cn(
-                          'relative w-8 h-[18px] rounded-full transition-colors shrink-0',
+                          'relative w-8 h-[18px] rounded-full transition-colors duration-200 shrink-0 touch-feedback', PRESS,
                           clientDevicesAllUsers ? 'bg-primary' : 'bg-muted-foreground/30'
                         )}
                       >
                         <span className={cn(
-                          'absolute left-0 top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform',
+                          'absolute left-0 top-0.5 w-3.5 h-3.5 rounded-full bg-white transition-transform duration-200 ease-(--spring)',
                           clientDevicesAllUsers ? 'translate-x-[16px]' : 'translate-x-0.5'
                         )} />
                       </button>
@@ -597,16 +598,13 @@ function DevicesBlock({ ask, reloadKey }: { ask: Ask; reloadKey: number }) {
                 </div>
 
                 {clientDevices === null ? (
-                  <div className="flex items-center gap-2 text-[13px] text-muted-foreground py-2">
-                    <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    <Trans>Loading…</Trans>
-                  </div>
+                  <RowsSkeleton rows={3} rowClassName="h-[45px] px-3" />
                 ) : clientDevices.length === 0 ? (
                   <p className="text-[13px] text-muted-foreground py-2">
                     <Trans>No devices connected yet. Use "Connect a phone" under Quick Connect to sign the Tome app in.</Trans>
                   </p>
                 ) : (
-                  <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
+                  <div className={cn('border-y border-border/70 text-[13px] divide-y divide-border/70 transition-opacity duration-150', devicesShown !== devicesWanted && 'opacity-50')}>
                     {/* One template for both modes so nothing shifts when the admin toggle flips;
                         the Owner column is simply empty until "All users" is on. */}
                     <div className="hidden sm:grid grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] px-3 py-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
@@ -617,13 +615,34 @@ function DevicesBlock({ ask, reloadKey }: { ask: Ask; reloadKey: number }) {
                       <span>{clientDevicesAllUsers && user?.is_admin && <Trans>Owner</Trans>}</span>
                       <span />
                     </div>
-                    {(clientDevicesAll ? clientDevices : clientDevices.slice(0, LIST_PREVIEW)).map(d => {
+                    <AnimatePresence initial={false}>
+                    {clientDevices.slice(0, LIST_PREVIEW).map(d => (
+                      <m.div key={d.id} {...listItem}>{deviceRow(d)}</m.div>
+                    ))}
+                    </AnimatePresence>
+                    <Unfold open={clientDevicesAll && clientDevices.length > LIST_PREVIEW} className="divide-y divide-border/70">
+                      <AnimatePresence initial={false}>
+                      {clientDevices.slice(LIST_PREVIEW).map(d => (
+                        <m.div key={d.id} {...listItem}>{deviceRow(d)}</m.div>
+                      ))}
+                      </AnimatePresence>
+                    </Unfold>
+                  </div>
+                )}
+                {clientDevices && clientDevices.length > LIST_PREVIEW && (
+                  <ShowMore all={clientDevicesAll} hidden={clientDevices.length - LIST_PREVIEW} onToggle={() => setClientDevicesAll(v => !v)} />
+                )}
+              </div>
+            </div>
+        </AccessBlock>
+  )
+
+  function deviceRow(d: ClientDevice) {
                       const isRevoked = d.revoked_at !== null
                       return (
                         <div
-                          key={d.id}
                           className={cn(
-                            'flex sm:grid sm:grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] items-center gap-2 sm:gap-0 px-3 py-2.5 transition-colors',
+                            'flex sm:grid sm:grid-cols-[12rem_11rem_5.5rem_5.5rem_minmax(4rem,1fr)_2rem] items-center gap-2 sm:gap-0 px-3 py-2.5 transition-opacity duration-200',
                             isRevoked && 'opacity-50'
                           )}
                         >
@@ -687,16 +706,7 @@ function DevicesBlock({ ask, reloadKey }: { ask: Ask; reloadKey: number }) {
                           </span>
                         </div>
                       )
-                    })}
-                  </div>
-                )}
-                {clientDevices && clientDevices.length > LIST_PREVIEW && (
-                  <ShowMore all={clientDevicesAll} hidden={clientDevices.length - LIST_PREVIEW} onToggle={() => setClientDevicesAll(v => !v)} />
-                )}
-              </div>
-            </div>
-        </AccessBlock>
-  )
+  }
 }
 
 // ── Access ───────────────────────────────────────────────────────────────
@@ -749,7 +759,7 @@ function AppearanceSection() {
   const [customThemes, setCustomThemes] = useState<CustomTheme[]>(loadCustomThemes)
 
   function handleThemeSelect(id: ThemeId) {
-    applyTheme(id)
+    switchTheme(id)
     setActiveTheme(id)
   }
 
@@ -757,7 +767,7 @@ function AppearanceSection() {
     deleteCustomTheme(id)
     setCustomThemes(loadCustomThemes())
     if (activeTheme === id) {
-      applyTheme('light')
+      switchTheme('light')
       setActiveTheme('light')
     }
   }
@@ -780,7 +790,7 @@ function AppearanceSection() {
     const theme: CustomTheme = { id, label: customName.trim(), dark: customDark, colors: customColors }
     saveCustomTheme(theme)
     setCustomThemes(loadCustomThemes())
-    applyTheme(id as ThemeId)
+    switchTheme(id as ThemeId)
     setActiveTheme(id as ThemeId)
     setCustomName('')
     setCustomColors('')
@@ -790,6 +800,8 @@ function AppearanceSection() {
 
   return (
         <PanelSection>
+          {/* One ring for every theme card, built-in and custom: it glides to the picked one. */}
+          <GlideGroup>
 
           {/* Built-in themes - neutral core + warm pair */}
           {([[t`Core`, 'core'], [t`Warm`, 'warm']] as const).map(([groupLabel, group]) => (
@@ -799,13 +811,13 @@ function AppearanceSection() {
                 {THEMES.filter(t => t.group === group).map(theme => {
                   const active = activeTheme === theme.id
                   return (
+                    <div key={theme.id} className="relative">
                     <button
-                      key={theme.id}
                       onClick={() => handleThemeSelect(theme.id)}
                       className={cn(
-                        'group relative rounded-lg overflow-hidden transition-all duration-150',
+                        'group relative block w-full rounded-lg overflow-hidden transition-[box-shadow] duration-150 touch-feedback', PRESS,
                         active
-                          ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-md'
+                          ? 'shadow-md'
                           : 'ring-1 ring-border hover:ring-primary/40 hover:shadow-sm'
                       )}
                       title={theme.label}
@@ -821,6 +833,8 @@ function AppearanceSection() {
                         {active && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: theme.preview.primary }} />}
                       </div>
                     </button>
+                    {active && <Glide radius={8} className="ring-2 ring-primary ring-offset-2 ring-offset-background" />}
+                    </div>
                   )
                 })}
               </div>
@@ -830,6 +844,7 @@ function AppearanceSection() {
           {/* Custom themes */}
           {customThemes.length > 0 && (
             <div className="mt-3 grid grid-cols-3 sm:grid-cols-4 gap-2">
+              <AnimatePresence initial={false}>
               {customThemes.map(theme => {
                 const active = activeTheme === theme.id
                 const vars = parseThemeColors(theme.colors)
@@ -838,13 +853,13 @@ function AppearanceSection() {
                 const primary = vars?.['--primary'] ?? '#fff'
                 const text = vars?.['--foreground'] ?? '#fff'
                 return (
-                  <div key={theme.id} className="relative group">
+                  <m.div key={theme.id} {...listItem} className="relative group">
                     <button
                       onClick={() => handleThemeSelect(theme.id as ThemeId)}
                       className={cn(
-                        'w-full rounded-lg overflow-hidden transition-all duration-150',
+                        'block w-full rounded-lg overflow-hidden transition-[box-shadow] duration-150 touch-feedback', PRESS,
                         active
-                          ? 'ring-2 ring-primary ring-offset-2 ring-offset-background shadow-md'
+                          ? 'shadow-md'
                           : 'ring-1 ring-border hover:ring-primary/40 hover:shadow-sm'
                       )}
                       title={theme.label}
@@ -860,19 +875,22 @@ function AppearanceSection() {
                         {active && <Check className="w-3.5 h-3.5 shrink-0" style={{ color: primary }} />}
                       </div>
                     </button>
+                    {active && <Glide radius={8} className="ring-2 ring-primary ring-offset-2 ring-offset-background" />}
                     <button
                       onClick={() => handleDeleteCustomTheme(theme.id)}
-                      className="absolute -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition-opacity shadow-sm"
+                      className={`absolute z-[1] -top-2 -right-2 w-5 h-5 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 transition-[opacity,transform] duration-150 shadow-sm touch-feedback ${PRESS}`}
                       title={t`Delete theme`}
                       aria-label={t`Delete theme`}
                     >
                       <X className="w-3 h-3" />
                     </button>
-                  </div>
+                  </m.div>
                 )
               })}
+              </AnimatePresence>
             </div>
           )}
+          </GlideGroup>
 
           {/* Add custom theme */}
           <div className="mt-5">
@@ -882,10 +900,10 @@ function AppearanceSection() {
             >
               <Plus className="w-3.5 h-3.5" />
               <Trans>Add custom theme</Trans>
-              {customFormOpen ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
+              <ChevronDown className={cn('w-3.5 h-3.5 transition-transform duration-200 ease-(--spring)', customFormOpen && 'rotate-180')} />
             </Pill>
 
-            {customFormOpen && (
+            <Unfold open={customFormOpen}>
               <div className="mt-5 space-y-4 max-w-2xl">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-3 gap-y-4 sm:items-end">
                   <div>
@@ -927,7 +945,7 @@ function AppearanceSection() {
                 </div>
 
                 {/* Live preview */}
-                {parsedPreview && (
+                <Note value={parsedPreview} gap={16}>{parsedPreview => (
                   <div className="flex items-center gap-3">
                     <span className="text-[13px] text-muted-foreground shrink-0"><Trans>Preview:</Trans></span>
                     <div
@@ -944,9 +962,9 @@ function AppearanceSection() {
                       </span>
                     </div>
                   </div>
-                )}
+                )}</Note>
 
-                {customError && <p className="text-[13px] text-destructive">{customError}</p>}
+                <Note value={customError} gap={16}>{e => <p className="text-[13px] text-destructive">{e}</p>}</Note>
 
                 <Pill
                   onClick={handleAddCustomTheme}
@@ -956,7 +974,7 @@ function AppearanceSection() {
                   <Trans>Add theme</Trans>
                 </Pill>
               </div>
-            )}
+            </Unfold>
           </div>
 
           <StatsBoardsSetting />
@@ -1024,7 +1042,7 @@ function StatsBoardsSetting() {
           <p className="text-[13px] text-muted-foreground mt-0.5">
             <Trans>The customisable grid from earlier versions, as an extra tab on Stats. Turning it off hides the tab; your boards are kept.</Trans>
           </p>
-          {failed && <p className="text-[13px] text-destructive mt-1"><Trans>Couldn’t save. Try again.</Trans></p>}
+          <Unfold open={failed}><p className="text-[13px] text-destructive pt-1"><Trans>Couldn’t save. Try again.</Trans></p></Unfold>
         </div>
         <button
           type="button"
@@ -1034,12 +1052,12 @@ function StatsBoardsSetting() {
           disabled={busy}
           onClick={() => void toggle()}
           className={cn(
-            'relative w-9 h-5 rounded-full transition-colors shrink-0',
+            'relative w-9 h-5 rounded-full transition-colors duration-200 shrink-0 touch-feedback', PRESS,
             on ? 'bg-primary' : 'bg-muted-foreground/30'
           )}
         >
           <span className={cn(
-            'absolute left-0 top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
+            'absolute left-0 top-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ease-(--spring) motion-reduce:transition-none',
             on ? 'translate-x-[18px]' : 'translate-x-0.5'
           )} />
         </button>
@@ -1051,12 +1069,14 @@ function StatsBoardsSetting() {
 // ── Language and region ─────────────────────────────────────────────────────────
 
 function LanguageSection() {
-
+  const { t } = useLingui()
   const [activeLocale, setActiveLocale] = useState<string>(getActiveLocale)
 
   async function handleLocaleSelect(code: string) {
-    await setLocale(code)
+    // The pill moves at once; the catalogue loads behind it.
+    const was = activeLocale
     setActiveLocale(code)
+    try { await setLocale(code) } catch { setActiveLocale(was) }
   }
 
   return (
@@ -1068,27 +1088,13 @@ function LanguageSection() {
           title={<Trans>Language</Trans>}
           description={<Trans>The app's words, and how it writes dates and numbers.</Trans>}
         >
-          <div className="flex flex-wrap gap-2">
-            {LOCALES.map(l => {
-              const active = activeLocale === l.code
-              return (
-                <button
-                  key={l.code}
-                  onClick={() => handleLocaleSelect(l.code)}
-                  lang={l.code}
-                  className={cn(
-                    'inline-flex items-center gap-2 h-9 px-4 rounded-full text-[14px] transition-colors',
-                    active
-                      ? 'bg-primary/10 text-foreground font-medium'
-                      : 'bg-secondary text-muted-foreground hover:text-foreground'
-                  )}
-                >
-                  {l.label}
-                  {active && <Check className="w-3.5 h-3.5" />}
-                </button>
-              )
-            })}
-          </div>
+          <PillGroup
+            aria-label={t`Language`}
+            value={activeLocale}
+            onChange={code => void handleLocaleSelect(code)}
+            className="gap-2"
+            options={LOCALES.map(l => ({ value: l.code, label: <span lang={l.code}>{l.label}</span> }))}
+          />
           <p className="text-[13px] text-muted-foreground mt-3">
             <Trans>Translations are community-maintained. Anything not yet translated is shown in English.</Trans>
           </p>
@@ -1130,7 +1136,7 @@ function WeekStartSetting() {
           { value: 'sunday', label: day('2026-11-15') },
         ]}
       />
-      {failed && <p role="alert" className="mt-3 text-[13px] text-destructive"><Trans>Could not save the week start. Try again.</Trans></p>}
+      <Unfold open={failed}><p role="alert" className="pt-3 text-[13px] text-destructive"><Trans>Could not save the week start. Try again.</Trans></p></Unfold>
     </PanelSection>
   )
 }
@@ -1185,7 +1191,7 @@ function KOReaderSection() {
                     <Trans>Browse and download your library from KOReader or any OPDS client.</Trans>
                   </p>
                 </div>
-                <a href={docsLink(DOCS.opds)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors">
+                <a href={docsLink(DOCS.opds)} target="_blank" rel="noopener noreferrer" className={`shrink-0 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors touch-feedback ${PRESS}`}>
                   <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
@@ -1216,7 +1222,7 @@ function KOReaderSection() {
                   </p>
                 </div>
                 <div className="flex items-center gap-3 shrink-0">
-                  <a href={docsLink(DOCS.koreader)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors">
+                  <a href={docsLink(DOCS.koreader)} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors touch-feedback ${PRESS}`}>
                     <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                   </a>
                   <PluginVersion />
@@ -1229,11 +1235,9 @@ function KOReaderSection() {
                   disabled={pluginDownloading}
                   variant="primary"
                 >
-                  {pluginDownloading
-                    ? <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                    : <Download className="w-3.5 h-3.5" />
-                  }
-                  {pluginDownloading ? t`Preparing…` : t`Download plugin ZIP`}
+                  <SameWidth active={pluginDownloading ? 1 : 0}>
+                    {[<><Download className="w-3.5 h-3.5" />{t`Download plugin ZIP`}</>, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Preparing…`}</>]}
+                  </SameWidth>
                 </Pill>
                 <Pill
                   type="button"
@@ -1244,7 +1248,9 @@ function KOReaderSection() {
                   <ScanLine className="w-3.5 h-3.5" />
                   <Trans>Scan a sync code</Trans>
                 </Pill>
-                {showScanCode && <ScanSyncCodeModal onClose={() => setShowScanCode(false)} />}
+                <AnimatePresence>
+                  {showScanCode && <ScanSyncCodeModal key="scan-sync" onClose={() => setShowScanCode(false)} />}
+                </AnimatePresence>
               </div>
               <p className="text-[13px] text-muted-foreground -mt-2">
                 <Trans>Device offline but your phone is not? "Show sync code" in the plugin turns the unsent sessions and positions into a QR code you can scan here. The live camera needs HTTPS; on a plain http install, take a photo of the screen and pick it.</Trans>
@@ -1270,13 +1276,14 @@ function OpdsPinsBlock() {
   const { t, i18n } = useLingui()
 
   const [opdsPins, setOpdsPins] = useState<OpdsPin[]>([])
+  const [pinsLoaded, setPinsLoaded] = useState(false)
   const [newPinResult, setNewPinResult] = useState<string | null>(null)
   const [pinLabel, setPinLabel] = useState('KOReader')
   const [pinCreating, setPinCreating] = useState(false)
   const [pinRevoking, setPinRevoking] = useState<number | null>(null)
 
   useEffect(() => {
-    api.get<OpdsPin[]>('/opds-pins').then(setOpdsPins).catch(() => {})
+    api.get<OpdsPin[]>('/opds-pins').then(setOpdsPins).catch(() => {}).finally(() => setPinsLoaded(true))
   }, [])
 
   async function handleCreatePin() {
@@ -1338,26 +1345,24 @@ function OpdsPinsBlock() {
                 }
               >
 
-                {newPinResult && (
+                <Note value={newPinResult} gap={16}>{pin => (
                   <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
                     <p className="text-[13px] text-success font-medium"><Trans>PIN created. Copy it now, it won't be shown again.</Trans></p>
                     <div className="flex items-center gap-2">
-                      <code className="text-[13px] font-mono text-foreground break-all flex-1">{newPinResult}</code>
-                      <button
-                        onClick={() => navigator.clipboard.writeText(newPinResult)}
-                        className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground shrink-0"
-                      >
-                        <Copy className="w-3 h-3" />
-                      </button>
+                      <code className="text-[13px] font-mono text-foreground break-all flex-1">{pin}</code>
+                      <CopyButton value={pin} title={t`Copy`} />
                     </div>
                     <p className="text-[13px] text-muted-foreground"><Trans>Use this as the OPDS password in KOReader (username stays the same).</Trans></p>
                   </div>
-                )}
+                )}</Note>
 
-                {opdsPins.length > 0 ? (
+                {!pinsLoaded ? (
+                  <RowsSkeleton rows={2} rowClassName="h-[37px] px-3" />
+                ) : opdsPins.length > 0 ? (
                   <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
+                    <AnimatePresence initial={false}>
                     {opdsPins.map(p => (
-                      <div key={p.id} className="flex items-center gap-3 px-3 py-2">
+                      <m.div key={p.id} {...listItem} className="flex items-center gap-3 px-3 py-2">
                         <span className="font-mono text-muted-foreground w-14 shrink-0">{p.pin_preview}</span>
                         <span className="text-foreground flex-1 truncate">{p.label}</span>
                         <span className="text-muted-foreground hidden sm:block shrink-0">
@@ -1366,13 +1371,14 @@ function OpdsPinsBlock() {
                         <button
                           onClick={() => handleRevokePin(p.id)}
                           disabled={pinRevoking === p.id}
-                          className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                          className={`p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors touch-feedback ${PRESS}`}
                           title={t`Revoke`}
                         >
                           {pinRevoking === p.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                         </button>
-                      </div>
+                      </m.div>
                     ))}
+                    </AnimatePresence>
                   </div>
                 ) : (
                   <p className="text-[13px] text-muted-foreground"><Trans>No PINs yet. Generate one to use with OPDS clients.</Trans></p>
@@ -1497,7 +1503,6 @@ function CrossPointPluginBlock() {
     }
   }
 
-  const linked = status?.readers ?? []
 
   return (
             <div className="py-6 first:pt-0 last:pb-0 space-y-4">
@@ -1508,7 +1513,7 @@ function CrossPointPluginBlock() {
                     <Trans>The reader sends each reading session to Tome by itself when it goes to sleep: reading time and progress, no pages.</Trans>
                   </p>
                 </div>
-                <a href={docsLink(DOCS.xteink)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors shrink-0">
+                <a href={docsLink(DOCS.xteink)} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors shrink-0 touch-feedback ${PRESS}`}>
                   <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
@@ -1529,22 +1534,31 @@ function CrossPointPluginBlock() {
                     : <Download className="w-3.5 h-3.5" />}
                   <Trans>Download plugin ZIP</Trans>
                 </Pill>
-                {failed && (
-                  <span className="text-[13px] text-destructive"><Trans>Download failed.</Trans></span>
-                )}
+                <AnimatePresence>
+                  {failed && (
+                    <m.span
+                      key="failed"
+                      initial={{ opacity: 0.4 }}
+                      animate={{ opacity: 1 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.14 }}
+                      className="text-[13px] text-destructive"
+                    ><Trans>Download failed.</Trans></m.span>
+                  )}
+                </AnimatePresence>
               </div>
 
               <p className="text-[13px] text-muted-foreground">
                 <Trans>The ZIP holds this server's address and nothing about your account. A connected reader gets its own key, which you can revoke under Access.</Trans>
               </p>
 
-              {status && (
+              <Note value={status} gap={16}>{status => (
                 <div className="rounded-xl bg-secondary/60 px-4 py-3 space-y-1.5">
-                  {linked.length === 0 ? (
+                  {status.readers.length === 0 ? (
                     <p className="text-[13px] text-muted-foreground"><Trans>No reader is connected yet.</Trans></p>
                   ) : (
                     <>
-                      {linked.map(r => (
+                      {status.readers.map(r => (
                         <p key={r.id} className="flex items-center gap-2 text-[13px] text-foreground">
                           <Check className="w-3.5 h-3.5 text-success shrink-0" />
                           <span>{r.label}</span>
@@ -1563,7 +1577,7 @@ function CrossPointPluginBlock() {
                     </>
                   )}
                 </div>
-              )}
+              )}</Note>
             </div>
   )
 }
@@ -1619,12 +1633,14 @@ function KosyncPasswordBlock() {
                   </span>
                 )}
               >
-              {kosyncStatus?.last_sync && (
+              <Note value={kosyncStatus?.last_sync ? kosyncStatus : null} gap={16}>{s => (
+                <Swap id={`${s.last_sync}-${s.last_device ?? ''}`}>
                 <p className="text-[13px] text-muted-foreground">
-                  {(() => { const d = formatSyncTime(kosyncStatus.last_sync, i18n.locale); return t`Last sync: ${d}` })()}
-                  {kosyncStatus.last_device && ` · ${kosyncStatus.last_device}`}
+                  {(() => { const d = formatSyncTime(s.last_sync ?? '', i18n.locale); return t`Last sync: ${d}` })()}
+                  {s.last_device && ` · ${s.last_device}`}
                 </p>
-              )}
+                </Swap>
+              )}</Note>
 
               <form onSubmit={handleKosyncRegister} className="flex items-end gap-2 max-w-sm">
                 <div className="flex-1">
@@ -1644,12 +1660,13 @@ function KosyncPasswordBlock() {
                   disabled={kosyncSaving || !kosyncPassword}
                   variant="secondary" className="shrink-0"
                 >
-                  {kosyncSaving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                  {kosyncSaving ? t`Saving…` : kosyncStatus?.linked ? t`Update` : t`Register`}
+                  <SameWidth active={kosyncSaving ? 2 : kosyncStatus?.linked ? 1 : 0}>
+                    {[t`Register`, t`Update`, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Saving…`}</>]}
+                  </SameWidth>
                 </Pill>
               </form>
-              {kosyncError && <p className="text-[13px] text-destructive">{kosyncError}</p>}
-              {kosyncSuccess && <p className="text-[13px] text-success"><Trans>KOSync registered successfully</Trans></p>}
+              <Note value={kosyncError} gap={16}>{e => <p className="text-[13px] text-destructive">{e}</p>}</Note>
+              <Unfold open={kosyncSuccess} gap={16}><p className="text-[13px] text-success"><Trans>KOSync registered successfully</Trans></p></Unfold>
               </AccessBlock>
   )
 }
@@ -1659,13 +1676,14 @@ function PluginKeysBlock() {
   const { t, i18n } = useLingui()
 
   const [apiKeys, setApiKeys] = useState<ApiKey[]>([])
+  const [keysLoaded, setKeysLoaded] = useState(false)
   const [newKeyResult, setNewKeyResult] = useState<string | null>(null)
   const [keyCreating, setKeyCreating] = useState(false)
   const [keyRevoking, setKeyRevoking] = useState<number | null>(null)
   const [apiKeysAll, setApiKeysAll] = useState(false)
 
   useEffect(() => {
-    api.get<ApiKey[]>('/plugin/api-keys').then(setApiKeys).catch(() => {})
+    api.get<ApiKey[]>('/plugin/api-keys').then(setApiKeys).catch(() => {}).finally(() => setKeysLoaded(true))
   }, [])
 
   async function handleCreateKey() {
@@ -1678,7 +1696,7 @@ function PluginKeysBlock() {
       )
       setNewKeyResult(res.key)
       setApiKeys(prev => [...prev, { id: res.id, label: res.label, key_preview: res.key.slice(0, 8) + '…', created_at: res.created_at, last_used_at: null }])
-    } catch (err) {
+    } catch {
       // ignore
     } finally {
       setKeyCreating(false)
@@ -1712,39 +1730,33 @@ function PluginKeysBlock() {
                 }
               >
 
-                {newKeyResult && (
+                <Note value={newKeyResult} gap={16}>{key => (
                   <div className="rounded-lg bg-success/10 border border-success/20 p-3 space-y-1">
                     <p className="text-[13px] text-success font-medium"><Trans>Key created. Copy it now, it won't be shown again.</Trans></p>
                     <div className="flex items-center gap-2">
-                      <code className="text-[13px] font-mono text-foreground break-all flex-1">{newKeyResult}</code>
-                      <button onClick={() => navigator.clipboard.writeText(newKeyResult)}
-                        className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground shrink-0">
-                        <Copy className="w-3 h-3" />
-                      </button>
+                      <code className="text-[13px] font-mono text-foreground break-all flex-1">{key}</code>
+                      <CopyButton value={key} title={t`Copy`} />
                     </div>
                   </div>
-                )}
+                )}</Note>
 
-                {apiKeys.length > 0 ? (
+                {!keysLoaded ? (
+                  <RowsSkeleton rows={2} rowClassName="h-[37px] px-3" />
+                ) : apiKeys.length > 0 ? (
                   <div>
                   <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
-                    {(apiKeysAll ? apiKeys : apiKeys.slice(0, LIST_PREVIEW)).map(k => (
-                      <div key={k.id} className="flex items-center gap-3 px-3 py-2">
-                        <span className="font-mono text-muted-foreground w-28 shrink-0">{k.key_preview}</span>
-                        <span className="text-foreground flex-1 truncate">{k.label}</span>
-                        <span className="text-muted-foreground hidden sm:block">
-                          {(() => { const d = new Date(k.last_used_at ?? 0).toLocaleDateString(i18n.locale); return k.last_used_at ? t`used ${d}` : t`never used` })()}
-                        </span>
-                        <button
-                          onClick={() => handleRevokeKey(k.id)}
-                          disabled={keyRevoking === k.id}
-                          className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
-                          title={t`Revoke`}
-                        >
-                          {keyRevoking === k.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
-                        </button>
-                      </div>
+                    <AnimatePresence initial={false}>
+                    {apiKeys.slice(0, LIST_PREVIEW).map(k => (
+                      <m.div key={k.id} {...listItem}>{keyRow(k)}</m.div>
                     ))}
+                    </AnimatePresence>
+                    <Unfold open={apiKeysAll && apiKeys.length > LIST_PREVIEW} className="divide-y divide-border/70">
+                      <AnimatePresence initial={false}>
+                      {apiKeys.slice(LIST_PREVIEW).map(k => (
+                        <m.div key={k.id} {...listItem}>{keyRow(k)}</m.div>
+                      ))}
+                      </AnimatePresence>
+                    </Unfold>
                   </div>
                   {apiKeys.length > LIST_PREVIEW && (
                     <ShowMore all={apiKeysAll} hidden={apiKeys.length - LIST_PREVIEW} onToggle={() => setApiKeysAll(v => !v)} />
@@ -1755,6 +1767,26 @@ function PluginKeysBlock() {
                 )}
               </AccessBlock>
   )
+
+  function keyRow(k: ApiKey) {
+    return (
+                      <div className="flex items-center gap-3 px-3 py-2">
+                        <span className="font-mono text-muted-foreground w-28 shrink-0">{k.key_preview}</span>
+                        <span className="text-foreground flex-1 truncate">{k.label}</span>
+                        <span className="text-muted-foreground hidden sm:block">
+                          {(() => { const d = new Date(k.last_used_at ?? 0).toLocaleDateString(i18n.locale); return k.last_used_at ? t`used ${d}` : t`never used` })()}
+                        </span>
+                        <button
+                          onClick={() => handleRevokeKey(k.id)}
+                          disabled={keyRevoking === k.id}
+                          className={`p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors touch-feedback ${PRESS}`}
+                          title={t`Revoke`}
+                        >
+                          {keyRevoking === k.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
+                        </button>
+                      </div>
+    )
+  }
 }
 
 // ── Send to device ───────────────────────────────────────────────────────
@@ -1833,7 +1865,7 @@ function SendToDeviceSection({ ask }: { ask: Ask }) {
                     </p>
                   </div>
                 </div>
-                <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="shrink-0 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors">
+                <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className={`shrink-0 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors touch-feedback ${PRESS}`}>
                   <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
                 </a>
               </div>
@@ -1848,7 +1880,7 @@ function SendToDeviceSection({ ask }: { ask: Ask }) {
                     <Disclosure open={setupGuideOpen} onToggle={() => setSetupGuideOpen(v => !v)}>
                       <Trans>How to set it up</Trans>
                     </Disclosure>
-                    {setupGuideOpen && (
+                    <Unfold open={setupGuideOpen}>
                       <div className="pb-1 pt-2 space-y-3 text-[13px] text-muted-foreground">
                         <p><Trans>Your server admin sets these environment variables. TOME_SMTP_HOST is required. User and password are optional; set both when the mail server needs a login. Without a user, TOME_SMTP_FROM is required as the sender address.</Trans></p>
                         <div className="space-y-2">
@@ -1874,7 +1906,7 @@ function SendToDeviceSection({ ask }: { ask: Ask }) {
                         </div>
                         <p className="text-muted-foreground/70"><Trans>Ask your server admin if you don't manage the Tome installation yourself.</Trans></p>
                       </div>
-                    )}
+                    </Unfold>
                   </div>
                 </div>
               ) : smtpConfigured ? (
@@ -1910,32 +1942,36 @@ function SendToDeviceSection({ ask }: { ask: Ask }) {
                       <Trans>Add</Trans>
                     </Pill>
                   </form>
-                  {deviceError && <p className="text-[13px] text-destructive">{deviceError}</p>}
+                  <Note value={deviceError} gap={12}>{e => <p className="text-[13px] text-destructive">{e}</p>}</Note>
 
                   {/* Device list */}
                   {devices.length > 0 ? (
                     <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
+                      <AnimatePresence initial={false}>
                       {devices.map(d => (
-                        <div key={d.id} className="flex items-center gap-3 px-3 py-2">
+                        <m.div key={d.id} {...listItem} className="flex items-center gap-3 px-3 py-2">
                           <Send className="w-3 h-3 text-muted-foreground shrink-0" />
                           <span className="text-foreground font-medium flex-1 truncate">{d.name}</span>
                           <span className="text-muted-foreground hidden sm:block truncate max-w-48">{d.email}</span>
                           <button
                             onClick={() => askDeleteDevice(d)}
                             disabled={deviceDeleting === d.id}
-                            className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                            className={`p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors touch-feedback ${PRESS}`}
                             title={t`Remove device`}
                           >
                             {deviceDeleting === d.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trash2 className="w-3 h-3" />}
                           </button>
-                        </div>
+                        </m.div>
                       ))}
+                      </AnimatePresence>
                     </div>
                   ) : (
                     <p className="text-[13px] text-muted-foreground"><Trans>No devices yet. Add one to start sending books.</Trans></p>
                   )}
                 </div>
-              ) : null}
+              ) : (
+                <div aria-hidden className="h-[58px]" />
+              )}
             </div>
           </div>
         </PanelSection>
@@ -1962,7 +1998,7 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
   const { user } = useAuth()
   const { t } = useLingui()
 
-  const [apiTokens, setApiTokens] = useState<ApiTokenListItem[]>([])
+  const [apiTokens, setApiTokens] = useState<ApiTokenListItem[] | null>(null) // null = first load
   const [apiTokensAllUsers, setApiTokensAllUsers] = useState(false)
   const [apiTokensLoading, setApiTokensLoading] = useState(false)
   const [tokenNewName, setTokenNewName] = useState('')
@@ -2037,7 +2073,7 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
           title={t`API tokens`}
           description={<>
             <Trans>Long-lived tokens for scripts and tools (e.g. Scribe). Each token is shown once on creation.</Trans>{' '}
-            <a href={docsLink(DOCS.apiTokens)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-0.5 text-foreground/80 hover:text-primary transition-colors">
+            <a href={docsLink(DOCS.apiTokens)} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-0.5 text-foreground/80 hover:text-primary transition-colors touch-feedback ${PRESS}`}>
               <Trans>Learn more</Trans> <ExternalLink className="w-3 h-3" />
             </a>
           </>}
@@ -2053,7 +2089,7 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
         >
           <div>
             <div className="space-y-4">
-              {user?.is_admin && apiTokens.length > 0 && (
+              {user?.is_admin && apiTokens && apiTokens.length > 0 && (
                 <div className="flex items-center gap-2">
                     <Checkbox
                       checked={apiTokensAllUsers}
@@ -2064,7 +2100,7 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
               )}
 
               {/* Create form */}
-              {tokenFormOpen && (
+              <Unfold open={tokenFormOpen} gap={16}>
                 <form onSubmit={handleCreateToken} className="flex flex-wrap items-end gap-2">
                   <div className="flex-1 min-w-[12rem]">
                     <FormLabel htmlFor="token-name"><Trans>Token name</Trans></FormLabel>
@@ -2094,8 +2130,9 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
                     disabled={tokenCreating || !tokenNewName.trim()}
                     variant="primary" className="shrink-0"
                   >
-                    {tokenCreating && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                    {tokenCreating ? t`Creating...` : t`Create`}
+                    <SameWidth active={tokenCreating ? 1 : 0}>
+                      {[t`Create`, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Creating...`}</>]}
+                    </SameWidth>
                   </Pill>
                   <Pill
                     type="button"
@@ -2105,11 +2142,11 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
                     <Trans>Cancel</Trans>
                   </Pill>
                 </form>
-              )}
-              {tokenCreateError && <p className="text-[13px] text-destructive">{tokenCreateError}</p>}
+              </Unfold>
+              <Note value={tokenCreateError} gap={16}>{e => <p className="text-[13px] text-destructive">{e}</p>}</Note>
 
               {/* One-time token reveal */}
-              {tokenRevealPlaintext && (
+              <Note value={tokenRevealPlaintext} gap={16}>{token => (
                 <div className="rounded-lg bg-warning/10 border border-warning/30 p-4 space-y-3">
                   <div className="flex items-start gap-2">
                     <AlertTriangle className="w-4 h-4 text-warning dark:text-warning shrink-0 mt-0.5" />
@@ -2119,14 +2156,14 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
                   </div>
                   <div className="flex items-center gap-2 rounded-lg bg-secondary px-3 py-2">
                     <code className="text-[13px] font-mono text-foreground break-all flex-1 select-all">
-                      {tokenRevealPlaintext}
+                      {token}
                     </code>
                     <button
                       onClick={handleCopyToken}
-                      className="p-1.5 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground shrink-0"
+                      className={`p-1.5 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground shrink-0 touch-feedback ${PRESS}`}
                       title={t`Copy token`}
                     >
-                      {tokenCopied ? <Check className="w-3.5 h-3.5 text-success" /> : <Copy className="w-3.5 h-3.5" />}
+                      <CopiedIcon copied={tokenCopied} className="w-3.5 h-3.5" />
                     </button>
                   </div>
                   <Pill
@@ -2136,20 +2173,17 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
                     <Trans>Done</Trans>
                   </Pill>
                 </div>
-              )}
+              )}</Note>
 
-              {/* Token list */}
-              {apiTokensLoading ? (
-                <div className="flex items-center gap-2 text-[13px] text-muted-foreground py-2">
-                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                  <Trans>Loading…</Trans>
-                </div>
+              {/* Token list: the first load holds the rows' place; a reload keeps the list, dimmed. */}
+              {apiTokens === null ? (
+                <RowsSkeleton rows={2} rowClassName="h-[45px] px-3" />
               ) : apiTokens.length === 0 ? (
                 <p className="text-[13px] text-muted-foreground py-2">
                   <Trans>No API tokens yet. Create one to use Scribe or scripts against Tome.</Trans>
                 </p>
               ) : (
-                <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
+                <div className={cn('border-y border-border/70 text-[13px] divide-y divide-border/70 transition-opacity duration-150', apiTokensLoading && 'opacity-50')}>
                   {/* Header */}
                   <div className={cn(
                     'hidden sm:grid gap-x-4 px-3 py-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground',
@@ -2162,13 +2196,14 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
                     {apiTokensAllUsers && user?.is_admin && <span><Trans>Owner</Trans></span>}
                     <span />
                   </div>
+                  <AnimatePresence initial={false}>
                   {apiTokens.map(tok => {
                     const isRevoked = tok.revoked_at !== null
                     return (
+                      <m.div key={tok.id} {...listItem}>
                       <div
-                        key={tok.id}
                         className={cn(
-                          'flex sm:grid items-center gap-2 sm:gap-x-4 px-3 py-2.5 transition-colors',
+                          'flex sm:grid items-center gap-2 sm:gap-x-4 px-3 py-2.5 transition-opacity duration-200',
                           apiTokensAllUsers && user?.is_admin ? 'sm:grid-cols-[minmax(0,1fr)_9rem_6.5rem_6.5rem_5rem_2rem]' : 'sm:grid-cols-[minmax(0,1fr)_9rem_6.5rem_6.5rem_2rem]',
                           isRevoked && 'opacity-50'
                         )}
@@ -2205,7 +2240,7 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
                             <button
                               onClick={() => askRevokeApiToken(tok.id)}
                               disabled={tokenRevoking === tok.id}
-                              className="p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                              className={`p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors touch-feedback ${PRESS}`}
                               title={t`Revoke token`}
                             >
                               {tokenRevoking === tok.id
@@ -2216,8 +2251,10 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
                           )}
                         </div>
                       </div>
+                      </m.div>
                     )
                   })}
+                  </AnimatePresence>
                 </div>
               )}
             </div>
@@ -2341,8 +2378,9 @@ function BackupSection() {
               disabled={backingUp}
               variant="secondary"
             >
-              {backingUp ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
-              {backingUp ? t`Preparing…` : t`Download my data`}
+              <SameWidth active={backingUp ? 1 : 0}>
+                {[<><Download className="w-3.5 h-3.5" />{t`Download my data`}</>, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Preparing…`}</>]}
+              </SameWidth>
             </Pill>
           </div>
         </PanelSection>
@@ -2382,7 +2420,7 @@ function AboutSection() {
                 <span className="text-[15px] font-semibold text-foreground">Tome</span>
 
                 <span className="rounded-md bg-secondary px-2 py-0.5 font-mono text-[13px] text-muted-foreground">
-                  v{tomeVersion}
+                  <Swap id={tomeVersion} className="inline-block">v{tomeVersion}</Swap>
                 </span>
               </div>
               <div className="ml-auto flex items-center gap-2">
@@ -2391,7 +2429,7 @@ function AboutSection() {
                     href={updateInfo.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 h-9 rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90"
+                    className={`inline-flex items-center gap-1.5 h-9 rounded-full bg-primary px-4 text-[14px] font-semibold text-primary-foreground transition-colors hover:bg-primary/90 touch-feedback ${PRESS}`}
                   >
                     <ArrowUpCircle className="w-3.5 h-3.5" />
                     {(() => { const v = updateInfo.latest; return t`Update to v${v}` })()}
@@ -2401,19 +2439,19 @@ function AboutSection() {
                   href="https://github.com/bndct-devops/tome"
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1.5 h-9 rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-surface-hover"
+                  className={`inline-flex items-center gap-1.5 h-9 rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground transition-colors hover:bg-surface-hover touch-feedback ${PRESS}`}
                 >
                   <ExternalLink className="w-3.5 h-3.5" />
                   GitHub
                 </a>
               </div>
             </div>
-            {updateInfo && (
-              <p className="mt-3 text-[13px] text-muted-foreground">
+            <Unfold open={!!updateInfo}>
+              <p className="pt-3 text-[13px] text-muted-foreground">
                 <Trans>A newer release is available. The link opens the release notes.
                 Update by pulling the new image and restarting the container.</Trans>
               </p>
-            )}
+            </Unfold>
             {SUPPORTERS.length > 0 && (
               <div className="mt-4 border-t border-border/50 pt-4">
                 <p className="text-[13px] font-medium text-muted-foreground">
@@ -2478,9 +2516,8 @@ function ShowMore({ all, hidden, onToggle }: { all: boolean; hidden: number; onT
   return (
     <div className="pt-2">
       <Pill variant="quiet" onClick={onToggle} className="-ml-4">
-        {all
-          ? <><ChevronUp className="w-3.5 h-3.5" /><Trans>Show less</Trans></>
-          : <><ChevronDown className="w-3.5 h-3.5" /><Plural value={hidden} one="Show # more" other="Show # more" /></>}
+        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform duration-200 ease-(--spring)', all && 'rotate-180')} />
+        {all ? <Trans>Show less</Trans> : <Plural value={hidden} one="Show # more" other="Show # more" />}
       </Pill>
     </div>
   )
@@ -2518,15 +2555,41 @@ function ConnectBlock({ rows }: { rows: { label: string; value: string; copy?: b
           {copy && (
             <button
               onClick={() => copyValue(value)}
-              className="p-1 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground shrink-0"
+              className={`p-1 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground shrink-0 touch-feedback ${PRESS}`}
               title={t`Copy`}
             >
-              {copied === value ? <Check className="w-3 h-3 text-success" /> : <Copy className="w-3 h-3" />}
+              <CopiedIcon copied={copied === value} className="w-3 h-3" />
             </button>
           )}
         </div>
       ))}
     </div>
+  )
+}
+
+/** Copy ↔ copied: the two icons cross-fade in place. */
+function CopiedIcon({ copied, className }: { copied: boolean; className?: string }) {
+  return (
+    <Swap id={copied ? 'copied' : 'copy'} className="inline-flex">
+      {copied ? <Check className={cn(className, 'text-success')} /> : <Copy className={className} />}
+    </Swap>
+  )
+}
+
+/** A small copy button that confirms with a check for a moment. */
+function CopyButton({ value, title }: { value: string; title: string }) {
+  const [copied, setCopied] = useState(false)
+  return (
+    <button
+      onClick={() => navigator.clipboard.writeText(value).then(() => {
+        setCopied(true)
+        setTimeout(() => setCopied(false), 1500)
+      })}
+      className={`p-1 rounded hover:bg-accent transition-colors text-muted-foreground hover:text-foreground shrink-0 touch-feedback ${PRESS}`}
+      title={title}
+    >
+      <CopiedIcon copied={copied} className="w-3 h-3" />
+    </button>
   )
 }
 
@@ -2562,7 +2625,7 @@ function PasswordField({
             className="absolute right-0.5 top-1/2 -translate-y-1/2 p-2.5 text-muted-foreground hover:text-foreground transition-colors"
             tabIndex={-1}
           >
-            {show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}
+            <Swap id={show ? 'hide' : 'show'} className="inline-flex">{show ? <EyeOff className="w-3.5 h-3.5" /> : <Eye className="w-3.5 h-3.5" />}</Swap>
           </button>
         )}
       </div>
@@ -2624,7 +2687,7 @@ function SetupGuide() {
       <Disclosure open={open} onToggle={() => setOpen(v => !v)}>
         <Trans>Setup instructions</Trans>
       </Disclosure>
-      {open && (
+      <Unfold open={open}>
         <ol className="divide-y divide-border/70 border-b border-border/70">
           {SETUP_STEPS.map((step, i) => (
             <li key={i} className="flex gap-3 py-3">
@@ -2641,7 +2704,7 @@ function SetupGuide() {
             </li>
           ))}
         </ol>
-      )}
+      </Unfold>
     </div>
   )
 }
@@ -2653,9 +2716,9 @@ function Disclosure({ open, onToggle, children }: { open: boolean; onToggle: () 
       type="button"
       onClick={onToggle}
       aria-expanded={open}
-      className="group flex w-full items-center gap-2 border-y border-border/70 py-2.5 text-left text-[14px] font-medium text-foreground transition-colors hover:text-primary"
+      className={`group flex w-full items-center gap-2 border-y border-border/70 py-2.5 text-left text-[14px] font-medium text-foreground transition-colors hover:text-primary touch-feedback ${PRESS}`}
     >
-      <ChevronRight className={cn('w-4 h-4 text-muted-foreground transition-transform group-hover:text-primary', open && 'rotate-90')} />
+      <ChevronRight className={cn('w-4 h-4 text-muted-foreground transition-transform duration-200 ease-(--spring) group-hover:text-primary', open && 'rotate-90')} />
       {children}
     </button>
   )
@@ -2675,11 +2738,9 @@ function ExportButton({ format, label, exporting, onExport }: {
       disabled={exporting !== null}
       variant="secondary"
     >
-      {busy
-        ? <RefreshCw className="w-3 h-3 animate-spin" />
-        : <Download className="w-3 h-3 text-muted-foreground" />
-      }
-      {busy ? t`Exporting...` : t`Export ${label}`}
+      <SameWidth active={busy ? 1 : 0}>
+        {[<><Download className="w-3 h-3 text-muted-foreground" />{t`Export ${label}`}</>, <><RefreshCw className="w-3 h-3 animate-spin" />{t`Exporting...`}</>]}
+      </SameWidth>
     </Pill>
   )
 }

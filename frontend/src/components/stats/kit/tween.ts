@@ -10,6 +10,10 @@
 //     <div className="k-grow-x" data-k={key} data-kt="barx" />   HTML fill: from its old width
 //     <div data-k={key} data-kt="move" />               anything else: from its old place
 //
+// In a list laid out in columns, give each mark its column (data-k-col): a mark
+// whose column changed does not slide across the other rows; it leaves from its
+// old place and rises in at the new one, as a new key does.
+//
 // Keys say what stays the same thing (a day, a book). A key that is new grows
 // in (bars) or rises from partial opacity; a key that went is drawn once more
 // from a copy at its old place (inside the nearest [data-k-layer], else the
@@ -21,11 +25,11 @@ import { useEffect, useLayoutEffect, useState } from 'react'
 import { DUR, EASE, type Entry } from './motion'
 
 type Kind = 'bar' | 'barx' | 'move'
-type Box = { el: Element; kind: Kind; layer: Element; x: number; y: number; w: number; h: number }
+type Box = { el: Element; kind: Kind; layer: Element; col: string | null; x: number; y: number; w: number; h: number }
 
 // Bars start at most this far apart in all (a little order, no slow wave).
 const SPREAD = 120
-const LEAVE = 360
+const LEAVE = DUR.update
 
 function abs(el: HTMLElement) {
   let x = 0, y = 0
@@ -40,12 +44,13 @@ function measure(root: Element | null): Map<string, Box> {
     const key = el.getAttribute('data-k')!
     const kind = (el.getAttribute('data-kt') ?? 'bar') as Kind
     const layer = el.parentElement?.closest('[data-k-layer]') ?? root
+    const col = el.getAttribute('data-k-col')
     if (el instanceof SVGGraphicsElement) {
       const b = el.getBBox()
-      out.set(key, { el, kind, layer, x: b.x, y: b.y, w: b.width, h: b.height })
+      out.set(key, { el, kind, layer, col, x: b.x, y: b.y, w: b.width, h: b.height })
     } else if (el instanceof HTMLElement) {
       const a = abs(el), l = layer instanceof HTMLElement ? abs(layer) : { x: 0, y: 0 }
-      out.set(key, { el, kind, layer, x: a.x - l.x, y: a.y - l.y, w: el.offsetWidth, h: el.offsetHeight })
+      out.set(key, { el, kind, layer, col, x: a.x - l.x, y: a.y - l.y, w: el.offsetWidth, h: el.offsetHeight })
     }
   }
   return out
@@ -129,22 +134,26 @@ export function useTween(entry: Entry, data: unknown, layout: unknown = null) {
     // (one inside another that went leaves with it). A new answer equal to the
     // last (a re-render with a fresh array) moves nothing and leaves a running change alone.
     const keys = [...next.keys()]
+    // Marks that changed column, and the marks inside them (they go with them).
+    const crossedKeys = new Set(keys.filter((k) => { const p = prev.get(k); return !!p && p.col !== next.get(k)!.col }))
+    const crossedEls = [...crossedKeys].map((k) => next.get(k)!.el)
+    const inside = (el: Element) => crossedEls.some((c) => c !== el && c.contains(el))
     const moves = keys.map((k) => {
       const n = next.get(k)!
-      const p = prev.get(k)
+      const p = crossedKeys.has(k) ? undefined : prev.get(k)
       return { n, p, t: p && p.kind === n.kind ? from(p, n) : null }
-    }).map((m, i) => ({ ...m, i })).filter((m) => !m.p || m.t)
-    const allGone = [...prev].filter(([k]) => !next.has(k)).map(([, p]) => p)
+    }).map((m, i) => ({ ...m, i })).filter((m) => !inside(m.n.el) && (!m.p || m.t))
+    const allGone = [...prev].filter(([k]) => !next.has(k) || (crossedKeys.has(k) && !inside(next.get(k)!.el))).map(([, p]) => p)
     const gone = allGone.filter((p) => !allGone.some((o) => o !== p && o.el.contains(p.el)))
     if (moves.length === 0 && gone.length === 0) return
     end()
     if (!entry.update()) return
     const step = keys.length > 1 ? Math.min(6, SPREAD / (keys.length - 1)) : 0
     const opts = (i: number, dur: number): KeyframeAnimationOptions => ({ duration: dur, delay: Math.round(i * step), easing: EASE, fill: 'backwards' })
-    for (const { n, p, t, i } of moves) {
+    for (const { n, t, i } of moves) {
       const frames = t ? [{ transform: t }, { transform: 'none' }] : ENTER[n.kind]
       // Moved marks travel together (a row's cells must not tear apart); bars keep a little order.
-      state.anims.push(n.el.animate(frames, opts(n.kind === 'move' ? 0 : i, n.kind === 'move' && !p ? DUR.fade : DUR.grow)))
+      state.anims.push(n.el.animate(frames, opts(n.kind === 'move' ? 0 : i, DUR.update)))
     }
     for (const p of gone) {
       const g = ghost(p)
@@ -161,4 +170,62 @@ export function useTween(entry: Entry, data: unknown, layout: unknown = null) {
   useEffect(() => entry.subscribe((p) => { if (p === 'done') end() }), [entry]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => end, []) // eslint-disable-line react-hooks/exhaustive-deps
   return ref
+}
+
+/**
+ * A layer whose marks change colour or place all at once with the data (heat cells, a
+ * year of days, a scatter with its axis): fill may not move, so on a change after the
+ * section was seen, a copy of the old layer is drawn once more on top of the new one and
+ * fades out (DUR.update) while the new layer is already opaque underneath. Nothing fades
+ * from zero and no box moves.
+ *
+ *   const xf = useCrossFade(entry, loading ? null : sig, W)   sig: changes when the layer's look does
+ *   <g ref={xf}>…cells…</g>                                   an SVG group (the copy goes next to it)
+ *
+ * `layout` (a width) takes a new copy without a change. Reduced motion, a section not yet
+ * seen, or finishEntries(): the new layer at once.
+ */
+export function useCrossFade(entry: Entry, sig: string | null, layout: unknown = null) {
+  const [state] = useState(() => ({
+    el: null as Element | null,
+    sig: null as string | null,
+    copy: null as Element | null,
+    ghost: null as Element | null,
+    anim: null as Animation | null,
+  }))
+  const [ref] = useState(() => (el: Element | null) => { state.el = el })
+  const end = () => {
+    state.anim?.cancel()
+    state.ghost?.remove()
+    state.anim = null
+    state.ghost = null
+  }
+  useLayoutEffect(() => {
+    if (sig == null) return // loading: the last copy stays for the next answer
+    const prev = state.sig, old = state.copy, el = state.el
+    state.sig = sig
+    state.copy = el ? quiet(el.cloneNode(true) as Element) : null
+    if (prev == null || prev === sig || !old || !el?.parentNode) return
+    if (!entry.update()) return
+    end()
+    el.after(old)
+    state.ghost = old
+    const a = old.animate([{ opacity: 1 }, { opacity: 0 }], { duration: DUR.update, easing: EASE, fill: 'forwards' })
+    a.onfinish = () => { old.remove(); if (state.ghost === old) { state.ghost = null; state.anim = null } }
+    state.anim = a
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- state and end are stable
+  }, [entry, sig, layout])
+  useEffect(() => entry.subscribe((p) => { if (p === 'done') end() }), [entry]) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => end, []) // eslint-disable-line react-hooks/exhaustive-deps
+  return ref
+}
+
+/** A copy for drawing only: no tips, keys, ids or pointer. */
+function quiet(c: Element): Element {
+  for (const n of [c, ...c.querySelectorAll('*')]) {
+    for (const a of ['data-k', 'data-box', 'data-tip', 'data-tip-i', 'data-hot', 'data-dot', 'data-book', 'id', 'href', 'tabindex']) n.removeAttribute(a)
+  }
+  c.setAttribute('aria-hidden', 'true')
+  if (c instanceof SVGElement || c instanceof HTMLElement) c.style.pointerEvents = 'none'
+  return c
 }

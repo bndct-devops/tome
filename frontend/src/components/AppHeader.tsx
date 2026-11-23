@@ -1,4 +1,5 @@
-import { type ReactNode, type RefObject } from 'react'
+import { useEffect, type ReactNode, type RefObject } from 'react'
+import { useLocation } from 'react-router-dom'
 import { Menu, Search, Upload, X } from 'lucide-react'
 import { useAuth, isMember } from '@/contexts/AuthContext'
 import { TomeMark } from '@/components/TomeMark'
@@ -6,7 +7,9 @@ import { SyncStatusBadge } from '@/components/SyncStatusBadge'
 import { NotificationBell } from '@/components/NotificationBell'
 import { WhatsNewPanel } from '@/components/WhatsNewPanel'
 import { CommandPalette } from '@/components/CommandPalette'
+import { noteLocation } from '@/components/SectionNav'
 import { Trans, useLingui } from '@lingui/react/macro'
+import { cn } from '@/lib/utils'
 
 /**
  * The one top navbar - menu button, wordmark, a search slot, and the right-side
@@ -23,13 +26,17 @@ export function AppHeader({ onMenuClick, search, actions, onUploadClick }: {
 }) {
   const { user } = useAuth()
   const { t } = useLingui()
+  // Every app page renders this header: it tells the Settings / Admin Back
+  // button where the user came from.
+  const { pathname, key } = useLocation()
+  useEffect(() => noteLocation(pathname), [pathname, key])
   // z-40: above content-level stickies (page toolbars at z-20, timeline axis at
   // z-30) so the notification dropdown isn't cut, below modals at z-50.
   return (
     <header className="bg-frame sticky top-0 z-40 shrink-0 safe-top">
       <div className="px-4 md:px-6 h-14 flex items-center gap-3">
         <button
-          className="md:hidden flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted shrink-0"
+          className="md:hidden flex items-center justify-center w-8 h-8 text-muted-foreground hover:text-foreground transition-colors rounded-lg hover:bg-muted shrink-0 touch-feedback"
           onClick={onMenuClick}
           aria-label={t`Open navigation`}
         >
@@ -99,22 +106,29 @@ export function HeaderSearch({ value, onChange, onClear, onSubmit, inputRef, pla
         // Escape leaves the box (the shortcut sheet promises it after "/").
         onKeyDown={e => { if (e.key === 'Escape') e.currentTarget.blur() }}
       />
-      {value ? (
-        <button
-          type="button"
-          className="absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-          aria-label={t`Clear search`}
-          onClick={onClear}
-        >
-          <X className="w-3.5 h-3.5" />
-        </button>
-      ) : (
-        // Discoverability for the command palette - nothing else in the UI
-        // hints that it exists. Hidden on phones (no hardware keyboard).
-        <kbd className="pointer-events-none absolute right-3.5 top-1/2 hidden -translate-y-1/2 text-[11px] leading-none text-muted-foreground/70 sm:block">
-          ⌘K
-        </kbd>
-      )}
+      {/* The clear button and the palette hint share the slot and cross-fade
+          (120 ms) as the box fills and empties. */}
+      <button
+        type="button"
+        className={cn(
+          'absolute right-3.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-[opacity,scale] duration-[120ms] motion-reduce:transition-none',
+          !value && 'pointer-events-none opacity-0 scale-75',
+        )}
+        aria-label={t`Clear search`}
+        aria-hidden={!value || undefined}
+        tabIndex={value ? undefined : -1}
+        onClick={onClear}
+      >
+        <X className="w-3.5 h-3.5" />
+      </button>
+      {/* Discoverability for the command palette - nothing else in the UI
+          hints that it exists. Hidden on phones (no hardware keyboard). */}
+      <kbd className={cn(
+        'pointer-events-none absolute right-3.5 top-1/2 hidden -translate-y-1/2 text-[11px] leading-none text-muted-foreground/70 transition-opacity duration-[120ms] motion-reduce:transition-none sm:block',
+        value && 'opacity-0',
+      )}>
+        ⌘K
+      </kbd>
     </>
   )
   return onSubmit ? (

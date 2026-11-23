@@ -1,7 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef, useState } from 'react'
 import { m } from 'motion/react'
 import { BookOpen, Eye, Star } from 'lucide-react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useHref, useNavigate } from 'react-router-dom'
 import { Trans, useLingui } from '@lingui/react/macro'
 import type { Book, ReadingStatus } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
@@ -9,8 +9,10 @@ import { cn, progressPercent } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
 import { DevicePills } from '@/components/DevicePills'
 import { coverSrc } from '@/lib/covers'
-import { coverRing, useTilt } from '@/lib/tilt'
+import { COVER_TILT, coverRing, useTilt } from '@/lib/tilt'
 import { isPlainClick, openBookWithCover, previewState } from '@/lib/coverTransition'
+import '@/components/motion/motion.css'
+import { EASE } from '@/components/motion/presets'
 
 /* eslint-disable lingui/no-unlocalized-strings -- Tailwind class map, not copy */
 const COLOR_CLASSES: Record<string, string> = {
@@ -53,11 +55,11 @@ interface BookCardProps {
   travel?: boolean
   /** Changes when the cover and title should measure for that hand-over (the
    *  view switch); between switches they skip measuring. */
-  travelEpoch?: number
+  travelEpoch?: number | string
 }
 
 // The hand-over of cover and title between the grid card and the list row.
-const TRAVEL = { duration: 0.42, ease: [0.2, 0.8, 0.2, 1] as const }
+const TRAVEL = { duration: 0.32, ease: EASE }
 
 /** Compact read-only star rating for cards. Renders nothing when unrated. */
 function RatingStars({ rating, size = 11 }: { rating?: number | null; size?: number }) {
@@ -76,7 +78,12 @@ function RatingStars({ rating, size = 11 }: { rating?: number | null; size?: num
   )
 }
 
-export function BookCard({
+/** A Library card: a cover with its title in the grid, a row in the list.
+ *  The same `<a>` in every state (a link to the book, or a toggle while
+ *  selecting), so switching modes re-renders the card instead of rebuilding
+ *  it. The corner buttons exist only once the card has been hovered or
+ *  focused: hundreds of cards keep that much less DOM. */
+export const BookCard = memo(function BookCard({
   book, view, selected, focused, onSelect,
   onTagClick: _onTagClick, onSeriesClick, onAuthorClick,
   readingStatus, progressPct, rating, showFormatBadge = true, onQuickLook,
@@ -84,12 +91,19 @@ export function BookCard({
 }: BookCardProps) {
   const { t } = useLingui()
   const navigate = useNavigate()
+  const href = useHref(`/books/${book.id}`)
   const bookTypes = useBookTypes()
-  const cardRef = useRef<HTMLDivElement | HTMLAnchorElement>(null)
+  const cardRef = useRef<HTMLAnchorElement>(null)
   // The visible cover box: the cover transition and the quick look start from it.
   const coverRef = useRef<HTMLDivElement | null>(null)
   const tiltEnabled = !onSelect
-  const { wrapperProps: tiltHandlers, tiltProps } = useTilt(tiltEnabled, 4, { lift: 3, scale: 1, glare: true })
+  // The same lift as every other cover (CoverLift): tilt, 3 px up, a press.
+  // No will-change here: a layer per card costs more than it saves in a grid
+  // of hundreds.
+  const { wrapperProps: tiltHandlers, tiltProps } = useTilt(tiltEnabled, COVER_TILT.degrees, { lift: COVER_TILT.lift, scale: COVER_TILT.scale })
+  const tiltStyle = { transform: tiltProps.style.transform }
+  const [armed, setArmed] = useState(false)
+  const arm = armed ? undefined : () => setArmed(true)
 
   useEffect(() => {
     if (focused && cardRef.current) {
@@ -234,24 +248,31 @@ export function BookCard({
       'group flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors duration-150 touch-feedback',
       selected ? 'bg-primary/10' : 'hover:bg-secondary',
       focused && 'ring-2 ring-ring ring-offset-1 ring-offset-background',
-      onSelect && 'select-none',
+      onSelect && 'select-none cursor-pointer',
     )
 
-    if (onSelect) return <div ref={cardRef as React.RefObject<HTMLDivElement>} className={cls} onClick={onSelect}>{inner}</div>
-    return <Link ref={cardRef as React.RefObject<HTMLAnchorElement>} to={`/books/${book.id}`} onClick={openPage} className={cls}>{inner}</Link>
+    return <a ref={cardRef} href={onSelect ? undefined : href} onClick={onSelect ?? openPage} className={cls}>{inner}</a>
   }
 
   // ── Cover grid (large / small) ────────────────────────────────────────────
-  const gridCls = cn('group flex flex-col cursor-pointer touch-feedback', onSelect && 'select-none')
+  const gridCls = cn('group flex flex-col cursor-pointer', onSelect && 'select-none')
   const gridContent = (
     <>
-      {/* Cover: the outer box travels on the grid/list switch, the inner one tilts */}
-      <m.div key="cover" {...travelProps('cover')} style={{ perspective: '600px' }}>
+      {/* Cover: the outer box travels on the grid/list switch and holds the
+          perspective, the inner one tilts and lifts on hover */}
+      <m.div
+        key="cover"
+        {...travelProps('cover')}
+        className={cn(tiltEnabled && 'cover-lift')}
+        style={{ perspective: '600px' }}
+        onMouseMove={tiltHandlers.onMouseMove}
+        onMouseLeave={tiltHandlers.onMouseLeave}
+      >
       <div
         ref={node => { coverRef.current = node; tiltProps.ref(node) }}
         data-cover-id={book.id}
         className="aspect-[2/3] bg-muted relative overflow-hidden rounded-[8px]"
-        style={{ boxShadow: coverRing(!!selected, !!focused), transition: 'transform 200ms ease-out' }}
+        style={{ ...tiltStyle, boxShadow: coverRing(!!selected, !!focused), transition: 'transform 200ms ease-out, box-shadow 150ms ease-out' }}
       >
         <CoverImage
           src={coverUrl}
@@ -259,14 +280,6 @@ export function BookCard({
           color={book.cover_color}
           iconClassName={view === 'large' ? 'w-12 h-12' : 'w-8 h-8'}
         />
-
-        {/* Shine/glare overlay - follows mouse */}
-        {tiltEnabled && (
-          <div
-            className="absolute inset-0 z-20 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity duration-300"
-            style={{ background: 'radial-gradient(circle at var(--glare-x, 50%) var(--glare-y, 50%), rgba(255,255,255,0.12) 0%, transparent 60%)' }}
-          />
-        )}
 
         {/* Format badge - top right; "No file" in its place for a reader-sync record */}
         {noFile ? (
@@ -298,13 +311,13 @@ export function BookCard({
 
         {/* Quick look - top left, on hover or keyboard focus. Not while
             selecting: the selection circle owns that corner then. */}
-        {onQuickLook && !onSelect && (
+        {armed && onQuickLook && !onSelect && (
           <button
             type="button"
             className={cn(
               'absolute top-1.5 left-1.5 z-30 w-8 h-8 rounded-full',
               'flex items-center justify-center text-foreground',
-              'bg-background/75 backdrop-blur-sm hover:bg-background transition-opacity',
+              'bg-background/75 backdrop-blur-sm hover:bg-background transition-opacity starting:opacity-0',
               // Not a hidden tap target on touch: a tap on the corner opens the page.
               'opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
@@ -318,12 +331,12 @@ export function BookCard({
         )}
 
         {/* Quick-read button - bottom right, hover only */}
-        {hasReadableFile && (
+        {armed && hasReadableFile && (
           <button
             className={cn(
               'absolute bottom-2.5 right-1.5 z-30 w-8 h-8 rounded-full',
               'flex items-center justify-center text-foreground',
-              'bg-background/75 backdrop-blur-sm hover:bg-background transition-opacity',
+              'bg-background/75 backdrop-blur-sm hover:bg-background transition-opacity starting:opacity-0',
               'opacity-0 group-hover:opacity-100 group-focus-within:opacity-100',
               'focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
             )}
@@ -368,27 +381,16 @@ export function BookCard({
 
   // Selecting: the card toggles its checkbox. Otherwise it is a real link, so
   // middle-click, open-in-new-tab and Tab focus work like the list view.
-  if (onSelect) {
-    return (
-      <div
-        ref={cardRef as React.RefObject<HTMLDivElement>}
-        className={gridCls}
-        onClick={onSelect}
-      >
-        {gridContent}
-      </div>
-    )
-  }
   return (
-    <Link
-      ref={cardRef as React.RefObject<HTMLAnchorElement>}
-      to={`/books/${book.id}`}
-      className={cn(gridCls, 'rounded-[8px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background')}
-      onClick={openPage}
-      onMouseMove={tiltHandlers.onMouseMove}
-      onMouseLeave={tiltHandlers.onMouseLeave}
+    <a
+      ref={cardRef}
+      href={onSelect ? undefined : href}
+      className={cn(gridCls, !onSelect && 'rounded-[8px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background')}
+      onClick={onSelect ?? openPage}
+      onMouseEnter={arm}
+      onFocus={arm}
     >
       {gridContent}
-    </Link>
+    </a>
   )
-}
+})

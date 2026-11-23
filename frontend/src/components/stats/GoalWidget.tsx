@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { Pencil, Plus, Trash2 } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
@@ -37,7 +38,8 @@ export function GoalWidgetBody({ goals, onChanged }: { goals: Goal[] | null; onC
     return <div className="flex h-full items-center justify-center text-[14px] text-muted-foreground"><Trans>Loading…</Trans></div>
   }
 
-  const modal = dialog && <GoalDialog mode={dialog} goals={goals} onClose={() => setDialog(null)} />
+  // Inside AnimatePresence, so the dialog closes with its exit (ModalShell).
+  const modal = <AnimatePresence>{dialog && <GoalDialog key="goal-dialog" mode={dialog} goals={goals} onClose={() => setDialog(null)} />}</AnimatePresence>
   if (goals.length === 0) {
     return (
       <div className="flex h-full flex-col items-center justify-center gap-2 text-center">

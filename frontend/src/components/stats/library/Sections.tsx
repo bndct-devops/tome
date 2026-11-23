@@ -1,7 +1,8 @@
 // The Library page's lower sections: Backlog, the three small charts, the
 // monthly additions and the All books table.
-import { Fragment, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { BookLink, Unfold } from '@/components/motion'
+import { PRESS } from '@/components/page'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown } from 'lucide-react'
@@ -394,9 +395,17 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
   const [open, setOpen] = useState<number | null>(null)
   const data = stats?.per_book_time ?? null
   const sorted = useMemo(() => (data ? [...data].sort((a, b) => (asc ? a[key] - b[key] : b[key] - a[key]) || a.title.localeCompare(b.title)) : null), [data, key, asc])
-  const list = sorted ? (all ? sorted : sorted.slice(0, BOOKS_SHOWN)) : Array.from({ length: rows }, () => null)
+  const list = sorted ? sorted.slice(0, BOOKS_SHOWN) : Array.from({ length: rows }, () => null)
+  // Past the first rows: unfolded under them by "Show all", folded away by "Show fewer".
+  const rest = sorted ? sorted.slice(BOOKS_SHOWN) : []
+  // A panel unfolding moves the rows under it once it has settled: read their places again then.
+  const [settled, setSettled] = useState(0)
+  useEffect(() => {
+    const id = window.setTimeout(() => setSettled((n) => n + 1), 240)
+    return () => window.clearTimeout(id)
+  }, [open, all])
   // A new range or a new sort: the cells of a book that stays slide to its new row (rows keep their boxes).
-  const tw = useTween(e, sorted, `${desktop}:${all}:${open}`)
+  const tw = useTween(e, sorted, `${desktop}:${all}:${open}:${settled}`)
   const sort = (k: SortKey) => {
     if (k === key) setAsc(!asc)
     else { setKey(k); setAsc(false) }
@@ -433,7 +442,9 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
             {desktop && <span role="columnheader" className="text-right">{sortHead('pages_turned', <Trans>Pages</Trans>)}</span>}
             <span role="columnheader"><span className="sr-only"><Trans>Sessions of the book</Trans></span></span>
           </div>
-          {list.map((b, i) => {
+          {[list, rest].map((part, half) => {
+          const drawn = part.map((b, j) => {
+            const i = half === 0 ? j : BOOKS_SHOWN + j
             const row = cn('grid items-center border-t text-[14px]', HAIR, cols)
             const style = { height: rowH }
             const box = i < BOOKS_SHOWN ? `book-${i}` : undefined
@@ -457,7 +468,7 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
             const cells = (
               <>
                 <span role="cell" {...mk(0)}>
-                  <Cover id={b ? (b.has_cover ? b.book_id : null) : null} h={44} className={cn('rounded-[6px]', b && cn(K.fade, 'transition-transform duration-200 group-hover:-translate-y-0.5'))} />
+                  <Cover id={b ? (b.has_cover ? b.book_id : null) : null} book={b?.book_id} h={44} className={cn('rounded-[6px]', b && cn(K.fade, 'transition-transform duration-200 group-hover:-translate-y-0.5'))} />
                 </span>
                 <span role="cell" className="min-w-0" {...mk(1)}>
                   <span className={cn('block truncate font-semibold text-foreground transition-colors group-hover:text-primary', desktop ? 'text-[15px]' : 'text-[14px] leading-[19px]')}>
@@ -478,14 +489,19 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
             return b ? (
               <Fragment key={b.book_id}>
                 <div role="row" data-box={box} className={cn(row, 'group relative transition-colors hover:bg-accent/30 [&>[role=cell]]:pointer-events-none', isOpen && 'bg-accent/20')} style={style}>
-                  <Link to={`/books/${b.book_id}`} aria-label={b.title} className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" />
+                  <BookLink book={{ id: b.book_id, title: b.title, author: b.author }} aria-label={b.title} className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" />
                   {cells}
                 </div>
-                {isOpen && <BookSessions id={panel!} bookId={b.book_id} desktop={desktop} />}
+                {/* Opens in place; the rows under it are pushed down by its height, never moved themselves. */}
+                <Unfold open={isOpen}>
+                  <BookSessions id={panel!} bookId={b.book_id} desktop={desktop} />
+                </Unfold>
               </Fragment>
             ) : (
               <div key={i} role="row" data-box={box} className={row} style={style}>{cells}</div>
             )
+          })
+          return half === 0 ? <Fragment key="first">{drawn}</Fragment> : <Unfold key="rest" open={all && drawn.length > 0}>{drawn}</Unfold>
           })}
         </div>
       )}
@@ -494,7 +510,7 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
       )}
       {n > BOOKS_SHOWN && (
         <div className="mt-3 flex h-6 items-center">
-          <button type="button" onClick={() => setAll(!all)} className="text-[15px] font-medium text-primary hover:underline underline-offset-4">
+          <button type="button" onClick={() => setAll(!all)} className={cn('touch-feedback text-[15px] font-medium text-primary hover:underline underline-offset-4', PRESS)}>
             {all ? <Trans>Show fewer</Trans> : (() => { const total = num(n); return <Trans>Show all {total}</Trans> })()}
           </button>
         </div>

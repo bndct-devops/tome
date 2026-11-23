@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
+import { AnimatePresence, LayoutGroup, m } from 'motion/react'
 import {
   Plus, Trash2, ChevronDown,
   BookOpen, Loader2, Layers, ExternalLink, Search,
@@ -16,7 +17,8 @@ import { CoverImage } from '@/components/CoverImage'
 import { PageBody, PageHeader, Pill, SectionTitle } from '@/components/page'
 import { docsLink, DOCS } from '@/lib/docs'
 import { cn } from '@/lib/utils'
-import { Trans, Plural } from '@lingui/react/macro'
+import { BookLink, Pop, RunningNumber, Unfold, listItem } from '@/components/motion'
+import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 
 function RowCover({ url, fallback = 'book' }: { url: string | null; fallback?: 'book' | 'series' }) {
@@ -44,6 +46,27 @@ function ageLabel(iso: string): string {
   const months = Math.floor(days / 30)
   if (months < 12) return t`${months}mo ago`
   { const years = Math.floor(months / 12); return t`${years}y ago` }
+}
+
+ /** Holds the list's shape while the wishes load. */
+function WishlistSkeleton() {
+  return (
+    <section aria-busy="true" className="animate-pulse motion-reduce:animate-none">
+      <div className="h-5 w-24 rounded-md bg-muted" />
+      <div className="mt-3">
+        {[0, 1, 2].map(i => (
+          <div key={i} className={cn('flex items-start gap-4 py-4', i > 0 && 'border-t border-border/70')}>
+            <div className="w-11 h-16 rounded-[8px] bg-muted shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="h-4 w-2/3 rounded bg-muted" />
+              <div className="mt-2 h-3.5 w-1/3 rounded bg-muted" />
+              <div className="mt-3 h-3 w-16 rounded bg-muted" />
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+  )
 }
 
 const openDocs = () => window.open(docsLink(DOCS.wishlist), '_blank', 'noopener,noreferrer')
@@ -113,7 +136,7 @@ function FollowingSection() {
     <section>
       <SectionTitle
         size={20}
-        action={<span className="text-[14px] font-normal text-muted-foreground"><Plural value={follows.length} one="# series" other="# series" /></span>}
+        action={<span className="text-[14px] font-normal text-muted-foreground"><RunningNumber value={follows.length} format={n => plural(Math.round(n), { one: '# series', other: '# series' })} /></span>}
       >
         <Trans>Following</Trans>
       </SectionTitle>
@@ -130,14 +153,13 @@ function FollowingSection() {
           className="w-full h-9 pl-10 pr-9 rounded-full bg-secondary text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         />
         {searching && <Loader2 className="absolute right-3.5 top-1/2 -translate-y-1/2 w-4 h-4 animate-spin text-muted-foreground" />}
-        {results.length > 0 && (
-          <div className="absolute z-10 mt-2 w-full rounded-[14px] bg-card shadow-xl overflow-hidden p-1">
+        <Pop open={results.length > 0} origin="top" className="absolute z-10 mt-2 w-full rounded-[14px] bg-card shadow-xl overflow-hidden p-1">
             {results.slice(0, 5).map(r => (
               <button
                 key={r.source_id}
                 onClick={() => follow(r)}
                 disabled={busy}
-                className="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-secondary transition-colors disabled:opacity-50"
+                className="flex w-full items-center gap-3 px-3 py-2 rounded-lg text-left hover:bg-secondary transition-colors disabled:opacity-50 touch-feedback"
               >
                 {r.cover_url
                   ? <img src={r.cover_url} alt="" className="w-7 h-10 rounded-[6px] object-cover shrink-0" />
@@ -151,14 +173,14 @@ function FollowingSection() {
                 <Plus className="w-4 h-4 text-muted-foreground shrink-0" />
               </button>
             ))}
-          </div>
-        )}
+        </Pop>
       </div>
 
       {follows.length > 0 && (
-        <div className="mt-3">
+        <div className="relative mt-3">
+          <AnimatePresence initial={false}>
           {follows.map((f, i) => (
-            <div key={f.id} className={cn('group flex items-center gap-4 py-3.5', i > 0 && 'border-t border-border/70')}>
+            <m.div key={f.id} {...listItem} className={cn('group flex items-center gap-4 py-3.5', i > 0 && 'border-t border-border/70')}>
               <RowCover url={f.cover_url} fallback="series" />
               <div className="min-w-0 flex-1">
                 <p className="text-[16px] font-semibold text-foreground truncate">{f.name}</p>
@@ -177,8 +199,9 @@ function FollowingSection() {
               >
                 <Trash2 className="w-4 h-4" />
               </Pill>
-            </div>
+            </m.div>
           ))}
+          </AnimatePresence>
         </div>
       )}
     </section>
@@ -260,9 +283,13 @@ export function WishlistPage() {
 
   return (
     <AppShell>
+      {/* One group: when a leaving row is gone, everything below glides up. */}
+      <LayoutGroup>
       <PageBody width="reading">
         <PageHeader
-          eyebrow={!firstLoad && !error ? plural(openWishes.length, { one: '# open', other: '# open' }) : undefined}
+          eyebrow={!firstLoad && !error
+            ? <RunningNumber value={openWishes.length} format={n => plural(Math.round(n), { one: '# open', other: '# open' })} />
+            : undefined}
           title={<Trans>Wishlist</Trans>}
           actions={
             <>
@@ -279,9 +306,7 @@ export function WishlistPage() {
         />
 
         {firstLoad ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
+          <WishlistSkeleton />
         ) : error ? (
           <p className="text-[15px] text-destructive">{error}</p>
         ) : (
@@ -304,13 +329,14 @@ export function WishlistPage() {
               <section className={cn('transition-opacity', loading && 'opacity-50')}>
                 <SectionTitle
                   size={20}
-                  action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums">{openWishes.length}</span>}
+                  action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums"><RunningNumber value={openWishes.length} /></span>}
                 >
                   <Trans>Open</Trans>
                 </SectionTitle>
-                <div className="mt-3">
+                <div className="relative mt-3">
+                  <AnimatePresence initial={false}>
                   {openWishes.map((w, i) => (
-                    <div key={w.id} className={cn('group flex items-start gap-4 py-4', i > 0 && 'border-t border-border/70')}>
+                    <m.div key={w.id} {...listItem} className={cn('group flex items-start gap-4 py-4', i > 0 && 'border-t border-border/70')}>
                       <RowCover url={w.cover_url} fallback={w.series && w.series_index == null ? 'series' : 'book'} />
                       <div className="flex-1 min-w-0">
                         <p className="text-[16px] font-semibold text-foreground leading-snug line-clamp-2">{w.title}</p>
@@ -349,8 +375,9 @@ export function WishlistPage() {
                           ? <Loader2 className="w-4 h-4 animate-spin" />
                           : <Trash2 className="w-4 h-4" />}
                       </Pill>
-                    </div>
+                    </m.div>
                   ))}
+                  </AnimatePresence>
                 </div>
               </section>
             )}
@@ -368,21 +395,22 @@ export function WishlistPage() {
                       title={fulfilledOpen ? t`Collapse` : t`Expand`}
                       className="px-3 tabular-nums"
                     >
-                      {fulfilledWishes.length}
-                      <ChevronDown className={cn('w-4 h-4 transition-transform', !fulfilledOpen && '-rotate-90')} />
+                      <RunningNumber value={fulfilledWishes.length} />
+                      <ChevronDown className={cn('w-4 h-4 transition-transform duration-[240ms] ease-(--spring) motion-reduce:transition-none', !fulfilledOpen && '-rotate-90')} />
                     </Pill>
                   }
                   className="items-center"
                 >
-                  <button type="button" onClick={() => setFulfilledOpen(o => !o)} className="text-left hover:text-primary transition-colors">
+                  <button type="button" onClick={() => setFulfilledOpen(o => !o)} className="text-left hover:text-primary transition-colors touch-feedback">
                     <Trans>Fulfilled</Trans>
                   </button>
                 </SectionTitle>
 
-                {fulfilledOpen && (
-                  <div className="mt-3">
+                <Unfold open={fulfilledOpen}>
+                  <div className="relative pt-3">
+                    <AnimatePresence initial={false}>
                     {fulfilledWishes.map((w, i) => (
-                      <div key={w.id} className={cn('flex items-center gap-4 py-3.5', i > 0 && 'border-t border-border/70')}>
+                      <m.div key={w.id} {...listItem} className={cn('flex items-center gap-4 py-3.5', i > 0 && 'border-t border-border/70')}>
                         <div className="opacity-70"><RowCover url={w.cover_url} /></div>
                         <div className="flex-1 min-w-0">
                           <p className="text-[16px] font-semibold text-foreground/80 leading-snug line-clamp-2">{w.title}</p>
@@ -392,17 +420,21 @@ export function WishlistPage() {
                           </p>
                         </div>
                         {w.fulfilled_book_id && (
-                          <Link
-                            to={`/books/${w.fulfilled_book_id}`}
-                            className="shrink-0 inline-flex items-center h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                          // The row shows the wish's own (external) cover, not the
+                          // library's: the book page paints at once, nothing grows.
+                          <BookLink
+                            book={{ id: w.fulfilled_book_id, title: w.title, author: w.author, series: w.series, series_index: w.series_index }}
+                            cover={null}
+                            className="shrink-0 inline-flex items-center h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors touch-feedback"
                           >
                             <Trans>View book</Trans>
-                          </Link>
+                          </BookLink>
                         )}
-                      </div>
+                      </m.div>
                     ))}
+                    </AnimatePresence>
                   </div>
-                )}
+                </Unfold>
               </section>
             )}
           </>
@@ -410,6 +442,7 @@ export function WishlistPage() {
 
         {!firstLoad && !error && <FollowingSection />}
       </PageBody>
+      </LayoutGroup>
 
       <WishlistModal
         key={addEpoch}

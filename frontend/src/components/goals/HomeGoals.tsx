@@ -8,6 +8,7 @@
 // are in (the goals among them), so neither the cards nor the line push what is
 // below them.
 import { useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { Link, useNavigate } from 'react-router-dom'
 import { Plus } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
@@ -62,7 +63,7 @@ export function HomeGoals({ answer }: { answer: GoalsAnswer }) {
           )}
         </div>
       )}
-      {creating && <GoalDialog mode={{ kind: 'create' }} goals={answer.goals} onClose={() => setCreating(false)} onSaved={(g: Goal) => setFresh(g.id)} />}
+      <AnimatePresence>{creating && <GoalDialog key="new" mode={{ kind: 'create' }} goals={answer.goals} onClose={() => setCreating(false)} onSaved={(g: Goal) => setFresh(g.id)} />}</AnimatePresence>
     </section>
     </>
   )
@@ -77,7 +78,7 @@ export function HomeGoalStart({ goals }: { goals: Goal[] }) {
         <Plus className="h-4 w-4" aria-hidden="true" /><Trans>Set a reading goal</Trans>
       </button>
       <span className="text-[14px] text-muted-foreground"><Trans>Progress counts automatically.</Trans></span>
-      {creating && <GoalDialog mode={{ kind: 'create' }} goals={goals} onClose={() => setCreating(false)} />}
+      <AnimatePresence>{creating && <GoalDialog key="new" mode={{ kind: 'create' }} goals={goals} onClose={() => setCreating(false)} />}</AnimatePresence>
     </div>
   )
 }

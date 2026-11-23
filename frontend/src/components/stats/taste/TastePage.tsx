@@ -10,6 +10,7 @@
 // or a series are one link each.
 import { useMemo, type ReactNode } from 'react'
 import { Link } from 'react-router-dom'
+import { BookLink, SeriesLink } from '@/components/motion'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { Star } from 'lucide-react'
@@ -51,7 +52,6 @@ const tenths = (n: number) => dec1(n / 10)
 const ratedOn = (iso: string | null) => { if (!iso) return undefined; const d = fmtDay(iso.slice(0, 10)); return t`Rated ${d}` }
 /** A row that is one link: the title takes the accent and the cover lifts on hover, as the Overview's rows. */
 const LINK_ROW = 'group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring'
-const LIFT = 'transition-transform duration-200 group-hover:-translate-y-0.5'
 const ACCENT = 'transition-colors group-hover:text-primary'
 
 /** Read-only stars at a pixel size (half stars as the app draws them). */
@@ -174,14 +174,14 @@ function Favourites({ r, width, desktop }: { r: Ratings | null; width: number; d
     cells.push(
       <div key={b?.book_id ?? i} className={cn('flex shrink-0 flex-col gap-2', b && K.rise)} style={b ? stagger(i, slots) : undefined}>
         {b ? (
-          <Link
-            to={`/books/${b.book_id}`}
+          <BookLink
+            book={{ id: b.book_id, title: b.title, author: b.author }}
             aria-label={label}
             {...tipAttrs({ title, value: stars, note: ratedOn(b.rated_at) })}
             className="group block rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
-            <Cover id={b.has_cover ? b.book_id : null} h={SHELF_H} className={LIFT} />
-          </Link>
+            <Cover id={b.has_cover ? b.book_id : null} book={b.book_id} h={SHELF_H} lift />
+          </BookLink>
         ) : (
           <Cover id={null} h={SHELF_H} />
         )}
@@ -216,7 +216,7 @@ function Favourites({ r, width, desktop }: { r: Ratings | null; width: number; d
             const row = cn('flex h-[62px] min-w-0 items-center gap-3.5', (desktop ? i >= 2 : i >= 1) && cn('border-t', HAIR))
             const body = (
               <>
-                <Cover id={b ? (b.has_cover ? b.book_id : null) : null} h={44} className={cn('rounded-[4px]', b && LIFT)} />
+                <Cover id={b ? (b.has_cover ? b.book_id : null) : null} book={b?.book_id} h={44} className="rounded-[4px]" lift={!!b} />
                 <div className="min-w-0 flex-1">
                   <div className={cn('truncate text-[15px] font-medium text-foreground', ACCENT)}>{b ? b.title : <Ph on>{PH.title}</Ph>}</div>
                   <div className="mt-[3px] flex items-center gap-2.5 whitespace-nowrap text-[13px] text-muted-foreground">
@@ -228,7 +228,7 @@ function Favourites({ r, width, desktop }: { r: Ratings | null; width: number; d
               </>
             )
             return b ? (
-              <Link key={b.book_id} to={`/books/${b.book_id}`} data-box={`lowest-${i}`} className={cn(row, LINK_ROW)}>{body}</Link>
+              <BookLink key={b.book_id} book={{ id: b.book_id, title: b.title, author: b.author }} data-box={`lowest-${i}`} className={cn(row, LINK_ROW)}>{body}</BookLink>
             ) : (
               <div key={i} data-box={`lowest-${i}`} className={row}>{body}</div>
             )
@@ -257,7 +257,7 @@ function SeriesList({ r }: { r: Ratings | null }) {
             const row = cn('flex h-[62px] min-w-0 items-center gap-3.5', i > 0 && cn('border-t', HAIR))
             const body = (
               <>
-                <Cover id={s?.sample_book_id ?? null} h={54} className={cn('rounded-[4px]', s && LIFT)} />
+                <Cover id={s?.sample_book_id ?? null} series={s?.series} h={54} className="rounded-[4px]" lift={!!s} />
                 <div className="min-w-0 flex-1">
                   <div className={cn('truncate text-[15px] font-semibold text-foreground', ACCENT)}><Ph on={!s}>{s?.series ?? PH.series}</Ph></div>
                   <div className="mt-[3px] flex items-center gap-2.5 whitespace-nowrap text-[13px] text-muted-foreground">
@@ -269,7 +269,7 @@ function SeriesList({ r }: { r: Ratings | null }) {
             )
             // A series opens in the Series view, as Home and the book page link it.
             return s ? (
-              <Link key={s.series} to={`/?tab=series&series_detail=${encodeURIComponent(s.series)}`} data-box={`series-${i}`} className={cn(row, LINK_ROW)}>{body}</Link>
+              <SeriesLink key={s.series} name={s.series} data-box={`series-${i}`} className={cn(row, LINK_ROW)}>{body}</SeriesLink>
             ) : (
               <div key={i} data-box={`series-${i}`} className={row}>{body}</div>
             )
@@ -399,8 +399,8 @@ function Highlights({ h, desktop }: { h: HighlightsResponse; desktop: boolean })
               const n = plural(b.count, { one: '# highlight', other: '# highlights' })
               const share = h.count > 0 ? Math.round((b.count / h.count) * 100) : 0
               return (
-                <Link key={b.book_id} to={`/books/${b.book_id}`} data-box={`highlights-${i}`} className={cn('flex h-[62px] min-w-0 items-center gap-3.5', i > 0 && cn('border-t', HAIR), LINK_ROW)}>
-                  <Cover id={b.book_id} h={54} className={cn('rounded-[4px]', LIFT)} />
+                <BookLink key={b.book_id} book={{ id: b.book_id, title: b.title }} data-box={`highlights-${i}`} className={cn('flex h-[62px] min-w-0 items-center gap-3.5', i > 0 && cn('border-t', HAIR), LINK_ROW)}>
+                  <Cover id={b.book_id} h={54} className="rounded-[4px]" lift />
                   <div className="min-w-0 flex-1">
                     <div className={cn('truncate text-[15px] font-semibold text-foreground', ACCENT)}>{b.title}</div>
                     <div className="mt-[9px] flex items-center gap-3">
@@ -408,7 +408,7 @@ function Highlights({ h, desktop }: { h: HighlightsResponse; desktop: boolean })
                       <span className="min-w-4 text-right text-[13px] font-semibold tabular-nums text-foreground"><CountUp entry={e} value={b.count} format={num} align="end" /></span>
                     </div>
                   </div>
-                </Link>
+                </BookLink>
               )
             })}
           </div>

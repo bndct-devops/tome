@@ -8,6 +8,7 @@ import { useEffect, useRef } from 'react'
 import { createPortal } from 'react-dom'
 import { GUIDE, MARK, setTipLayer, tipFor, type Tip, type TipRect } from './tip'
 import { DESKTOP_MIN } from './tokens'
+import { EASE, reducedMotion } from './motion'
 
 const GAP = 8
 // The marks' chart: its gaps keep the tip.
@@ -107,6 +108,11 @@ export function TipLayer() {
       if (row) { x = row.x; y = row.y }
       tip.style.left = `${Math.round(x)}px`
       tip.style.top = `${Math.round(y)}px`
+      // Shown from hidden: a short fade and grow (as the app's popovers). Between marks it
+      // only moves: the one element stays, so nothing flickers.
+      if (tip.style.visibility !== 'visible' && !reducedMotion()) {
+        tip.animate([{ opacity: 0, transform: 'scale(0.96)' }, { opacity: 1, transform: 'none' }], { duration: 120, easing: EASE })
+      }
       tip.style.visibility = 'visible'
       if (announce) say.textContent = [t.title, t.value, t.note].filter(Boolean).join(', ')
     }

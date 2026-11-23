@@ -11,7 +11,8 @@ import { Check } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { cn, formatDuration } from '@/lib/utils'
-import { SectionTitle } from '@/components/page'
+import { PRESS, SectionTitle } from '@/components/page'
+import { BookLink } from '@/components/motion'
 import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import type { CompletionEstimate, StatsResponse } from '@/components/stats/shared'
@@ -480,16 +481,21 @@ function ReadingNow({ stats, estimates, desktop, loading, sig, onRefresh }: { st
                 data-box={`now-card-${i}`}
                 className={cn('relative flex min-w-0 items-center gap-5', span, b && 'group')}
               >
-                <Cover id={b ? (b.has_cover ? b.book_id : null) : null} h={NOW_CARD_H} className={b ? 'transition-transform duration-200 group-hover:-translate-y-0.5' : undefined} />
+                {b ? (
+                  // Above the title's stretched link, so the cover lifts under the pointer; the same way to the book.
+                  <BookLink book={{ id: b.book_id, title: b.title, author: b.author }} tabIndex={-1} aria-hidden="true" className="relative z-10 shrink-0 rounded-[8px] focus-visible:outline-none">
+                    <Cover id={b.has_cover ? b.book_id : null} book={b.book_id} h={NOW_CARD_H} lift />
+                  </BookLink>
+                ) : <Cover id={null} h={NOW_CARD_H} />}
                 <div className="min-w-0 flex-1">
                   <div className={cn('truncate font-display font-bold text-foreground', desktop ? 'text-[20px]' : 'text-[18px]', 'leading-[1.15]')}>
                     {b ? (
-                      <Link
-                        to={`/books/${b.book_id}`}
+                      <BookLink
+                        book={{ id: b.book_id, title: b.title, author: b.author }}
                         className="underline-offset-4 after:absolute after:inset-0 after:rounded-[8px] group-hover:underline focus-visible:outline-none focus-visible:after:ring-2 focus-visible:after:ring-ring focus-visible:after:ring-offset-4 focus-visible:after:ring-offset-background"
                       >
                         {b.title}
-                      </Link>
+                      </BookLink>
                     ) : <Ph on>{PH.title}</Ph>}
                   </div>
                   <div className="mt-1 truncate text-[15px] leading-[1.4] text-muted-foreground">{b ? b.author ?? ' ' : <Ph on>{PH.author}</Ph>}</div>
@@ -506,7 +512,7 @@ function ReadingNow({ stats, estimates, desktop, loading, sig, onRefresh }: { st
                           type="button"
                           onClick={() => markRead(b.book_id, b.title)}
                           disabled={marking === b.book_id}
-                          className="relative z-10 inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline disabled:opacity-50"
+                          className={cn('touch-feedback relative z-10 inline-flex items-center gap-1 font-medium text-primary underline-offset-4 hover:underline disabled:opacity-50', PRESS)}
                         >
                           <Check className="h-3.5 w-3.5" aria-hidden="true" />
                           <Trans>Mark as read</Trans>
@@ -557,8 +563,8 @@ function Finished({ stats, width, desktop, loading, rangePhrase, allTime, dim, s
       <div key={b ? `${b.book_id}-${b.k}` : i} className="flex shrink-0 flex-col gap-2">
         <div className="h-[18px] whitespace-nowrap text-[13px] font-medium leading-[18px] text-muted-foreground">{loading && i === 0 ? <Ph on>{PH.month}</Ph> : label}</div>
         {b ? (
-          <Link
-            to={`/books/${b.book_id}`}
+          <BookLink
+            book={{ id: b.book_id, title: b.title }}
             aria-label={b.title}
             {...tipAttrs({ title: b.title, value: t`Finished ${finishedOn}` })}
             data-k={`${b.book_id}-${b.date}`}
@@ -566,8 +572,8 @@ function Finished({ stats, width, desktop, loading, rangePhrase, allTime, dim, s
             className={cn('group block rounded-[8px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', K.rise)}
             style={stagger(i, shown + (n > shown ? 1 : 0))}
           >
-            <Cover id={b.book_id} h={COVER_SHELF_H} className="transition-transform duration-200 group-hover:-translate-y-0.5" />
-          </Link>
+            <Cover id={b.book_id} h={COVER_SHELF_H} lift />
+          </BookLink>
         ) : (
           <Cover id={null} h={COVER_SHELF_H} />
         )}
@@ -664,7 +670,7 @@ function TopBooks({ stats, loading, desktop, rangeKey, rangePhrase, allTime, onA
             const sessions = b ? plural(b.sessions, { one: '# session', other: '# sessions' }) : ''
             const body = (
               <div data-k={b ? `row-${b.book_id}` : undefined} data-kt="move" className="flex h-full min-w-0 flex-1 items-center gap-4">
-                <Cover id={b ? (covers.get(b.book_id) === false ? null : b.book_id) : null} h={48} className="rounded-[6px]" />
+                <Cover id={b ? (covers.get(b.book_id) === false ? null : b.book_id) : null} book={b?.book_id} h={48} className="rounded-[6px]" lift={!!b} />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-baseline gap-4">
                     <span className="min-w-0 flex-1 truncate text-[15px] font-semibold text-foreground transition-colors group-hover:text-primary">
@@ -688,7 +694,7 @@ function TopBooks({ stats, loading, desktop, rangeKey, rangePhrase, allTime, onA
             const row = cn('flex h-[54px] items-center gap-4', i > 0 && cn('border-t', HAIR))
             // A row is one link to its book; the title takes the accent on hover, as Home's rows do.
             return b ? (
-              <Link key={b.book_id} to={`/books/${b.book_id}`} data-box={`top-row-${i}`} className={cn(row, 'group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}>{body}</Link>
+              <BookLink key={b.book_id} book={{ id: b.book_id, title: b.title }} data-box={`top-row-${i}`} className={cn(row, 'group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring')}>{body}</BookLink>
             ) : (
               <div key={i} data-box={`top-row-${i}`} className={row}>{body}</div>
             )
@@ -763,7 +769,7 @@ function TheYear({ stats, loading, width, desktop, sig }: { stats: StatsResponse
         </>
       )}
       <div data-box="year-chart" style={{ height: yearHeight(width, weeks ?? year.cols) }}>
-        <YearGrid W={width} year={year} weeks={weeks} loading={loading} />
+        <YearGrid entry={e} W={width} year={year} weeks={weeks} loading={loading} />
       </div>
       <div data-box="year-legend" className="mt-3.5 flex flex-wrap items-center gap-x-[18px] gap-y-1.5 text-[12px] text-muted-foreground">
         {desktop ? (

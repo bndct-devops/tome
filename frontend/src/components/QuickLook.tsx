@@ -9,7 +9,7 @@ import { api } from '@/lib/api'
 import { CoverImage } from '@/components/CoverImage'
 import { Pill } from '@/components/page'
 import { coverSrc } from '@/lib/covers'
-import { openBookWithCover, previewState } from '@/lib/coverTransition'
+import { openBookWithCover, previewState, type BookPreview } from '@/lib/coverTransition'
 import { cn, progressPercent } from '@/lib/utils'
 import type { BookDetail, BookStatus } from '@/lib/books'
 
@@ -50,9 +50,15 @@ function plainText(html: string): string {
  */
 const EASE = [0.2, 0.8, 0.2, 1] as const
 
-export function QuickLook({ bookId, onClose, origin, cover }: {
+/** What the caller already knows about the book: the header shows it until the book loads. */
+export type QuickLookPreview = Pick<BookPreview, 'title' | 'author' | 'series' | 'series_index'>
+
+export function QuickLook({ bookId, onClose, origin, cover, preview }: {
   bookId: number
   onClose: () => void
+  /** What the caller already knows (title, author, series): shown at once
+   *  instead of popping in when the book loads. */
+  preview?: QuickLookPreview
   /** The box of the cover it was opened on. */
   origin?: DOMRect
   /** The cover url the caller showed, so the same (cached) image appears. */
@@ -121,7 +127,7 @@ export function QuickLook({ bookId, onClose, origin, cover }: {
         initial: { opacity: 0 },
         animate: from ? { x: [from.x, 0], y: [from.y, 0], scale: [from.scale, 1], opacity: 1 } : { opacity: 0 },
         exit: back ? { x: back.x, y: back.y, scale: back.scale } : { opacity: 0 },
-        transition: { duration: 0.42, ease: EASE, opacity: { duration: 0 } },
+        transition: { duration: 0.34, ease: EASE, opacity: { duration: 0 } },
       }
   // The card face (background, text) fades around the cover, which stays solid.
   const face = grows
@@ -130,12 +136,14 @@ export function QuickLook({ bookId, onClose, origin, cover }: {
   const coverUrl = cover !== undefined ? cover : coverSrc(bookId, { w: 400 })
 
   const pct = progressPercent(status?.progress_pct)
+  // The header lines from the book once it is in, from the caller's preview until then.
+  const head = book ?? preview ?? null
   const text = book?.description ? plainText(book.description) : null
 
   return (
     <div className={cn('fixed inset-0 z-50', !present && 'pointer-events-none')} onClick={onClose}>
       <m.div
-        className="fixed inset-0 bg-black/65 backdrop-blur-[3px]"
+        className="fixed inset-0 bg-black/65"
         initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
         transition={{ duration: 0.18, ease: 'easeOut' }}
       />
@@ -156,11 +164,12 @@ export function QuickLook({ bookId, onClose, origin, cover }: {
           <div className="relative aspect-[2/3]"><CoverImage src={coverUrl} alt="" loading="eager" color={book?.cover_color} iconClassName="w-8 h-8" /></div>
         </div>
         <m.div {...face} className="relative min-w-0 flex-1 flex flex-col">
-          {book?.series && book.series_index != null && (
-            <div className="text-[12px] font-bold uppercase tracking-[0.1em] text-primary">{book.series} · {(() => { const v = Number.isInteger(book.series_index) ? String(book.series_index) : book.series_index.toFixed(1); return <Trans>Volume {v}</Trans> })()}</div>
-          )}
-          <h2 className="font-display text-[26px] sm:text-[30px] leading-[1.1] font-bold text-foreground mt-1.5 pr-8">{book?.title ?? ''}</h2>
-          {book?.author && <div className="mt-1 text-[15px] text-muted-foreground">{book.author}</div>}
+          {head?.series && head.series_index != null && (() => { const idx = head.series_index; return (
+            <div className="text-[12px] font-bold uppercase tracking-[0.1em] text-primary">{head.series} · {(() => { const v = Number.isInteger(idx) ? String(idx) : idx.toFixed(1); return <Trans>Volume {v}</Trans> })()}</div>
+          ) })()}
+          {/* A title line is held while the book loads, so the lines under it do not move up and back. */}
+          <h2 className="font-display text-[26px] sm:text-[30px] leading-[1.1] font-bold text-foreground mt-1.5 pr-8 min-h-[1.1em]">{head?.title ?? ''}</h2>
+          {head?.author && <div className="mt-1 text-[15px] text-muted-foreground">{head.author}</div>}
           {text && <p className="mt-3 text-[15px] leading-relaxed text-foreground/80 line-clamp-4 whitespace-pre-line">{text}</p>}
           {pct > 0 && (
             <div className="mt-4 flex items-center gap-3">

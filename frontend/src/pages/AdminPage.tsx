@@ -29,12 +29,15 @@ import { IconPicker } from '@/components/Sidebar'
 import { CoverImage } from '@/components/CoverImage'
 import type { BookType } from '@/lib/books'
 import { invalidateBookTypesCache } from '@/lib/bookTypes'
-import { BookAnimation } from '@/components/BookAnimation'
 import {
   adminListWishes, fulfillWish, dismissWish,
   type WishAdminOut,
 } from '@/lib/wishlist'
 import { coverSrc } from '@/lib/covers'
+import { AnimatePresence, m } from 'motion/react'
+import { BookLink, LIST, listItem, Unfold } from '@/components/motion'
+import { Glide, GlideGroup, PRESS, PRESS_LABEL, Swap } from '@/components/page'
+import { Note, RowsSkeleton, SameWidth } from '@/components/FormMotion'
 
 // ── Types ─────────────────────────────────────────────────────────────────
 
@@ -123,8 +126,9 @@ function UserModal({ user, onClose, onSaved }: {
         <>
           <Pill type="button" variant="quiet" onClick={onClose}><Trans>Cancel</Trans></Pill>
           <Pill type="submit" form="admin-user-form" disabled={saving} variant="primary">
-            {saving && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-            {user ? t`Save` : t`Create`}
+            <SameWidth active={saving ? 1 : 0}>
+              {[user ? t`Save` : t`Create`, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{user ? t`Save` : t`Create`}</>]}
+            </SameWidth>
           </Pill>
         </>
       }
@@ -150,7 +154,7 @@ function UserModal({ user, onClose, onSaved }: {
         {user && !isSelf && (
           <Checkbox checked={isActive} onChange={e => setIsActive(e.target.checked)} label={<Trans>Active</Trans>} />
         )}
-        {error && <p className="text-[13px] text-destructive">{error}</p>}
+        <Note value={error} gap={16}>{e => <p className="text-[13px] text-destructive">{e}</p>}</Note>
       </form>
     </ModalShell>
   )
@@ -223,10 +227,12 @@ function RestrictionEditor({ user, onSaved }: { user: UserData; onSaved: (u: Use
           disabled={saving}
           variant="secondary"
         >
-          {saving ? t`Saving…` : t`Save restrictions`}
+          <SameWidth active={saving ? 1 : 0}>{[t`Save restrictions`, t`Saving…`]}</SameWidth>
         </Pill>
-        {saved && <span className="text-[13px] text-success"><Trans>Saved</Trans></span>}
-        {error && <span className="text-[13px] text-destructive">{error}</span>}
+        <Swap id={saved ? 'saved' : error ?? ''}>
+          {saved ? <span className="text-[13px] text-success"><Trans>Saved</Trans></span>
+            : error ? <span className="text-[13px] text-destructive">{error}</span> : null}
+        </Swap>
       </div>
     </div>
   )
@@ -306,7 +312,7 @@ function UsersTab() {
             href={docsLink(DOCS.usersAndRoles)}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-center gap-1 hover:text-primary transition-colors"
+            className={`inline-flex items-center gap-1 hover:text-primary transition-colors touch-feedback ${PRESS}`}
           >
             <Trans>Roles guide</Trans> <ExternalLink className="w-3 h-3" />
           </a>
@@ -318,17 +324,15 @@ function UsersTab() {
         </Pill>
       }
     >
-      {error && (
+      <Note value={error}>{e => (
         <div className="mb-4 px-3 py-2 rounded-lg bg-destructive/10 text-[14px] text-destructive flex items-center justify-between gap-2">
-          {error}
-          <button onClick={() => setError(null)} className="shrink-0 hover:opacity-70 transition-opacity"><X className="w-3.5 h-3.5" /></button>
+          {e}
+          <button onClick={() => setError(null)} className={`shrink-0 hover:text-destructive/70 touch-feedback ${PRESS}`}><X className="w-3.5 h-3.5" /></button>
         </div>
-      )}
+      )}</Note>
 
       {loading ? (
-        <div className="flex justify-center py-16">
-          <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
-        </div>
+        <RowsSkeleton rows={3} rowClassName="h-[61px]" />
       ) : (
         <div className="border-y border-border/70 divide-y divide-border/70">
           <div className={cn('hidden sm:flex items-center gap-3 py-2.5', TABLE_HEAD)}>
@@ -336,8 +340,9 @@ function UsersTab() {
             <span className="w-24"><Trans>Added</Trans></span>
             <span className="w-[164px]" />
           </div>
+          <AnimatePresence initial={false}>
           {users.map(u => (
-            <div key={u.id}>
+            <m.div key={u.id} {...listItem}>
               <div className="flex items-center gap-3 py-3">
                 <div className="flex items-center gap-3 flex-1 min-w-0">
                   <div className={cn('w-9 h-9 rounded-full flex items-center justify-center shrink-0 text-[13px] font-bold',
@@ -365,7 +370,8 @@ function UsersTab() {
                 <div className="hidden sm:block w-24 text-[13px] text-muted-foreground shrink-0 whitespace-nowrap">
                   {formatLongDate(u.created_at)}
                 </div>
-                <div className="flex items-center justify-end sm:justify-start gap-0.5 shrink-0 sm:w-[164px]">
+                <Swap id={u.id !== me?.id && deleteConfirm === u.id ? 'confirm' : 'actions'} className="shrink-0 sm:w-[164px] flex justify-end sm:justify-start">
+                <div className="flex items-center gap-0.5">
                   {u.id !== me?.id && deleteConfirm === u.id ? (
                     <>
                       <Pill variant="destructive" className="bg-destructive/10 text-destructive" onClick={() => handleDelete(u.id)} disabled={deleting === u.id}>
@@ -378,7 +384,7 @@ function UsersTab() {
                   ) : (
                     <>
                       <Pill variant="quiet" icon aria-label={t`Role`} title={t`Role`} onClick={() => setExpandedId(expandedId === u.id ? null : u.id)}>
-                        {expandedId === u.id ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+                        <ChevronDown className={cn('w-4 h-4 transition-transform duration-200 ease-(--spring)', expandedId === u.id && 'rotate-180')} />
                       </Pill>
                       <Pill variant="quiet" icon aria-label={t`Edit`} title={t`Edit`} onClick={() => { setModalUser(u); setModalOpen(true) }}>
                         <Pencil className="w-4 h-4" />
@@ -397,29 +403,35 @@ function UsersTab() {
                     </>
                   )}
                 </div>
+                </Swap>
               </div>
-              {expandedId === u.id && (
+              <Unfold open={expandedId === u.id}>
                 <div className="pb-4 sm:pl-12">
                   <div className="flex items-center gap-3 flex-wrap">
                     <span className="text-[13px] text-muted-foreground shrink-0"><Trans>Role</Trans></span>
-                    <div className="flex gap-1 rounded-full bg-secondary p-1">
+                    <GlideGroup>
+                    <div className="isolate flex gap-1 rounded-full bg-secondary p-1">
                       {roleOptions.map(({ value, label, Icon }) => (
                         <button
                           key={value}
                           onClick={() => updateRole(u.id, value)}
                           disabled={permSaving === u.id}
                           className={cn(
-                            'flex items-center gap-1.5 h-7 px-3 rounded-full text-[13px] font-medium transition-colors',
+                            'group/pg relative flex items-center h-7 px-3 rounded-full text-[13px] font-medium transition-colors duration-300',
                             u.role === value
-                              ? 'bg-primary text-primary-foreground'
+                              ? 'text-primary-foreground'
                               : 'text-muted-foreground hover:text-foreground'
                           )}
                         >
-                          <Icon className="w-3.5 h-3.5" />
-                          {label}
+                          {u.role === value && <Glide className="bg-primary" />}
+                          <span className={cn('relative z-[1]', PRESS_LABEL, 'inline-flex items-center gap-1.5')}>
+                            <Icon className="w-3.5 h-3.5" />
+                            {label}
+                          </span>
                         </button>
                       ))}
                     </div>
+                    </GlideGroup>
                     {permSaving === u.id && <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />}
                   </div>
                   {u.role !== 'admin' && (
@@ -429,12 +441,15 @@ function UsersTab() {
                     />
                   )}
                 </div>
-              )}
-            </div>
+              </Unfold>
+            </m.div>
           ))}
+          </AnimatePresence>
         </div>
       )}
-      {modalOpen && <UserModal user={modalUser} onClose={() => setModalOpen(false)} onSaved={handleSaved} />}
+      <AnimatePresence>
+        {modalOpen && <UserModal key={modalUser?.id ?? 'new'} user={modalUser} onClose={() => setModalOpen(false)} onSaved={handleSaved} />}
+      </AnimatePresence>
     </PanelSection>
   )
 }
@@ -483,11 +498,11 @@ function ScannerTab() {
           <option key={t.id} value={t.id}>{t.label}</option>
         ))}
       </Select>
-      {!defaultTypeId && (
-        <p className="text-[13px] text-warning mt-1.5">
+      <Unfold open={!defaultTypeId}>
+        <p className="text-[13px] text-warning pt-1.5">
           <Trans>Without a type, new books are only visible to admins until assigned.</Trans>
         </p>
-      )}
+      </Unfold>
     </div>
   )
 
@@ -497,20 +512,16 @@ function ScannerTab() {
         title={<Trans>Scan library</Trans>}
         description={<Trans>Walk the library directory and add any new book files found.</Trans>}
       >
-        {scanning ? (
-          <div className="flex items-center gap-3 py-2">
-            <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
-            <p className="text-[14px] text-muted-foreground"><Trans>Scanning…</Trans></p>
-          </div>
-        ) : (
-          <div className="flex flex-col items-start gap-4">
-            {typeSelector}
-            <Pill variant="primary" onClick={handleScan} disabled={scanning || importing}>
-              <RefreshCw className="w-4 h-4" />
-              <Trans>Scan now</Trans>
-            </Pill>
-          </div>
-        )}
+        {/* A running scan changes the button in place; the form stays where it is. */}
+        <div className="flex flex-col items-start gap-4">
+          {typeSelector}
+          <Pill variant="primary" onClick={handleScan} disabled={scanning || importing}>
+            <SameWidth active={scanning ? 1 : 0}>
+              {[<><RefreshCw className="w-4 h-4" /><Trans>Scan now</Trans></>, <><RefreshCw className="w-4 h-4 animate-spin" /><Trans>Scanning…</Trans></>]}
+            </SameWidth>
+          </Pill>
+        </div>
+        <ScanResultNote result={lastResult?.type === 'scan' ? lastResult : null} />
       </PanelSection>
 
       <PanelSection
@@ -520,14 +531,23 @@ function ScannerTab() {
         <div className="flex flex-col items-start gap-4">
           {typeSelector}
           <Pill variant="secondary" onClick={handleImport} disabled={importing || scanning}>
-            {importing ? <RefreshCw className="w-4 h-4 animate-spin" /> : <FolderInput className="w-4 h-4" />}
-            {importing ? t`Importing…` : t`Import now`}
+            <SameWidth active={importing ? 1 : 0}>
+              {[<><FolderInput className="w-4 h-4" />{t`Import now`}</>, <><RefreshCw className="w-4 h-4 animate-spin" />{t`Importing…`}</>]}
+            </SameWidth>
           </Pill>
         </div>
+        <ScanResultNote result={lastResult?.type === 'import' ? lastResult : null} />
       </PanelSection>
+    </>
+  )
+}
 
-      {lastResult && (
-        <div className="-mt-4 rounded-lg bg-success/10 px-4 py-3 text-[14px]">
+/** The outcome of a scan or an import, under the section that ran it. */
+function ScanResultNote({ result }: { result: { type: 'scan' | 'import'; result: ScanResult } | null }) {
+  const { t } = useLingui()
+  return (
+    <Note value={result}>{lastResult => (
+        <div className="mt-4 rounded-lg bg-success/10 px-4 py-3 text-[14px]">
           <p className="font-medium text-foreground mb-0.5">
             {lastResult.type === 'scan' ? t`Scan complete` : t`Import complete`}
           </p>
@@ -541,8 +561,7 @@ function ScannerTab() {
             })()}
           </p>
         </div>
-      )}
-    </>
+    )}</Note>
   )
 }
 
@@ -574,27 +593,21 @@ function ServerTab() {
     } finally { setClearing(false) }
   }
 
-  if (loading) return (
-    <div className="flex justify-center py-16">
-      <div className="w-6 h-6 border-2 border-primary border-t-transparent rounded-full animate-spin" />
-    </div>
-  )
-
+  // While loading the layout is already there with blank figures, so nothing moves when they land.
+  const blank = '\u00a0'
   return (
     <>
       <PanelSection>
         <StatStrip cols={4}>
-          <Stat size={30} label={t`Books`} value={stats?.book_count ?? 0} />
-          <Stat size={30} label={t`Users`} value={stats?.user_count ?? 0} />
-          <Stat size={30} label={t`Database`} value={stats?.db_size_mb ?? 0} unit="MB" />
-          <Stat size={30} label={t`Covers`} value={stats?.covers_size_mb ?? 0} unit="MB" />
+          <Stat size={30} label={t`Books`} value={loading ? blank : stats?.book_count ?? 0} />
+          <Stat size={30} label={t`Users`} value={loading ? blank : stats?.user_count ?? 0} />
+          <Stat size={30} label={t`Database`} value={loading ? blank : stats?.db_size_mb ?? 0} unit={loading ? undefined : "MB"} />
+          <Stat size={30} label={t`Covers`} value={loading ? blank : stats?.covers_size_mb ?? 0} unit={loading ? undefined : "MB"} />
         </StatStrip>
-        {stats && (
-          <p className="mt-3 text-[13px] text-muted-foreground">
-            {/* eslint-disable-next-line lingui/no-unlocalized-strings -- version line */}
-            {`Tome v${stats.tome_version} · Python ${stats.python_version}`}
-          </p>
-        )}
+        <p className="mt-3 text-[13px] text-muted-foreground">
+          {/* eslint-disable-next-line lingui/no-unlocalized-strings -- version line */}
+          {stats ? `Tome v${stats.tome_version} · Python ${stats.python_version}` : blank}
+        </p>
       </PanelSection>
 
       <PanelSection title={<Trans>Directories</Trans>}>
@@ -608,7 +621,7 @@ function ServerTab() {
               <Folder className="w-4 h-4 text-muted-foreground shrink-0 mt-0.5" />
               <div className="min-w-0">
                 <p className="text-[13px] text-muted-foreground">{label}</p>
-                <p className="text-[14px] text-foreground font-mono break-all">{path ?? '-'}</p>
+                <p className="text-[14px] text-foreground font-mono break-all">{path ?? (loading ? blank : '-')}</p>
               </div>
             </div>
           ))}
@@ -629,13 +642,14 @@ function ServerTab() {
                 They are made again from the stored covers when next shown. The covers themselves are kept.</Trans>
               </p>
               ) })()}
-              {clearResult != null && (
-                <p className="text-[13px] text-success mt-1"><Trans>{clearResult} thumbnails deleted.</Trans></p>
-              )}
-              {error && (
-                <p className="text-[13px] text-destructive mt-1">{error}</p>
-              )}
+              <Note value={clearResult != null ? String(clearResult) : null}>{n => (
+                <p className="text-[13px] text-success pt-1">{(() => { const clearResult = n; return <Trans>{clearResult} thumbnails deleted.</Trans> })()}</p>
+              )}</Note>
+              <Note value={error}>{e => (
+                <p className="text-[13px] text-destructive pt-1">{e}</p>
+              )}</Note>
             </div>
+            <Swap id={confirmClear ? 'confirm' : 'clear'} className="shrink-0 flex justify-end">
             {confirmClear ? (
               <div className="flex items-center gap-1 shrink-0">
                 <Pill variant="destructive" className="bg-destructive/10 text-destructive" onClick={handleClearCovers} disabled={clearing}>
@@ -651,6 +665,7 @@ function ServerTab() {
                 <Trash className="w-3.5 h-3.5" /> <Trans>Clear</Trans>
               </Pill>
             )}
+            </Swap>
           </div>
         </div>
       </section>
@@ -824,7 +839,7 @@ function TypeLayoutField({
   return (
     <div className="sm:col-span-2 space-y-3">
       <FormLabel className="mb-0"><Trans>Layout</Trans></FormLabel>
-      <div className={cn('flex flex-col gap-3', form.advanced && 'opacity-60')} role="radiogroup" aria-label={t`Layout`}>
+      <div className={cn('flex flex-col gap-3 transition-opacity duration-150', form.advanced && 'opacity-60')} role="radiogroup" aria-label={t`Layout`}>
         {LAYOUT_PRESETS.map(name => {
           const example = preview?.presets[name]?.paths[0]?.path
           return (
@@ -846,7 +861,7 @@ function TypeLayoutField({
           )
         })}
       </div>
-      {sampleNote && <p className="text-[13px] text-muted-foreground">{sampleNote}</p>}
+      <Note value={sampleNote} gap={12}>{note => <p className="text-[13px] text-muted-foreground">{note}</p>}</Note>
 
       <Checkbox
         checked={form.advanced}
@@ -855,7 +870,7 @@ function TypeLayoutField({
         className="pt-1"
       />
 
-      {form.advanced && (
+      <Unfold open={form.advanced} gap={12}>
         <div className="space-y-4 sm:pl-7">
           <div>
             <FormLabel htmlFor={`layout-template-${bookTypeId ?? 'new'}`}><Trans>Template</Trans></FormLabel>
@@ -870,7 +885,7 @@ function TypeLayoutField({
               invalid={error !== null}
               className="font-mono"
             />
-            {error && <p className="mt-1.5 text-[13px] text-destructive">{error}</p>}
+            <Note value={error}>{e => <p className="pt-1.5 text-[13px] text-destructive">{e}</p>}</Note>
             <div className="mt-1.5 flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
               <p className="min-w-0 flex-1 text-[13px] text-muted-foreground">
                 <Trans>Prefilled from the selected preset. Close to it, not identical: the preset also adds the year to books without a series.</Trans>
@@ -879,14 +894,14 @@ function TypeLayoutField({
                 type="button"
                 onClick={() => setShowReference(v => !v)}
                 aria-expanded={showReference}
-                className="shrink-0 flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground transition-colors"
+                className={`shrink-0 flex items-center gap-1 text-[13px] text-muted-foreground hover:text-foreground transition-colors touch-feedback ${PRESS}`}
               >
                 <Trans>Template reference</Trans>
-                <ChevronDown className={cn('w-3.5 h-3.5 transition-transform', showReference && 'rotate-180')} />
+                <ChevronDown className={cn('w-3.5 h-3.5 transition-transform duration-200 ease-(--spring)', showReference && 'rotate-180')} />
               </button>
             </div>
           </div>
-          {showReference && (
+          <Unfold open={showReference} gap={16}>
             <div className="grid grid-cols-[auto_1fr] items-center gap-x-3 gap-y-1.5">
               {[
                 { heading: t`Fields`, rows: fieldRows },
@@ -903,7 +918,7 @@ function TypeLayoutField({
                         onMouseDown={e => e.preventDefault()}
                         onClick={() => insertToken(row.token)}
                         title={(() => { const token = row.token; return t`Insert ${token}` })()}
-                        className="justify-self-start font-mono text-[12px] leading-none px-2 py-1.5 rounded-md bg-secondary text-foreground/90 hover:bg-primary/10 hover:text-foreground transition-colors"
+                        className={`justify-self-start font-mono text-[12px] leading-none px-2 py-1.5 rounded-md bg-secondary text-foreground/90 hover:bg-primary/10 hover:text-foreground transition-colors touch-feedback ${PRESS}`}
                       >
                         {row.token}
                       </button>
@@ -913,8 +928,8 @@ function TypeLayoutField({
                 </Fragment>
               ))}
             </div>
-          )}
-          {!error && preview && preview.paths.length > 0 && (
+          </Unfold>
+          <Note value={!error && preview && preview.paths.length > 0 ? preview : null} gap={16}>{preview => (
             <div>
               <FormLabel><Trans>Preview</Trans></FormLabel>
               <div className="border-y border-border/70 divide-y divide-border/70">
@@ -926,9 +941,9 @@ function TypeLayoutField({
                 ))}
               </div>
             </div>
-          )}
+          )}</Note>
         </div>
-      )}
+      </Unfold>
 
       <p className="text-[13px] text-muted-foreground">
         <Trans>Saving never moves files. Changed layouts show as misplaced in Library health; use Dry run all and Reorganize all to move them.</Trans>
@@ -1017,7 +1032,7 @@ function TypeForm({
           onError={onLayoutError}
         />
       </div>
-      {error && <p className="text-[13px] text-destructive">{error}</p>}
+      <Note value={error} gap={16}>{e => <p className="text-[13px] text-destructive">{e}</p>}</Note>
       <div className="flex items-center gap-2 justify-end">
         <Pill onClick={onCancel} variant="quiet"><Trans>Cancel</Trans></Pill>
         <Pill onClick={onSave} disabled={saveDisabled} variant="primary">
@@ -1127,10 +1142,10 @@ function TypesTab() {
       }
     >
       {loading && types.length === 0 && !showAdd ? (
-        <div className="flex justify-center py-8"><Loader2 className="w-5 h-5 animate-spin text-muted-foreground" /></div>
+        <RowsSkeleton rows={4} rowClassName="h-[45px]" />
       ) : (
-        <div className={cn('border-y border-border/70 divide-y divide-border/70', loading && 'opacity-60')}>
-          {showAdd && (
+        <div className={cn('border-y border-border/70 divide-y divide-border/70 transition-opacity duration-150', loading && 'opacity-60')}>
+          <Unfold open={showAdd}>
             <TypeForm
               heading={<Trans>New type</Trans>}
               form={addForm}
@@ -1143,13 +1158,15 @@ function TypesTab() {
               onCancel={() => setShowAdd(false)}
               onSave={handleAdd}
             />
-          )}
+          </Unfold>
           {types.length === 0 && !showAdd && (
             <p className="text-[14px] text-muted-foreground py-4"><Trans>No book types yet.</Trans></p>
           )}
+          <AnimatePresence initial={false}>
           {types.map(bt => (
-            <div key={bt.id}>
-              {editId === bt.id ? (
+            <m.div key={bt.id} {...listItem}>
+              {/* The row folds away as its edit form unfolds, and back. */}
+              <Unfold open={editId === bt.id}>
                 <TypeForm
                   heading={(() => { const label = bt.label; return <Trans>Edit {label}</Trans> })()}
                   form={editForm}
@@ -1162,13 +1179,15 @@ function TypesTab() {
                   onCancel={() => setEditId(null)}
                   onSave={handleEdit}
                 />
-              ) : (
+              </Unfold>
+              <Unfold open={editId !== bt.id}>
                 <div className="flex items-center gap-3 py-2.5">
                   <div className={cn('w-3 h-3 rounded-full shrink-0', COLOR_DOT[(bt.color ?? 'blue') as ColorOption] ?? 'bg-gray-400')} />
                   <span className="text-[15px] font-medium text-foreground flex-1 min-w-0 truncate">{bt.label}</span>
                   <span className="text-[13px] text-muted-foreground hidden sm:block">{bt.icon}</span>
                   {bt.folder && <span className="text-[13px] text-muted-foreground hidden sm:block font-mono">{`${bt.folder}/`}</span>}
                   <span className="text-[13px] text-muted-foreground hidden sm:block font-mono">{bt.slug}</span>
+                  <Swap id={deleteConfirmId === bt.id ? 'confirm' : 'actions'} className="shrink-0 flex justify-end">
                   {deleteConfirmId === bt.id ? (
                     <div className="flex items-center gap-1.5 shrink-0">
                       {deleteError && <span className="text-[13px] text-destructive mr-1">{deleteError}</span>}
@@ -1195,10 +1214,12 @@ function TypesTab() {
                       </Pill>
                     </div>
                   )}
+                  </Swap>
                 </div>
-              )}
-            </div>
+              </Unfold>
+            </m.div>
           ))}
+          </AnimatePresence>
         </div>
       )}
     </PanelSection>
@@ -1300,13 +1321,11 @@ function AuditTab() {
       </div>
 
       {loading && items.length === 0 ? (
-        <div className="flex justify-center py-16">
-          <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
-        </div>
+        <RowsSkeleton rows={8} rowClassName="h-12" />
       ) : items.length === 0 ? (
         <div className="py-4 text-muted-foreground text-[14px]"><Trans>No audit entries yet.</Trans></div>
       ) : (
-        <div className={cn('border-y border-border/70 divide-y divide-border/70 transition-opacity', loading && 'opacity-50')}>
+        <div className={cn('border-y border-border/70 divide-y divide-border/70 transition-opacity duration-150', loading && 'opacity-50')}>
           <div className={cn('hidden sm:flex items-center gap-3 py-2.5', TABLE_HEAD)}>
             <span className="w-7" />
             <span className="flex-1"><Trans>Action</Trans></span>
@@ -1321,7 +1340,8 @@ function AuditTab() {
             const parsed = entry.details ? (() => { try { return JSON.parse(entry.details) } catch { return null } })() : null
             return (
               <div key={entry.id}>
-                <button className="w-full text-left flex items-center gap-3 py-2.5 hover:bg-secondary/50 transition-colors"
+                <button className={`w-full text-left flex items-center gap-3 py-2.5 hover:bg-secondary/50 transition-colors touch-feedback ${PRESS}`}
+                  aria-expanded={isExpanded}
                   onClick={() => setExpandedId(isExpanded ? null : entry.id)}>
                   {/* User avatar */}
                   <div className="w-7 h-7 rounded-full bg-secondary flex items-center justify-center text-[12px] font-bold text-muted-foreground shrink-0">
@@ -1341,9 +1361,9 @@ function AuditTab() {
                   </div>
                   <span className="w-28 text-[13px] text-muted-foreground hidden sm:block truncate">{entry.username ?? '-'}</span>
                   <span className="sm:w-44 text-[13px] text-muted-foreground whitespace-nowrap shrink-0">{fmt(entry.created_at)}</span>
-                  {isExpanded ? <ChevronUp className="w-3.5 h-3.5 text-muted-foreground shrink-0" /> : <ChevronDown className="w-3.5 h-3.5 text-muted-foreground shrink-0" />}
+                  <ChevronDown className={cn('w-3.5 h-3.5 text-muted-foreground shrink-0 transition-transform duration-200 ease-(--spring)', isExpanded && 'rotate-180')} />
                 </button>
-                {isExpanded && (
+                <Unfold open={isExpanded}>
                   <div className="pb-3 pl-10 text-[13px] text-muted-foreground flex flex-col gap-1.5">
                     {entry.ip_address && <div><span className="font-medium text-foreground"><Trans>IP:</Trans></span> {entry.ip_address}</div>}
                     {entry.resource_type && entry.resource_id && (
@@ -1358,7 +1378,7 @@ function AuditTab() {
                       </div>
                     )}
                   </div>
-                )}
+                </Unfold>
               </div>
             )
           })}
@@ -1466,6 +1486,8 @@ function SyncStatusTab() {
   const [sortKey, setSortKey] = useState<SyncSortKey>('last_synced')
   const [sortDir, setSortDir] = useState<'asc' | 'desc'>('desc')
   const [deleting, setDeleting] = useState<string | null>(null)
+  // Rows on their way out: a table row cannot glide, so its cells fade and the table closes after.
+  const [leaving, setLeaving] = useState<Set<string>>(() => new Set())
 
   useEffect(() => {
     api.get<SyncRecord[]>('/admin/sync-status')
@@ -1479,7 +1501,10 @@ function SyncStatusTab() {
     setDeleting(key)
     try {
       await api.delete(`/admin/sync-status/${r.user_id}/${r.book_id}`)
+      setLeaving(prev => new Set(prev).add(key))
+      await new Promise(resolve => setTimeout(resolve, 120))
       setRecords(prev => prev.filter(x => !(x.user_id === r.user_id && x.book_id === r.book_id)))
+      setLeaving(prev => { const next = new Set(prev); next.delete(key); return next })
     } catch {
       // silently ignore - user stays in list
     } finally {
@@ -1536,9 +1561,9 @@ function SyncStatusTab() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-16">
-        <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
-      </div>
+      <PanelSection>
+        <RowsSkeleton rows={8} rowClassName="h-[61px]" />
+      </PanelSection>
     )
   }
 
@@ -1587,7 +1612,7 @@ function SyncStatusTab() {
                   const key = `${r.user_id}-${r.book_id}`
                   const isDeleting = deleting === key
                   return (
-                  <tr key={`${key}-${i}`} className="hover:bg-secondary/50 transition-colors">
+                  <tr key={`${key}-${i}`} className={cn('hover:bg-secondary/50 transition-colors [&>td]:transition-opacity [&>td]:duration-[120ms]', leaving.has(key) && '[&>td]:opacity-0')}>
                     <td className="pl-0 pr-2.5 py-2.5 max-w-[200px]">
                       <div className="font-medium text-foreground truncate" title={r.book_title}>{r.book_title}</div>
                       {r.book_author && (
@@ -1692,6 +1717,8 @@ function DuplicatesTab() {
   const { t, i18n } = useLingui()
   const [groups, setGroups] = useState<DuplicateGroup[]>([])
   const [loading, setLoading] = useState(true)
+  // After the first answer a refresh keeps the groups on screen, dimmed.
+  const [loadedOnce, setLoadedOnce] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [keepIds, setKeepIds] = useState<Record<string, number>>({})
   const [decisions, setDecisions] = useState<Record<string, GroupDecision>>({})
@@ -1718,7 +1745,7 @@ function DuplicatesTab() {
         setKeepIds(defaults)
       })
       .catch(e => setError(e instanceof Error ? e.message : t`Failed to load duplicates`))
-      .finally(() => setLoading(false))
+      .finally(() => { setLoading(false); setLoadedOnce(true) })
   }
 
   useEffect(() => { fetchGroups() }, [])
@@ -1779,11 +1806,11 @@ function DuplicatesTab() {
     fetchGroups()
   }
 
-  if (loading) {
+  if (loading && !loadedOnce) {
     return (
-      <div className="flex justify-center py-16">
-        <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
-      </div>
+      <PanelSection>
+        <RowsSkeleton rows={3} rowClassName="h-[180px]" className="border-t-0" />
+      </PanelSection>
     )
   }
 
@@ -1799,6 +1826,7 @@ function DuplicatesTab() {
 
   return (
     <PanelSection
+      className={cn('transition-opacity duration-150', loading && 'opacity-60')}
 
       description={groups.length > 0 ? <>
         {plural(groups.length, { one: '# duplicate group found.', other: '# duplicate groups found.' })}{' '}
@@ -1807,15 +1835,16 @@ function DuplicatesTab() {
       action={
         <Pill
           onClick={fetchGroups}
+          disabled={loading}
           variant="secondary"
         >
-          <RefreshCw className="w-3.5 h-3.5" />
+          <RefreshCw className={cn('w-3.5 h-3.5', loading && 'animate-spin')} />
           <Trans>Refresh</Trans>
         </Pill>
       }
     >
     <div className="flex flex-col gap-6">
-      {applyResult && (
+      <Note value={applyResult} gap={24}>{applyResult => (
         <div className={cn(
           'rounded-lg px-4 py-3 text-[13px] space-y-1',
           applyResult.failed.length
@@ -1832,15 +1861,19 @@ function DuplicatesTab() {
             </ul>
           )}
         </div>
-      )}
+      )}</Note>
 
       {groups.length === 0 ? null : (
         <div className="flex flex-col border-t border-border/70">
+          <AnimatePresence initial={false}>
           {groups.map(group => {
             const decision = decisions[group.group_id]
             const othersCount = group.books.filter(b => b.id !== keepIds[group.group_id]).length
+            // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
+            const pill = 'group/pg relative flex items-center h-9 px-4 text-[14px] font-medium rounded-full transition-colors duration-300 disabled:opacity-50'
+            const label = cn('relative z-[1]', PRESS_LABEL, 'inline-flex items-center gap-1.5')
             return (
-              <div key={group.group_id} data-testid="duplicate-group" className="border-b border-border/70 py-5">
+              <m.div key={group.group_id} {...listItem} data-testid="duplicate-group" className="border-b border-border/70 py-5">
                 {/* Group header */}
                 <div className="flex items-center justify-between gap-3 flex-wrap">
                   <span className={cn(
@@ -1849,50 +1882,59 @@ function DuplicatesTab() {
                   )}>
                     {i18n._(MATCH_REASON_LABEL[group.match_reason])}
                   </span>
-                  <div className="flex items-center gap-1.5 flex-wrap">
+                  {/* One indicator per group glides to the queued decision. */}
+                  <GlideGroup>
+                  <div className="isolate flex items-center gap-1.5 flex-wrap">
                     <button
                       onClick={() => toggleDecision(group.group_id, 'dismiss')}
                       disabled={applying}
                       className={cn(
-                        'flex items-center gap-1.5 h-9 px-4 text-[14px] font-medium rounded-full transition-colors disabled:opacity-50',
+                        pill,
                         decision === 'dismiss'
-                          ? 'bg-foreground text-background'
+                          ? 'text-background'
                           : 'bg-secondary text-foreground hover:bg-surface-hover',
                       )}
                       title={t`Queue: not a duplicate, never show this group again`}
                     >
-                      <X className="w-3.5 h-3.5" />
-                      <Trans>Dismiss</Trans>
+                      {decision === 'dismiss' && <Glide className="bg-foreground" />}
+                      <span className={label}><X className="w-3.5 h-3.5" /><Trans>Dismiss</Trans></span>
                     </button>
                     <button
                       onClick={() => toggleDecision(group.group_id, 'merge')}
                       disabled={applying || keepIds[group.group_id] == null}
                       className={cn(
-                        'flex items-center gap-1.5 h-9 px-4 text-[14px] font-medium rounded-full transition-colors disabled:opacity-50',
+                        pill,
                         decision === 'merge'
-                          ? 'bg-primary text-primary-foreground'
+                          ? 'text-primary-foreground'
                           : 'bg-secondary text-foreground hover:bg-surface-hover',
                       )}
                       title={t`Queue: fold the other copies into the kept book`}
                     >
-                      <GitMerge className="w-3.5 h-3.5" />
-                      <Trans>Merge</Trans>
+                      {decision === 'merge' && <Glide className="bg-primary" />}
+                      <span className={label}><GitMerge className="w-3.5 h-3.5" /><Trans>Merge</Trans></span>
                     </button>
                     <button
                       onClick={() => toggleDecision(group.group_id, 'delete')}
                       disabled={applying || keepIds[group.group_id] == null}
                       className={cn(
-                        'flex items-center gap-1.5 h-9 px-4 text-[14px] font-medium rounded-full transition-colors disabled:opacity-50',
+                        pill,
                         decision === 'delete'
-                          ? 'bg-destructive text-destructive-foreground'
+                          ? 'text-destructive-foreground'
                           : 'text-muted-foreground hover:text-destructive hover:bg-destructive/10',
                       )}
                       title={t`Queue: keep the selected book and delete the others. Their files are removed from disk.`}
                     >
-                      <Trash2 className="w-3.5 h-3.5" />
-                      {decision === 'delete' ? plural(othersCount, { one: 'Delete # other', other: 'Delete # others' }) : t`Delete others`}
+                      {decision === 'delete' && <Glide className="bg-destructive" />}
+                      {/* Both labels hold their width, so the pills beside it do not move. */}
+                      <span className={label}>
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <SameWidth active={decision === 'delete' ? 1 : 0}>
+                          {[t`Delete others`, plural(othersCount, { one: 'Delete # other', other: 'Delete # others' })]}
+                        </SameWidth>
+                      </span>
                     </button>
                   </div>
+                  </GlideGroup>
                 </div>
 
                 {/* Books */}
@@ -1903,7 +1945,7 @@ function DuplicatesTab() {
                       <label
                         key={book.id}
                         className={cn(
-                          'flex flex-col gap-2 p-3 rounded-lg cursor-pointer transition-colors select-none w-full sm:w-60',
+                          'flex flex-col gap-2 p-3 rounded-lg cursor-pointer transition-[background-color,box-shadow] duration-200 select-none w-full sm:w-60',
                           isKeep
                             ? 'bg-primary/10 ring-1 ring-primary/40'
                             : 'bg-card hover:bg-secondary',
@@ -1961,19 +2003,19 @@ function DuplicatesTab() {
                             ))}
                           </div>
                         )}
-                        {isKeep && (
-                          <span className="text-[12px] font-medium text-primary"><Trans>Keep this one</Trans></span>
-                        )}
+                        {/* Always there, shown on the kept card: the cards keep their height. */}
+                        <span aria-hidden={!isKeep || undefined} className={cn('text-[12px] font-medium text-primary', !isKeep && 'invisible')}><Trans>Keep this one</Trans></span>
                       </label>
                     )
                   })}
                 </div>
-              </div>
+              </m.div>
             )
           })}
+          </AnimatePresence>
 
-          {(decidedGroups.length > 0 || applying) && (
-            <div className="sticky bottom-16 sm:bottom-4 z-10 mt-5 flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-[var(--radius-panel)] bg-card shadow-lg ring-1 ring-border/70">
+          <Unfold open={decidedGroups.length > 0 || applying} className="sticky bottom-16 sm:bottom-4 z-10">
+            <div className="mt-5 flex flex-wrap items-center justify-between gap-3 px-4 py-3 rounded-[var(--radius-panel)] bg-card shadow-lg ring-1 ring-border/70">
               {/* bottom-16 below sm clears the fixed keyboard-shortcuts FAB */}
               <span className="text-[13px] text-muted-foreground min-w-0">
                 {[
@@ -1982,30 +2024,37 @@ function DuplicatesTab() {
                   dismissCount > 0 ? plural(dismissCount, { one: 'dismiss # group', other: 'dismiss # groups' }) : null,
                 ].filter(Boolean).join(' · ')}
               </span>
-              <div className="flex items-center gap-2 shrink-0 ml-auto">
-                {confirmApply && !applying && (
-                  <Pill
-                    onClick={() => setConfirmApply(false)}
-                    variant="secondary"
-                  >
-                    <Trans>Cancel</Trans>
-                  </Pill>
-                )}
-                <Pill
-                  onClick={() => { setDecisions({}); setConfirmApply(false) }}
-                  disabled={applying}
-                  variant="secondary"
-                >
-                  <Trans>Clear</Trans>
-                </Pill>
+              <div className="relative flex items-center gap-2 shrink-0 ml-auto">
+                {/* The apply button changes width with its label; Cancel and Clear glide beside it. */}
+                <AnimatePresence initial={false} mode="popLayout">
+                  {confirmApply && !applying && (
+                    <m.span key="cancel" layout="position" initial={{ opacity: 0.4 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={LIST}>
+                      <Pill
+                        onClick={() => setConfirmApply(false)}
+                        variant="secondary"
+                      >
+                        <Trans>Cancel</Trans>
+                      </Pill>
+                    </m.span>
+                  )}
+                  <m.span key="clear" layout="position" transition={LIST}>
+                    <Pill
+                      onClick={() => { setDecisions({}); setConfirmApply(false) }}
+                      disabled={applying}
+                      variant="secondary"
+                    >
+                      <Trans>Clear</Trans>
+                    </Pill>
+                  </m.span>
+                </AnimatePresence>
                 <button
                   onClick={() => confirmApply ? applyAll() : setConfirmApply(true)}
                   disabled={applying}
                   className={cn(
-                    'flex items-center gap-1.5 h-9 px-4 text-[14px] font-semibold rounded-full transition-opacity disabled:opacity-50',
+                    'flex items-center gap-1.5 h-9 px-4 text-[14px] font-semibold rounded-full disabled:opacity-50 touch-feedback', PRESS,
                     deleteBookCount > 0
-                      ? 'bg-destructive text-destructive-foreground hover:opacity-90'
-                      : 'bg-primary text-primary-foreground hover:opacity-90',
+                      ? 'bg-destructive text-destructive-foreground hover:brightness-110'
+                      : 'bg-primary text-primary-foreground hover:brightness-110',
                   )}
                 >
                   {applying && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
@@ -2022,7 +2071,7 @@ function DuplicatesTab() {
                 </button>
               </div>
             </div>
-          )}
+          </Unfold>
         </div>
       )}
     </div>
@@ -2152,7 +2201,7 @@ function FulfillPicker({
             : t`No matching volumes in the library yet.`}{' '}
           <Trans>Mark it complete when you consider the series fully available; the requester will be notified.</Trans>
         </p>
-        {error && <p className="text-[13px] text-destructive">{error}</p>}
+        <Note value={error} gap={12}>{e => <p className="text-[13px] text-destructive">{e}</p>}</Note>
         <div className="flex items-center justify-end gap-2 pt-1">
           <Pill onClick={onCancel} variant="quiet">
             <Trans>Cancel</Trans>
@@ -2204,7 +2253,7 @@ function FulfillPicker({
               onClick={() => setSelectedId(book.id)}
               // The ring is inset: the list scrolls, and an outer ring is clipped to its corners.
               className={cn(
-                'w-full flex items-center gap-3 p-2 rounded-lg text-left transition-colors',
+                'w-full flex items-center gap-3 p-2 rounded-lg text-left transition-[background-color,box-shadow] duration-150 touch-feedback', PRESS,
                 selectedId === book.id
                   ? 'bg-secondary ring-1 ring-inset ring-foreground/25'
                   : 'hover:bg-secondary'
@@ -2234,7 +2283,7 @@ function FulfillPicker({
         <p className="text-[13px] text-muted-foreground"><Trans>No books found. Upload the book first, then fulfill.</Trans></p>
       )}
 
-      {error && <p className="text-[13px] text-destructive">{error}</p>}
+      <Note value={error} gap={12}>{e => <p className="text-[13px] text-destructive">{e}</p>}</Note>
 
       <div className="flex items-center justify-end gap-2 pt-1">
         <Pill onClick={onCancel} variant="quiet">
@@ -2245,8 +2294,9 @@ function FulfillPicker({
           disabled={fulfilling || !selectedId}
           variant="primary"
         >
-          {fulfilling && <Loader2 className="w-3 h-3 animate-spin" />}
-          <Trans>Fulfill</Trans>
+          <SameWidth active={fulfilling ? 1 : 0}>
+            {[<Trans>Fulfill</Trans>, <><Loader2 className="w-3 h-3 animate-spin" /><Trans>Fulfill</Trans></>]}
+          </SameWidth>
         </Pill>
       </div>
     </div>
@@ -2258,6 +2308,8 @@ function WishlistTab() {
   const [statusFilter, setStatusFilter] = useState<WishStatus>('open')
   const [wishes, setWishes] = useState<WishAdminOut[]>([])
   const [loading, setLoading] = useState(true)
+  // The filter the list on screen belongs to; a new filter keeps the old list, dimmed, until its rows land.
+  const [shownFilter, setShownFilter] = useState<WishStatus | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fulfillingId, setFulfillingId] = useState<number | null>(null)
   const [dismissConfirmId, setDismissConfirmId] = useState<number | null>(null)
@@ -2267,8 +2319,9 @@ function WishlistTab() {
   function load() {
     setLoading(true)
     setError(null)
-    adminListWishes({ status: statusFilter })
-      .then(setWishes)
+    const asked = statusFilter
+    adminListWishes({ status: asked })
+      .then(w => { setWishes(w); setShownFilter(asked) })
       .catch(e => setError(e instanceof Error ? e.message : t`Failed to load wishlist`))
       .finally(() => setLoading(false))
   }
@@ -2321,7 +2374,7 @@ function WishlistTab() {
           href={docsLink(DOCS.wishlist)}
           target="_blank"
           rel="noopener noreferrer"
-          className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+          className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors touch-feedback ${PRESS}`}
         >
           <Trans>Learn more</Trans> <ExternalLink className="w-3.5 h-3.5" />
         </a>
@@ -2329,26 +2382,27 @@ function WishlistTab() {
     >
     <div className="space-y-5">
 
-      {error && (
+      <Note value={error} gap={20}>{e => (
         <div className="px-3 py-2 rounded-lg bg-destructive/10 text-[14px] text-destructive">
-          {error}
+          {e}
         </div>
-      )}
+      )}</Note>
 
-      {loading ? (
-        <div className="flex justify-center py-16">
-          <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
-        </div>
+      {shownFilter === null ? (
+        <RowsSkeleton rows={4} rowClassName="h-[88px]" />
       ) : wishes.length === 0 ? (
-        <div className="py-4 text-muted-foreground text-[14px]">
-          {statusFilter === 'open' ? <Trans>No open wishes.</Trans>
-            : statusFilter === 'fulfilled' ? <Trans>No fulfilled wishes.</Trans>
+        <div className={cn('py-4 text-muted-foreground text-[14px] transition-opacity duration-150', loading && 'opacity-50')}>
+          {shownFilter === 'open' ? <Trans>No open wishes.</Trans>
+            : shownFilter === 'fulfilled' ? <Trans>No fulfilled wishes.</Trans>
             : <Trans>No dismissed wishes.</Trans>}
         </div>
       ) : (
-        <div className="border-y border-border/70 divide-y divide-border/70">
+        // Keyed by filter: another filter is another list and replaces this one whole;
+        // inside one filter, a fulfilled or dismissed wish fades and the rest close up.
+        <div key={shownFilter} className={cn('border-y border-border/70 divide-y divide-border/70 transition-opacity duration-150', loading && 'opacity-50')}>
+          <AnimatePresence initial={false}>
           {wishes.map(wish => (
-            <div key={wish.id}>
+            <m.div key={wish.id} {...listItem}>
               <div className="flex items-start gap-4 py-3.5">
                 {/* Cover */}
                 <div className="w-10 h-[60px] rounded-[6px] bg-muted shrink-0 overflow-hidden flex items-center justify-center" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
@@ -2394,6 +2448,7 @@ function WishlistTab() {
                       </span>
                       {wish.status === 'open' && (
                         <>
+                          <Swap id={dismissConfirmId === wish.id ? 'confirm' : 'dismiss'} className="flex justify-end">
                           {dismissConfirmId === wish.id ? (
                             <div className="flex items-center gap-1">
                               <Pill
@@ -2418,6 +2473,7 @@ function WishlistTab() {
                               <Trans>Dismiss</Trans>
                             </Pill>
                           )}
+                          </Swap>
                           <Pill
                             onClick={() => {
                               setFulfillingId(wish.id)
@@ -2434,12 +2490,14 @@ function WishlistTab() {
                         </>
                       )}
                       {wish.status === 'fulfilled' && wish.fulfilled_book_id && (
-                        <Link
-                          to={`/books/${wish.fulfilled_book_id}`}
+                        // The wish's cover is an outside picture, not the book's: open the book without a cover morph.
+                        <BookLink
+                          book={{ id: wish.fulfilled_book_id, title: wish.title, author: wish.author, series: wish.series, series_index: wish.series_index }}
+                          cover={null}
                           className="text-[14px] text-primary hover:underline"
                         >
                           <Trans>View book</Trans>
-                        </Link>
+                        </BookLink>
                       )}
                     </div>
                   </div>
@@ -2457,14 +2515,14 @@ function WishlistTab() {
                     </div>
                   )}
 
-                  {actionError[wish.id] && (
-                    <p className="text-[13px] text-destructive mt-1">{actionError[wish.id]}</p>
-                  )}
+                  <Note value={actionError[wish.id]}>{e => (
+                    <p className="text-[13px] text-destructive pt-1">{e}</p>
+                  )}</Note>
                 </div>
               </div>
 
               {/* Fulfill picker (inline) */}
-              {fulfillingId === wish.id && (
+              <Unfold open={fulfillingId === wish.id}>
                 <div className="pb-4 sm:pl-14">
                   <FulfillPicker
                     wish={wish}
@@ -2472,9 +2530,10 @@ function WishlistTab() {
                     onCancel={() => setFulfillingId(null)}
                   />
                 </div>
-              )}
-            </div>
+              </Unfold>
+            </m.div>
           ))}
+          </AnimatePresence>
         </div>
       )}
     </div>
@@ -2491,7 +2550,6 @@ const isTab = (s: string | undefined | null): s is Tab => !!s && (TABS as readon
 export function AdminPage() {
   const { t } = useLingui()
   const { user } = useAuth()
-  const navigate = useNavigate()
   const { section } = useParams<{ section?: string }>()
   const [searchParams] = useSearchParams()
 
@@ -2550,15 +2608,6 @@ export function AdminPage() {
             items={tabs}
             active={tab}
             hrefFor={id => `/admin/${id}`}
-            onSelect={(id, e) => {
-              // Plain clicks stay in the app; modified clicks open a new tab.
-              if (e.metaKey || e.ctrlKey || e.shiftKey || e.button !== 0) return
-              e.preventDefault()
-              if (id !== tab) navigate(`/admin/${id}`)
-              // A new panel starts at its top, also when the old one was scrolled.
-              const main = document.querySelector('main')
-              if (main && main.scrollTop > 0) main.scrollTo({ top: 0 })
-            }}
             label={t`Admin sections`}
             placement="sidebar"
           />
@@ -2670,9 +2719,9 @@ function EmailTab() {
 
   if (loading) {
     return (
-      <div className="flex justify-center py-12">
-        <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-      </div>
+      <PanelSection title={<Trans>SMTP status</Trans>}>
+        <RowsSkeleton rows={3} rowClassName="h-[45px]" />
+      </PanelSection>
     )
   }
 
@@ -2682,7 +2731,7 @@ function EmailTab() {
       <PanelSection
         title={<Trans>SMTP status</Trans>}
         action={
-          <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors">
+          <a href={docsLink(DOCS.sendToDevice)} target="_blank" rel="noopener noreferrer" className={`inline-flex items-center gap-1.5 h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors touch-feedback ${PRESS}`}>
             <Trans>Learn more</Trans> <ExternalLink className="w-3.5 h-3.5" />
           </a>
         }
@@ -2725,12 +2774,18 @@ function EmailTab() {
                 disabled={testSending || !testEmail.trim()}
                 variant="primary" className="shrink-0"
               >
-                {testSending ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Send className="w-3.5 h-3.5" />}
-                {testSending ? t`Sending…` : t`Test`}
+                <SameWidth active={testSending ? 1 : 0}>
+                  {[<><Send className="w-3.5 h-3.5" />{t`Test`}</>, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Sending…`}</>]}
+                </SameWidth>
               </Pill>
             </form>
-            {testResult?.ok && <p className="text-[13px] text-success"><Trans>Test email sent successfully.</Trans></p>}
-            {testResult && !testResult.ok && <p className="text-[13px] text-destructive">{testResult.error}</p>}
+            <Note value={testResult} gap={12}>{r => (
+              <Swap id={r.ok ? 'ok' : r.error ?? ''}>
+                {r.ok
+                  ? <p className="text-[13px] text-success"><Trans>Test email sent successfully.</Trans></p>
+                  : <p className="text-[13px] text-destructive">{r.error}</p>}
+              </Swap>
+            )}</Note>
           </div>
         ) : (
           <div className="space-y-3">

@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
 import { Link } from 'react-router-dom'
+import { AnimatePresence, m } from 'motion/react'
 import {
   BookOpen, ExternalLink, Layers, Loader2, RefreshCw, Search, AlertTriangle, ChevronLeft,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
-import { Input, PageBody, PageHeader, Pill } from '@/components/page'
+import { Input, PageBody, PageHeader, Pill, PillGroup } from '@/components/page'
+import { BookLink, CoverLift, EASE, LIST, RunningNumber, Unfold, listItem } from '@/components/motion'
 import { ModalShell } from '@/components/ModalShell'
 import { CoverImage } from '@/components/CoverImage'
 import { SeriesStackCard } from '@/components/SeriesStackCard'
@@ -118,6 +120,94 @@ type Cell =
   | { kind: 'book'; b: HcBook }
   | { kind: 'stack'; volumes: HcBook[] }
 
+// A stack and its first volume share a key, so opening a series turns the
+// stack into that volume in place and the others appear beside it.
+const cellKey = (c: Cell) => `b-${c.kind === 'stack' ? c.volumes[0].book_id : c.b.book_id}`
+
+// Past this many cards coming or going at once (a filter, a search, the
+// group toggle on a big library) the grid just swaps: hundreds of cards
+// moving at once would cost more than they show.
+const BULK = 24
+
+// A card that leaves fades.
+const CELL_VARIANTS = {
+  shown: { opacity: 1 },
+  gone: { opacity: 0, transition: { duration: 0.12, ease: EASE } },
+}
+
+// Up to this many cards a change glides; a bigger grid just swaps (a motion
+// wrapper on each of hundreds of cards costs more on mount than it shows).
+const MOVING_MAX = 120
+
+/** The state over a cover. `animated`: a new state cross-fades with the old one. */
+function StateBadge({ label, animated, className }: { label: string; animated: boolean; className: string }) {
+  const cls = cn('absolute top-2 left-2 inline-flex items-center h-6 px-2.5 rounded-full text-[12px] font-semibold backdrop-blur-sm', className)
+  if (!animated) return <span className={cls}>{label}</span>
+  return (
+    <AnimatePresence initial={false}>
+      <m.span key={label} {...SWAP} className={cls}>{label}</m.span>
+    </AnimatePresence>
+  )
+}
+
+function MaybePresence({ on, children }: { on: boolean; children: ReactNode }) {
+  return on ? <AnimatePresence mode="popLayout" initial={false}>{children}</AnimatePresence> : <>{children}</>
+}
+
+/** One grid cell: glides, leaves and arrives when `moving`, else a plain box. */
+function CellBox({ moving, dep, children, ref }: { moving: boolean; dep: number; children: ReactNode; ref?: Ref<HTMLDivElement> }) {
+  if (!moving) return <div ref={ref} className="flex flex-col min-w-0">{children}</div>
+  return (
+    <m.div
+      ref={ref}
+      layout="position"
+      layoutDependency={dep}
+      initial={false}
+      animate="shown"
+      exit="gone"
+      variants={CELL_VARIANTS}
+      transition={LIST}
+      className="flex flex-col min-w-0"
+    >
+      {children}
+    </m.div>
+  )
+}
+
+// One label or badge giving way to another in the same place.
+const SWAP = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.14, ease: EASE },
+} as const
+
+/** The page's shape while the books load: the filter row and a few cards. */
+function HardcoverSkeleton() {
+  return (
+    <div aria-busy="true" className="flex flex-col gap-6 -mt-1 animate-pulse motion-reduce:animate-none">
+      <div className="flex flex-wrap items-center gap-1.5">
+        {[72, 96, 120].map(w => <div key={w} className="h-9 rounded-full bg-muted" style={{ width: w }} />)}
+      </div>
+      <GridSkeleton />
+    </div>
+  )
+}
+
+function GridSkeleton() {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-8">
+      {[...Array(10)].map((_, i) => (
+        <div key={i} className="flex flex-col">
+          <div className="aspect-[2/3] rounded-[8px] bg-muted" />
+          <div className="mt-3 h-4 w-4/5 rounded bg-muted" />
+          <div className="mt-2 h-3 w-1/2 rounded bg-muted" />
+        </div>
+      ))}
+    </div>
+  )
+}
+
 export function HardcoverPage() {
   const { t } = useLingui()
   const { toast } = useToast()
@@ -217,6 +307,24 @@ export function HardcoverPage() {
     return out.map(c => (c.kind === 'stack' && c.volumes.length === 1)
       ? { kind: 'book' as const, b: c.volumes[0] } : c)
   }, [filtered, grouped, expandedSeries])
+
+  // Which cards a change brings and takes: a small change animates (cards
+  // glide, leave, appear), a bulk one swaps at once. The layout dependency
+  // moves only on a small change, so no other render measures the grid.
+  const keys = useMemo(() => cells.map(cellKey), [cells])
+  const joined = useMemo(() => keys.join(','), [keys])
+  const [shape, setShape] = useState({ joined, keys, dep: 0, bulk: true, epoch: 0 })
+  if (shape.joined !== joined) {
+    const before = new Set(shape.keys)
+    const after = new Set(keys)
+    let changed = 0
+    for (const k of keys) if (!before.has(k)) changed++
+    for (const k of shape.keys) if (!after.has(k)) changed++
+    const bulk = shape.keys.length === 0 || changed > BULK
+    setShape({ joined, keys, dep: bulk ? shape.dep : shape.dep + 1, bulk, epoch: bulk ? shape.epoch + 1 : shape.epoch })
+  }
+
+  const moving = cells.length <= MOVING_MAX
 
   const counts = useMemo(() => {
     const c = { all: books?.length ?? 0, matched: 0, unmatched: 0, excluded: 0, errors: 0 }
@@ -353,9 +461,7 @@ export function HardcoverPage() {
         />
 
         {!status ? (
-          <div className="flex items-center gap-2 text-[15px] text-muted-foreground">
-            <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Loading…</Trans>
-          </div>
+          <HardcoverSkeleton />
         ) : !status.linked ? (
           <div className="py-16 flex flex-col items-center gap-4 text-center">
             <p className="text-[15px] text-muted-foreground max-w-[46ch]">
@@ -363,61 +469,60 @@ export function HardcoverPage() {
             </p>
             <Link
               to="/settings/hardcover"
-              className="inline-flex items-center h-9 px-4 rounded-full bg-primary text-primary-foreground text-[14px] font-semibold hover:bg-primary/90 transition-colors"
+              className="inline-flex items-center h-9 px-4 rounded-full bg-primary text-primary-foreground text-[14px] font-semibold hover:bg-primary/90 transition-colors touch-feedback"
             >
               <Trans>Open settings</Trans>
             </Link>
           </div>
         ) : (
           <div className="flex flex-col gap-6 -mt-1">
-            <div className="flex flex-wrap items-center gap-1.5">
-              {FILTERS.map(f => {
-                const n = counts[f.key]
-                if (f.key !== 'all' && n === 0) return null
-                const active = filter === f.key
-                return (
-                  <Pill
-                    key={f.key}
-                    variant={active ? 'secondary' : 'quiet'}
-                    onClick={() => setFilter(f.key)}
-                    aria-pressed={active}
-                  >
+            <PillGroup
+              value={filter}
+              onChange={setFilter}
+              options={FILTERS.filter(f => f.key === 'all' || counts[f.key] > 0).map(f => ({
+                value: f.key,
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
                     {i18n._(f.label)}
-                    <span className="tabular-nums text-muted-foreground">{n}</span>
-                  </Pill>
-                )
-              })}
-            </div>
+                    <RunningNumber value={counts[f.key]} className="opacity-60" />
+                  </span>
+                ),
+              }))}
+            />
 
-            {expandedSeries && (
+            <Unfold open={!!expandedSeries} gap={24}>
               <div className="flex items-center gap-2 -mt-2 min-w-0">
                 <Pill variant="quiet" onClick={() => setExpandedSeries(null)} className="-ml-3 shrink-0">
                   <ChevronLeft className="w-4 h-4" /> <Trans>All books</Trans>
                 </Pill>
                 <span className="font-display text-[20px] font-bold text-foreground truncate">{expandedSeries}</span>
               </div>
-            )}
+            </Unfold>
 
             {books == null ? (
-              <div className="flex items-center gap-2 text-[15px] text-muted-foreground">
-                <Loader2 className="w-4 h-4 animate-spin" /> <Trans>Loading books…</Trans>
-              </div>
+              <GridSkeleton />
             ) : cells.length === 0 ? (
               <p className="py-16 text-center text-[15px] text-muted-foreground"><Trans>No books in this view.</Trans></p>
             ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-8">
-                {cells.map(cell => cell.kind === 'stack' ? (
+              // A bulk change mounts a fresh grid (new key): no leaving cards to
+              // track. A big grid is plain: no presence, no glides.
+              <div key={moving ? shape.epoch : 'still'} className="relative grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-6 gap-y-8">
+                <MaybePresence on={moving}>
+                {cells.map(cell => (
+                  <CellBox key={cellKey(cell)} moving={moving} dep={shape.dep}>
+                  {cell.kind === 'stack' ? (
                   <SeriesStackCard
-                    key={`stack-${cell.volumes[0].series}`}
                     book={toBookShape(cell.volumes[0], cell.volumes)}
                     count={cell.volumes.length}
                     view="small"
                     onOpen={() => setExpandedSeries(cell.volumes[0].series)}
                   />
-                ) : (() => { const b = cell.b; return (
-                  <div key={b.book_id} className="flex flex-col min-w-0">
-                    <Link
-                      to={`/books/${b.book_id}`}
+                ) : (() => { const b = cell.b; const badge = b.error ? t`Error` : i18n._(STATE_LABEL[b.state]); return (
+                  <>
+                    <CoverLift>
+                    <BookLink
+                      book={{ id: b.book_id, title: b.title, author: b.author, series: b.series, series_index: b.series_index }}
+                      data-cover-id={b.book_id}
                       className="relative block aspect-[2/3] rounded-[8px] overflow-hidden bg-muted"
                       style={{ boxShadow: 'var(--cover-bloom-fan)' }}
                     >
@@ -427,23 +532,24 @@ export function HardcoverPage() {
                         imgClassName="absolute inset-0 w-full h-full object-cover"
                         iconClassName="w-8 h-8"
                       />
-                      <span className={cn(
-                        'absolute top-2 left-2 inline-flex items-center h-6 px-2.5 rounded-full text-[12px] font-semibold backdrop-blur-sm',
+                      {/* After a match, an exclude or an include the state
+                          changes in place: the old badge fades as the new one
+                          comes in. */}
+                      <StateBadge label={badge} animated={moving} className={cn(
                         b.error ? 'bg-warning text-black'
                           : b.state === 'matched' ? 'bg-success text-black'
                           : b.state === 'excluded' ? 'bg-black/55 text-white/80'
                           : 'bg-black/60 text-white'
-                      )}>
-                        {b.error ? t`Error` : i18n._(STATE_LABEL[b.state])}
-                      </span>
-                    </Link>
+                      )} />
+                    </BookLink>
+                    </CoverLift>
                     <div className="pt-3 flex flex-col gap-1 grow min-w-0">
-                      <Link
-                        to={`/books/${b.book_id}`}
+                      <BookLink
+                        book={{ id: b.book_id, title: b.title, author: b.author, series: b.series, series_index: b.series_index }}
                         className="text-[15px] font-semibold text-foreground leading-snug line-clamp-2 hover:text-primary transition-colors"
                       >
                         {displayTitle(b)}
-                      </Link>
+                      </BookLink>
                       {b.slug ? (
                         <a
                           href={`https://hardcover.app/books/${b.slug}`}
@@ -467,7 +573,7 @@ export function HardcoverPage() {
                       <div className="mt-auto pt-1 flex items-center gap-3 text-[13px] font-medium">
                         <button
                           onClick={() => void openPicker(b)}
-                          className="text-primary hover:underline underline-offset-4"
+                          className="text-primary hover:underline underline-offset-4 touch-feedback"
                           title={t`Search Hardcover and pick the record yourself`}
                         >
                           <Trans>Pick</Trans>
@@ -475,7 +581,7 @@ export function HardcoverPage() {
                         {b.state === 'matched' && (
                           <button
                             onClick={() => void rematch(b, 'retry')}
-                            className="text-muted-foreground hover:text-foreground"
+                            className="text-muted-foreground hover:text-foreground touch-feedback"
                             title={t`Remove the entry Tome created on Hardcover and re-match automatically. An entry that was already on your profile is kept.`}
                           >
                             <Trans>Re-match</Trans>
@@ -484,7 +590,7 @@ export function HardcoverPage() {
                         {b.state === 'excluded' ? (
                           <button
                             onClick={() => void rematch(b, 'retry')}
-                            className="ml-auto text-muted-foreground hover:text-foreground"
+                            className="ml-auto text-muted-foreground hover:text-foreground touch-feedback"
                             title={t`Start matching this book again`}
                           >
                             <Trans>Include</Trans>
@@ -492,7 +598,7 @@ export function HardcoverPage() {
                         ) : (
                           <button
                             onClick={() => void rematch(b, 'exclude')}
-                            className="ml-auto text-muted-foreground hover:text-destructive"
+                            className="ml-auto text-muted-foreground hover:text-destructive touch-feedback"
                             title={t`Never sync this book. Nothing is removed from Hardcover.`}
                           >
                             <Trans>Exclude</Trans>
@@ -500,8 +606,11 @@ export function HardcoverPage() {
                         )}
                       </div>
                     </div>
-                  </div>
-                ) })())}
+                  </>
+                ) })()}
+                  </CellBox>
+                ))}
+                </MaybePresence>
               </div>
             )}
           </div>
@@ -538,13 +647,14 @@ export function HardcoverPage() {
           ) : pickResults.length === 0 ? (
             <p className="text-[14px] text-muted-foreground py-4"><Trans>No results. Try a different query.</Trans></p>
           ) : (
-            <ul>
+            <ul className="relative">
+              <AnimatePresence mode="popLayout" initial={false}>
               {pickResults.map(c => (
-                <li key={c.hardcover_book_id} className="border-b border-border/70 last:border-b-0">
+                <m.li key={c.hardcover_book_id} {...listItem} className="border-b border-border/70 last:border-b-0">
                   <button
                     onClick={() => void pin(c)}
                     disabled={pickBusy}
-                    className="w-full flex items-center gap-4 py-3 text-left rounded-lg hover:bg-secondary/60 transition-colors disabled:opacity-50"
+                    className="w-full flex items-center gap-4 py-3 text-left rounded-lg hover:bg-secondary/60 transition-colors disabled:opacity-50 touch-feedback"
                   >
                     {c.cover_url ? (
                       <img src={c.cover_url} alt="" className="w-10 h-[60px] object-cover rounded-[8px] shrink-0" />
@@ -561,8 +671,9 @@ export function HardcoverPage() {
                       </span>
                     </span>
                   </button>
-                </li>
+                </m.li>
               ))}
+              </AnimatePresence>
             </ul>
           )}
         </div>

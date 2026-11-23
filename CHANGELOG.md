@@ -13,30 +13,51 @@ All notable changes to Tome are documented here. Format loosely follows
   of the libraries in their list, shelves by their owner.
 
 ### Changed
-- **The interface moves with you.** Switching the library between grid and
-  list sends each cover and title to its new place. Opening a book grows the
-  cover you clicked into the cover of the book page, and Back sends it home
-  (in browsers that support view transitions). The book page shows its cover
-  and title at once when opened from a list. Quick look grows out of its
+- **The interface moves with you.** Opening a book or a series grows the
+  cover you clicked into the cover of the page it opens, and Back sends it
+  home when that cover is on screen (in browsers that support view
+  transitions). Moving between pages, Settings and Admin sections, and
+  themes is a short cross-fade that never holds up a click. Switching the
+  library between grid and list, changing the sort order and grouping series
+  sends each cover and title to its new place. Quick look grows out of its
   cover and shrinks back into it.
-- Changing the range on Stats no longer restarts the page: figures count from
-  the old value to the new one, bars move to their new size, a day keeps its
-  bar where two ranges share it, and ranked rows slide to their new rank.
-- Tabs, range pills, the Settings and Admin section lists and the sidebar
-  have one indicator that glides to the option you pick. On a book's page the
-  status pills do the same and the rating stars fill in turn.
-- In the calendar the selection outline glides from day to day, the month
-  slides further in the direction you step, and the day card's figures count
-  to their new values.
-- The filter panel, the selection bar, the command palette and the sort menu
-  open and close with a short motion.
-- More of the interface now stays still when the system asks for reduced
-  motion: press feedback, the cover tilt, the sidebar icon wiggle and the
-  loading shimmer.
+- Covers lift and lean toward the pointer wherever they can be clicked, not
+  only in the library: on Home, on a book's page, in the Bindery and
+  Hardcover, on Highlights and in Stats.
+- Menus, popovers and the user menu in the sidebar open and close with a
+  short motion, and dialogs now close the way they open. Rows that are
+  added, removed or reordered in a list glide to their place and leave with
+  a short fade. Tabs, range pills, the Settings and Admin section lists and
+  the sidebar have one indicator that glides to the option you pick.
+- Figures that change count from the old value to the new one, and a label
+  that changes length keeps its width, so the buttons next to it stay put.
+- Changing the range on Stats no longer restarts the page and answers
+  faster: bars move to their new size, a day keeps its bar where two ranges
+  share it, ranked rows slide to their new rank, and a range you opened
+  before shows at once. The calendar answers faster too; its selection
+  outline glides from day to day and the month slides in the direction you
+  step.
+- A book's page shows its cover and title at once when opened from a list,
+  and moving to the next or previous volume keeps the page on screen instead
+  of reloading it.
 - A cover that is still loading holds its place in its own colour instead of
   a grey shimmer, so a page of covers already looks like your library before
   the pictures arrive. Tome works out the colours of existing covers in the
   background after the update.
+- Dialogs no longer blur the page behind them; the dimmed page stays sharp,
+  which keeps opening and closing a dialog smooth.
+- More of the interface stays still when the system asks for reduced
+  motion: press feedback, the cover tilt, switches, the sidebar icon wiggle
+  and the loading shimmer. Fades remain.
+
+### Fixed
+- **Back on a Settings or Admin page leaves the page.** It goes to the page
+  you came from, however many sections you visited, instead of stepping back
+  through each section.
+- Clicking a book in a Stats widget opens it inside the app instead of
+  reloading the whole app.
+- Buttons and pills fade between their colours on hover again; pressing them
+  had dropped the colour transition.
 
 ## [3.2.0] - 2026-11-22 - "Chapbook"
 

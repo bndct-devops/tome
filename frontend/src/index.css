@@ -436,16 +436,26 @@ body {
   }
 }
 
+/* The veil behind a dialog and the command palette (ModalShell, CommandPalette).
+   No blur: a backdrop-filter over the whole page cost about 70 ms per frame
+   while a dialog animated. To bring it back, uncomment the second line. */
+.dialog-veil {
+  background-color: rgb(0 0 0 / 0.55);
+  /* backdrop-filter: blur(4px); */
+}
+
 /* Touch feedback for interactive elements */
 .touch-feedback {
-  transition: transform 0.2s var(--spring);
+  /* Lists the colour properties too: an element with transition-colors keeps them. */
+  transition: transform 0.2s var(--spring), color 150ms ease-out, background-color 150ms ease-out,
+    border-color 150ms ease-out, fill 150ms ease-out, stroke 150ms ease-out;
   -webkit-tap-highlight-color: transparent;
 }
 .touch-feedback:active {
   transform: scale(0.97);
 }
 @media (prefers-reduced-motion: reduce) {
-  .touch-feedback { transition: none; }
+  .touch-feedback { transition: color 150ms ease-out, background-color 150ms ease-out, border-color 150ms ease-out; }
   .touch-feedback:active { transform: none; }
 }
 
@@ -497,4 +507,50 @@ h1, h2, h3, .font-display {
   background-repeat: no-repeat;
   background-position: right 0.6rem center;
   padding-right: 2rem;
+}
+
+/* A loading line or spinner on an otherwise empty page shows only when the
+   wait is long enough to notice (after 200 ms), so a fast answer flashes
+   nothing. */
+@keyframes appear-late {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+.appear-late {
+  animation: appear-late 150ms ease-out 200ms both;
+}
+
+/* Theme switch (lib/theme.ts switchTheme): the old colours cross-fade into
+   the new ones, 200 ms; the pointer passes through to the page. Started only
+   for a switch the user made, never under reduced motion. */
+html[data-theme-transition]::view-transition {
+  pointer-events: none;
+}
+html[data-theme-transition]::view-transition-group(root),
+html[data-theme-transition]::view-transition-old(root),
+html[data-theme-transition]::view-transition-new(root) {
+  animation-duration: 200ms;
+  animation-timing-function: ease-out;
+}
+
+/* Sidebar collapse (Sidebar.tsx): the labels fade while the edge passes over
+   them; on expand they are uncovered by the edge as they are. */
+.sb-label {
+  transition: opacity 120ms ease-out;
+}
+[data-shell-sidebar][data-closing] .sb-label {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  html[data-theme-transition]::view-transition-group(*),
+  html[data-theme-transition]::view-transition-old(*),
+  html[data-theme-transition]::view-transition-new(*) {
+    animation: none !important;
+  }
+  .sb-label {
+    transition: none;
+  }
+  .appear-late {
+    animation: none;
+  }
 }

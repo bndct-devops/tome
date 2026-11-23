@@ -428,7 +428,7 @@ msgstr "{0, plural, one {# cover found, click to apply} other {# covers found, c
 #~ msgid "{0, plural, one {# day streak since {from}} other {# day streak since {from}}}"
 #~ msgstr "{0, plural, one {# day streak since {from}} other {# day streak since {from}}}"
 
-#. placeholder {0}: hover.b.days.length
+#. placeholder {0}: held.b.days.length
 #. placeholder {0}: q.days
 #. placeholder {0}: s.days
 #: src/components/stats/library/Sections.tsx
@@ -456,7 +456,7 @@ msgstr "{0, plural, one {# file entry removed} other {# file entries removed}}"
 msgid "{0, plural, one {# file in the database but missing from disk} other {# files in the database but missing from disk}}"
 msgstr "{0, plural, one {# file in the database but missing from disk} other {# files in the database but missing from disk}}"
 
-#. placeholder {0}: confirmMove?.length ?? 0
+#. placeholder {0}: moveShown?.length ?? 0
 #: src/components/LibraryHealth.tsx
 msgid "{0, plural, one {# file is moved to its expected folder in the library. Empty folders left behind are removed.} other {# files are moved to their expected folders in the library. Empty folders left behind are removed.}}"
 msgstr "{0, plural, one {# file is moved to its expected folder in the library. Empty folders left behind are removed.} other {# files are moved to their expected folders in the library. Empty folders left behind are removed.}}"
@@ -532,7 +532,7 @@ msgstr "{0, plural, one {# more language} other {# more languages}}"
 msgid "{0, plural, one {# not estimated} other {# not estimated}}"
 msgstr "{0, plural, one {# not estimated} other {# not estimated}}"
 
-#. placeholder {0}: openWishes.length
+#. placeholder {0}: Math.round(n)
 #: src/pages/WishlistPage.tsx
 msgid "{0, plural, one {# open} other {# open}}"
 msgstr "{0, plural, one {# open} other {# open}}"
@@ -612,7 +612,7 @@ msgstr "{0, plural, one {# result, pick one to review} other {# results, pick on
 msgid "{0, plural, one {# result. Click one to fill the form.} other {# results. Click one to fill the form.}}"
 msgstr "{0, plural, one {# result. Click one to fill the form.} other {# results. Click one to fill the form.}}"
 
-#. placeholder {0}: follows.length
+#. placeholder {0}: Math.round(n)
 #: src/pages/WishlistPage.tsx
 msgid "{0, plural, one {# series} other {# series}}"
 msgstr "{0, plural, one {# series} other {# series}}"
@@ -7269,8 +7269,8 @@ msgid "Load more ({left} left)"
 msgstr "Load more ({left} left)"
 
 #: src/pages/HardcoverPage.tsx
-msgid "Loading books…"
-msgstr "Loading books…"
+#~ msgid "Loading books…"
+#~ msgstr "Loading books…"
 
 #: src/components/Sidebar.tsx
 msgid "Loading icons"
@@ -7295,15 +7295,11 @@ msgstr "Loading your reading life…"
 
 #: src/components/ConnectPhoneModal.tsx
 #: src/components/HardcoverSync.tsx
-#: src/components/PositionHistoryModal.tsx
-#: src/components/ShareLinksOverview.tsx
 #: src/components/ShareShelfModal.tsx
 #: src/components/stats/BacklogEstimate.tsx
 #: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/GoalWidget.tsx
 #: src/pages/BinderyPage.tsx
-#: src/pages/HardcoverPage.tsx
-#: src/pages/SettingsPage.tsx
 #: src/pages/SharePage.tsx
 msgid "Loading…"
 msgstr "Loading…"

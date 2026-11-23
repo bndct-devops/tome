@@ -6,7 +6,9 @@ import { ExternalLink, Loader2, RefreshCw, AlertTriangle } from 'lucide-react'
 import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import { cn } from '@/lib/utils'
-import { Input, Pill } from '@/components/page'
+import { Input, Pill, PRESS, Swap } from '@/components/page'
+import { Unfold } from '@/components/motion'
+import { SameWidth } from '@/components/FormMotion'
 
 interface HardcoverStatus {
   linked: boolean
@@ -136,26 +138,28 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
             href="https://hardcover.app/account/api"
             target="_blank"
             rel="noopener noreferrer"
-            className="shrink-0 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary transition-colors"
+            className={`shrink-0 inline-flex items-center gap-1 text-[13px] text-muted-foreground hover:text-primary touch-feedback ${PRESS}`}
           >
             <Trans>Get token</Trans> <ExternalLink className="w-3 h-3" />
           </a>
         </div>
 
+        {/* Loading holds the height of the token row; linked and not linked swap in place. */}
+        <Swap id={!status ? 'loading' : !status.linked || expired ? 'link' : 'linked'}>
         {!status ? (
-          <div className="flex items-center gap-2 text-[13px] text-muted-foreground">
+          <div className="flex items-center gap-2 h-9 text-[13px] text-muted-foreground">
             <Loader2 className="w-3.5 h-3.5 animate-spin" /> <Trans>Loading…</Trans>
           </div>
         ) : !status.linked || expired ? (
           <div className="space-y-3">
-            {expired && (
+            <Unfold open={!!expired} gap={12}>
               <div className="flex items-center gap-2 rounded-lg bg-warning/10 border border-warning/20 px-3 py-2">
                 <AlertTriangle className="w-3.5 h-3.5 text-warning shrink-0" />
                 <p className="text-[13px] text-warning font-medium">
                   <Trans>Your Hardcover token expired (they reset every January 1). Paste a fresh one to resume syncing.</Trans>
                 </p>
               </div>
-            )}
+            </Unfold>
             <div className="flex gap-2">
               <Input
                 type="password"
@@ -171,8 +175,9 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
                 disabled={busy || !token.trim()}
                 variant="primary"
               >
-                {busy && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
-                {expired ? t`Re-link` : t`Link account`}
+                <SameWidth active={busy ? 1 : 0}>
+                  {[expired ? t`Re-link` : t`Link account`, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{expired ? t`Re-link` : t`Link account`}</>]}
+                </SameWidth>
               </Pill>
             </div>
           </div>
@@ -190,7 +195,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
               <button
                 onClick={() => void unlink()}
                 disabled={busy}
-                className="text-[13px] text-muted-foreground hover:text-destructive transition-colors"
+                className={`text-[13px] text-muted-foreground hover:text-destructive touch-feedback ${PRESS}`}
               >
                 <Trans>Unlink</Trans>
               </button>
@@ -208,12 +213,12 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
                 aria-checked={status.sync_enabled}
                 onClick={() => void toggleSync(!status.sync_enabled)}
                 className={cn(
-                  'relative w-9 h-5 rounded-full transition-colors shrink-0',
+                  'relative w-9 h-5 rounded-full shrink-0 touch-feedback', PRESS,
                   status.sync_enabled ? 'bg-primary' : 'bg-muted-foreground/30'
                 )}
               >
                 <span className={cn(
-                  'absolute left-0 top-0.5 w-4 h-4 rounded-full bg-white transition-transform',
+                  'absolute left-0 top-0.5 w-4 h-4 rounded-full bg-white transition-transform duration-200 ease-(--spring) motion-reduce:transition-none',
                   status.sync_enabled ? 'translate-x-[18px]' : 'translate-x-0.5'
                 )} />
               </button>
@@ -226,7 +231,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
                 variant="secondary"
               >
                 <RefreshCw className={cn('w-3.5 h-3.5', status.sync_running && 'animate-spin')} />
-                {status.sync_running ? t`Syncing…` : t`Sync now`}
+                <SameWidth active={status.sync_running ? 1 : 0}>{[t`Sync now`, t`Syncing…`]}</SameWidth>
               </Pill>
               {/* Match auditing/fixing lives on the dedicated page */}
               <Link to="/hardcover" className="text-[13px] text-primary hover:underline">
@@ -238,6 +243,7 @@ export function HardcoverSync({ onAvailable }: { onAvailable?: (v: boolean) => v
             </div>
           </div>
         )}
+        </Swap>
       </div>
     </div>
   )

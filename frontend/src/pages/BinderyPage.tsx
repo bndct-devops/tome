@@ -1,6 +1,5 @@
-import { useEffect, useState, useCallback, useRef } from 'react'
-import { AnimatePresence } from 'motion/react'
-import { useNavigate } from 'react-router-dom'
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react'
+import { AnimatePresence, LayoutGroup, m } from 'motion/react'
 import {
   RefreshCw, Loader2, BookOpen, Check, X, Trash2, Search,
   ChevronRight, ChevronDown, ArrowLeft, FolderOpen,
@@ -9,7 +8,8 @@ import {
 import { AppShell } from '@/components/AppShell'
 import { Checkbox, PageBody, PageHeader, SectionTitle, Pill, Select } from '@/components/page'
 import { ModalShell } from '@/components/ModalShell'
-import { QuickLook } from '@/components/QuickLook'
+import { QuickLook, type QuickLookPreview } from '@/components/QuickLook'
+import { SameWidth } from '@/components/FormMotion'
 import { DOCS, docsLink } from '@/lib/docs'
 import { api } from '@/lib/api'
 import { useBookTypes } from '@/lib/bookTypes'
@@ -23,6 +23,7 @@ import { cn } from '@/lib/utils'
 import { useShiftSelect } from '@/lib/useShiftSelect'
 import { CoverImage } from '@/components/CoverImage'
 import { coverSrc } from '@/lib/covers'
+import { BookLink, CoverLift, EASE, Pop, RunningNumber, Unfold, listItem } from '@/components/motion'
 
 // ---------------------------------------------------------------------------
 // Types
@@ -201,6 +202,37 @@ const TEXTAREA_CLS =
   'w-full rounded-lg bg-secondary px-3 py-2 text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring resize-none'
 const LABEL_CLS = 'block text-[13px] text-muted-foreground mb-1'
 
+// A new view (list, review, the next file in a review) rises into place from
+// part opacity; the one it replaces goes at once, so nothing waits.
+const STEP_IN = { opacity: 0.5, y: 8 }
+const STEP_TRANSITION = { duration: 0.18, ease: EASE }
+
+// The chevron of a section that folds, on the app's curve.
+const BAR = 'h-full bg-primary transition-[width] duration-300 ease-(--spring) motion-reduce:transition-none'
+
+const CHEVRON = 'h-4 w-4 shrink-0 transition-transform duration-[240ms] ease-(--spring) motion-reduce:transition-none'
+
+/** Holds the page's shape while the bindery is read for the first time. */
+function BinderySkeleton() {
+  return (
+    <section aria-busy="true" className="animate-pulse motion-reduce:animate-none">
+      <div className="h-5 w-40 rounded-md bg-muted" />
+      <div className="mt-3 divide-y divide-border/70">
+        {[0, 1, 2, 3, 4].map(i => (
+          <div key={i} className="flex items-center gap-4 py-3 px-2">
+            <div className="h-[18px] w-[18px] rounded bg-muted shrink-0" />
+            <div className="flex-1 min-w-0">
+              <div className="h-4 w-1/2 rounded bg-muted" />
+              <div className="mt-2 h-3 w-1/3 rounded bg-muted" />
+            </div>
+            <div className="h-6 w-12 rounded-full bg-muted shrink-0" />
+          </div>
+        ))}
+      </div>
+    </section>
+  )
+}
+
 // ---------------------------------------------------------------------------
 // LibrariesSelect - same idea as the Book page's "Libraries" dropdown (#103)
 // ---------------------------------------------------------------------------
@@ -265,8 +297,7 @@ function LibrariesSelect({ value, onChange, libraries, className, placeholder }:
         </span>
         <ChevronDown className="w-3.5 h-3.5 shrink-0 opacity-60" />
       </button>
-      {open && (
-        <div className="absolute left-0 right-0 top-full mt-1 z-40 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring py-1 max-h-56 overflow-y-auto">
+      <Pop open={open} origin="top" className="absolute left-0 right-0 top-full mt-1 z-40 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring py-1 max-h-56 overflow-y-auto">
           {editable.map(lib => {
             const selected = value.includes(lib.id)
             return (
@@ -278,12 +309,11 @@ function LibrariesSelect({ value, onChange, libraries, className, placeholder }:
               >
                 <LibraryIcon className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
                 <span className="flex-1 truncate">{lib.name}</span>
-                <Check className={cn('w-3.5 h-3.5 shrink-0', selected ? 'text-primary' : 'text-muted-foreground/30')} />
+                <Check className={cn('w-3.5 h-3.5 shrink-0 transition-colors', selected ? 'text-primary' : 'text-muted-foreground/30')} />
               </button>
             )
           })}
-        </div>
-      )}
+      </Pop>
     </div>
   )
 }
@@ -514,12 +544,14 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
           type="submit"
           disabled={loading || !searchQuery.trim()}
           aria-label={t`Search`}
-          className="shrink-0 h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50"
+          className="shrink-0 h-9 w-9 rounded-full bg-secondary flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-surface-hover transition-colors disabled:opacity-50 touch-feedback"
         >
           {loading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Search className="h-3.5 w-3.5" />}
         </button>
       </form>
-      {loading && (
+      {/* A new search keeps the old results on screen, dimmed and inert,
+          until the new ones land; the spinner shows only when there were none. */}
+      {loading && candidates.length === 0 && (
         <div className="flex-1 flex items-center justify-center py-12">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
         </div>
@@ -531,16 +563,18 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
           <p className="text-[13px] text-muted-foreground/60 mt-1"><Trans>Try editing the title or series fields</Trans></p>
         </div>
       )}
-      {!loading && candidates.length > 0 && (
-        <div className="flex-1">
+      {candidates.length > 0 && (
+        <div className={cn('relative flex-1 transition-opacity duration-150', loading && 'opacity-50 pointer-events-none')} aria-busy={loading || undefined}>
           <p className="text-[13px] text-muted-foreground mb-1">
             <Plural value={candidates.length} one="# result. Click one to fill the form." other="# results. Click one to fill the form." />
           </p>
+          <AnimatePresence mode="popLayout" initial={false}>
           {candidates.map(c => (
-            <button
+            <m.button
+              {...listItem}
               key={`${c.source}-${c.source_id}`}
               className={cn(
-                'w-full text-left py-3 px-2 border-t border-border/70 first-of-type:border-t-0 hover:bg-secondary/50 transition-colors flex gap-3',
+                'w-full text-left py-3 px-2 border-t border-border/70 first-of-type:border-t-0 hover:bg-secondary/50 transition-colors flex gap-3 touch-feedback',
                 appliedId === `${c.source}-${c.source_id}` && 'bg-primary/5'
               )}
               onClick={() => onSelect(c)}
@@ -573,8 +607,9 @@ function CandidatePanel({ candidates, loading, searchQuery, onSearchQueryChange,
                   </div>
                 )}
               </div>
-            </button>
+            </m.button>
           ))}
+          </AnimatePresence>
         </div>
       )}
     </div>
@@ -695,7 +730,7 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onRevi
             key={f.path}
             onClick={() => onReviewFile(f.path)}
             title={`${f.filename} → ${f.dest_preview}`}
-            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-surface-hover transition-colors"
+            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-surface-hover transition-colors touch-feedback"
           >
             {(() => { const idx = f.series_index; return idx != null ? t`Vol ${idx}` : (f.title || f.filename) })()}
             <span className="text-muted-foreground uppercase text-[12px] font-semibold tracking-wide">{f.format}</span>
@@ -743,10 +778,9 @@ export function BinderyPage() {
   const { t } = useLingui()
   const { toast } = useToast()
   const bookTypes = useBookTypes()
-  const navigate = useNavigate()
   const [peekId, setPeekId] = useState<number | null>(null)
   // The cover the quick look grows out of (and shrinks back into).
-  const [peekFrom, setPeekFrom] = useState<{ origin?: DOMRect; cover?: string | null }>({})
+  const [peekFrom, setPeekFrom] = useState<{ origin?: DOMRect; cover?: string | null; preview?: QuickLookPreview }>({})
   const [libraries, setLibraries] = useState<LibraryOption[]>([])
   useEffect(() => {
     api.get<LibraryOption[]>('/libraries').then(setLibraries).catch(() => {})
@@ -754,8 +788,14 @@ export function BinderyPage() {
 
   // List view state
   const [view, setView] = useState<View>('list')
+  // Set once the view has changed: the first view shows as is, later ones rise in.
+  const [viewMoved, setViewMoved] = useState(false)
+  // Set when a single review moves on to the next file (rises in), cleared on entering review.
+  const [reviewStepped, setReviewStepped] = useState(false)
   const [items, setItems] = useState<BinderyItem[]>([])
   const [loading, setLoading] = useState(true)
+  // After the first read, a refresh dims what is there instead of a skeleton.
+  const [loadedOnce, setLoadedOnce] = useState(false)
   const [selected, setSelected] = useState<Set<string>>(new Set())
   const [collapsedFolders, setCollapsedFolders] = useState<Set<string>>(new Set())
 
@@ -815,6 +855,7 @@ export function BinderyPage() {
   // ---------------------------------------------------------------------------
 
   function transitionTo(newView: View) {
+    if (newView !== view) setViewMoved(true)
     setView(newView)
   }
 
@@ -854,6 +895,7 @@ export function BinderyPage() {
 
   const fetchAll = useCallback(async () => {
     await Promise.all([fetchItems(), fetchUnreviewed()])
+    setLoadedOnce(true)
   }, [fetchItems, fetchUnreviewed])
 
   useEffect(() => {
@@ -925,6 +967,14 @@ export function BinderyPage() {
 
   const { handleToggle } = useShiftSelect(listItems.map(i => i.path))
 
+  // The rows measure their place only when the list itself changes (or a
+  // leaving row has just gone), not on every render: selecting in a long
+  // list would otherwise measure every row on each click.
+  const [listEpoch, setListEpoch] = useState(0)
+  const bumpList = useCallback(() => setListEpoch(e => e + 1), [])
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- a token that changes with these
+  const listDep = useMemo(() => ({}), [items, unreviewed, groups, collapsedFolders, listEpoch])
+
   function toggleSelect(path: string, shiftKey: boolean) {
     setSelected(prev => {
       const index = listItems.findIndex(i => i.path === path)
@@ -992,6 +1042,7 @@ export function BinderyPage() {
     setListLibraryIds([])
     setExpandedRows(new Set())
     setSuggestPath(toReview[0]?.path ?? null)
+    setReviewStepped(false)
     transitionTo('review')
 
     // Fetch metadata for the first item
@@ -1001,7 +1052,6 @@ export function BinderyPage() {
   async function fetchPreview(item: BinderyItem, queryOverride?: string, autoApply = true) {
     const itemPath = item.path
     setFetchingMeta(true)
-    setCandidates([])
     try {
       const body: { path: string; query?: string } = { path: itemPath }
       if (queryOverride !== undefined) body.query = queryOverride
@@ -1020,7 +1070,8 @@ export function BinderyPage() {
         }
       }
     } catch {
-      // Non-fatal
+      // Non-fatal: no suggestions for this file
+      setCandidates([])
     } finally {
       setFetchingMeta(false)
     }
@@ -1442,6 +1493,7 @@ export function BinderyPage() {
     }
     setReviewItems(remaining)
     setReviewIndex(0)
+    setReviewStepped(true)
     fetchPreview(remaining[0])
   }
 
@@ -1456,6 +1508,7 @@ export function BinderyPage() {
       return
     }
     setReviewIndex(nextIndex)
+    setReviewStepped(true)
     fetchPreview(reviewItems[nextIndex])
   }
 
@@ -1473,7 +1526,8 @@ export function BinderyPage() {
     const isSelected = selected.has(item.path)
     const itemTitle = item.title
     return (
-      <div
+      <m.div
+        {...listItem} layoutDependency={listDep}
         key={item.path}
         className={cn(
           'group flex items-center gap-4 py-3 px-2 transition-colors',
@@ -1489,7 +1543,7 @@ export function BinderyPage() {
           className="shrink-0 [&>span]:mt-0"
         />
         <button
-          className="flex-1 min-w-0 flex items-center gap-4 text-left"
+          className="flex-1 min-w-0 flex items-center gap-4 text-left touch-feedback"
           onClick={() => enterReview([item.path])}
           title={t`Review this file`}
         >
@@ -1512,12 +1566,12 @@ export function BinderyPage() {
           </span>
           <ChevronRight className="h-4 w-4 shrink-0 text-muted-foreground/50 group-hover:text-muted-foreground transition-colors" />
         </button>
-      </div>
+      </m.div>
     )
   }
 
   const refreshing = loading || unreviewedLoading
-  const firstLoad = refreshing && items.length === 0 && unreviewed.length === 0 && groups.length === 0
+  const firstLoad = !loadedOnce
 
   // ---------------------------------------------------------------------------
   // LIST VIEW
@@ -1532,13 +1586,24 @@ export function BinderyPage() {
     const eyebrow = firstLoad
       ? t`Loading…`
       : (() => {
-          const inc = items.length, imp = unreviewed.length
-          if (imp > 0) return t`${imp} imported · ${inc} incoming`
-          return plural(inc, { one: '# file waiting for review', other: '# files waiting for review' })
+          const imp = unreviewed.length
+          return (
+            <RunningNumber
+              value={items.length}
+              format={n => {
+                const inc = Math.round(n)
+                if (imp > 0) return t`${imp} imported · ${inc} incoming`
+                return plural(inc, { one: '# file waiting for review', other: '# files waiting for review' })
+              }}
+            />
+          )
         })()
 
     return (
       <AppShell onUploaded={fetchAll}>
+      <m.div key="list" initial={viewMoved ? STEP_IN : false} animate={{ opacity: 1, y: 0 }} transition={STEP_TRANSITION}>
+      {/* One group: when a leaving row is gone, everything below glides up. */}
+      <LayoutGroup>
       <PageBody width="wide">
         <PageHeader
           eyebrow={eyebrow}
@@ -1552,7 +1617,7 @@ export function BinderyPage() {
                 rel="noopener noreferrer"
                 title={t`Bindery flow explained: open the docs`}
                 aria-label={t`Bindery flow explained: open the docs`}
-                className="inline-flex items-center justify-center h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors"
+                className="inline-flex items-center justify-center h-9 w-9 rounded-full text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors touch-feedback"
               >
                 <HelpCircle className="w-4 h-4" />
               </a>
@@ -1566,8 +1631,13 @@ export function BinderyPage() {
                 <Trans>Refresh</Trans>
               </Pill>
               {listItems.length > 0 && (
-                <Pill variant="quiet" onClick={hasSelection ? clearSelection : selectAll}>
-                  {(() => { const n = selectedArr.length; return hasSelection ? t`${n} selected · Clear` : t`Select all` })()}
+                <Pill variant="quiet" onClick={hasSelection ? clearSelection : selectAll} className="tabular-nums">
+                  {/* As wide as its widest label, so Accept all never moves. */}
+                  <SameWidth active={hasSelection ? 1 : 0}>{[
+                    t`Select all`,
+                    <RunningNumber key="n" value={selectedArr.length} format={x => { const n = Math.round(x); return t`${n} selected · Clear` }} />,
+                    (() => { const n = '8'.repeat(String(listItems.length).length); return t`${n} selected · Clear` })(),
+                  ]}</SameWidth>
                 </Pill>
               )}
               {unreviewed.length > 0 && (
@@ -1585,59 +1655,69 @@ export function BinderyPage() {
           }
         />
 
-        {firstLoad && (
-          <div className="flex items-center justify-center py-24">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-          </div>
-        )}
+        {firstLoad && <BinderySkeleton />}
 
-        {!refreshing && items.length === 0 && unreviewed.length === 0 && (
-          <div className="flex flex-col items-center justify-center text-center gap-4 py-24">
+        {/* The sections come and go with their content: when the last file
+            of one is accepted, it fades and the sections below glide up. */}
+        <AnimatePresence initial={false} onExitComplete={bumpList}>
+        {!firstLoad && items.length === 0 && unreviewed.length === 0 && (
+          <m.div
+            key="empty"
+            initial={STEP_IN}
+            animate={{ opacity: refreshing ? 0.6 : 1, y: 0 }}
+            exit={{ opacity: 0 }}
+            transition={STEP_TRANSITION}
+            className="flex flex-col items-center justify-center text-center gap-4 py-24"
+          >
             <div>
               <p className="text-[17px] font-semibold text-foreground"><Trans>No files in the bindery</Trans></p>
               <p className="text-[15px] text-muted-foreground mt-1">
                 <Trans>Drop files in the incoming folder to get started</Trans>
               </p>
             </div>
-            <Pill variant="secondary" onClick={fetchAll}>
-              <RefreshCw className="h-4 w-4" />
+            <Pill variant="secondary" onClick={fetchAll} disabled={refreshing}>
+              <RefreshCw className={cn('h-4 w-4', refreshing && 'animate-spin')} />
               <Trans>Refresh</Trans>
             </Pill>
-          </div>
+          </m.div>
         )}
 
         {/* Series review: one decision per series, volumes confirmed as chips.
             Entries render for real series groups; loose singletons stay in the
             flat file list below. */}
         {!firstLoad && reviewGroups.length > 0 && (
-          <section className={cn('transition-opacity', loading && 'opacity-60')}>
+          <m.section key="series" {...listItem} layoutDependency={listDep} className={cn('transition-opacity', loading && 'opacity-60')}>
             <SectionTitle size={20}><Trans>Series review</Trans></SectionTitle>
-            <div className="mt-2 divide-y divide-border/70">
+            <div className="relative mt-2 divide-y divide-border/70">
+              <AnimatePresence initial={false} onExitComplete={bumpList}>
               {reviewGroups.map(g => (
-                <SeriesReviewEntry
-                  key={g.key}
-                  group={g}
-                  bookTypes={bookTypes}
-                  libraries={libraries}
-                  busy={acceptingGroup === g.key}
-                  onAccept={form => acceptGroup(g, form)}
-                  onReviewFile={path => enterReview([path])}
-                />
+                <m.div key={g.key} {...listItem} layoutDependency={listDep}>
+                  <SeriesReviewEntry
+                    group={g}
+                    bookTypes={bookTypes}
+                    libraries={libraries}
+                    busy={acceptingGroup === g.key}
+                    onAccept={form => acceptGroup(g, form)}
+                    onReviewFile={path => enterReview([path])}
+                  />
+                </m.div>
               ))}
+              </AnimatePresence>
             </div>
-          </section>
+          </m.section>
         )}
 
         {/* Waiting for review: auto-imported books not yet reviewed */}
         {unreviewed.length > 0 && (
-          <section className={cn('transition-opacity', unreviewedLoading && 'opacity-60')}>
+          <m.section key="unreviewed" {...listItem} layoutDependency={listDep} className={cn('transition-opacity', unreviewedLoading && 'opacity-60')}>
             <SectionTitle
               size={20}
-              action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums">{unreviewed.length}</span>}
+              action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums"><RunningNumber value={unreviewed.length} /></span>}
             >
               <Trans>Waiting for review</Trans>
             </SectionTitle>
-            <div className="mt-3 divide-y divide-border/70">
+            <div className="relative mt-3 divide-y divide-border/70">
+              <AnimatePresence initial={false} onExitComplete={bumpList}>
               {unreviewed.map(book => {
                 const format = book.format?.toUpperCase() ?? ''
                 const addedAt = new Date(book.added_at)
@@ -1653,32 +1733,36 @@ export function BinderyPage() {
                       ? t`${diffMins}m ago`
                       : t`just now`
 
+                const cover = book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null
                 return (
-                  <div key={book.id} className="group flex items-center gap-4 py-3.5 px-2">
-                    <button
-                      type="button"
-                      onClick={e => { setPeekFrom({ origin: e.currentTarget.getBoundingClientRect(), cover: book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null }); setPeekId(book.id) }}
-                      aria-label={t`Quick look`}
-                      className="relative shrink-0 w-11 h-16 rounded-md overflow-hidden bg-muted"
-                      style={{ boxShadow: 'var(--cover-bloom-fan)' }}
-                    >
-                      <CoverImage
-                        src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null}
-                        alt=""
-                        iconClassName="h-4 w-4"
-                      />
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => navigate(`/books/${book.id}`)}
-                      className="flex-1 min-w-0 text-left"
+                  <m.div key={book.id} {...listItem} layoutDependency={listDep} className="group flex items-center gap-4 py-3.5 px-2">
+                    <CoverLift>
+                      <button
+                        type="button"
+                        data-cover-id={book.id}
+                        onClick={e => { setPeekFrom({ origin: e.currentTarget.getBoundingClientRect(), cover, preview: { title: book.title, author: book.author, series: book.series, series_index: book.series_index } }); setPeekId(book.id) }}
+                        aria-label={t`Quick look`}
+                        className="relative block w-11 h-16 rounded-md overflow-hidden bg-muted"
+                        style={{ boxShadow: 'var(--cover-bloom-fan)' }}
+                      >
+                        <CoverImage
+                          src={cover}
+                          alt=""
+                          iconClassName="h-4 w-4"
+                        />
+                      </button>
+                    </CoverLift>
+                    {/* The title opens the book; its cover beside it grows into the page. */}
+                    <BookLink
+                      book={{ id: book.id, title: book.title, author: book.author, series: book.series, series_index: book.series_index, cover }}
+                      className="flex-1 min-w-0 text-left touch-feedback"
                     >
                       <span className="block text-[16px] font-semibold text-foreground truncate hover:text-primary transition-colors">{book.title}</span>
                       {book.author && (
                         <span className="block text-[14px] text-muted-foreground truncate mt-0.5">{book.author}</span>
                       )}
                       <span className="block text-[13px] text-muted-foreground mt-0.5"><Trans>Added {timeAgo}</Trans></span>
-                    </button>
+                    </BookLink>
                     {format && <FormatBadge format={format} />}
                     <div className="flex items-center gap-1 shrink-0 opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                       <Pill
@@ -1701,25 +1785,26 @@ export function BinderyPage() {
                         <Trash2 className="h-4 w-4" />
                       </Pill>
                     </div>
-                  </div>
+                  </m.div>
                 )
               })}
+              </AnimatePresence>
             </div>
-          </section>
+          </m.section>
         )}
 
         {/* Incoming files not under Series review, grouped by folder */}
         {listItems.length > 0 && (
-          <section className={cn('transition-opacity', loading && 'opacity-60')}>
+          <m.section key="incoming" {...listItem} layoutDependency={listDep} className={cn('transition-opacity', loading && 'opacity-60')}>
             <SectionTitle
               size={20}
-              action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums">{listItems.length}</span>}
+              action={<span className="text-[14px] font-normal text-muted-foreground tabular-nums"><RunningNumber value={listItems.length} /></span>}
             >
               <Trans>Incoming files</Trans>
             </SectionTitle>
 
-            {hasSelection && (
-              <div className="mt-4 flex items-center gap-2 flex-wrap">
+            <Unfold open={hasSelection}>
+              <div className="pt-4 flex items-center gap-2 flex-wrap">
                 <Pill variant="secondary" onClick={() => enterReview(selectedArr)}>
                   <Eye className="h-4 w-4" /> <Trans>Review</Trans>
                 </Pill>
@@ -1740,15 +1825,16 @@ export function BinderyPage() {
                   />
                 )}
               </div>
-            )}
+            </Unfold>
 
-            <div className="mt-3 divide-y divide-border/70">
+            <div className="relative mt-3 divide-y divide-border/70">
+              <AnimatePresence initial={false} onExitComplete={bumpList}>
               {folders.map(folder => {
                 const folderItems = listItems.filter(i => i.folder === folder)
                 const isCollapsed = collapsedFolders.has(folder)
                 const allFolderSelected = folderItems.every(i => selected.has(i.path))
                 return (
-                  <div key={folder} className="divide-y divide-border/70">
+                  <m.div key={folder} {...listItem} layoutDependency={listDep}>
                     <div className="flex items-center gap-4 py-3 px-2">
                       <Checkbox
                         checked={allFolderSelected}
@@ -1757,42 +1843,58 @@ export function BinderyPage() {
                         className="shrink-0 [&>span]:mt-0"
                       />
                       <button
-                        className="flex items-center gap-2 flex-1 min-w-0 text-left"
+                        className="flex items-center gap-2 flex-1 min-w-0 text-left touch-feedback"
                         onClick={() => toggleFolder(folder)}
                         aria-expanded={!isCollapsed}
                       >
-                        {isCollapsed
-                          ? <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                          : <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />}
+                        <ChevronDown className={cn(CHEVRON, 'text-muted-foreground', isCollapsed && '-rotate-90')} />
                         <FolderOpen className="h-4 w-4 text-muted-foreground shrink-0" />
                         <span className="text-[15px] font-semibold text-foreground truncate">{folder}</span>
-                        <span className="text-[14px] text-muted-foreground tabular-nums">{folderItems.length}</span>
+                        <span className="text-[14px] text-muted-foreground tabular-nums"><RunningNumber value={folderItems.length} /></span>
                       </button>
                     </div>
-                    {!isCollapsed && folderItems.map(item => renderRow(item, true))}
-                  </div>
+                    <Unfold open={!isCollapsed}>
+                      <div className="relative divide-y divide-border/70 border-t border-border/70">
+                        <AnimatePresence initial={false} onExitComplete={bumpList}>
+                          {folderItems.map(item => renderRow(item, true))}
+                        </AnimatePresence>
+                      </div>
+                    </Unfold>
+                  </m.div>
                 )
               })}
 
               {ungrouped.length > 0 && (
-                <div className="divide-y divide-border/70">
+                <m.div key="__ungrouped" {...listItem} layoutDependency={listDep} className="relative divide-y divide-border/70">
                   {folders.length > 0 && (
                     <div className="flex items-center gap-2 py-3 px-2">
                       <span className="text-[15px] font-semibold text-muted-foreground"><Trans>Other files</Trans></span>
-                      <span className="text-[14px] text-muted-foreground tabular-nums">{ungrouped.length}</span>
+                      <span className="text-[14px] text-muted-foreground tabular-nums"><RunningNumber value={ungrouped.length} /></span>
                     </div>
                   )}
-                  {ungrouped.map(item => renderRow(item, false))}
-                </div>
+                  <AnimatePresence initial={false} onExitComplete={bumpList}>
+                    {ungrouped.map(item => renderRow(item, false))}
+                  </AnimatePresence>
+                </m.div>
               )}
+              </AnimatePresence>
             </div>
-          </section>
+          </m.section>
         )}
+        </AnimatePresence>
       </PageBody>
+      </LayoutGroup>
+      </m.div>
 
         {/* Quick accept progress bar, fixed at bottom, above keyboard shortcut FAB (z-40) */}
+        {/* It slides up from the bottom edge and back down when dismissed. */}
+        <AnimatePresence>
         {qaProgress && (
-          <div
+          <m.div
+            key="qa"
+            initial={{ y: '100%' }}
+            animate={{ y: 0, transition: { duration: 0.24, ease: EASE } }}
+            exit={{ y: '100%', transition: { duration: 0.18, ease: EASE } }}
             className="fixed bottom-0 left-0 right-0 z-50 bg-card border-t border-border/70 pl-6 pr-16 py-3 cursor-pointer"
             onClick={() => setQaModalOpen(true)}
           >
@@ -1804,7 +1906,7 @@ export function BinderyPage() {
                 <>
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-[14px] font-semibold">
-                      {t`Quick accept: ${done}/${total} done` + (errors > 0 ? t`, ${errors} failed` : '')}
+                      <RunningNumber value={done} format={x => { const done = Math.round(x); return t`Quick accept: ${done}/${total} done` + (errors > 0 ? t`, ${errors} failed` : '') }} />
                     </span>
                     {qaProgress.items.every(i => i.status === 'done' || i.status === 'error') ? (
                       <Pill
@@ -1822,18 +1924,16 @@ export function BinderyPage() {
                     className="h-[6px] rounded-full overflow-hidden flex"
                     style={{ background: 'var(--rail)' }}
                   >
-                    {done > 0 && (
-                      <div className="h-full bg-primary transition-all duration-300" style={{ width: `${(done / total) * 100}%` }} />
-                    )}
-                    {errors > 0 && (
-                      <div className="h-full bg-destructive transition-all duration-300" style={{ width: `${(errors / total) * 100}%` }} />
-                    )}
+                    {/* Always rendered, so the first done file grows from 0 too. */}
+                    <div className={BAR} style={{ width: `${(done / total) * 100}%` }} />
+                    <div className={cn(BAR, 'bg-destructive')} style={{ width: `${(errors / total) * 100}%` }} />
                   </div>
                 </>
               )
             })()}
-          </div>
+          </m.div>
         )}
+        </AnimatePresence>
 
         {/* Quick accept detail modal */}
         <ModalShell
@@ -1893,7 +1993,7 @@ export function BinderyPage() {
         />
 
         <AnimatePresence>
-          {peekId != null && <QuickLook key={peekId} bookId={peekId} origin={peekFrom.origin} cover={peekFrom.cover} onClose={() => setPeekId(null)} />}
+          {peekId != null && <QuickLook key={peekId} bookId={peekId} origin={peekFrom.origin} cover={peekFrom.cover} preview={peekFrom.preview} onClose={() => setPeekId(null)} />}
         </AnimatePresence>
       </AppShell>
     )
@@ -1909,6 +2009,7 @@ export function BinderyPage() {
 
   return (
     <AppShell onUploaded={fetchAll}>
+    <m.div key="review" initial={viewMoved ? STEP_IN : false} animate={{ opacity: 1, y: 0 }} transition={STEP_TRANSITION}>
     <PageBody width="wide">
       <PageHeader
         eyebrow={<Trans>Bindery</Trans>}
@@ -1928,7 +2029,13 @@ export function BinderyPage() {
 
       {/* Single file review */}
       {!isBatch && currentItem && currentForm && (
-        <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-10">
+        <m.div
+          key={currentItem.path}
+          initial={reviewStepped ? STEP_IN : false}
+          animate={{ opacity: 1, y: 0 }}
+          transition={STEP_TRANSITION}
+          className="grid grid-cols-1 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] gap-10"
+        >
           {/* Left: Form */}
           <div
             className={cn(
@@ -1984,7 +2091,7 @@ export function BinderyPage() {
               appliedId={appliedId}
             />
           </div>
-        </div>
+        </m.div>
       )}
 
       {/* Batch review */}
@@ -2107,11 +2214,9 @@ export function BinderyPage() {
                           })}
                           aria-expanded={isExpanded}
                           aria-label={t`Show all fields`}
-                          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors"
+                          className="shrink-0 text-muted-foreground hover:text-foreground transition-colors touch-feedback"
                         >
-                          {isExpanded
-                            ? <ChevronDown className="h-4 w-4" />
-                            : <ChevronRight className="h-4 w-4" />}
+                          <ChevronDown className={cn(CHEVRON, !isExpanded && '-rotate-90')} />
                         </button>
                         <span className="text-[13px] text-muted-foreground truncate w-36 shrink-0 hidden sm:block" title={item.filename}>
                           {item.filename}
@@ -2142,7 +2247,7 @@ export function BinderyPage() {
                         </Select>
                       </div>
                       {/* Expanded full form */}
-                      {isExpanded && (
+                      <Unfold open={isExpanded}>
                         <div className="px-2 pb-4 pt-1">
                           <MetadataForm
                             form={form}
@@ -2151,7 +2256,7 @@ export function BinderyPage() {
                             libraries={libraries}
                           />
                         </div>
-                      )}
+                      </Unfold>
                     </div>
                   )
                 })}
@@ -2189,6 +2294,7 @@ export function BinderyPage() {
         </div>
       )}
     </PageBody>
+    </m.div>
 
       {/* Confirm reject dialog */}
       <ConfirmDialog
