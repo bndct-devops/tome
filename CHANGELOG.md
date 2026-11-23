@@ -15,52 +15,25 @@ All notable changes to Tome are documented here. Format loosely follows
 ### Changed
 - **The interface moves with you.** Opening a book or a series grows the
   cover you clicked into the cover of the page it opens, and Back sends it
-  home when that cover is on screen (in browsers that support view
-  transitions). Moving between pages, Settings and Admin sections, and
-  themes is a short cross-fade that never holds up a click. Switching the
-  library between grid and list, changing the sort order and grouping series
-  sends each cover and title to its new place. Quick look grows out of its
-  cover and shrinks back into it.
+  home (in browsers that support view transitions). Pages, sections and
+  themes change with a short cross-fade. Switching the library between grid
+  and list, sorting and grouping series sends each cover to its new place.
+  Menus, dialogs, tabs, list rows and figures move the same way everywhere,
+  and all of it stays still when the system asks for reduced motion.
 - Covers lift and lean toward the pointer wherever they can be clicked, not
-  only in the library: on Home, on a book's page, in the Bindery and
-  Hardcover, on Highlights and in Stats.
-- Menus, popovers and the user menu in the sidebar open and close with a
-  short motion, and dialogs now close the way they open. Rows that are
-  added, removed or reordered in a list glide to their place and leave with
-  a short fade. Tabs, range pills, the Settings and Admin section lists and
-  the sidebar have one indicator that glides to the option you pick.
-- Figures that change count from the old value to the new one, and a label
-  that changes length keeps its width, so the buttons next to it stay put.
-- Changing the range on Stats no longer restarts the page and answers
-  faster: bars move to their new size, a day keeps its bar where two ranges
-  share it, ranked rows slide to their new rank, and a range you opened
-  before shows at once. The calendar answers faster too; its selection
-  outline glides from day to day and the month slides in the direction you
-  step.
+  only in the library.
 - A book's page shows its cover and title at once when opened from a list,
-  and moving to the next or previous volume keeps the page on screen instead
-  of reloading it.
-- A book's page is complete sooner: Tome starts loading a book while the
-  pointer rests on its cover, the parts of the page arrive in order without
-  pushing each other around, and the answers for the reading-time estimate,
-  the series and the finish-by goal are computed several times faster.
-- Long lists stay quick: returning to a library scrolled far down, switching
-  it between grid and list, opening the Admin metadata table, selecting
-  everything in it or in the Bindery, and a Hardcover page with hundreds of
-  books no longer stall for a moment.
-- On a book's page a long series name in the breadcrumb is shortened with an
-  ellipsis before the actions drop to a second line.
-- The wish dialog changes height smoothly between its steps and no longer
-  jumps while you type.
+  loads while the pointer rests on its cover, and steps to the next or
+  previous volume without reloading.
+- Stats and the calendar answer faster, and changing the range moves bars
+  and figures to their new values instead of restarting the page.
+- Long lists stay quick: a library scrolled far down, the Admin metadata
+  table, select all in the Bindery and a Hardcover page with hundreds of
+  books no longer stall.
 - A cover that is still loading holds its place in its own colour instead of
-  a grey shimmer, so a page of covers already looks like your library before
-  the pictures arrive. Tome works out the colours of existing covers in the
+  a grey shimmer. Tome works out the colours of existing covers in the
   background after the update.
-- Dialogs no longer blur the page behind them; the dimmed page stays sharp,
-  which keeps opening and closing a dialog smooth.
-- More of the interface stays still when the system asks for reduced
-  motion: press feedback, the cover tilt, switches, the sidebar icon wiggle
-  and the loading shimmer. Fades remain.
+- Dialogs no longer blur the page behind them.
 
 ### Fixed
 - **Highlights page: KOReader highlights on a book without a file.** A
@@ -68,58 +41,19 @@ All notable changes to Tome are documented here. Format loosely follows
   reader's sync showed on the book's page but was missing from the
   Highlights page and from the "On this day" card on Home. Both now list it.
 - **Back on a Settings or Admin page leaves the page.** It goes to the page
-  you came from, however many sections you visited, instead of stepping back
-  through each section.
+  you came from instead of stepping back through each section you visited.
 - Clicking a book in a Stats widget opens it inside the app instead of
   reloading the whole app.
-- Buttons and pills fade between their colours on hover again; pressing them
-  had dropped the colour transition.
 - The calendar's day card never shows one day's date over another day's
-  numbers while a day loads: the previous day stays, dimmed, and the card
-  changes in one step. On a phone the day sheet rises once, at its full
-  height.
-- Changing the range on the Stats Habits tab changes every block together
-  instead of the session figures following a moment later.
-- The scroll arrow on Home's Also reading row no longer stays on a row that
-  fits after you put another book in the top spot.
-- On a series page the rating row holds its place while it loads, so the
-  lines below it do not move.
-- Admin Metadata: the checkboxes keep their left edge, and a row can no
-  longer end up half hidden under the table header after scrolling the table
-  and then the page. Sorting, clearing a search and unselecting everything no
-  longer stall on a large library.
+  numbers while a day loads.
 - On a book page the previous and next volume arrows stay in the same place
-  on every volume of a series. Stepping to another volume moves the cover and
-  title in from that side, and a title that wraps onto another line no longer
-  makes the page jump.
-- Opening a series from a book page no longer flickers through an empty
-  cover.
-- Stats timeline: zooming keeps your place in view and eases to the new
-  scale instead of jumping.
-- The goal dialog changes height smoothly when editing a goal too, and its
-  selected option glides instead of switching.
+  on every volume of a series.
 - Keyboard focus rings use the theme's own colour in every theme instead of
   the browser's blue.
-- Admin Library health: the buttons no longer push each other sideways when
-  a scan finds misplaced files, and the dry-run preview shows above the list
-  instead of below it. Admin Covers: a fixed cover no longer blinks. Admin
-  Word counts: the text holds still when the button changes.
 - The Hardcover page scrolls smoothly in Safari.
-- **Group series is one clean motion.** It starts on the click instead of
-  after a pause, the title count changes once, and a series' volumes slide
-  under its first cover instead of piling up half-transparent with their
-  titles on top of each other.
-- Opening a series from a book page carries the cover across, like opening
-  a book does, and Back brings it home. The series page is complete in its
-  first frame instead of filling in over several, and a cover opened from a
-  tilted thumbnail lands flat.
-- Back from a series to the Series grid sends the cover home to its card
-  again. The animation was being cut off after its first frame.
-- The sync time in the top bar no longer blinks out for a moment when you go
-  between a book page and the library.
-- New goal: the suggested targets stay readable while the highlight moves
-  between them, and a menu no longer lets the buttons behind it show through
-  as it opens.
+- Smaller layout jumps are gone: the series rating row, the Home "Also
+  reading" scroll arrow, the Stats timeline zoom, the sync time in the top
+  bar and the Admin Library health buttons.
 
 ## [3.2.0] - 2026-11-22 - "Chapbook"
 
