@@ -6,6 +6,12 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Fixed
+- **Highlights page: KOReader highlights on a book without a file.** A
+  highlight made in KOReader on a book that Tome only knows from an Xteink
+  reader's sync showed on the book's page but was missing from the
+  Highlights page and from the "On this day" card on Home. Both now list it.
+
 ## [3.2.0] - 2026-11-22 - "Chapbook"
 
 ### Added

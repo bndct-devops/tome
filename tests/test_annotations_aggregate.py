@@ -214,3 +214,27 @@ def test_book_id_filter_respects_visibility(client, db, admin_user, make_book):
     assert r == {"total": 0, "books": 0, "items": []}
     r = client.get("/api/annotations", params={"book_id": hidden.id}, headers=_hdr(admin)).json()
     assert r["total"] == 1 and r["items"][0]["highlighted_text"] == "admin's own"
+
+
+def test_highlights_on_a_book_without_a_file_are_listed(client, db, admin_user):
+    """A KOReader highlight can land on a book Tome only knows from a reader's
+    sync (no file). The book page shows it, so the Highlights page and the Home
+    spotlight must too."""
+    from backend.models.book import BOOK_NO_FILE, Book
+
+    user, _ = admin_user
+    book = Book(title="The Salt Ledger", status=BOOK_NO_FILE, is_reviewed=True, added_by=user.id)
+    db.add(book)
+    db.flush()
+    _anno(db, user, book, "Nobody likes the quiet", "a1")
+    db.commit()
+
+    per_book = client.get(f"/api/books/{book.id}/annotations", headers=_hdr(user))
+    assert per_book.status_code == 200 and len(per_book.json()) == 1
+
+    data = client.get("/api/annotations", headers=_hdr(user)).json()
+    assert data["total"] == 1 and data["books"] == 1
+    assert data["items"][0]["book_id"] == book.id
+
+    spot = client.get("/api/annotations/spotlight", headers=_hdr(user)).json()
+    assert spot["highlight"]["book_id"] == book.id
