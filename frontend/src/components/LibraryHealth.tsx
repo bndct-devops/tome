@@ -220,6 +220,8 @@ export function LibraryHealthTab() {
   }
 
   const allFileIds = healthData?.issues.map(i => i.file_id) ?? []
+  const missingPerBook = new Map<number, number>()
+  for (const x of healthData?.missing ?? []) missingPerBook.set(x.book_id, (missingPerBook.get(x.book_id) ?? 0) + 1)
   const { handleToggle } = useShiftSelect(allFileIds)
   // The confirm dialog keeps its count while it closes.
   const moveShown = useHeld(confirmMove)
@@ -227,74 +229,72 @@ export function LibraryHealthTab() {
   return (
     <div className="space-y-4">
       <div>
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div className="min-w-0">
-            <p className="text-[14px] text-muted-foreground max-w-[60ch]">
-              <Trans>Files whose place on disk no longer matches their series or author folder.</Trans>
-            </p>
-            <Note value={healthData}>{healthData => (
-              <p className="text-[14px] text-foreground pt-1">
-                {(() => {
-                  const total = healthData.total_files
-                  if (healthData.misplaced_count === 0 && healthData.missing_count === 0) return t`All ${total} files are correctly placed.`
-                  const misplaced = healthData.misplaced_count
-                  return [
-                    misplaced > 0 ? t`${misplaced} of ${total} files need reorganization` : null,
-                    healthData.missing_count > 0
-                      ? plural(healthData.missing_count, { one: '# entry is missing from disk', other: '# entries are missing from disk' })
-                      : null,
-                  ].filter(Boolean).join(' · ') + '.'
-                })()}
-              </p>
-            )}</Note>
-          </div>
-          <div className="flex items-center gap-2 flex-wrap">
-            {healthData && healthData.misplaced_count > 0 && (
-
-              <>
-                <Pill
-                  onClick={() => runReorganize(allFileIds, true)}
-                  disabled={reorganizing}
-                  variant="secondary"
-                >
-                  <Trans>Dry run all</Trans>
-                </Pill>
-                <Pill
-                  onClick={() => setConfirmMove(selected.size > 0 ? [...selected] : allFileIds)}
-                  disabled={reorganizing}
-                  variant="primary"
-                >
-                  <SameWidth active={reorganizing ? 1 : 0}>
-                    {[
-                      selected.size > 0
-                        ? (() => { const n = selected.size; return t`Reorganize selected (${n})` })()
-                        : t`Reorganize all`,
-                      <Loader2 className="w-3.5 h-3.5 animate-spin" />,
-                    ]}
-                  </SameWidth>
-                </Pill>
-              </>
-            )}
-            <Pill
-              onClick={purgeEmpty}
-              disabled={purging}
-              variant="secondary"
-              title={t`Remove folders that contain only hidden files (.DS_Store, etc.)`}
-            >
-              <SameWidth active={purging ? 1 : 0}>
-                {[<><Trash className="w-3.5 h-3.5" />{t`Purge empty folders`}</>, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Purging...`}</>]}
-              </SameWidth>
-            </Pill>
-            <Pill
-              onClick={scan}
-              disabled={loading}
-              variant="secondary"
-            >
-              <SameWidth active={loading ? 1 : 0}>
-                {[<><FolderOpen className="w-3.5 h-3.5" />{t`Scan library`}</>, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Scanning…`}</>]}
-              </SameWidth>
-            </Pill>
-          </div>
+        <p className="text-[14px] text-muted-foreground max-w-[60ch]">
+          <Trans>Files whose place on disk no longer matches their series or author folder.</Trans>
+        </p>
+        <Note value={healthData}>{healthData => (
+          <p className="text-[14px] text-foreground pt-1">
+            {(() => {
+              const total = healthData.total_files
+              if (healthData.misplaced_count === 0 && healthData.missing_count === 0) return t`All ${total} files are correctly placed.`
+              const misplaced = healthData.misplaced_count
+              return [
+                misplaced > 0 ? t`${misplaced} of ${total} files need reorganization` : null,
+                healthData.missing_count > 0
+                  ? plural(healthData.missing_count, { one: '# entry is missing from disk', other: '# entries are missing from disk' })
+                  : null,
+              ].filter(Boolean).join(' · ') + '.'
+            })()}
+          </p>
+        )}</Note>
+        {/* One row under the text, the tools first: the reorganize pair joins at
+            the end once a scan finds misplaced files, so nothing already there moves. */}
+        <div className="flex items-center gap-2 flex-wrap pt-3">
+          <Pill
+            onClick={scan}
+            disabled={loading}
+            variant="secondary"
+          >
+            <SameWidth active={loading ? 1 : 0}>
+              {[<><FolderOpen className="w-3.5 h-3.5" />{t`Scan library`}</>, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Scanning…`}</>]}
+            </SameWidth>
+          </Pill>
+          <Pill
+            onClick={purgeEmpty}
+            disabled={purging}
+            variant="secondary"
+            title={t`Remove folders that contain only hidden files (.DS_Store, etc.)`}
+          >
+            <SameWidth active={purging ? 1 : 0}>
+              {[<><Trash className="w-3.5 h-3.5" />{t`Purge empty folders`}</>, <><Loader2 className="w-3.5 h-3.5 animate-spin" />{t`Purging...`}</>]}
+            </SameWidth>
+          </Pill>
+          {healthData && healthData.misplaced_count > 0 && (
+            <>
+              <Pill
+                onClick={() => runReorganize(allFileIds, true)}
+                disabled={reorganizing}
+                variant="secondary"
+              >
+                <Trans>Dry run all</Trans>
+              </Pill>
+              <Pill
+                onClick={() => setConfirmMove(selected.size > 0 ? [...selected] : allFileIds)}
+                disabled={reorganizing}
+                variant="primary"
+              >
+                {/* Sized for the widest label (every file selected), so picking files never resizes it. */}
+                <SameWidth active={reorganizing ? 2 : selected.size > 0 ? 1 : 0}>
+                  {[
+                    t`Reorganize all`,
+                    (() => { const n = selected.size; return t`Reorganize selected (${n})` })(),
+                    <Loader2 className="w-3.5 h-3.5 animate-spin" />,
+                    (() => { const n = allFileIds.length; return t`Reorganize selected (${n})` })(),
+                  ]}
+                </SameWidth>
+              </Pill>
+            </>
+          )}
         </div>
 
         <Note value={error}>{error => (
@@ -365,6 +365,47 @@ export function LibraryHealthTab() {
         </div>
       )}</Note>
 
+      <Note value={dryRunResult} gap={16}>{dryRunResult => (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-3 pb-3 border-b border-border/70">
+            {(() => { const n = dryRunResult.moved.length; return (
+            <p className="text-[17px] font-semibold">
+              <Trans>Dry run preview: {n} files would be moved</Trans>
+            </p>
+            ) })()}
+            <Pill variant="quiet" onClick={() => setDryRunResult(null)}>
+              <Trans>Dismiss</Trans>
+            </Pill>
+          </div>
+          <ul className="space-y-2 max-h-60 overflow-y-auto text-[13px] font-mono">
+            {dryRunResult.moved.map((m, i) => (
+              <li key={i} className="space-y-0.5">
+                <p className="text-muted-foreground line-through">{m.from}</p>
+                <p className="text-success flex items-center gap-1">
+                  <ArrowRight className="w-3 h-3 shrink-0" />
+                  {m.to}
+                </p>
+              </li>
+            ))}
+          </ul>
+          <div className="flex justify-end gap-2 pt-3 border-t border-border/70">
+            <Pill
+              onClick={() => setDryRunResult(null)}
+              variant="quiet"
+            >
+              <Trans>Cancel</Trans>
+            </Pill>
+            <Pill
+              onClick={() => setConfirmMove(dryRunResult.moved.map(m => m.file_id))}
+              disabled={reorganizing}
+              variant="primary"
+            >
+              <Trans>Confirm and reorganize</Trans>
+            </Pill>
+          </div>
+        </div>
+      )}</Note>
+
       <Note value={healthData && healthData.missing.length > 0 ? healthData : null} gap={16}>{healthData => (
         <div>
           <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-border/70">
@@ -408,10 +449,9 @@ export function LibraryHealthTab() {
           <ul className="divide-y divide-border/70">
             <AnimatePresence initial={false}>
             {healthData.missing.map(entry => {
-              const missingForBook = healthData.missing.filter(x => x.book_id === entry.book_id).length
-              const wholeBook = missingForBook >= entry.book_file_count
+              const wholeBook = (missingPerBook.get(entry.book_id) ?? 0) >= entry.book_file_count
               return (
-                <m.li key={entry.file_id} {...listItem} className="flex items-start gap-3 py-3 text-[14px]">
+                <m.li key={entry.file_id} {...listItem} className="flex items-start gap-3 py-3 text-[14px] [content-visibility:auto] [contain-intrinsic-size:auto_69px]">
                   <div className="min-w-0 space-y-1 flex-1">
                     <p className="font-medium truncate">
                       {entry.title}
@@ -431,47 +471,6 @@ export function LibraryHealthTab() {
             })}
             </AnimatePresence>
           </ul>
-        </div>
-      )}</Note>
-
-      <Note value={dryRunResult} gap={16}>{dryRunResult => (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-3 pb-3 border-b border-border/70">
-            {(() => { const n = dryRunResult.moved.length; return (
-            <p className="text-[17px] font-semibold">
-              <Trans>Dry run preview: {n} files would be moved</Trans>
-            </p>
-            ) })()}
-            <Pill variant="quiet" onClick={() => setDryRunResult(null)}>
-              <Trans>Dismiss</Trans>
-            </Pill>
-          </div>
-          <ul className="space-y-2 max-h-60 overflow-y-auto text-[13px] font-mono">
-            {dryRunResult.moved.map((m, i) => (
-              <li key={i} className="space-y-0.5">
-                <p className="text-muted-foreground line-through">{m.from}</p>
-                <p className="text-success flex items-center gap-1">
-                  <ArrowRight className="w-3 h-3 shrink-0" />
-                  {m.to}
-                </p>
-              </li>
-            ))}
-          </ul>
-          <div className="flex justify-end gap-2 pt-3 border-t border-border/70">
-            <Pill
-              onClick={() => setDryRunResult(null)}
-              variant="quiet"
-            >
-              <Trans>Cancel</Trans>
-            </Pill>
-            <Pill
-              onClick={() => setConfirmMove(dryRunResult.moved.map(m => m.file_id))}
-              disabled={reorganizing}
-              variant="primary"
-            >
-              <Trans>Confirm and reorganize</Trans>
-            </Pill>
-          </div>
         </div>
       )}</Note>
 

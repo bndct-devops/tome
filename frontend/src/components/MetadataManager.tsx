@@ -78,17 +78,48 @@ const HEAD = 'text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foregr
 // follow in steps after it, so opening a big library never stalls a frame.
 const FIRST_ROWS = 40
 const ROW_STEP = 60
+const MIN_TABLE_PX = 200
+// Selecting or clearing many rows: the rows in view change at once, the rest this many per frame.
+const SEL_STEP = 150
 
-/** How many of `total` rows to render: `FIRST_ROWS` at once, then `ROW_STEP` more after each painted frame. Never shrinks. */
-function useRowsShown(total: number) {
-  const [shown, setShown] = useState(FIRST_ROWS)
+/** Rows kept on screen while a re-sorted or re-filtered table fills from the top. */
+interface RowWindow { from: number; to: number; pitch: number }
+
+/** Indexes of the rendered rows that are in view, whichever of the table or the page scrolls. */
+function rowsInView(el: HTMLElement): RowWindow | null {
+  const trs = el.querySelectorAll<HTMLTableRowElement>('tbody > tr:not([data-gap])')
+  if (trs.length < 2) return null
+  const r0 = trs[0].getBoundingClientRect().top
+  const pitch = trs[1].getBoundingClientRect().top - r0
+  if (pitch <= 0) return null
+  const box = el.getBoundingClientRect()
+  const port = el.closest('main')?.getBoundingClientRect()
+  const top = Math.max(box.top, port?.top ?? 0)
+  const bottom = Math.min(box.bottom, port?.bottom ?? window.innerHeight)
+  return { from: Math.max(0, Math.floor((top - r0) / pitch)), to: Math.max(0, Math.ceil((bottom - r0) / pitch) + 1), pitch }
+}
+
+/**
+ * How many of `total` rows to render: `FIRST_ROWS` at once, then `ROW_STEP` more after each painted frame.
+ * `restart()` (called with a sort or filter change) starts over from `FIRST_ROWS`: moving or
+ * inserting hundreds of rows in one commit costs 60 to 100 ms of style and layout. When the table is
+ * scrolled past the first rows, the rows under the viewport render at once below a spacer, so the
+ * scroll position holds and nothing in view is missing.
+ */
+function useRowsShown(total: number, scrollRef: React.RefObject<HTMLDivElement | null>) {
+  const [rows, setRows] = useState<{ shown: number; win: RowWindow | null }>({ shown: FIRST_ROWS, win: null })
+  const { shown } = rows
   useEffect(() => {
     if (shown >= total) return
     let timer = 0
-    const frame = requestAnimationFrame(() => { timer = window.setTimeout(() => setShown(n => n + ROW_STEP)) })
+    const frame = requestAnimationFrame(() => { timer = window.setTimeout(() => setRows(r => ({ ...r, shown: r.shown + ROW_STEP }))) })
     return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
   }, [shown, total])
-  return shown
+  const restart = useCallback(() => {
+    const view = scrollRef.current ? rowsInView(scrollRef.current) : null
+    setRows({ shown: FIRST_ROWS, win: view && view.to > FIRST_ROWS ? view : null })
+  }, [scrollRef])
+  return { ...rows, restart }
 }
 
 /** "Missing" filter: a pill that opens a small checklist. */
@@ -266,7 +297,7 @@ const MetaRow = memo(function MetaRow({ book, selected, onToggle, setBooks }: {
     <tr
       className={cn('hover:bg-secondary/50 transition-colors', selected && 'bg-primary/5')}
     >
-      <td className="pl-0 pr-2 py-1.5">
+      <td className="pl-0.5 pr-2 py-1.5">
         <Checkbox
           checked={selected}
           onChange={e => onToggle(book.id, e.nativeEvent instanceof MouseEvent ? e.nativeEvent.shiftKey : false)}
@@ -1114,6 +1145,7 @@ export function MetadataManager() {
         api.get<BookType[]>('/book-types'),
         api.get<Library[]>('/libraries'),
       ])
+      restartRows()
       setBooks(auditData.filter(b => b.content_type !== 'chapter'))
       setBookTypes(btData)
       setLibraries(libData)
@@ -1127,15 +1159,17 @@ export function MetadataManager() {
   function handleSearchChange(val: string) {
     setSearch(val)
     if (searchDebounce.current) clearTimeout(searchDebounce.current)
-    searchDebounce.current = setTimeout(() => setDebouncedSearch(val), 250)
+    searchDebounce.current = setTimeout(() => { restartRows(); setDebouncedSearch(val) }, 250)
   }
 
   function toggleSort(col: SortCol) {
+    restartRows()
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortCol(col); setSortDir('asc') }
   }
 
   function toggleMissingField(key: string) {
+    restartRows()
     setMissingFields(prev =>
       prev.includes(key) ? prev.filter(f => f !== key) : [...prev, key]
     )
@@ -1182,10 +1216,35 @@ export function MetadataManager() {
   })
 
   const { handleToggle } = useShiftSelect(sorted.map(b => b.id))
-  const rowsShown = useRowsShown(sorted.length)
+  const tableRef = useRef<HTMLDivElement>(null)
+  const { shown: rowsShown, win: rowWindow, restart: restartRows } = useRowsShown(sorted.length, tableRef)
+
+  // Rendered rows: the first `rowsShown`, then (while filling) a spacer and the rows under the viewport.
+  const n = sorted.length
+  const gapRows = rowWindow && rowWindow.from > rowsShown && rowWindow.from < n ? rowWindow.from - rowsShown : 0
+  const rowSlices: ({ start: number; items: AuditBook[] } | null)[] = gapRows > 0
+    ? [{ start: 0, items: sorted.slice(0, rowsShown) }, null, { start: rowWindow!.from, items: sorted.slice(rowWindow!.from, rowWindow!.to) }]
+    : [{ start: 0, items: rowsShown >= n ? sorted : sorted.slice(0, Math.max(rowsShown, rowWindow?.to ?? 0)) }]
+
+  // After a select all or clear, rows outside `from..to` (the view) and past
+  // `upto` still show the previous selection for a frame or two.
+  const [selLag, setSelLag] = useState<{ prev: Set<number>; from: number; to: number; upto: number } | null>(null)
+  useEffect(() => {
+    if (!selLag) return
+    let timer = 0
+    const frame = requestAnimationFrame(() => {
+      timer = window.setTimeout(() => setSelLag(l => !l || l.upto + SEL_STEP >= n ? null : { ...l, upto: l.upto + SEL_STEP }))
+    })
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
+  }, [selLag, n])
+  function rowSelected(i: number, id: number) {
+    if (!selLag || i < selLag.upto || (i >= selLag.from && i < selLag.to)) return selected.has(id)
+    return selLag.prev.has(id)
+  }
 
   function toggleSelect(id: number, shiftKey: boolean) {
     if (shiftKey) tableRef.current?.setAttribute('data-snap', '')
+    setSelLag(null)
     setSelected(prev => {
       const index = sorted.findIndex(b => b.id === id)
       return handleToggle(id, index, shiftKey, prev)
@@ -1202,17 +1261,58 @@ export function MetadataManager() {
   // and render in slices (a transition), so a big table never holds up a frame.
   // data-snap stops the rows' and the checkboxes' (data-check-box)
   // transitions; the selectors name only those so toggling it restyles little.
-  const tableRef = useRef<HTMLDivElement>(null)
   useLayoutEffect(() => {
     const el = tableRef.current
-    if (!el?.hasAttribute('data-snap')) return
+    if (!el?.hasAttribute('data-snap') || selLag) return
     let timer = 0
     const frame = requestAnimationFrame(() => { timer = window.setTimeout(() => el.removeAttribute('data-snap')) })
     return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
-  }, [selected])
+  }, [selected, selLag])
+  // One vertical scroller at every size: two nested ones let a wheel over the
+  // toolbar bring the page back to the top while the table stays scrolled,
+  // leaving a row half under the sticky header. Where at least MIN_TABLE_PX is
+  // left below the table's top, the table scrolls in exactly that space and the
+  // page does not; below that, the table takes its full height, the page
+  // scrolls, and the header (data-paged) is not sticky.
+  const tableShown = !loading || books.length > 0
+  useLayoutEffect(() => {
+    const el = tableRef.current
+    const main = el?.closest('main')
+    if (!el || !main || mode !== 'table') return
+    let frame = 0
+    const fit = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const top = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop
+        // What sits below the table inside main: later siblings and bottom padding of each ancestor.
+        let after = 0
+        for (let n: Element = el; n !== main && n.parentElement; n = n.parentElement) {
+          for (let sib = n.nextElementSibling; sib; sib = sib.nextElementSibling) after += (sib as HTMLElement).offsetHeight
+          const cs = getComputedStyle(n.parentElement)
+          after += parseFloat(cs.paddingBottom) + parseFloat(cs.borderBottomWidth)
+        }
+        const room = Math.floor(main.clientHeight - top - after)
+        el.toggleAttribute('data-paged', room < MIN_TABLE_PX)
+        el.style.maxHeight = room < MIN_TABLE_PX ? 'none' : `${room}px`
+      })
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(main)
+    if (el.parentElement) ro.observe(el.parentElement)
+    return () => { ro.disconnect(); cancelAnimationFrame(frame) }
+  }, [mode, tableShown])
+
   function setSelectedMany(next: Set<number>) {
-    tableRef.current?.setAttribute('data-snap', '')
-    startTransition(() => setSelected(next))
+    const el = tableRef.current
+    // Measured before data-snap is set: that restyles every row, and reading
+    // positions after it would force that restyle inside the click.
+    const view = el ? rowsInView(el) : null
+    el?.setAttribute('data-snap', '')
+    startTransition(() => {
+      setSelLag({ prev: selected, from: view?.from ?? 0, to: view?.to ?? FIRST_ROWS, upto: 0 })
+      setSelected(next)
+    })
   }
 
   function toggleSelectAll() {
@@ -1247,6 +1347,7 @@ export function MetadataManager() {
 
   function clearFilters() {
     setSearch('')
+    restartRows()
     setDebouncedSearch('')
     setFilterSeries('')
     setFilterTypeId('')
@@ -1364,17 +1465,17 @@ export function MetadataManager() {
           )}
         </div>
 
-        <Select value={filterSeries} onChange={e => setFilterSeries(e.target.value)} aria-label={t`Series`} className="w-auto max-w-[14rem]">
+        <Select value={filterSeries} onChange={e => { restartRows(); setFilterSeries(e.target.value) }} aria-label={t`Series`} className="w-auto max-w-[14rem]">
           <option value="">{t`All series`}</option>
           {allSeries.map(s => <option key={s} value={s}>{s}</option>)}
         </Select>
 
-        <Select value={filterTypeId} onChange={e => setFilterTypeId(e.target.value)} aria-label={t`Type`} className="w-auto">
+        <Select value={filterTypeId} onChange={e => { restartRows(); setFilterTypeId(e.target.value) }} aria-label={t`Type`} className="w-auto">
           <option value="">{t`All types`}</option>
           {bookTypes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
         </Select>
 
-        <Select value={filterLibId} onChange={e => setFilterLibId(e.target.value)} aria-label={t`Library`} className="w-auto">
+        <Select value={filterLibId} onChange={e => { restartRows(); setFilterLibId(e.target.value) }} aria-label={t`Library`} className="w-auto">
           <option value="">{t`All libraries`}</option>
           {libraries.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </Select>
@@ -1470,11 +1571,11 @@ export function MetadataManager() {
 
       {/* Table: rows on hairlines */}
       {(!loading || books.length > 0) && (
-        <div ref={tableRef} className={cn('overflow-auto max-h-[calc(100vh-220px)] border-y border-border/70 transition-opacity duration-150 data-snap:[&_tr]:transition-none data-snap:[&_[data-check-box]]:transition-none', loading && 'opacity-50 pointer-events-none')}>
+        <div ref={tableRef} className={cn('overflow-auto max-h-[calc(100dvh-220px)] border-y border-border/70 transition-opacity duration-150 data-snap:[&_tr]:transition-none data-snap:[&_[data-check-box]]:transition-none data-paged:[&_thead]:static data-paged:will-change-transform', loading && 'opacity-50 pointer-events-none')}>
           <table className="w-full min-w-[1120px] table-fixed text-[13px]">
             <thead className="sticky top-0 z-10 bg-background">
               <tr className="border-b border-border/70">
-                <th className="w-9 pl-0 pr-2 py-2.5 text-left">
+                <th className="w-9 pl-0.5 pr-2 py-2.5 text-left">
                   <Checkbox
                     checked={selected.size === sorted.length && sorted.length > 0}
                     onChange={toggleSelectAll}
@@ -1496,9 +1597,12 @@ export function MetadataManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/70">
-              {(rowsShown < sorted.length ? sorted.slice(0, rowsShown) : sorted).map(book => (
-                <MetaRow key={book.id} book={book} selected={selected.has(book.id)} onToggle={onToggleRow} setBooks={setBooks} />
-              ))}
+              {/* One flat keyed list, so rows keep their elements when the spacer goes. */}
+              {rowSlices.flatMap(slice => slice === null ? [
+                <tr key="gap" data-gap="" aria-hidden><td colSpan={13} className="p-0" style={{ height: gapRows * (rowWindow?.pitch ?? 0) - 1 }} /></tr>,
+              ] : slice.items.map((book, i) => (
+                <MetaRow key={book.id} book={book} selected={rowSelected(slice.start + i, book.id)} onToggle={onToggleRow} setBooks={setBooks} />
+              )))}
               {sorted.length === 0 && (
                 <tr>
                   <td colSpan={13} className="px-4 py-12 text-center text-muted-foreground text-[14px]">

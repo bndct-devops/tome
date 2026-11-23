@@ -1392,13 +1392,16 @@ export function DashboardPage() {
           ) : tab === 'series' ? (
             /* ── Series tab: the series grid, or one series' detail ──────────── */
             <PageBody width="wide">
-            {expandedSeries ? (
+            {/* The URL names the series from the first render (opened from a book page, say), so
+                the page's first frame is its detail, not the grid. */}
+            {(expandedSeries ?? searchParams.get('series_detail')) ? (
               seriesDetailLoading || !seriesDetail ? (() => {
                 // While the series loads: its frame with the hero cover the
                 // card showed, in the place the loaded page puts it, so the
                 // cover transition has somewhere to land at once.
-                const listed = seriesList.find(s => s.name === expandedSeries)
-                const previewCover = readSeriesPreview(location.state, expandedSeries)?.cover
+                const name = (expandedSeries ?? searchParams.get('series_detail'))!
+                const listed = seriesList.find(s => s.name === name)
+                const previewCover = readSeriesPreview(location.state, name)?.cover
                   ?? (listed?.cover_book_id ? coverSrc(listed.cover_book_id, { w: 400 }) : null)
                 return (
                 <>
@@ -1417,14 +1420,15 @@ export function DashboardPage() {
                   </div>
                   <div className="grid gap-8 lg:gap-10 lg:grid-cols-[220px_minmax(0,1fr)] items-start">
                     <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0">
-                      <div data-series-hero={expandedSeries} className="rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-hero)' }}>
+                      <div data-series-hero={name} className="rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-hero)' }}>
                         <div className="relative aspect-[2/3]">
-                          <CoverImage src={previewCover} alt="" loading="eager" color={listed?.cover_color} iconClassName="w-10 h-10" />
+                          {/* No picture known yet: the box holds empty rather than drawing "no cover". */}
+                          {previewCover && <CoverImage src={previewCover} alt="" loading="eager" color={listed?.cover_color} iconClassName="w-10 h-10" />}
                         </div>
                       </div>
                     </div>
                     <div className="min-w-0">
-                      <h1 className="font-display text-[34px] leading-none font-bold text-foreground">{expandedSeries === '__unserialized__' ? t`No series` : expandedSeries}</h1>
+                      <h1 className="font-display text-[34px] leading-none font-bold text-foreground">{name === '__unserialized__' ? t`No series` : name}</h1>
                     </div>
                   </div>
                 </>
@@ -2423,7 +2427,7 @@ export function DashboardPage() {
               focusedIndex={focusedIndex}
               refreshing={refreshing}
               resume={resume}
-              staged={!resume && !!seed && seed.books.length > 120}
+              staged={!resume && !!seed}
               onToggle={onToggleCard}
               onTag={onTagCard}
               onSeries={onSeriesCard}

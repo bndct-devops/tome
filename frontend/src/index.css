@@ -444,6 +444,16 @@ body {
   /* backdrop-filter: blur(4px); */
 }
 
+/* Keyboard focus on anything without its own ring (bare buttons, links) draws
+   the theme's --ring instead of the browser's blue. In the base layer so a
+   focus-visible:outline-none or ring utility still wins. */
+@layer base {
+  :focus-visible {
+    outline: 2px solid var(--ring);
+    outline-offset: 2px;
+  }
+}
+
 /* Touch feedback for interactive elements */
 .touch-feedback {
   /* Lists the colour properties too: an element with transition-colors keeps them. */

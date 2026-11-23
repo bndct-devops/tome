@@ -144,7 +144,12 @@ const MOVING_MAX = 120
 const FIRST_CARDS = 30
 const CARD_STEP = 30
 
+// Without overflow-clip-margin (Safari) the cell gets the room for the shadow
+// as padding taken back by a negative margin instead; the padding lets the
+// pointer through to the neighbouring cards.
 const BIG_CELL = 'supports-[overflow-clip-margin:1px]:[content-visibility:auto] [contain-intrinsic-size:auto_420px] [overflow-clip-margin:56px]'
+  + ' not-supports-[overflow-clip-margin:1px]:[content-visibility:auto] not-supports-[overflow-clip-margin:1px]:p-14 not-supports-[overflow-clip-margin:1px]:-m-14'
+  + ' not-supports-[overflow-clip-margin:1px]:pointer-events-none not-supports-[overflow-clip-margin:1px]:*:pointer-events-auto'
 
 /** How many of `total` cards to render: `FIRST_CARDS` at once, then `CARD_STEP` more after each painted frame. Never shrinks. */
 function useCardsShown(total: number) {

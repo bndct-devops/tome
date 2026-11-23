@@ -44,7 +44,13 @@ function withGroupStarts(items: SectionNavItem[]) {
   return items.map((s, i) => ({ s, groupStart: s.group != null && s.group !== items[i - 1]?.group }))
 }
 
-const GROUP_LABEL = 'px-3 pt-1 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80'
+// A section switch cross-fades the page (crossFade). The phone pill row scrolls to
+// the chosen pill as it starts, so a cross-fade of the row showed two copies of its
+// labels, offset by the scroll. The row is left out of the fade: only the live row
+// shows (its indicator glides and it scrolls as usual).
+const PILLS_VT_CSS = '::view-transition-group(section-pills),::view-transition-new(section-pills){animation:none}::view-transition-old(section-pills){display:none}'
+
+const GROUP_LABEL ='px-3 pt-1 pb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80'
 
 /** Text field and select look for these pages. Width classes go next to it. */
 // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
@@ -168,7 +174,8 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
       )}
 
       <GlideGroup>
-      <nav aria-label={label} className="lg:hidden sticky top-0 z-10 -mx-5 sm:-mx-6 bg-background" data-section-pills>
+      <style href="tome-section-pills-vt" precedence="default">{PILLS_VT_CSS}</style>
+      <nav aria-label={label} className="lg:hidden sticky top-0 z-10 -mx-5 sm:-mx-6 bg-background" style={{ viewTransitionName: 'section-pills' }} data-section-pills>
         <m.div ref={pillRow} layoutScroll className="relative isolate flex gap-1.5 overflow-x-auto px-5 sm:px-6 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           {withGroupStarts(items).map(({ s, groupStart }, i) => (
             <Fragment key={s.id}>

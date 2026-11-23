@@ -17,7 +17,7 @@ import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { cn, formatDuration } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
-import { Input, Pill } from '@/components/page'
+import { Glide, GlideGroup, Input, Pill, PillGroup } from '@/components/page'
 import { Cover } from '@/components/stats/kit/Kit'
 import { ChoiceMenu } from '@/components/stats/kit/Menu'
 import { dec1, num } from '@/components/stats/kit/tokens'
@@ -163,37 +163,33 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
         {!editing && !fixed && (
           // The kinds as one row of chips (no descriptions): a kind already set is dimmed with its
           // progress; one with no book type left free for it cannot be picked.
-          <div role="radiogroup" aria-label={t`Goal`} className="flex flex-wrap gap-2">
-            {KIND_ORDER.map((k) => {
+          <PillGroup
+            aria-label={t`Goal`}
+            value={kind}
+            onChange={pickKind}
+            className="flex gap-2"
+            pillClassName="inline-flex items-center px-3.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+            options={KIND_ORDER.map((k) => {
               const on = k === kind
               const mine = k !== 'finish_by' ? goals.find((g) => g.kind === k && g.book_type_id == null) : undefined
-              const off = taken(k)
-              return (
-                <button
-                  key={k}
-                  type="button"
-                  role="radio"
-                  aria-checked={on}
-                  aria-disabled={off}
-                  onClick={() => pickKind(k)}
-                  title={mine ? (() => { const p = progress(mine); return t`You have this one · ${p}` })() : kindNote(k)}
-                  className={cn(
-                    'inline-flex h-9 items-center gap-1.5 rounded-full px-3.5 text-[14px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring',
-                    on ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-surface-hover',
-                    !on && (off || mine) && 'opacity-55',
-                    off && 'cursor-not-allowed hover:bg-secondary',
-                  )}
-                >
-                  {kindLabel(k)}
-                  {mine && (
-                    <span className={cn('text-[12px] tabular-nums', on ? 'text-background/70' : 'text-muted-foreground')}>
-                      <span className="sr-only">{t`You have this one`} · </span>{progress(mine)}
-                    </span>
-                  )}
-                </button>
-              )
+              return {
+                value: k,
+                'aria-disabled': taken(k),
+                dimmed: !!mine,
+                title: mine ? (() => { const p = progress(mine); return t`You have this one · ${p}` })() : kindNote(k),
+                label: (
+                  <span className="inline-flex items-center gap-1.5">
+                    {kindLabel(k)}
+                    {mine && (
+                      <span className={cn('text-[12px] tabular-nums', on ? 'text-background/70' : 'text-muted-foreground')}>
+                        <span className="sr-only">{t`You have this one`} · </span>{progress(mine)}
+                      </span>
+                    )}
+                  </span>
+                ),
+              }
             })}
-          </div>
+          />
         )}
 
         {/* What the kind needs. Creating, the seven count kinds share one height and Finish by a
@@ -263,6 +259,13 @@ export function GoalDialog({ mode, goals, onClose, onSaved }: { mode: DialogMode
 
 // ── The area under the kinds ──────────────────────────────────────────────────
 
+/**
+ * A chip label's colour beside the gliding indicator: the chosen one turns light as the indicator
+ * arrives (about 110 ms in), the one left turns dark at once (the indicator is already moving off).
+ */
+const chipLabel = (on: boolean, light = 'text-background', dark = 'text-foreground') =>
+  cn('transition-colors duration-100', on ? cn(light, '[transition-delay:110ms] motion-reduce:[transition-delay:0ms]') : dark)
+
 /* eslint-disable lingui/no-unlocalized-strings -- CSS values and a media query */
 const STEP_TOP = 'top 200ms ease-out'
 const STEP_HEIGHT = 'height 200ms ease-out'
@@ -274,8 +277,8 @@ const reducedMotion = () => typeof window !== 'undefined' && window.matchMedia?.
  * alike, as short as they need) or Finish by a date's. A switch between them animates the
  * height once (at once with reduced motion); `onShift` moves the panel, which is centred on
  * the screen, by half the change, so its top edge (the title and the kinds) stays put and
- * the dialog grows or shrinks at the bottom only. Elsewhere (editing, the small dialog) a
- * plain column.
+ * the dialog grows or shrinks at the bottom only. Editing and in the small dialog there is no
+ * ruler, but a line that comes or goes (an error, a longer estimate) glides the height the same way.
  */
 function Stepped({ on, finish, onShift, ruler, children }: {
   on: boolean
@@ -305,7 +308,7 @@ function Stepped({ on, finish, onShift, ruler, children }: {
   // The panel's height before any change: the height its top edge was centred for.
   const base = useRef<number | null>(null)
   useLayoutEffect(() => {
-    if (!on || !inner.current) return
+    if (!inner.current) return
     const el = inner.current
     const apply = () => {
       const next = el.offsetHeight
@@ -333,8 +336,7 @@ function Stepped({ on, finish, onShift, ruler, children }: {
     const ro = new ResizeObserver(apply)
     ro.observe(el)
     return () => ro.disconnect()
-  }, [on, onShift])
-  if (!on) return <div className="space-y-3">{children}</div>
+  }, [onShift])
   return (
     <div
       ref={outer}
@@ -345,15 +347,17 @@ function Stepped({ on, finish, onShift, ruler, children }: {
     >
       <div
         ref={inner}
-        style={!finish && countH != null ? { minHeight: countH } : undefined}
-        className={cn('space-y-3', finish && 'min-h-[296px] sm:min-h-[220px]')}
+        style={on && !finish && countH != null ? { minHeight: countH } : undefined}
+        className={cn('space-y-3', on && finish && 'min-h-[296px] sm:min-h-[220px]')}
       >
         {children}
       </div>
       {/* Unseen, unreachable and out of the reading order: only measured (data-ruler marks it). */}
-      <div ref={rulerRef} data-ruler="" className="pointer-events-none invisible absolute inset-x-0 top-0 grid" aria-hidden="true" inert>
-        {ruler}
-      </div>
+      {on && (
+        <div ref={rulerRef} data-ruler="" className="pointer-events-none invisible absolute inset-x-0 top-0 grid" aria-hidden="true" inert>
+          {ruler}
+        </div>
+      )}
     </div>
   )
 }
@@ -424,7 +428,9 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter, counts, rule
     <div className="space-y-3">
       {chips ? (
         // Three across at every width: the number first, what it is, how often you reached it.
-        <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label={t`Suggested targets`}>
+        // One indicator per kind (keyed): a new kind's chips draw it in place, a pick within them glides it.
+        <GlideGroup key={kind} value={ruler ? undefined : value}>
+        <div className="isolate grid grid-cols-3 gap-2" role="radiogroup" aria-label={t`Suggested targets`}>
           {chips.map((c) => {
             const on = value === c.value
             return (
@@ -434,34 +440,27 @@ function TargetBody({ kind, s, sug, text, setText, parsed, onEnter, counts, rule
                 role="radio"
                 aria-checked={on}
                 onClick={() => setText(String(c.value))}
-                className={cn('min-w-0 rounded-xl px-3 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', on ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-surface-hover')}
+                className={cn('relative min-w-0 rounded-xl px-3 py-2 text-left transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', !on && 'bg-secondary hover:bg-surface-hover')}
               >
                 {/* Nothing in a chip is cut: a long note wraps and the chip grows (the three stay one height). */}
-                <span className="block text-[17px] font-bold leading-6 tabular-nums [overflow-wrap:anywhere]">{num(c.value)}</span>
-                {chips.length > 1 && <span className="block text-[13px] font-semibold leading-5">{CHIP_TITLE[c.label ?? 'keep_it_up']()}</span>}
-                <span className={cn('block text-[12px] leading-snug [overflow-wrap:anywhere]', on ? 'text-background/75' : 'text-muted-foreground')}>{chipNote(s!, c)}</span>
+                <span className={cn('relative z-[1] block text-[17px] font-bold leading-6 tabular-nums [overflow-wrap:anywhere]', chipLabel(on))}>{num(c.value)}</span>
+                {chips.length > 1 && <span className={cn('relative z-[1] block text-[13px] font-semibold leading-5', chipLabel(on))}>{CHIP_TITLE[c.label ?? 'keep_it_up']()}</span>}
+                <span className={cn('relative z-[1] block text-[12px] leading-snug [overflow-wrap:anywhere]', chipLabel(on, 'text-background/75', 'text-muted-foreground'))}>{chipNote(s!, c)}</span>
+                {/* Last, so a chip's first span is still its number. */}
+                {on && !ruler && <Glide className="bg-foreground" radius={12} />}
               </button>
             )
           })}
         </div>
+        </GlideGroup>
       ) : (
-        <div className="flex flex-wrap gap-1.5" role="radiogroup" aria-label={t`Targets`}>
-          {presets.map((c) => {
-            const on = value === c.value
-            return (
-              <button
-                key={c.value}
-                type="button"
-                role="radio"
-                aria-checked={on}
-                onClick={() => setText(String(c.value))}
-                className={cn('inline-flex h-9 items-center rounded-full px-4 text-[14px] font-semibold tabular-nums transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', on ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-surface-hover')}
-              >
-                {num(c.value)}
-              </button>
-            )
-          })}
-        </div>
+        <PillGroup
+          key={kind}
+          aria-label={t`Targets`}
+          value={value != null ? String(value) : ''}
+          onChange={(v) => setText(v)}
+          options={presets.map((c) => ({ value: String(c.value), label: <span className="font-semibold tabular-nums">{num(c.value)}</span> }))}
+        />
       )}
       <div className="flex items-center gap-2.5">
         <Input
@@ -522,24 +521,30 @@ function FinishBody({ editing, fixed, today, weekStart, target, setTarget, taken
       {!editing && !fixed && (
         <FinishTargetPicker value={target} onPick={setTarget} taken={new Set([...taken].filter((k) => !target || k !== targetKey(target)))} />
       )}
-      <div className="flex flex-wrap items-center gap-1.5" role="group" aria-label={t`By`}>
-        {chips.map((c) => (
-          <button
-            key={c.id}
-            type="button"
-            aria-pressed={chipOn?.id === c.id}
-            title={longDate(c.date)}
-            onClick={() => setDue(c.date)}
-            className={cn('inline-flex h-9 items-center rounded-full px-4 text-[14px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', chipOn?.id === c.id ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-surface-hover')}
-          >
-            {c.label}
-          </button>
-        ))}
+      <GlideGroup value={chipOn?.id ?? 'day'}>
+      <div className="isolate flex flex-wrap items-center gap-1.5" role="group" aria-label={t`By`}>
+        {chips.map((c) => {
+          const on = chipOn?.id === c.id
+          return (
+            <button
+              key={c.id}
+              type="button"
+              aria-pressed={on}
+              title={longDate(c.date)}
+              onClick={() => setDue(c.date)}
+              className={cn('relative inline-flex h-9 items-center rounded-full px-4 text-[14px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', !on && 'bg-secondary hover:bg-surface-hover')}
+            >
+              {on && <Glide className="bg-foreground" />}
+              <span className={cn('relative z-[1]', chipLabel(on))}>{c.label}</span>
+            </button>
+          )
+        })}
         {/* A day of your own shows on this chip itself. */}
-        <DayPicker value={due} min={today} weekStart={weekStart} onPick={setDue} active={!chipOn}>
+        <DayPicker value={due} min={today} weekStart={weekStart} onPick={setDue} active={!chipOn} indicator={<Glide className="bg-foreground" />}>
           <CalendarDays className="h-4 w-4" aria-hidden="true" />{chipOn ? <Trans>Pick a day</Trans> : shortDate(due, today)}
         </DayPicker>
       </div>
+      </GlideGroup>
       {/* What it takes, in a box of one size whatever is in it (also before a book or series is picked). */}
       <div className="min-h-[96px] rounded-xl bg-secondary/55 px-4 py-3" aria-live="polite">
         {!(editing || target) ? <p className="text-[14px] text-muted-foreground"><Trans>Pick a book or a series to see what it takes a day.</Trans></p>

@@ -6005,6 +6005,7 @@ msgstr ""
 #~ msgstr ""
 
 #: src/components/goals/FinishByPill.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Finish by {day}"
 msgstr ""
 
@@ -6017,6 +6018,7 @@ msgid "Finish by a date"
 msgstr ""
 
 #: src/components/goals/FinishByPill.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Finish by…"
 msgstr ""
 

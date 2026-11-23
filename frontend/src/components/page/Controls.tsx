@@ -149,13 +149,29 @@ function followIndicator(row: HTMLElement): () => void {
   return stop
 }
 
+/** One choice of a PillGroup. */
+export interface PillOption<T extends string> {
+  value: T
+  label: ReactNode
+  disabled?: boolean
+  /** The pill's tooltip. */
+  title?: string
+  /** Unavailable but still focusable and clickable (the click can explain why): drawn
+   *  dimmed with a not-allowed cursor and no hover; `onChange` still gets the click. */
+  'aria-disabled'?: boolean
+  /** Drawn faded while not chosen (one already in use, say), still a full choice. */
+  dimmed?: boolean
+}
+
 /** A row of exclusive choices as pills (sort order, scope, layout preset). */
-export function PillGroup<T extends string>({ value, onChange, options, size = 'md', className, 'aria-label': ariaLabel }: {
+export function PillGroup<T extends string>({ value, onChange, options, size = 'md', className, pillClassName, 'aria-label': ariaLabel }: {
   value: T
   onChange: (v: T) => void
-  options: { value: T; label: ReactNode; disabled?: boolean }[]
+  options: PillOption<T>[]
   size?: 'sm' | 'md'
   className?: string
+  /** Added to every pill (after the size's own classes, so it can change the padding). */
+  pillClassName?: string
   'aria-label'?: string
 }) {
   // The option chosen before this one, for how far the indicator travels.
@@ -189,6 +205,8 @@ export function PillGroup<T extends string>({ value, onChange, options, size = '
             type="button"
             role="radio"
             aria-checked={o.value === value}
+            aria-disabled={o['aria-disabled']}
+            title={o.title}
             disabled={o.disabled}
             onClick={() => onChange(o.value)}
             style={{ '--pg-delay': `${delay(o.value)}ms` } as CSSProperties}
@@ -199,6 +217,9 @@ export function PillGroup<T extends string>({ value, onChange, options, size = '
               o.value === value
                 ? 'text-background'
                 : 'bg-secondary text-foreground hover:bg-surface-hover',
+              o.value !== value && (o.dimmed || o['aria-disabled']) && 'opacity-55',
+              o['aria-disabled'] && 'cursor-not-allowed hover:bg-secondary',
+              pillClassName,
             )}
           >
             {o.value === value && <Glide className="bg-foreground" />}

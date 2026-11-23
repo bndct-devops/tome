@@ -10,7 +10,8 @@ import {
   type WordCountState, type WordCountPreflight,
 } from '@/lib/wordcount'
 import { Pill, PRESS, Stat, StatStrip, Swap } from '@/components/page'
-import { RunningNumber, Unfold } from '@/components/motion'
+import { m } from 'motion/react'
+import { LIST, RunningNumber, Unfold } from '@/components/motion'
 import { Note } from '@/components/FormMotion'
 
 const POLL_MS = 1000
@@ -144,24 +145,30 @@ export function WordCountTab() {
           count instead. It only reads the files and writes one number per book; nothing on
           disk is modified. Word counts power words-read and reading-speed stats.</Trans>
         </p>
-        <Swap id={phase} className="shrink-0">
-        {!running && !terminal && (
-          <Pill
-            onClick={handleStart}
-            disabled={busy || pending === 0}
-            variant="primary"
-            className="shrink-0"
-            title={preflight && pending > 0 ? (() => { const size = formatBytes(preflight.pending_bytes); return t`${size} to read` })() : undefined}>
-            {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
-            {startLabel}
-          </Pill>
-        )}
-        {running && state && (
-          <Pill onClick={handleCancel} disabled={busy} variant="destructive" className="shrink-0">
-            <Ban className="w-3.5 h-3.5" /> <Trans>Stop</Trans>
-          </Pill>
-        )}
-        </Swap>
+        {/* The slot keeps the start button's width in every phase, so the text beside it never reflows. */}
+        <div className="inline-grid shrink-0 justify-items-start sm:justify-items-end">
+          <span aria-hidden className="invisible [grid-area:1/1]">
+            <Pill tabIndex={-1} variant="primary"><Play className="w-4 h-4" />{startLabel}</Pill>
+          </span>
+          <Swap id={phase} className="[grid-area:1/1]">
+          {!running && !terminal && (
+            <Pill
+              onClick={handleStart}
+              disabled={busy || pending === 0}
+              variant="primary"
+              className="shrink-0"
+              title={preflight && pending > 0 ? (() => { const size = formatBytes(preflight.pending_bytes); return t`${size} to read` })() : undefined}>
+              {busy ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+              {startLabel}
+            </Pill>
+          )}
+          {running && state && (
+            <Pill onClick={handleCancel} disabled={busy} variant="destructive" className="shrink-0">
+              <Ban className="w-3.5 h-3.5" /> <Trans>Stop</Trans>
+            </Pill>
+          )}
+          </Swap>
+        </div>
       </div>
 
       <Note value={error} gap={24}>{e => (
@@ -171,72 +178,71 @@ export function WordCountTab() {
         </div>
       )}</Note>
 
-      {/* Idle: pre-flight + start */}
-      {phase === 'idle' && (
-        <>
-          <StatStrip cols={3}>
-            <Stat size={30} label={t`EPUBs with word counts`} value={preflight ? preflight.already_counted : '-'} format={formatCount}
-              foot={preflight ? (() => { const n = formatCount(preflight.epub_total); return t`of ${n} EPUBs` })() : '\u00a0'} />
-            <Stat size={30} label={t`EPUBs to count`} value={preflight ? pendingEpubs : '-'} format={formatCount} tone={pendingEpubs > 0 ? 'primary' : 'foreground'} />
-            <Stat size={30} label={t`Page counts to read`} value={preflight ? pendingPages : '-'} format={formatCount} tone={pendingPages > 0 ? 'primary' : 'foreground'}
-              foot={t`PDF, CBZ and CBR`} />
-          </StatStrip>
-        </>
-      )}
-
-      {/* Running: progress. Finishing turns the same block into the summary, in place. */}
-      {phase !== 'idle' && state && (
-        <Swap id={phase === 'running' ? 'running' : 'terminal'}>
-        {phase === 'running' ? (
-          <div>
-            <div className="flex items-center justify-between gap-3 mb-2">
-              <span className="text-[15px] font-medium flex items-center gap-2">
-                <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                {(() => { const done = formatCount(state.done_files); const total = formatCount(state.total_files); return <Trans>Counting… {done} / {total}</Trans> })()}
-              </span>
-              <RunningNumber value={pct} format={n => `${n.toFixed(1)}%`} className="text-[14px] font-bold" />
-            </div>
-            {/* The fill slides in from the left (a transform, not a width), keeping its round end. */}
-            <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--rail)' }}>
-              <div
-                className="h-full w-full bg-primary rounded-full transition-transform duration-300 ease-(--spring) motion-reduce:transition-none"
-                style={{ transform: `translateX(${pct - 100}%)` }}
-              />
-            </div>
-            <div className="flex flex-wrap items-center justify-between gap-x-3 mt-2 text-[13px] text-muted-foreground">
-              <span>{formatBytes(state.done_bytes)} / {formatBytes(state.total_bytes)}</span>
-              {(() => { const el = formatDuration(state.elapsed_seconds); const eta = formatDuration(state.eta_seconds); return <span><Trans>Elapsed {el} · ~{eta} left</Trans></span> })()}
-            </div>
-            <div className="mt-1 text-[13px] text-muted-foreground truncate">
-              <span className="text-foreground/70"><Trans>Current:</Trans></span>{' '}
-              <span className="font-mono">{state.current_file?.split('/').pop() ?? '…'}</span>
-            </div>
-          </div>
-        ) : (
-          <div className={cn('flex flex-wrap items-center gap-2',
-            state.status === 'error' ? 'text-destructive' : state.status === 'cancelled' ? 'text-warning' : 'text-success')}>
-            {state.status === 'done' && <Check className="w-4 h-4" />}
-            {state.status === 'cancelled' && <Ban className="w-4 h-4" />}
-            {state.status === 'error' && <FileWarning className="w-4 h-4" />}
-            <span className="text-[15px] font-semibold">
-              {state.status === 'done' && t`Word count complete`}
-              {state.status === 'cancelled' && t`Word count stopped`}
-              {state.status === 'error' && t`Word count failed`}
-            </span>
-            {(() => { const dur = formatDuration(state.elapsed_seconds); return <span className="ml-auto text-[13px] text-muted-foreground"><Trans>Took {dur}</Trans></span> })()}
-          </div>
-        )}
-        </Swap>
-      )}
-
-      {/* One strip from the first count to the summary: its figures run on. */}
-      {phase !== 'idle' && state && (
+      {/* Idle figures, or the job: its progress (turning into the summary in
+          place) over one strip whose figures run on from the first count. */}
+      <Swap id={phase === 'idle' ? 'idle' : 'job'}>
+      {phase === 'idle' || !state ? (
         <StatStrip cols={3}>
-          <Stat size={30} label={t`Counted`} value={state.counted} format={formatCount} tone="primary" />
-          <Stat size={30} label={t`Words found`} value={state.words_total} format={formatCount} />
-          <Stat size={30} label={t`Failed`} value={state.failed} format={formatCount} tone={state.failed > 0 ? 'warning' : 'foreground'} />
+          <Stat size={30} label={t`EPUBs with word counts`} value={preflight ? preflight.already_counted : '-'} format={formatCount}
+            foot={preflight ? (() => { const n = formatCount(preflight.epub_total); return t`of ${n} EPUBs` })() : '\u00a0'} />
+          <Stat size={30} label={t`EPUBs to count`} value={preflight ? pendingEpubs : '-'} format={formatCount} tone={pendingEpubs > 0 ? 'primary' : 'foreground'} />
+          <Stat size={30} label={t`Page counts to read`} value={preflight ? pendingPages : '-'} format={formatCount} tone={pendingPages > 0 ? 'primary' : 'foreground'}
+            foot={t`PDF, CBZ and CBR`} />
         </StatStrip>
+      ) : (
+        <div className="flex flex-col gap-6">
+          <Swap id={phase === 'running' ? 'running' : 'terminal'}>
+          {phase === 'running' ? (
+            <div>
+              <div className="flex items-center justify-between gap-3 mb-2">
+                <span className="text-[15px] font-medium flex items-center gap-2">
+                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                  {(() => { const done = formatCount(state.done_files); const total = formatCount(state.total_files); return <Trans>Counting… {done} / {total}</Trans> })()}
+                </span>
+                <RunningNumber value={pct} format={n => `${n.toFixed(1)}%`} className="text-[14px] font-bold" />
+              </div>
+              {/* The fill slides in from the left (a transform, not a width), keeping its round end. */}
+              <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--rail)' }}>
+                <div
+                  className="h-full w-full bg-primary rounded-full transition-transform duration-300 ease-(--spring) motion-reduce:transition-none"
+                  style={{ transform: `translateX(${pct - 100}%)` }}
+                />
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-x-3 mt-2 text-[13px] text-muted-foreground">
+                <span>{formatBytes(state.done_bytes)} / {formatBytes(state.total_bytes)}</span>
+                {(() => { const el = formatDuration(state.elapsed_seconds); const eta = formatDuration(state.eta_seconds); return <span><Trans>Elapsed {el} · ~{eta} left</Trans></span> })()}
+              </div>
+              <div className="mt-1 text-[13px] text-muted-foreground truncate">
+                <span className="text-foreground/70"><Trans>Current:</Trans></span>{' '}
+                <span className="font-mono">{state.current_file?.split('/').pop() ?? '…'}</span>
+              </div>
+            </div>
+          ) : (
+            <div className={cn('flex flex-wrap items-center gap-2',
+              state.status === 'error' ? 'text-destructive' : state.status === 'cancelled' ? 'text-warning' : 'text-success')}>
+              {state.status === 'done' && <Check className="w-4 h-4" />}
+              {state.status === 'cancelled' && <Ban className="w-4 h-4" />}
+              {state.status === 'error' && <FileWarning className="w-4 h-4" />}
+              <span className="text-[15px] font-semibold">
+                {state.status === 'done' && t`Word count complete`}
+                {state.status === 'cancelled' && t`Word count stopped`}
+                {state.status === 'error' && t`Word count failed`}
+              </span>
+              {(() => { const dur = formatDuration(state.elapsed_seconds); return <span className="ml-auto text-[13px] text-muted-foreground"><Trans>Took {dur}</Trans></span> })()}
+            </div>
+          )}
+          </Swap>
+          {/* Glides up when the progress block gives way to the shorter summary line. */}
+          <m.div layout="position" transition={LIST}>
+            <StatStrip cols={3}>
+              <Stat size={30} label={t`Counted`} value={state.counted} format={formatCount} tone="primary" />
+              <Stat size={30} label={t`Words found`} value={state.words_total} format={formatCount} />
+              <Stat size={30} label={t`Failed`} value={state.failed} format={formatCount} tone={state.failed > 0 ? 'warning' : 'foreground'} />
+            </StatStrip>
+          </m.div>
+        </div>
       )}
+      </Swap>
 
       {/* Terminal: end summary */}
       <Unfold open={phase === 'terminal'} gap={24}>

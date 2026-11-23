@@ -187,7 +187,8 @@ test('Dialog: suggested targets from the reader\'s own days, presets without his
       await expect(group.getByRole('radio').first()).toBeVisible()
       const values = await group.getByRole('radio').evaluateAll((els) => els.map((e) => e.querySelector('span')?.textContent))
       expect(new Set(values).size, `${kind}: ${values}`).toBe(values.length)
-      const cut = await group.evaluate((g) => [...g.querySelectorAll('[role="radio"] span')]
+      // (Text only: the chosen chip's gliding indicator is an aria-hidden span.)
+      const cut = await group.evaluate((g) => [...g.querySelectorAll('[role="radio"] span:not([aria-hidden])')]
         .filter((el) => el.scrollWidth > el.clientWidth + 0.5 || getComputedStyle(el).textOverflow === 'ellipsis' ||
           el.getBoundingClientRect().right > el.closest('[role="radio"]')!.getBoundingClientRect().right + 0.5)
         .map((el) => el.textContent))
@@ -211,10 +212,20 @@ test('Home: one row of the goals that need attention; a card opens it on the Goa
   await login(page)
   await page.goto('/')
   const home = page.locator('[data-box="home-goals"]')
-  // Six goals: behind first (Light Novels, Minutes a week), then ahead (Comics), then the first reached (Manga).
+  // Six goals, four shown in homePick's order. The weekly goals' status depends on the weekday (on Monday to
+  // Wednesday reading days is on pace and outranks Comics, which is ahead; from Friday it is reached and Manga
+  // takes the last place), so the cards are compared with the rule over the answer the page gets, not fixed names.
   await expect(home.getByRole('listitem')).toHaveCount(4)
   const names = await home.getByRole('listitem').evaluateAll((els) => els.map((e) => e.querySelector('[class*="text-muted-foreground"]')?.textContent))
-  expect(names).toEqual([`Books in ${year} · Light Novels`, 'Minutes a week', `Books in ${year} · Comics`, `Books in ${year} · Manga`])
+  const answer = await page.evaluate(async () => {
+    const zone = encodeURIComponent(Intl.DateTimeFormat().resolvedOptions().timeZone)
+    const r = await fetch(`/api/goals?tz_offset=${new Date().getTimezoneOffset()}&tz=${zone}`,
+      { headers: { Authorization: `Bearer ${localStorage.getItem('tome_token')}` } })
+    return (await r.json()) as { today: string; goals: { id: number; name: string; status: string; period_end: string }[] }
+  })
+  expect(names, `Home cards on ${answer.today}`).toEqual(homePick(answer.goals).map((g) => g.name))
+  expect(names).toContain(`Books in ${year} · Light Novels`)
+  expect(names).toContain('Minutes a week')
   const all = home.getByRole('link', { name: 'See all 6 goals' })
   await expect(all).toHaveAttribute('href', '/stats?tab=goals')
   await home.getByRole('listitem').filter({ hasText: 'Minutes a week' }).getByRole('button').click()

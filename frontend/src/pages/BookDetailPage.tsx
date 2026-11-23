@@ -1,4 +1,4 @@
-import { useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
+import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode, type RefObject } from 'react'
 import { flushSync } from 'react-dom'
 import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
 import { AnimatePresence, m } from 'motion/react'
@@ -6,13 +6,14 @@ import {
   Camera, Download, Edit2, X, Trash2, Loader2, Sparkles, Library as LibraryIcon, Check,
   ChevronLeft, ChevronRight, StickyNote, ChevronDown, Play, Link2, RefreshCw,
   Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2, Eye,
-  ExternalLink,
+  ExternalLink, CalendarCheck,
 } from 'lucide-react'
 import { useAuth, isAdmin, isMember } from '@/contexts/AuthContext'
 import { useSidebarLists } from '@/lib/sidebarLists'
 import { refreshDeviceInventories, useDeviceInventories } from '@/lib/deviceBooks'
 import { useToast } from '@/contexts/ToastContext'
 import { FinishByPill } from '@/components/goals/FinishByPill'
+import { shortDate } from '@/components/goals/text'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { MetadataFetchModal } from '@/components/MetadataFetchModal'
@@ -28,7 +29,7 @@ import { AppShell } from '@/components/AppShell'
 import { QuickLook } from '@/components/QuickLook'
 import { Glide, GlideGroup, PageBody, SectionTitle, Stat, StatStrip, Field, Pill, Input, Select, Swap, Textarea, FormLabel, INPUT_CLASS, PRESS, PRESS_LABEL } from '@/components/page'
 import { BookLink, CoverLift, EASE, EASE_CSS, Pop, RunningNumber, SeriesLink, Unfold, listItem, type BookPreview } from '@/components/motion'
-import { bookRequests, dropBookSeed, fetchBookSeed, heroCoverSrc, peekBookSeed, seriesDetailUrl, type BookSeed, type BookSeedKey } from '@/components/motion/nav'
+import { bookRequests, dropBookSeed, fetchBookSeed, heroCoverSrc, hintSeries, peekBookSeed, seriesDetailUrl, type BookSeed, type BookSeedKey } from '@/components/motion/nav'
 import { ModalShell, isModalOpen } from '@/components/ModalShell'
 import { NamedIcon } from '@/lib/icons'
 import { coverSrc } from '@/lib/covers'
@@ -229,6 +230,108 @@ let headerRow: { width: number; height: number } | null = (() => {
 // stand in, the block keeps at least this height, so the rows under it (and
 // the status pills' indicator) do not move before the page changes.
 let heroTitleH = 0
+
+/** The finish-by pill's widest label, unseen: "Finish by…" and a goal's day in every month
+ *  ("Finish by Sep 28") stacked, so its slot fits any of them. A day in another year adds the
+ *  year; reserving that too would wrap the header at widths where it fits on one line now. */
+function FinishByReserve() {
+  const { i18n } = useLingui()
+  const labels = useMemo(() => {
+    const y = new Date().getFullYear()
+    const days = Array.from({ length: 12 }, (_, i) => shortDate(`${y}-${String(i + 1).padStart(2, '0')}-28`))
+    return [t`Finish by…`, ...days.map(day => t`Finish by ${day}`)]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- the labels follow the locale
+  }, [i18n.locale])
+  return (
+    <Pill variant="quiet" tabIndex={-1}>
+      <CalendarCheck className="h-4 w-4" />
+      <span className="hidden sm:grid">
+        {labels.map(l => <span key={l} className="col-start-1 row-start-1 whitespace-nowrap">{l}</span>)}
+      </span>
+    </Pill>
+  )
+}
+
+const REDUCED = '(prefers-reduced-motion: reduce)'
+const reduced = () => window.matchMedia(REDUCED).matches
+
+// The title block as last drawn (mid-glide too) and when its page went: the
+// next book's page, mounting in the same commit, glides from that height
+// instead of moving the rows under it in one jump.
+let titleDrawn = { h: 0, at: 0 }
+const TITLE_GLIDE_MS = 240
+
+/** The hero's title block: when its height changes (a title on more or fewer
+ *  lines) the block glides to the new height. `innerRef` is the block itself. */
+function TitleGlide({ innerRef, style, children }: {
+  innerRef: RefObject<HTMLDivElement | null>
+  style?: CSSProperties
+  children: ReactNode
+}) {
+  const outerRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const box = outerRef.current, el = innerRef.current
+    if (!box || !el) return
+    let last = el.offsetHeight
+    let run: Animation | null = null
+    const glide = (from: number, to: number) => {
+      run?.cancel()
+      run = null
+      if (Math.abs(from - to) < 1 || reduced()) return
+      box.style.overflow = 'clip'
+      run = box.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: TITLE_GLIDE_MS, easing: EASE_CSS })
+      const mine = run
+      const end = () => { if (run === mine) { run = null; box.style.overflow = '' } }
+      mine.onfinish = end
+      mine.oncancel = () => { if (run === mine || run === null) box.style.overflow = '' }
+    }
+    if (titleDrawn.h && performance.now() - titleDrawn.at < 100) glide(titleDrawn.h, last)
+    titleDrawn = { h: 0, at: 0 }
+    const ro = new ResizeObserver(() => {
+      const h = el.offsetHeight
+      if (h === last) return
+      const from = run ? box.getBoundingClientRect().height : last
+      last = h
+      glide(from, h)
+    })
+    ro.observe(el)
+    return () => {
+      titleDrawn = { h: run && box.isConnected ? box.getBoundingClientRect().height : last, at: performance.now() }
+      ro.disconnect()
+      run?.cancel()
+    }
+  }, [innerRef])
+  return (
+    <div ref={outerRef}>
+      <div ref={innerRef} style={style}>{children}</div>
+    </div>
+  )
+}
+
+// A step to the previous or next volume with the arrows: the arriving cover
+// and title come in from the side stepped towards. Played once per step,
+// across the dimmed wait and the page that follows it (which picks it up at
+// the same point rather than starting over).
+const CUE_MS = 200
+const CUE_PX = 10
+let cue: { id: number; dir: 1 | -1; at: number; started: number } | null = null
+function playCue(id: number, els: (HTMLElement | null)[]) {
+  if (!cue || cue.id !== id || reduced()) return
+  const now = performance.now()
+  if (!cue.started && now - cue.at > 2000) { cue = null; return }
+  const elapsed = cue.started ? now - cue.started : 0
+  if (elapsed >= CUE_MS) return
+  if (!cue.started) cue.started = now
+  const { dir } = cue
+  for (const el of els) {
+    if (!el) continue
+    const a = el.animate(
+      [{ transform: `translateX(${dir * CUE_PX}px)`, opacity: 0.6 }, { transform: 'none', opacity: 1 }],
+      { duration: CUE_MS, easing: EASE_CSS },
+    )
+    a.currentTime = elapsed
+  }
+}
 
 /** The hero cover. Opened from a card it starts with the card's thumbnail
  *  (already in the cache, so it paints at once) and the full-size image fades
@@ -556,6 +659,22 @@ function BookDetailView({ id, seed, next }: {
       .finally(() => setSeriesIn(true))
   }, [bookIn, book?.series])
 
+  // The series page's hero (its first volume with a cover), fetched and decoded
+  // once this page is idle: every link to the series hands it on, so the series
+  // page paints it in its first frame, hovered first or not.
+  const seriesHeroId = seriesVolumes.find(v => v.cover_path)?.id
+  useEffect(() => {
+    const name = book?.series
+    if (!name || seriesHeroId == null) return
+    const hint = () => hintSeries(name, coverSrc(seriesHeroId, { w: 400 }))
+    if (typeof window.requestIdleCallback !== 'function') {
+      const timer = setTimeout(hint, 300)
+      return () => clearTimeout(timer)
+    }
+    const idle = window.requestIdleCallback(hint, { timeout: 1500 })
+    return () => window.cancelIdleCallback(idle)
+  }, [book?.series, seriesHeroId])
+
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if (e.defaultPrevented) return
@@ -646,6 +765,12 @@ function BookDetailView({ id, seed, next }: {
   useLayoutEffect(() => {
     if (nextId != null) document.querySelector('main')?.scrollTo(0, 0)
   }, [nextId])
+  // The step's cue, on the book shown now (the one moved to, or this one once it is in).
+  const coverRef = useRef<HTMLDivElement>(null)
+  const shownId = nextId ?? book?.id
+  useLayoutEffect(() => {
+    if (shownId != null) playCue(shownId, [coverRef.current, heroTitleRef.current])
+  }, [shownId])
 
   // Animate progress bar from 0 after it loads (one frame at 0 first)
   useEffect(() => {
@@ -1013,13 +1138,17 @@ function BookDetailView({ id, seed, next }: {
     }
   }
 
+  // Pointed at or pressed before this page went idle: the series hero is asked for then.
+  const warm = () => { if (book.series && seriesHeroId != null) hintSeries(book.series, coverSrc(seriesHeroId, { w: 400 })) }
+  const warmSeries = { onPointerEnter: warm, onPointerDown: warm, onFocus: warm }
+
   const crumbs = (
     <nav className={CRUMBS_CLS} aria-label={t`Breadcrumb`}>
       <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>All books</Trans></Link>
       {book.series && seriesHref ? (
         <>
           <span aria-hidden>/</span>
-          <SeriesLink name={book.series} className="truncate hover:text-foreground transition-colors">{book.series}</SeriesLink>
+          <SeriesLink name={book.series} {...warmSeries} className="truncate hover:text-foreground transition-colors">{book.series}</SeriesLink>
         </>
       ) : adjacent?.mode === 'author' && book.author ? (
         <>
@@ -1031,12 +1160,14 @@ function BookDetailView({ id, seed, next }: {
         <span className="ml-1 inline-flex shrink-0 items-center">
           {adjacent.prev ? (
             <BookLink book={neighbour(adjacent.prev)} cover={null} title={adjacent.prev.title} aria-label={t`Previous volume`}
+              onClick={() => { cue = { id: adjacent.prev!.id, dir: -1, at: performance.now(), started: 0 } }}
               className={cn('grid h-7 w-7 place-items-center rounded-full hover:bg-secondary hover:text-foreground touch-feedback', PRESS)}>
               <ChevronLeft className="h-4 w-4" />
             </BookLink>
           ) : <span className="grid h-7 w-7 place-items-center opacity-30" aria-hidden><ChevronLeft className="h-4 w-4" /></span>}
           {adjacent.next ? (
             <BookLink book={neighbour(adjacent.next)} cover={null} title={adjacent.next.title} aria-label={t`Next volume`}
+              onClick={() => { cue = { id: adjacent.next!.id, dir: 1, at: performance.now(), started: 0 } }}
               className={cn('grid h-7 w-7 place-items-center rounded-full hover:bg-secondary hover:text-foreground touch-feedback', PRESS)}>
               <ChevronRight className="h-4 w-4" />
             </BookLink>
@@ -1067,8 +1198,17 @@ function BookDetailView({ id, seed, next }: {
   ) : (
     <div className="-mr-2 flex flex-wrap items-center justify-end gap-0.5">
       {/* First, so its late arrival or longer label ("Finish by Dec 31") moves nothing to its right. */}
+      {/* Its slot is held on every book at its widest label (unseen under it), so a read volume,
+          which has none, or one with a goal leaves the actions and the previous/next arrows where they were. */}
       {book.content_type !== 'chapter' && (
-        <FinishByPill target={{ bookId: book.id, title: book.title, cover: book.cover_path ? book.id : null }} done={bookStatus === 'read'} pending={!statusKnown} iconOnPhone />
+        <span className="grid">
+          <span className="invisible col-start-1 row-start-1 flex justify-end" aria-hidden inert>
+            <FinishByReserve />
+          </span>
+          <span className="col-start-1 row-start-1 flex justify-end">
+            <FinishByPill target={{ bookId: book.id, title: book.title, cover: book.cover_path ? book.id : null }} done={bookStatus === 'read'} pending={!statusKnown} iconOnPhone />
+          </span>
+        </span>
       )}
       {canEdit && (
         <Pill variant="quiet" onClick={startEdit} aria-label={t`Edit`}>
@@ -1150,6 +1290,7 @@ function BookDetailView({ id, seed, next }: {
       onClick={() => canEdit && !next && setCoverPickerOpen(true)}
       title={canEdit && !next ? t`Change cover` : undefined}
       data-hero-cover={next?.id ?? book.id}
+      ref={coverRef}
     >
       {next ? (
         next.cover !== undefined
@@ -1582,9 +1723,9 @@ function BookDetailView({ id, seed, next }: {
 
   const hero = (
     <div className={HERO_CLS}>
-      <div ref={heroTitleRef} style={next ? { minHeight: heroTitleH } : undefined}>
+      <TitleGlide innerRef={heroTitleRef} style={next ? { minHeight: heroTitleH } : undefined}>
         <Swap id={editing && !next ? 'edit' : 'view'}>{heroTitle}</Swap>
-      </div>
+      </TitleGlide>
       <div className={dim} inert={!!next}>
         {statusRow}
         {progressRow}
@@ -1755,7 +1896,7 @@ function BookDetailView({ id, seed, next }: {
   const seriesSection = seriesVolumes.length > 1 && book.series ? (
     <section>
       <SectionTitle size={20} action={
-        <SeriesLink name={book.series} className="text-primary hover:underline underline-offset-4"><Trans>Open series</Trans></SeriesLink>
+        <SeriesLink name={book.series} {...warmSeries} className="text-primary hover:underline underline-offset-4"><Trans>Open series</Trans></SeriesLink>
       }>
         <Trans>In this series</Trans>
       </SectionTitle>

@@ -278,7 +278,11 @@ export function FinishTargetPicker({ value, onPick, taken }: { value: FinishTarg
 
 // ── A day ─────────────────────────────────────────────────────────────────────
 
-export function DayPicker({ value, min, weekStart, onPick, children, active }: { value: string | null; min: string; weekStart: WeekStart; onPick: (iso: string) => void; children: ReactNode; active: boolean }) {
+export function DayPicker({ value, min, weekStart, onPick, children, active, indicator }: {
+  value: string | null; min: string; weekStart: WeekStart; onPick: (iso: string) => void; children: ReactNode; active: boolean
+  /** A gliding indicator shared with the chips beside it (page/Glide.tsx), drawn while active instead of the fill. */
+  indicator?: ReactNode
+}) {
   const [open, setOpen] = useState(false)
   const start = value ?? min
   const [view, setView] = useState({ y: Number(start.slice(0, 4)), m: Number(start.slice(5, 7)) })
@@ -310,9 +314,10 @@ export function DayPicker({ value, min, weekStart, onPick, children, active }: {
         aria-haspopup="dialog"
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
-        className={cn('inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[14px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', active ? 'bg-foreground text-background' : 'bg-secondary text-foreground hover:bg-surface-hover')}
+        className={cn('relative inline-flex h-9 items-center gap-1.5 rounded-full px-4 text-[14px] font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', active ? cn('text-background', !indicator && 'bg-foreground') : 'bg-secondary text-foreground hover:bg-surface-hover')}
       >
-        {children}
+        {active && indicator}
+        {indicator ? <span className="relative z-[1] inline-flex items-center gap-1.5">{children}</span> : children}
       </button>
       {open && (
         <Card cardRef={card} pos={pos} label={t`Pick a day`}>

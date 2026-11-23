@@ -24,7 +24,7 @@
  * stack's place, and the other volumes on screen fly into it. Ungrouping: the
  * volumes come out of the stack they were in.
  */
-import { flushSync } from 'react-dom'
+import { createPortal, flushSync } from 'react-dom'
 import { forwardRef, memo, useCallback, useEffect, useId, useImperativeHandle, useInsertionEffect, useLayoutEffect, useMemo, useRef, useState, type RefObject } from 'react'
 import { AnimatePresence, m, type Variants } from 'motion/react'
 import type { Book, ReadingStatus } from '@/lib/books'
@@ -81,8 +81,8 @@ interface Props {
   /** Coming back to where the list was left: the blocks around that card
    *  render at once, at the same place on screen; the others after. */
   resume?: ResumePoint
-  /** A long list shown again from the top: the first blocks render at once,
-   *  the others after. */
+  /** A list shown again from the top: when long (STAGE_FROM), the first
+   *  blocks render at once, the others after. */
   staged?: boolean
   onToggle: (id: number, shift: boolean) => void
   onTag: (tag: string) => void
@@ -112,11 +112,32 @@ interface Shared {
   grouped: boolean
   /** Ungrouping: where each series' stack was on screen. */
   spreadFrom: Map<string, DOMRect> | null
+  /** Ungrouping: the volumes that arrived, animated together by the grid
+   *  (all reads before any write: WebKit lays out again after each animate()). */
+  spreadQueue: { el: HTMLElement; from: DOMRect }[]
 }
 
 type Exit = { key: string; series: string | null }
 
 const OUT_OF_WIN: Win = { from: -1, to: -2, keys: new Set(), version: 0, travel: 0, shownFrom: 0, shownTo: 0 }
+
+// WebKit (no overflow-clip-margin, the test the Hardcover page uses for the
+// same engines): content-visibility: hidden boxes are laid out again on every
+// forced layout, so the blocks behind a switch are sized and contained
+// instead; and a cover grid of hundreds of cards takes it over 100 ms per
+// layout, so its cards off screen skip theirs (data-skip-offscreen, library.css).
+const SKIP_HIDDEN = typeof CSS !== 'undefined' && CSS.supports('overflow-clip-margin', '1px')
+
+/** A list shown again (`staged`) renders in steps from this many cards on. */
+const STAGE_FROM = SKIP_HIDDEN ? 120 : CHUNK
+
+/** About how many cards fill the window (errs on the side of more). */
+function screenful(list: boolean, gridSize: number): number {
+  const h = window.innerHeight
+  if (list) return Math.ceil(h / LIST_ROW) + 2
+  const cols = Math.max(1, Math.floor(window.innerWidth / (Math.min(gridSize, window.innerWidth * 0.42) + 12)))
+  return cols * (Math.ceil(h / (gridSize * 1.5 + 40)) + 1)
+}
 
 function reduced() {
   // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
@@ -202,14 +223,7 @@ const LibraryItem = memo(function LibraryItem({
     const from = spread && book.series ? spread.get(book.series) : undefined
     const el = ref.current?.firstElementChild as HTMLElement | null
     if (!from || !el || reduced()) return
-    const r = el.getBoundingClientRect()
-    if (r.bottom < 0 || r.top > window.innerHeight || (Math.abs(r.left - from.left) < 1 && Math.abs(r.top - from.top) < 1)) return
-    /* eslint-disable lingui/no-unlocalized-strings -- CSS values */
-    el.animate([
-      { transform: `translate(${from.left - r.left}px, ${from.top - r.top}px) scale(0.86)`, opacity: 0.5 },
-      { transform: 'none', opacity: 1 },
-    ], { duration: GLIDE_S * 1000, easing: EASE_CSS })
-    /* eslint-enable lingui/no-unlocalized-strings */
+    shared.current.spreadQueue.push({ el, from })
     // Only on arrival.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -323,6 +337,101 @@ const PlaceholderBlock = memo(function PlaceholderBlock({ count, height }: { cou
   return Array.from({ length: count }, (_, i) => <div key={i} aria-hidden="true" style={{ height }} />)
 })
 
+// ── Windowing (long lists) ─────────────────────────────────────────────────
+// Past WINDOW_FROM cards only the blocks near the screen render; every other
+// card is an empty box of that card's own height (measured when it last
+// rendered at this width, else estimated), so the grid places rows, and the
+// scroll height, as the cards would. WebKit lays out a grid of hundreds of
+// cards in over 100 ms, on every change that touches it.
+const WINDOW_FROM = 180
+// Screens rendered above and below the visible part; a scroll that brings
+// less than NEED_SCREENS of unrendered space near the screen renders at once.
+const BEFORE_SCREENS = 1
+const AFTER_SCREENS = 1.5
+const NEED_SCREENS = 0.35
+
+/** Card heights (content box) per card, view, slider value and column width. */
+const heightCache = new Map<string, number>()
+/** Per card, view and slider value: grid height minus the cover (which follows the column width); list height. */
+const extraCache = new Map<string, number>()
+/** The usual of the above per view and slider value, for cards never measured. */
+const typicalExtra = new Map<string, number>()
+/** The grid's width when it was last on screen: a remount (the way back) places its boxes with it at once. */
+let lastGridWidth = 0
+
+function columnWidth(list: boolean, gridSize: number, width: number): number {
+  if (list) return width
+  const gap = gridSize < 150 ? 12 : 20
+  const min = Math.min(gridSize, window.innerWidth * 0.42)
+  const cols = Math.max(1, Math.floor((width + gap) / (min + gap)))
+  return (width - gap * (cols - 1)) / cols
+}
+
+interface Layout { view: ViewMode; gridSize: number; width: number }
+
+/** Whether this card's height at this layout was measured (not estimated). */
+function heightKnown(key: string, stack: boolean, l: Layout): boolean {
+  const col = columnWidth(l.view === 'list', l.gridSize, l.width)
+  return heightCache.has(`${key}|${stack ? 's' : 'b'}|${l.view}|${l.gridSize}|${Math.round(col)}`)
+}
+
+function cardHeight(key: string, stack: boolean, l: Layout): number {
+  const list = l.view === 'list'
+  const col = columnWidth(list, l.gridSize, l.width)
+  const kind = `${stack ? 's' : 'b'}|${l.view}|${l.gridSize}`
+  const exact = heightCache.get(`${key}|${kind}|${Math.round(col)}`)
+  if (exact != null) return exact
+  const extra = extraCache.get(`${key}|${kind}`) ?? typicalExtra.get(kind) ?? typicalExtra.get(`b|${l.view}|${l.gridSize}`) ?? (list ? 68 : 56)
+  return list ? extra : col * 1.5 + extra
+}
+
+/** Reads the height of every card rendered in `grid` into the caches. */
+function recordHeights(grid: HTMLElement, l: Layout) {
+  const list = l.view === 'list'
+  const col = columnWidth(list, l.gridSize, l.width)
+  const counts = new Map<string, Map<number, number>>()
+  for (const el of grid.querySelectorAll<HTMLElement>(':scope > [data-item]:not([data-motion-pop-id])')) {
+    const card = el.firstElementChild as HTMLElement | null
+    if (!card) continue
+    // Fractional: a cover's height follows the column width.
+    const h = card.getBoundingClientRect().height
+    const stack = !!card.querySelector('[data-series-cover]')
+    const kind = `${stack ? 's' : 'b'}|${l.view}|${l.gridSize}`
+    const extra = list ? h : h - col * 1.5
+    heightCache.set(`${el.dataset.item}|${kind}|${Math.round(col)}`, h)
+    extraCache.set(`${el.dataset.item}|${kind}`, extra)
+    const c = counts.get(kind) ?? new Map<number, number>()
+    const r = Math.round(extra * 4) / 4
+    c.set(r, (c.get(r) ?? 0) + 1)
+    counts.set(kind, c)
+  }
+  for (const [kind, c] of counts) {
+    let best = 0, n = 0
+    for (const [v, k] of c) if (k > n) { best = v; n = k }
+    typicalExtra.set(kind, best)
+  }
+}
+
+/** A block not near the screen: one empty box per card, each of that card's height. */
+const SpacerBlock = memo(function SpacerBlock({ heights, block }: { heights: number[]; block: number }) {
+  return heights.map((h, i) => <div key={i} aria-hidden="true" data-spacer={block} style={{ height: h, boxSizing: 'content-box' }} />)
+}, (a, b) => a.block === b.block && a.heights.length === b.heights.length && a.heights.every((h, i) => h === b.heights[i]))
+
+/** The grid's items in order (cards and boxes), without the cards on their way out. */
+function itemsOf(grid: HTMLElement): HTMLElement[] {
+  return Array.from(grid.querySelectorAll<HTMLElement>(':scope > :not([data-motion-pop-id])'))
+}
+
+/** First and last item index between `lo` and `hi` (viewport px). */
+function rangeIn(items: HTMLElement[], lo: number, hi: number): [number, number] {
+  let a = 0, b = items.length
+  while (a < b) { const mid = (a + b) >> 1; if (items[mid].getBoundingClientRect().bottom > lo) b = mid; else a = mid + 1 }
+  const first = Math.min(a, items.length - 1)
+  a = first; b = items.length
+  while (a < b) { const mid = (a + b) >> 1; if (items[mid].getBoundingClientRect().top < hi) a = mid + 1; else b = mid }
+  return [first, Math.max(first, a - 1)]
+}
+
 /** Slices of `books` per block, the same arrays as last time where nothing changed. */
 function useBlocks(books: Book[]): Book[][] {
   const [state, setState] = useState<{ books: Book[]; blocks: Book[][] }>(() => ({ books, blocks: slice(books, []) }))
@@ -351,7 +460,7 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
   const [win, setWin] = useState<Win>({ from: 0, to: CHUNK * 2, keys: new Set(), version: 0, travel: 0, shownFrom: 0, shownTo: CHUNK * 2 })
   const anchor = useRef<{ key: string; top: number } | null>(null)
   const [switchView, setSwitchView] = useState<{ to: 'grid' | 'list'; n: number } | null>(null)
-  const shared = useRef<Shared>({ grid: gridRef, stackOf: new Map(), grouped, spreadFrom: null })
+  const shared = useRef<Shared>({ grid: gridRef, stackOf: new Map(), grouped, spreadFrom: null, spreadQueue: [] })
   // eslint-disable-next-line react-hooks/refs -- read when a card leaves, not while rendering
   const variants = useMemo(() => makeVariants(shared), [])
 
@@ -397,6 +506,24 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     residual.current = el.getBoundingClientRect().top - before
   }, [measure])
 
+  // ── Windowing state (see WINDOW_FROM) ──
+  const windowed = books.length > WINDOW_FROM
+  const windowedRef = useRef(windowed)
+  const [gridWidth, setGridWidth] = useState(lastGridWidth)
+  const layout = useMemo<Layout>(() => ({ view, gridSize, width: gridWidth }), [view, gridSize, gridWidth])
+  // The blocks that render (others are boxes), from..to.
+  const [vwin, setVwin] = useState(() => {
+    const at = resume?.index ?? 0
+    return { from: Math.floor(at / CHUNK), to: Math.floor((at + screenful(view === 'list', gridSize)) / CHUNK) }
+  })
+  const vwinRef = useRef(vwin)
+  // Until then (a remount), only the blocks on screen render.
+  const holdUntil = useRef(0)
+  // A change to the boxes keeps the item first on screen where it was.
+  const pin = useRef<{ index: number; top: number; when: unknown } | null>(null)
+  const stepTimer = useRef(0)
+  const syncWindowRef = useRef<(flush: boolean) => void>(() => {})
+
   // The first card on screen, kept up to date while scrolling, so leaving the
   // page reads it without forcing a layout.
   const lastVisible = useRef<ResumePoint>({ index: 0, offset: 0, height: 0 })
@@ -408,11 +535,14 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
       if (raf) return
       raf = requestAnimationFrame(() => {
         raf = 0
+        syncWindowRef.current(true)
         const m = measure()
         const el = m?.items[m.a]
         if (!m || !el || !el.dataset.item) return
         const r = el.getBoundingClientRect()
-        lastVisible.current = { index: m.a, offset: r.top - m.top, height: r.height }
+        // The card's own height (the box may have room around it, see library.css).
+        const h = (el.firstElementChild as HTMLElement | null)?.getBoundingClientRect().height ?? r.height
+        lastVisible.current = { index: m.a, offset: r.top - m.top, height: h }
       })
     }
     onScroll()
@@ -420,8 +550,66 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     return () => { cancelAnimationFrame(raf); main.removeEventListener('scroll', onScroll) }
   }, [measure])
 
+  const layoutNow = useCallback((): Layout | null => {
+    const grid = gridRef.current
+    return grid ? { view, gridSize, width: grid.clientWidth } : null
+  }, [view, gridSize])
+
+  // Brings the rendered blocks to the ones near the screen: at once when the
+  // screen nears a box, else a block per step.
+  const syncWindow = useCallback((flush: boolean) => {
+    const grid = gridRef.current
+    const main = grid?.closest('main')
+    if (!grid || !main || !windowedRef.current) return
+    const items = itemsOf(grid)
+    if (!items.length) return
+    const top = main.getBoundingClientRect().top
+    const h = main.clientHeight
+    const hold = performance.now() < holdUntil.current
+    const block = (i: number) => Math.floor(i / CHUNK)
+    // While scrolling, space about to come on screen counts as on screen.
+    const ahead = flush && !hold ? NEED_SCREENS : 0
+    const need = rangeIn(items, top - h * ahead, top + h * (1 + ahead))
+    const want = hold ? need : rangeIn(items, top - h * BEFORE_SCREENS, top + h * (1 + AFTER_SCREENS))
+    const cur = vwinRef.current
+    const target = { from: block(want[0]), to: block(want[1]) }
+    const nf = block(need[0]), nt = block(need[1])
+    let next: { from: number; to: number }
+    if (nf < cur.from || nt > cur.to) {
+      // At once: what is on screen (with what is already there next to it).
+      next = cur.to < nf - 1 || cur.from > nt + 1
+        ? { from: nf, to: nt }
+        : { from: Math.max(target.from, Math.min(cur.from, nf)), to: Math.min(target.to, Math.max(cur.to, nt)) }
+    } else if (hold || (cur.from === target.from && cur.to === target.to)) return
+    else {
+      // A step: drop what is past the target, add a block toward it.
+      next = { from: Math.max(cur.from, target.from), to: Math.min(cur.to, target.to) }
+      if (next.to < target.to) next.to++
+      else if (next.from > target.from) next.from--
+    }
+    if (next.from !== target.from || next.to !== target.to) {
+      clearTimeout(stepTimer.current)
+      stepTimer.current = window.setTimeout(() => syncWindowRef.current(false), STEP_MS)
+    }
+    const l = layoutNow()
+    if (l) recordHeights(grid, l)
+    const [first] = rangeIn(items, top, top + 1)
+    pin.current = { index: first, top: items[first].getBoundingClientRect().top, when: next }
+    vwinRef.current = next
+    if (flush) flushSync(() => setVwin(next))
+    else setVwin(next)
+  }, [layoutNow])
+  useLayoutEffect(() => {
+    syncWindowRef.current = syncWindow
+    windowedRef.current = windowed
+    vwinRef.current = vwin
+  })
+  useEffect(() => () => clearTimeout(stepTimer.current), [])
+
   useImperativeHandle(handle, () => ({
     prepare(kind, opts) {
+      const l = windowedRef.current ? layoutNow() : null
+      if (l) recordHeights(gridRef.current!, l)
       const m = measure()
       // A view switch keeps the first card on screen in place: the new view
       // shows about a screenful of its own after it.
@@ -445,6 +633,11 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
         shownFrom: m ? m.a : old.shownFrom,
         shownTo: m ? m.a + shown : old.shownTo,
       }))
+      if (kind === 'view' && m && windowedRef.current) {
+        // The blocks the new view shows on screen render with the switch.
+        const from = Math.floor(m.a / CHUNK), to = Math.floor((m.a + shown) / CHUNK)
+        setVwin(v => (v.from <= from && v.to >= to ? v : { from: Math.min(v.from, from), to: Math.max(v.to, to) }))
+      }
       if (kind === 'select') return
       // A new list before the way back has filled in: everything renders.
       if (kind === 'list') setMount(s => (s.from > 0 ? { ...s, from: 0 } : s))
@@ -462,7 +655,8 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
             if (!k || !m.keys.has(k)) continue
             const cover = el.querySelector<HTMLElement>('[data-series-cover]')
             const name = cover?.dataset.seriesCover
-            if (name) from.set(name, el.getBoundingClientRect())
+            const card = el.firstElementChild as HTMLElement | null
+            if (name && card) from.set(name, card.getBoundingClientRect())
           }
           if (from.size) shared.current.spreadFrom = from
         }
@@ -471,7 +665,7 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     resumePoint() {
       return lastVisible.current
     },
-  }), [measure, view, gridSize])
+  }), [measure, view, gridSize, layoutNow])
 
   // What the exits read while the new list commits: set before any card's
   // layout effect (where the exits start) runs.
@@ -482,7 +676,20 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     for (const b of books) if (isStack(true, b)) map.set(b.series!, String(b.id))
     shared.current.stackOf = map
   }, [grouped, books])
-  useLayoutEffect(() => { shared.current.spreadFrom = null })
+  useLayoutEffect(() => {
+    shared.current.spreadFrom = null
+    const queue = shared.current.spreadQueue
+    if (!queue.length) return
+    shared.current.spreadQueue = []
+    const moves = queue.map(q => ({ ...q, r: q.el.getBoundingClientRect() }))
+    for (const { el, from, r } of moves) {
+      if (r.bottom < 0 || r.top > window.innerHeight || (Math.abs(r.left - from.left) < 1 && Math.abs(r.top - from.top) < 1)) continue
+      el.animate([
+        { transform: `translate(${from.left - r.left}px, ${from.top - r.top}px) scale(0.86)`, opacity: 0.5 },
+        { transform: 'none', opacity: 1 },
+      ], { duration: GLIDE_S * 1000, easing: EASE_CSS })
+    }
+  })
 
   // ── Blocks that follow later ───────────────────────────────────────────
   const listView = view === 'list'
@@ -495,7 +702,10 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
   // ones below are not there yet.
   const [mount, setMount] = useState(() => {
     const from = resume ? Math.floor(resume.index / CHUNK) : 0
-    return { from, upTo: resume || staged ? from + 1 : Infinity, settled: !resume && !staged }
+    // WebKit takes about 1 ms a card to lay out: it starts with a screenful.
+    const first = SKIP_HIDDEN ? 2 : Math.max(1, Math.ceil(screenful(view === 'list', gridSize) / CHUNK))
+    const stage = !!staged && books.length > STAGE_FROM
+    return { from, upTo: resume || stage ? from + first - 1 : Infinity, settled: !resume && !stage }
   })
   if (shown.selected !== selected && shown.view === view && shown.selecting === selecting) setShown({ view, selecting, selected })
   if (shown.view !== view || shown.selecting !== selecting) {
@@ -519,24 +729,46 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
 
   const blocks = useBlocks(books)
   const lastBlock = blocks.length - 1
+  // A list that grows past WINDOW_FROM: the blocks around the screen stay.
+  const [wasWindowed, setWasWindowed] = useState(windowed)
+  if (wasWindowed !== windowed) {
+    setWasWindowed(windowed)
+    if (windowed) {
+      const at = lastVisible.current.index
+      setVwin({ from: Math.max(0, Math.floor(at / CHUNK) - 1), to: Math.floor((at + screenful(listView, gridSize)) / CHUNK) + 1 })
+    }
+  }
+  // Heights of the cards before the list turns windowed (at most two pages on).
+  useLayoutEffect(() => {
+    const grid = gridRef.current
+    const l = layoutNow()
+    if (!windowed && !lag && grid && l && books.length > WINDOW_FROM - 2 * CHUNK) recordHeights(grid, l)
+    // Once per list.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [books])
+  // Blocks behind a view switch: in a windowed list they are boxes until the
+  // switch is over, then render one per step.
+  const lagLo = windowed ? Math.max(0, vwin.from) : 0
+  const lagHi = windowed ? Math.min(vwin.to, lastBlock) : lastBlock
   // One block per step: below the screen first, then above it.
   useEffect(() => {
     if (!lag) return
-    if (lag.upTo >= lastBlock && lag.from <= 0) { setLag(null); return }
+    if (lag.upTo >= lagHi && lag.from <= lagLo) { setLag(null); return }
     const id = setTimeout(() => {
-      if (lag.upTo < lastBlock) setLag(l => l && { ...l, upTo: l.upTo + 1, delay: STEP_MS })
+      if (lag.upTo < lagHi) setLag(l => l && { ...l, upTo: l.upTo + 1, delay: STEP_MS })
       else keepAnchor(() => setLag(l => l && { ...l, from: l.from - 1, delay: STEP_MS }))
     }, lag.delay)
     return () => clearTimeout(id)
-  }, [lag, lastBlock, keepAnchor])
+  }, [lag, lagLo, lagHi, keepAnchor])
   useEffect(() => {
+    if (windowed) return
     if (mount.upTo >= lastBlock && mount.from <= 0) return
     const id = setTimeout(() => {
       if (mount.upTo < lastBlock) setMount(s => ({ ...s, upTo: s.upTo + 1, settled: true }))
       else keepAnchor(() => setMount(s => ({ ...s, from: s.from - 1, settled: true })))
     }, mount.settled ? STEP_MS : MOUNT_SETTLE_MS)
     return () => clearTimeout(id)
-  }, [mount, lastBlock, keepAnchor])
+  }, [mount, lastBlock, keepAnchor, windowed])
 
   // Coming back: the card that was first on screen goes where it was.
   useLayoutEffect(() => {
@@ -564,17 +796,126 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     if (el) main.scrollTop = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop - a.top
   }, [view])
 
+  // ── Windowing effects ──
+  // A remount (the way back, a list shown again): the blocks on screen
+  // first, the ones around them once the page has settled.
+  useLayoutEffect(() => {
+    holdUntil.current = performance.now() + MOUNT_SETTLE_MS
+    const id = setTimeout(() => syncWindowRef.current(false), MOUNT_SETTLE_MS + 20)
+    return () => clearTimeout(id)
+  }, [])
+  // The grid's width sets the boxes' heights (the cards' text wraps with it).
+  useLayoutEffect(() => {
+    const grid = gridRef.current
+    if (!grid) return
+    const read = () => {
+      const w = grid.clientWidth
+      if (grid.closest('main')) lastGridWidth = w
+      setGridWidth(old => {
+        if (old === w) return old
+        const main = grid.closest('main')
+        if (old && main && windowedRef.current) {
+          const items = itemsOf(grid)
+          const [first] = rangeIn(items, main.getBoundingClientRect().top, main.getBoundingClientRect().top + 1)
+          if (items[first]) pin.current = { index: first, top: items[first].getBoundingClientRect().top, when: w }
+        }
+        return w
+      })
+    }
+    read()
+    const ro = new ResizeObserver(read)
+    ro.observe(grid)
+    return () => ro.disconnect()
+  }, [])
+  // A new list, page or width: the blocks near the screen. A view switch
+  // already holds the blocks it shows (prepare); the rest follow after it.
+  useLayoutEffect(() => {
+    if (windowed) syncWindow(false)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [books, windowed, gridSize, grouped, gridWidth])
+  useEffect(() => {
+    if (!windowed) return
+    const id = setTimeout(() => syncWindowRef.current(false), SWITCH_SETTLE_MS)
+    return () => clearTimeout(id)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [view])
+  // Cards whose height at this layout is an estimate (a view or width they
+  // never rendered at): once the page is idle, their blocks render one at a
+  // time, out of sight, to be measured, so the boxes match them after.
+  const [probe, setProbe] = useState<number | null>(null)
+  const idleBusy = !windowed || !!lag || !!switchView || gridWidth === 0
+  useEffect(() => {
+    if (idleBusy) return
+    return whenIdle(() => {
+      const grid = gridRef.current
+      const main = grid?.closest('main')
+      if (!grid || !main) return
+      if (probe != null) recordHeights(grid, layout)
+      const v = vwinRef.current
+      let next: number | null = null
+      for (let c = 0; c < blocks.length && next == null; c++) {
+        if (c >= v.from && c <= v.to) continue
+        if (blocks[c].some(b => !heightKnown(String(b.id), isStack(grouped, b), layout))) next = c
+      }
+      if (next === probe) return
+      const items = itemsOf(grid)
+      const top = main.getBoundingClientRect().top
+      const [first] = rangeIn(items, top, top + 1)
+      if (items[first]) pin.current = { index: first, top: items[first].getBoundingClientRect().top, when: next ?? -1 }
+      flushSync(() => setProbe(next))
+    }, probe == null ? 600 : STEP_MS)
+  }, [idleBusy, probe, blocks, layout, grouped])
+
+  // The keyboard's focus moved to a card that is a box: scroll to it, render it.
+  useLayoutEffect(() => {
+    const grid = gridRef.current
+    if (!windowed || focusedIndex == null || !grid) return
+    const c = Math.floor(focusedIndex / CHUNK)
+    if (c >= vwinRef.current.from && c <= vwinRef.current.to) return
+    const el = itemsOf(grid)[focusedIndex]
+    if (!el) return
+    el.scrollIntoView({ block: 'nearest' })
+    holdUntil.current = 0
+    syncWindow(false)
+    // Only when the focus moves.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusedIndex])
+  // Keeps the item first on screen in place across a change of boxes.
+  useLayoutEffect(() => {
+    const p = pin.current
+    // Applies on the commit of the change that set it.
+    if (!p || (p.when !== vwin && p.when !== gridWidth && p.when !== (probe ?? -1))) return
+    pin.current = null
+    const grid = gridRef.current
+    const main = grid?.closest('main')
+    if (!grid || !main) return
+    const el = itemsOf(grid)[p.index]
+    if (el) main.scrollTop += el.getBoundingClientRect().top - p.top
+  })
+
+  // Once per page load, when the page is idle: see LibraryWarmup.
+  const [warm, setWarm] = useState(false)
+  const endWarm = useCallback(() => setWarm(false), [])
+  const hasBooks = books.length > 0
+  useEffect(() => {
+    if (warmedUp || !hasBooks || reduced()) return
+    return whenIdle(() => { warmedUp = true; setWarm(true) }, 1200)
+  }, [hasBooks])
+
   // A card in a block still in the other view is an empty box of about the
   // size it will have. One rule for all of them: those blocks keep their props
   // and do not render again.
   const gridId = useId()
   let lagRule = ''
-  if (lag && (lag.view === 'list') !== listView) {
+  if (lag && !windowed && (lag.view === 'list') !== listView) {
     const behind: string[] = []
     for (let c = 0; c <= Math.min(lastBlock, mount.upTo); c++) if (c < lag.from || c > lag.upTo) behind.push(`[data-block="${c}"]`)
     /* eslint-disable lingui/no-unlocalized-strings -- CSS */
-    const size = listView ? 'auto 69px' : `auto ${Math.round(gridSize * 1.5 + 64)}px`
-    if (behind.length) lagRule = `[data-library-grid="${gridId}"] > :is(${behind.join(',')}) { content-visibility: hidden; contain-intrinsic-size: ${size}; }`
+    const height = listView ? 69 : Math.round(gridSize * 1.5 + 64)
+    const box = SKIP_HIDDEN
+      ? `content-visibility: hidden; contain-intrinsic-size: auto ${height}px;`
+      : 'display: none;'
+    if (behind.length) lagRule = `[data-library-grid="${gridId}"] > :is(${behind.join(',')}) { ${box} }`
     /* eslint-enable lingui/no-unlocalized-strings */
   }
 
@@ -590,6 +931,7 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
 
   return (
     <>
+      {warm && <LibraryWarmup sample={books} gridSize={gridSize} onDone={endWarm} />}
       {lagRule && <style>{lagRule}</style>}
       <div
         ref={gridRef}
@@ -599,9 +941,15 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
         style={gridStyle}
       >
         {blocks.map((items, c) => {
-          if (c > mount.upTo) return null
-          if (c < mount.from) return <PlaceholderBlock key={c} count={items.length} height={resume?.height ?? 0} />
           const behind = !!lag && (c > lag.upTo || c < lag.from)
+          if (windowed) {
+            if ((c < vwin.from || c > vwin.to) && c !== probe || (behind && (lag.view === 'list') !== listView)) {
+              return <SpacerBlock key={c} block={c} heights={items.map(b => cardHeight(String(b.id), isStack(grouped, b), layout))} />
+            }
+          } else {
+            if (c > mount.upTo) return null
+            if (c < mount.from) return <PlaceholderBlock key={c} count={items.length} height={resume?.height ?? 0} />
+          }
           // A block with no card in the window gets the same props as before,
           // so a view switch or a selection change does not render it again.
           const inWin = (c * CHUNK <= win.to && c * CHUNK + items.length - 1 >= win.from) || (win.keys.size > 0 && items.some(b => win.keys.has(String(b.id))))
@@ -634,6 +982,86 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     </>
   )
 })
+
+// The first view switch or grouping after a page load used to pay for running
+// the cards' and the layout animation's code for the first time (20 to 40 ms
+// on top of the change itself). Once the page is idle, a hidden grid of a few
+// blank cards off screen makes the same moves, so that cost is paid before the
+// first click. Once per page load.
+let warmedUp = false
+
+/** Runs `fn` after `delayMs`, at the next idle moment. Returns a cancel. */
+function whenIdle(fn: () => void, delayMs: number): () => void {
+  let idle = 0
+  const t = setTimeout(() => {
+    if (typeof requestIdleCallback === 'function') idle = requestIdleCallback(fn, { timeout: 1500 })
+    else fn()
+  }, delayMs)
+  return () => { clearTimeout(t); if (idle) cancelIdleCallback(idle) }
+}
+
+const NOOP = () => {}
+const NO_STATUS: StatusMap = {}
+const NO_SELECTION = new Set<number>()
+// Each step waits for the previous one's motion to end.
+const WARM_STEP_MS = SWITCH_S * 1000 + 120
+// grid -> grouped -> ungrouped -> list -> grid
+const WARM_PLAN: { kind: PrepareKind; grouped?: boolean }[] = [
+  { kind: 'list', grouped: true }, { kind: 'list', grouped: false }, { kind: 'view' }, { kind: 'view' },
+]
+
+function LibraryWarmup({ sample, gridSize, onDone }: { sample: Book[]; gridSize: number; onDone: () => void }) {
+  const ref = useRef<LibraryGridHandle | null>(null)
+  const [step, setStep] = useState(0)
+  // Blank cards: no title, author, cover or file (nothing to read, match or load).
+  const [lists] = useState(() => {
+    const blank = (b: Book, i: number): Book => ({
+      ...b, id: -1 - i, title: '', subtitle: null, author: null, year: null,
+      series: i < 4 ? '⁠' : null, series_index: i < 4 ? i + 1 : null,
+      status: 'active', cover_path: null, files: [], tags: [], book_type_id: null,
+      series_count: null, stack_cover_ids: null,
+    })
+    const flat = sample.slice(0, CHUNK).map(blank)
+    return { flat, grouped: [{ ...flat[0], series_count: 4 }, ...flat.slice(4)] }
+  })
+  const grouped = step === 1
+  const list = step === 3
+  useEffect(() => {
+    if (step >= WARM_PLAN.length) return whenIdle(onDone, WARM_STEP_MS)
+    const next = WARM_PLAN[step]
+    return whenIdle(() => {
+      ref.current?.prepare(next.kind, next.grouped != null ? { toGrouped: next.grouped } : undefined)
+      setStep(s => s + 1)
+    }, WARM_STEP_MS)
+  }, [step, onDone])
+  return createPortal(
+    <div
+      aria-hidden="true"
+      inert
+      style={{ position: 'fixed', top: 0, left: -10000, width: 1000, visibility: 'hidden', pointerEvents: 'none', contain: 'layout paint' }}
+    >
+      <LibraryGrid
+        ref={ref}
+        books={grouped ? lists.grouped : lists.flat}
+        grouped={grouped}
+        view={list ? 'list' : gridSize < 150 ? 'small' : 'large'}
+        gridSize={gridSize}
+        statuses={NO_STATUS}
+        selected={NO_SELECTION}
+        selecting={false}
+        focusedIndex={null}
+        refreshing={false}
+        onToggle={NOOP}
+        onTag={NOOP}
+        onSeries={NOOP}
+        onAuthor={NOOP}
+        onQuickLook={NOOP}
+        onOpenSeries={NOOP}
+      />
+    </div>,
+    document.body,
+  )
+}
 
 /** The grid before its first list: the cards' shapes, so the cards land in place. */
 export function LibrarySkeleton({ list, gridSize, count = 18 }: { list: boolean; gridSize: number; count?: number }) {

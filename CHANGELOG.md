@@ -80,6 +80,27 @@ All notable changes to Tome are documented here. Format loosely follows
   fits after you put another book in the top spot.
 - On a series page the rating row holds its place while it loads, so the
   lines below it do not move.
+- Admin Metadata: the checkboxes keep their left edge, and a row can no
+  longer end up half hidden under the table header after scrolling the table
+  and then the page. Sorting, clearing a search and unselecting everything no
+  longer stall on a large library.
+- On a book page the previous and next volume arrows stay in the same place
+  on every volume of a series. Stepping to another volume moves the cover and
+  title in from that side, and a title that wraps onto another line no longer
+  makes the page jump.
+- Opening a series from a book page no longer flickers through an empty
+  cover.
+- Stats timeline: zooming keeps your place in view and eases to the new
+  scale instead of jumping.
+- The goal dialog changes height smoothly when editing a goal too, and its
+  selected option glides instead of switching.
+- Keyboard focus rings use the theme's own colour in every theme instead of
+  the browser's blue.
+- Admin Library health: the buttons no longer push each other sideways when
+  a scan finds misplaced files, and the dry-run preview shows above the list
+  instead of below it. Admin Covers: a fixed cover no longer blinks. Admin
+  Word counts: the text holds still when the button changes.
+- The Hardcover page scrolls smoothly in Safari.
 
 ## [3.2.0] - 2026-11-22 - "Chapbook"
 

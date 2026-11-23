@@ -174,12 +174,32 @@ export function useBookNav() {
   }, [navigate])
 }
 
+// Series heroes, told ahead: a page that knows a series' hero cover without
+// showing it (a book page, from its volumes) leaves it here once it has
+// settled. The picture is fetched and decoded then, and a link to the series
+// hands it to the series page, which paints it in its first frame.
+const SERIES_HINT_MAX = 6
+const seriesHints = new Map<string, { cover: string; img: HTMLImageElement }>()
+
+/** Fetches and decodes `cover` as `name`'s hero, for a later open of the series. */
+export function hintSeries(name: string, cover: string | null): void {
+  if (!cover || typeof Image === 'undefined') return
+  if (seriesHints.get(name)?.cover === cover) return
+  const img = new Image()
+  img.decoding = 'async'
+  img.src = cover
+  img.decode().catch(() => { if (seriesHints.get(name)?.img === img) seriesHints.delete(name) })
+  seriesHints.delete(name)
+  seriesHints.set(name, { cover, img })
+  while (seriesHints.size > SERIES_HINT_MAX) seriesHints.delete(seriesHints.keys().next().value as string)
+}
+
 /** `open(name, cover?)`: navigates to the series page. */
 export function useSeriesNav() {
   const navigate = useNavigate()
   return useCallback((name: string, cover?: CoverSource, opts?: { near?: Element | null }) => {
     const el = resolve(cover, () => findSeriesCover(name, opts?.near))
-    const state = seriesPreviewState({ name, cover: coverThumb(el) })
+    const state = seriesPreviewState({ name, cover: coverThumb(el) ?? seriesHints.get(name)?.cover ?? null })
     openSeriesWithCover(el, name, () => navigate(seriesPath(name), { state }))
   }, [navigate])
 }

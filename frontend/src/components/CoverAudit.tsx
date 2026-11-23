@@ -46,6 +46,9 @@ export function CoverAudit() {
   const [loading, setLoading] = useState(false)
   const [fix, setFix] = useState<Record<number, FixState>>({})
   const [bulkRunning, setBulkRunning] = useState(false)
+  // When each cover was fixed: the new image's URL stays the same across
+  // re-renders instead of reloading (and blinking) on every state change.
+  const [fixedAt, setFixedAt] = useState<Record<number, number>>({})
 
   const load = () => {
     setLoading(true)
@@ -68,6 +71,7 @@ export function CoverAudit() {
       const form = new FormData()
       form.append('url', first.cover_url)
       await api.upload(`/books/${b.book_id}/cover`, form)
+      setFixedAt(prev => ({ ...prev, [b.book_id]: Date.now() }))
       setFix(prev => ({ ...prev, [b.book_id]: 'fixed' }))
       return true
     } catch {
@@ -169,7 +173,7 @@ export function CoverAudit() {
                   <Swap id={state === 'fixed' ? 'fixed' : b.reason} className="flex h-full w-full items-center justify-center">
                   {b.reason === 'missing' || state === 'fixed' ? (
                     state === 'fixed' ? (
-                      <img src={`/api/books/${b.book_id}/cover?ts=${Date.now() % 100000}`} alt="" className="h-full w-full object-cover" />
+                      <img src={`/api/books/${b.book_id}/cover?ts=${fixedAt[b.book_id] ?? 0}`} alt="" className="h-full w-full object-cover" />
                     ) : (
                       <ImageOff className="h-3.5 w-3.5 text-muted-foreground" />
                     )

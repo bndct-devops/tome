@@ -3,9 +3,9 @@
 // is a bar spanning its first to last active day, daily ticks inside carrying
 // that day's minutes as intensity (one hue, sequential). Data is lifetime and
 // reconciled (imported KOReader history included), from GET /stats/timeline.
-import { useEffect, useMemo, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type CSSProperties } from 'react'
 import { createPortal } from 'react-dom'
-import { useBookNav, Pop } from '@/components/motion'
+import { useBookNav, Pop, EASE } from '@/components/motion'
 import { PRESS } from '@/components/page'
 import { useHeld } from '@/lib/useHeld'
 import { Minus, Plus } from 'lucide-react'
@@ -48,6 +48,25 @@ const AXIS_H = 26
 const SUB_H = 22 // one sub-lane (bar row) inside a lane
 const BAR_H = 16
 const ZOOMS = [1.5, 3, 6, 12] // px per day
+const ZOOM_MS = 260
+
+// Every x and width is in days times the CSS variable --ppd (px per day), so a zoom moves one
+// variable a frame (style and layout only, no render) instead of re-rendering every bar.
+// eslint-disable-next-line lingui/no-unlocalized-strings -- CSS
+const px = (days: number) => `calc(var(--ppd) * ${days}px)`
+
+/** The app's curve (EASE, cubic-bezier) at progress p, for the zoom's frame loop. */
+function ease(p: number): number {
+  const [x1, y1, x2, y2] = EASE
+  const at = (a: number, b: number, u: number) => 3 * a * u * (1 - u) ** 2 + 3 * b * u * u * (1 - u) + u ** 3
+  let lo = 0, hi = 1, u = p
+  for (let i = 0; i < 20; i++) {
+    u = (lo + hi) / 2
+    if (at(x1, x2, u) < p) lo = u
+    else hi = u
+  }
+  return at(y1, y2, u)
+}
 
 interface Placed {
   book: TimelineBook
@@ -132,12 +151,16 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
   const [data, setData] = useState<TimelineResponse | null>(cacheHit)
   const [failed, setFailed] = useState(false)
   const [zoom, setZoomState] = useState(initialZoom)
-  const setZoom = (fn: (z: number) => number) =>
+  // Set by the zoom buttons: the next change of px per day is a zoom (glides, keeps its place).
+  const zooming = useRef(false)
+  const setZoom = (fn: (z: number) => number) => {
+    zooming.current = true
     setZoomState((z) => {
       const next = fn(z)
       localStorage.setItem(ZOOM_KEY, String(next))
       return next
     })
+  }
   const [hover, setHover] = useState<{
     b: TimelineBook
     x: number
@@ -192,13 +215,13 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
     const maxDay = dayNum(data.today) + 2
     const fit = containerW > railW + 100 ? (containerW - railW - 1) / (maxDay - minDay) : 0
     const ppd = Math.max(ZOOMS[zoom], fit)
-    const months: { x: number; label: string }[] = []
+    const months: { d: number; label: string }[] = []
     const first = new Date(minDay * DAY_MS)
     const cur = new Date(Date.UTC(first.getUTCFullYear(), first.getUTCMonth() + 1, 1))
     while (Math.floor(cur.getTime() / DAY_MS) < maxDay) {
       const m = cur.getUTCMonth()
       months.push({
-        x: (Math.floor(cur.getTime() / DAY_MS) - minDay) * ppd,
+        d: Math.floor(cur.getTime() / DAY_MS) - minDay,
         label: m === 0 ? String(cur.getUTCFullYear()) : cur.toLocaleString(undefined, { month: 'short', timeZone: 'UTC' }),
       })
       cur.setUTCMonth(m + 1)
@@ -210,8 +233,8 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
     return {
       minDay,
       ppd,
-      width: (maxDay - minDay) * ppd,
-      todayX: (dayNum(data.today) - minDay) * ppd,
+      days: maxDay - minDay,
+      todayD: dayNum(data.today) - minDay,
       months,
       ref,
     }
@@ -222,6 +245,48 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
     const el = scrollRef.current
     if (el && model) el.scrollLeft = el.scrollWidth
   }, [model === null]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A zoom glides --ppd from what is on screen to the new value in ZOOM_MS, keeping the day in the
+  // middle of the view in the middle (or the recent end at the end). A second zoom starts from
+  // wherever the first one is. Other changes (the panel's width) apply at once, as before.
+  const contentRef = useRef<HTMLDivElement>(null)
+  const shownPpd = useRef<number | null>(null)
+  const raf = useRef(0)
+  const ppdNow = model?.ppd ?? null
+  useLayoutEffect(() => {
+    const el = contentRef.current, sc = scrollRef.current
+    if (ppdNow == null || !el || !sc) return
+    const from = shownPpd.current
+    const zoom = zooming.current
+    zooming.current = false
+    if (from == null || from === ppdNow || !zoom) {
+      cancelAnimationFrame(raf.current)
+      shownPpd.current = ppdNow
+      return
+    }
+    cancelAnimationFrame(raf.current)
+    // Back to what is on screen before anything is read, so the scroll is read at that scale.
+    el.style.setProperty('--ppd', String(from))
+    const view = sc.clientWidth - railW
+    const atEnd = sc.scrollLeft >= sc.scrollWidth - sc.clientWidth - 2
+    const day = (sc.scrollLeft + view / 2) / from
+    const to = ppdNow
+    const show = (v: number) => {
+      el.style.setProperty('--ppd', String(v))
+      sc.scrollLeft = atEnd ? sc.scrollWidth : day * v - view / 2
+      shownPpd.current = v
+    }
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { show(to); return }
+    const start = performance.now()
+    const step = (now: number) => {
+      const p = Math.min(1, (now - start) / ZOOM_MS)
+      show(p < 1 ? from + (to - from) * ease(p) : to)
+      if (p < 1) raf.current = requestAnimationFrame(step)
+    }
+    raf.current = requestAnimationFrame(step)
+  }, [ppdNow, railW])
+  useEffect(() => () => cancelAnimationFrame(raf.current), [])
 
   if (failed) return <Empty text={t`Couldn't load the timeline.`} />
   if (!data) return <Empty text={t`Loading your reading life…`} pulse />
@@ -283,18 +348,18 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
           if (!(e.target as HTMLElement).closest('button')) clearHover()
         }}
       >
-        <div style={{ width: railW + model.width }}>
+        <div ref={contentRef} style={{ '--ppd': ppd, width: `calc(${railW}px + var(--ppd) * ${model.days}px)` } as CSSProperties}>
           {/* axis row - sticky against vertical scroll; corner sticky both ways */}
           <div className="sticky top-0 z-30 flex border-b border-border/70 bg-background" style={{ height: AXIS_H }}>
             <div className="sticky left-0 z-10 shrink-0 bg-background" style={{ width: railW }} />
-            <div className="relative" style={{ width: model.width }}>
+            <div className="relative" style={{ width: px(model.days) }}>
               {model.months
-                .filter((m) => m.x < model.width - 42)
+                .filter((m) => m.d * ppd < model.days * ppd - 42)
                 .map((m) => (
                   <span
-                    key={m.x}
+                    key={m.d}
                     className={`absolute top-1.5 pl-1.5 text-[10px] leading-none ${m.label.length === 4 ? 'font-semibold text-foreground' : 'text-muted-foreground'}`}
-                    style={{ left: m.x }}
+                    style={{ left: px(m.d) }}
                   >
                     {m.label}
                   </span>
@@ -317,18 +382,17 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
                     {formatDuration(lane.totalSeconds)}
                   </span>
                 </div>
-                <div className="relative" style={{ width: model.width }}>
+                <div className="relative" style={{ width: px(model.days) }}>
                   {/* month grid + today, per lane so the rail stays clean */}
                   {model.months.map((m) => (
-                    <div key={m.x} className="absolute bottom-0 top-0 w-px bg-border/40" style={{ left: m.x }} />
+                    <div key={m.d} className="absolute bottom-0 top-0 w-px bg-border/40" style={{ left: px(m.d) }} />
                   ))}
-                  <div className="absolute bottom-0 top-0 w-px" style={{ left: model.todayX, background: colors.accent, opacity: 0.5 }} />
+                  <div className="absolute bottom-0 top-0 w-px" style={{ left: px(model.todayD), background: colors.accent, opacity: 0.5 }} />
 
                   {lane.placed.map(({ book: b, sub }) => {
                     const d0 = dayNum(b.first_day)
-                    const x = (d0 - model.minDay) * ppd
-                    const barW = Math.max((dayNum(b.last_day) - d0 + 1) * ppd, 8)
-                    const showIndex = b.series && b.series_index != null && barW >= 22
+                    const span = dayNum(b.last_day) - d0 + 1
+                    const showIndex = b.series && b.series_index != null && Math.max(span * ppd, 8) >= 22
                     return (
                       <button
                         key={b.book_id}
@@ -351,9 +415,9 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
                         aria-label={(() => { const title = b.title; const dur = formatDuration(b.total_seconds); const from = b.first_day; const to = b.last_day; return t`${title}, ${dur} between ${from} and ${to}` })()}
                         className="group absolute block cursor-pointer overflow-hidden rounded-[4px] border transition-transform hover:-translate-y-px"
                         style={{
-                          left: x,
+                          left: px(d0 - model.minDay),
                           top: padTop + sub * SUB_H + (SUB_H - BAR_H) / 2,
-                          width: barW,
+                          width: `max(${px(span)}, 8px)`,
                           height: BAR_H,
                           background: `color-mix(in oklab, ${colors.accent} 15%, transparent)`,
                           borderColor: `color-mix(in oklab, ${colors.accent} 40%, transparent)`,
@@ -364,8 +428,8 @@ export function TimelineRibbon({ standalone = false }: { standalone?: boolean } 
                             key={d.date}
                             className="absolute bottom-0 top-0"
                             style={{
-                              left: (dayNum(d.date) - d0) * ppd,
-                              width: Math.max(ppd, 2),
+                              left: px(dayNum(d.date) - d0),
+                              width: `max(${px(1)}, 2px)`,
                               background: colors.accent,
                               opacity: 0.3 + 0.65 * Math.min(1, Math.sqrt(d.seconds / model.ref)),
                             }}

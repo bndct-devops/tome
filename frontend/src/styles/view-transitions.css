@@ -2,7 +2,7 @@
    curve, the rest of the page cross-fades quickly. Scoped to that transition
    so other view transitions keep their own timing. */
 html[data-cover-transition]::view-transition-group(book-cover) {
-  animation-duration: 420ms;
+  animation-duration: 340ms;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 html[data-cover-transition]::view-transition-old(book-cover),
@@ -11,7 +11,7 @@ html[data-cover-transition]::view-transition-new(book-cover) {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  animation-duration: 420ms;
+  animation-duration: 340ms;
   animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 html[data-cover-transition]::view-transition-old(root),
