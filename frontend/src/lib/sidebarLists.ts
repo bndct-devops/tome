@@ -43,3 +43,13 @@ export function useSidebarLists(userId: number | null | undefined) {
 
   return { libraries, savedFilters, loadLibraries, loadSavedFilters }
 }
+
+/** Puts a dragged order into the cache, so the next page's shell paints it at once. */
+export function rememberOrder(userId: number | null | undefined, kind: 'libraries' | 'savedFilters', ids: number[]) {
+  if (cache.userId !== (userId ?? null)) return
+  const rank = new Map(ids.map((id, i) => [id, i]))
+  const by = <T extends { id: number }>(list: T[]) =>
+    [...list].sort((a, b) => (rank.get(a.id) ?? Infinity) - (rank.get(b.id) ?? Infinity))
+  if (kind === 'libraries') cache.libraries = by(cache.libraries)
+  else cache.savedFilters = by(cache.savedFilters)
+}

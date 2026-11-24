@@ -6,21 +6,29 @@
 // time instead. One headline number for the month, the streaks as a quiet line
 // of text. Clicking a day opens a card with what was read that day (books,
 // chapters, pages, pace, when). Its own page on purpose, not a stats tile.
-// Motion: the page arrives as one piece; the grid is its own skeleton and fills
-// in place when data lands; a month change slides the grid a few pixels in the
-// direction of travel; a day change dims the old card until the new one loads.
+// Data: GET /stats/calendar + /stats/calendar/day, cached for the session and
+// asked once per visit; the neighbouring months and days are fetched while
+// idle, so a step is usually served from memory.
+// Motion: the grid is its own skeleton and fills in place when data lands; a
+// month change slides the new grid in from the side it comes from (no fade);
+// the selection outline glides from day to day (160 ms, instant on a held
+// key); a day change shows the new day at once. Only an answer that is not in
+// memory keeps the old month or day on screen, dimmed after 150 ms so a fast
+// one shows nothing. Figures of different days never run into each other.
 // Nothing fades up from zero inside a painted container, which is what reads
-// as flicker. All off under reduced motion. Data: GET /stats/calendar + /stats/calendar/day.
-import { useEffect, useMemo, useState } from 'react'
-import { Link, useSearchParams } from 'react-router-dom'
+// as flicker. All off under reduced motion.
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
+import { AnimatePresence, m } from 'motion/react'
 import {
   BookOpen, Check, ChevronLeft, ChevronRight, CircleCheck, Clock, FileText,
   Flame, Gauge, List, Moon, Trophy, X, type LucideIcon,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
-import { PageBody, PageHeader, Pill } from '@/components/page'
+import { BookLink, EASE } from '@/components/motion'
+import { Glide, GlideGroup, PageBody, PageHeader, Pill } from '@/components/page'
 import { api } from '@/lib/api'
 import { cn, formatDuration } from '@/lib/utils'
 import type { StreakSummary } from '@/components/stats/shared'
@@ -109,54 +117,151 @@ function bookLabel(b: BookRef): string {
   return b.series && b.series_index != null ? `${b.series} #${+b.series_index}` : b.title
 }
 
-// The last month seen, so coming back to the calendar paints at once and
-// refreshes underneath instead of starting from the skeleton.
+// Session caches. A month or day seen once paints at once on every later
+// visit; each URL is asked once per visit to the page, so an entry from an
+// earlier visit is refreshed once, underneath, without dimming anything.
 const monthCache = new Map<string, MonthResponse>()
+const dayCache = new Map<string, DayResponse>()
+const inflight = new Map<string, Promise<unknown>>()
+let asked = new Set<string>()
+let cacheRev = 0
+const cacheSubs = new Set<() => void>()
+const subscribeCache = (f: () => void) => { cacheSubs.add(f); return () => { cacheSubs.delete(f) } }
+const readCacheRev = () => cacheRev
+
+// The caches hold one login's answers (the token they were asked with), like
+// useKosyncStatus: signing out or impersonating does not reload the page.
+const currentToken = () => localStorage.getItem('tome_token')
+let cacheToken: string | null = null
+function ownCaches() {
+  const token = currentToken()
+  if (token === cacheToken) return
+  monthCache.clear()
+  dayCache.clear()
+  cacheToken = token
+}
+
+function ask<T>(path: string, store: (r: T) => void): Promise<unknown> {
+  if (asked.has(path)) return inflight.get(path) ?? Promise.resolve()
+  asked.add(path)
+  const token = currentToken()
+  const req = api.get<T>(path)
+    // An answer for an account that is no longer the caches' owner is dropped.
+    .then(r => { if (token !== cacheToken) return; store(r); cacheRev++; cacheSubs.forEach(f => f()) })
+    // A failed answer may be asked again.
+    .catch(e => { asked.delete(path); throw e })
+    .finally(() => inflight.delete(path))
+  inflight.set(path, req)
+  return req
+}
+const loadMonth = (month: string) =>
+  ask<MonthResponse>(`/stats/calendar?month=${month}&tz_offset=${tzOffset()}`, r => monthCache.set(month, r))
+const loadDay = (day: string) =>
+  ask<DayResponse>(`/stats/calendar/day?day=${day}&tz_offset=${tzOffset()}`, r => dayCache.set(day, r))
+
+// A day under a resting pointer (or pressed) is asked before the click, so a
+// day away from the selection usually lands with it. A sweep across the grid
+// asks nothing: the pointer has to rest on a cell first.
+let intentTimer = 0
+const INTENT_MS = 140
+const dayIntent = (iso: string) => { clearTimeout(intentTimer); intentTimer = window.setTimeout(() => { loadDay(iso).catch(() => {}) }, INTENT_MS) }
+const dayIntentEnd = () => clearTimeout(intentTimer)
+
+// Background work waits for an idle moment, so it never competes with a step.
+function whenIdle(f: () => void): () => void {
+  if ('requestIdleCallback' in window) {
+    const id = window.requestIdleCallback(f, { timeout: 800 })
+    return () => window.cancelIdleCallback(id)
+  }
+  const id = setTimeout(f, 120)
+  return () => clearTimeout(id)
+}
+
+/** The month's latest reading day: the day the desktop panel opens on. */
+const latestDay = (r: MonthResponse) => [...r.days].reverse().find(d => d.date.startsWith(r.month))?.date ?? null
+
+/** True once `on` has held for `ms`: a dim that a fast answer never shows. */
+function useDelayed(on: boolean, ms: number): boolean {
+  const [late, setLate] = useState(false)
+  useEffect(() => {
+    if (!on) return
+    const id = setTimeout(() => setLate(true), ms)
+    return () => { clearTimeout(id); setLate(false) }
+  }, [on, ms])
+  return on && late
+}
+
+// One day card for the layout on screen: the desktop panel or the phone sheet.
+const WIDE = '(min-width: 1024px)'
+const subscribeWide = (f: () => void) => { const q = window.matchMedia(WIDE); q.addEventListener('change', f); return () => q.removeEventListener('change', f) }
+const readWide = () => window.matchMedia(WIDE).matches
+
+const DIM_MS = 150
+// The selection outline: quick, and instant while an arrow key repeats.
+const OUTLINE = { duration: 0.16, ease: EASE }
+const OUTLINE_HELD = { duration: 0 }
 
 export function ReadingCalendarPage() {
+  // A visit starts with nothing asked: what is cached paints, then refreshes once.
+  useState(() => { asked = new Set(); ownCaches() })
   const [params, setParams] = useSearchParams()
-  const nowMonthInit = isoOf(new Date()).slice(0, 7)
-  const [data, setData] = useState<MonthResponse | null>(() => {
-    const m = new URLSearchParams(window.location.search).get('month')
-    return monthCache.get(/^\d{4}-\d{2}$/.test(m ?? '') ? m! : nowMonthInit) ?? null
-  })
+  useSyncExternalStore(subscribeCache, readCacheRev)
+  const wide = useSyncExternalStore(subscribeWide, readWide, () => true)
   const [error, setError] = useState(false)
   const nowMonth = isoOf(new Date()).slice(0, 7)
   const month = /^\d{4}-\d{2}$/.test(params.get('month') ?? '') ? params.get('month')! : nowMonth
   const selected = params.get('day')
 
+  // Only the month on screen may set the error: a slow failure for one stepped past is ignored.
   useEffect(() => {
     let live = true
-    api.get<MonthResponse>(`/stats/calendar?month=${month}&tz_offset=${tzOffset()}`)
-      .then(r => { monthCache.set(month, r); if (live) { setData(r); setError(false) } })
-      .catch(() => { if (live && !monthCache.has(month)) setError(true) })
+    loadMonth(month).then(() => { if (live) setError(false) }, () => { if (live && !monthCache.has(month)) setError(true) })
     return () => { live = false }
   }, [month])
+
+  // While a month that is not in memory loads, the one on screen stays (dimmed
+  // after a moment), so nothing flashes empty; the skeleton is only for the very first open.
+  const shown = monthCache.get(month) ?? null
+  const [painted, setPainted] = useState<MonthResponse | null>(shown)
+  if (shown && shown !== painted) setPainted(shown)
+  const view = shown ?? painted
+  const viewMonth = view?.month ?? month
+  const dim = useDelayed(!!view && !shown, DIM_MS)
+  // Desktop: open on the latest reading day of the month, so the panel is never empty.
+  const panelDay = selected ?? (view ? latestDay(view) : null)
+  const today = view?.today ?? isoOf(new Date())
+  const firstMonth = view?.first_day?.slice(0, 7) ?? null
+  const canPrev = !!firstMonth && firstMonth < month
+  const canNext = month < today.slice(0, 7)
+
+  // The months either side, and the day each would open on, while idle.
+  const shownMonth = shown?.month
+  useEffect(() => {
+    if (!shownMonth) return
+    return whenIdle(() => {
+      const prev = shiftMonth(shownMonth, -1), next = shiftMonth(shownMonth, 1)
+      const want = [firstMonth && prev >= firstMonth ? prev : null, next <= today.slice(0, 7) ? next : null]
+      for (const mo of want) {
+        if (!mo) continue
+        loadMonth(mo).then(() => { const r = monthCache.get(mo); const d = r && latestDay(r); if (d) loadDay(d) }, () => {})
+      }
+    })
+  }, [shownMonth, firstMonth, today])
 
   // Direction of the last month change, for the grid's slide; null until the
   // first change so the first fill does not slide.
   const [dir, setDir] = useState<1 | -1 | null>(null)
+  // A held arrow key: the outline jumps with it instead of trailing behind.
+  const [held, setHeld] = useState(false)
 
-  function go(next: { month?: string; day?: string | null }) {
+  function go(next: { month?: string; day?: string | null }, repeat = false) {
+    setHeld(repeat)
     const p = new URLSearchParams(params)
     if (next.month && next.month !== month) { setDir(next.month > month ? 1 : -1); p.set('month', next.month) }
     if (next.day === null) p.delete('day')
     else if (next.day) p.set('day', next.day)
     setParams(p, { replace: true })
   }
-
-  // While the next month loads, the one on screen stays, dimmed, so nothing
-  // flashes empty; the skeleton is only for the very first open.
-  // A month seen before paints from the cache while the fresh answer loads.
-  const shown = data?.month === month ? data : (monthCache.get(month) ?? null)
-  const view = shown ?? data
-  const viewMonth = view?.month ?? month
-  const stale = !!view && !shown
-  // Desktop: open on the latest reading day of the month, so the panel is never empty.
-  const panelDay = selected ?? (view ? [...view.days].reverse().find(d => d.date.startsWith(viewMonth))?.date ?? null : null)
-  const today = view?.today ?? isoOf(new Date())
-  const canPrev = !!shown?.first_day && shown.first_day.slice(0, 7) < month
-  const canNext = month < today.slice(0, 7)
 
   // Keyboard: arrows step a day (Shift: a month), T is today, Esc closes the day.
   useEffect(() => {
@@ -174,7 +279,7 @@ export function ReadingCalendarPage() {
         if (!base) return
         const next = addDays(base, step)
         if (next > today) return
-        go({ month: next.slice(0, 7), day: next })
+        go({ month: next.slice(0, 7), day: next }, e.repeat)
       } else if (e.key === 't' || e.key === 'T') {
         go({ month: today.slice(0, 7), day: null })
       } else if (e.key === 'Escape' && selected) {
@@ -185,9 +290,22 @@ export function ReadingCalendarPage() {
     return () => window.removeEventListener('keydown', onKey)
   })
 
+  // The phone sheet rises once, to its full height: it waits for the day (the
+  // cell shows the selection at once) and then stays up while days change in it.
+  const [sheetFailed, setSheetFailed] = useState<string | null>(null)
+  useEffect(() => {
+    if (wide || !selected) return
+    loadDay(selected).catch(() => setSheetFailed(selected))
+  }, [wide, selected])
+  const [sheetUp, setSheetUp] = useState(false)
+  const sheetReady = !wide && !!selected && (dayCache.has(selected) || sheetFailed === selected)
+  if (sheetReady && !sheetUp) setSheetUp(true)
+  if ((wide || !selected) && sheetUp) setSheetUp(false)
+
   // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
-  const slide = dir == null ? '' : dir > 0 ? 'animate-in slide-in-from-right-2 duration-200 ease-out' : 'animate-in slide-in-from-left-2 duration-200 ease-out'
+  const slide = dir == null ? '' : dir > 0 ? 'animate-in slide-in-from-right-8 duration-[240ms] ease-(--spring)' : 'animate-in slide-in-from-left-8 duration-[240ms] ease-(--spring)'
   const jump = (iso: string) => go({ month: iso.slice(0, 7), day: iso })
+  const closeDay = () => go({ day: null })
 
   return (
     <AppShell>
@@ -203,26 +321,32 @@ export function ReadingCalendarPage() {
 
         {error && <p className="mt-3 text-center text-sm text-muted-foreground"><Trans>Could not load your reading calendar.</Trans></p>}
         {!error && (
-          <div className={cn('grid gap-8 transition-opacity duration-200 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[minmax(0,1fr)]', stale && 'opacity-50')}>
+          <div className={cn('grid gap-8 transition-opacity duration-150 lg:min-h-0 lg:flex-1 lg:grid-cols-[minmax(0,1fr)_380px] lg:grid-rows-[minmax(0,1fr)]', dim && 'opacity-50')}>
             <div className="min-w-0 space-y-8 lg:min-h-0 lg:overflow-y-auto lg:pb-2">
               {view
                 ? <Headline data={view} month={viewMonth} />
                 : <div className="h-[88px]" aria-hidden />}
               <div key={`grid-${viewMonth}`} className={cn('motion-reduce:animate-none', slide)}>
                 <MonthGrid data={view} month={viewMonth} today={today} selected={selected} fallback={panelDay}
-                  onSelect={d => go({ day: d })} onJump={jump} />
+                  held={held} onSelect={d => go({ day: d })} onJump={jump} />
               </div>
             </div>
             <aside className="hidden lg:block lg:min-h-0 lg:overflow-y-auto lg:pb-2">
               {/* One card that stays mounted across month switches: it keeps the
-                  last day (dimmed with the grid) while the next one loads, and
-                  shows the empty-month line in the same frame. */}
-              {view ? <DayCard day={panelDay} /> : null}
+                  last day while the next one loads, and shows the empty-month
+                  line in the same frame. */}
+              {wide && view ? <DayCard day={panelDay} today={today} /> : null}
             </aside>
           </div>
         )}
       </PageBody>
-      {selected && <MobileSheet onClose={() => go({ day: null })}><DayCard day={selected} onClose={() => go({ day: null })} /></MobileSheet>}
+      <AnimatePresence>
+        {!wide && selected && sheetUp && (
+          <MobileSheet key="sheet" onClose={closeDay}>
+            <DayCard day={selected} today={today} onClose={closeDay} />
+          </MobileSheet>
+        )}
+      </AnimatePresence>
     </AppShell>
   )
 }
@@ -238,11 +362,13 @@ function MonthNav({ month, isCurrent, canPrev, canNext, onPrev, onNext, onToday 
       title={<span className="tabular-nums">{label}</span>}
       actions={
         <>
-          {!isCurrent && (
-            <Pill variant="quiet" onClick={onToday}>
+          {/* Keeps its slot on the current month (faded out, out of the tab
+              order), so the arrows never shift when it comes and goes. */}
+          <span className={cn('transition-opacity duration-150', isCurrent && 'pointer-events-none opacity-0')} aria-hidden={isCurrent || undefined}>
+            <Pill variant="quiet" onClick={onToday} tabIndex={isCurrent ? -1 : undefined}>
               <Trans>Today</Trans>
             </Pill>
-          )}
+          </span>
           <Pill variant="quiet" icon onClick={onPrev} disabled={!canPrev} aria-label={t`Previous month`}><ChevronLeft className="h-5 w-5" /></Pill>
           <Pill variant="quiet" icon onClick={onNext} disabled={!canNext} aria-label={t`Next month`}><ChevronRight className="h-5 w-5" /></Pill>
         </>
@@ -253,6 +379,8 @@ function MonthNav({ month, isCurrent, canPrev, canNext, onPrev, onNext, onToday 
 
 // One number for the month, the rest as a line of text. No tiles: the page's
 // subject is the grid, and four boxed figures above it fought it for attention.
+// The figures belong to the month, so a month change shows the new ones as they
+// are rather than running from the old month's.
 function Headline({ data, month }: { data: MonthResponse; month: string }) {
   const { t } = useLingui()
   const s = data.streaks
@@ -298,15 +426,14 @@ const cellBg = (col: number) => (col >= 5 ? WEEKEND : 'bg-background')
 
 // With no data yet this draws the empty cells, so the page never shows a
 // spinner where the calendar will be; the contents fade in when they land.
-function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }: {
+function MonthGrid({ data, month, today, selected, fallback, held, onSelect, onJump }: {
   data: MonthResponse | null; month: string; today: string; selected: string | null; fallback: string | null
-  onSelect: (d: string) => void; onJump: (d: string) => void
+  held: boolean; onSelect: (d: string) => void; onJump: (d: string) => void
 }) {
   const { t } = useLingui()
   const byDay = useMemo(() => new Map((data?.days ?? []).map(d => [d.date, d])), [data])
   const readerDays = useMemo(() => new Set(data?.reader_days ?? []), [data])
   const scale = data?.scale_seconds ?? 0
-  // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
   // Cell contents appear with the month; nothing fades in from zero.
   const land = ''
   const first = parseDay(`${month}-01`)
@@ -318,7 +445,7 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
   // Days of the neighbouring months that complete the first and last week; they jump there.
   const outside = (iso: string, n: number, col: number) => (
     <button key={iso} onClick={() => onJump(iso)} disabled={iso > today} aria-label={shortDay(iso)}
-      className={cn(CELL, cellBg(col), 'flex flex-col items-stretch gap-1 text-left transition-colors enabled:hover:bg-muted/40 disabled:cursor-default')}>
+      className={cn(CELL, cellBg(col), 'flex flex-col items-stretch gap-1 text-left transition-colors enabled:hover:bg-muted/40 enabled:touch-feedback disabled:cursor-default')}>
       {/* Same wrapper and number box as an in-month day, so the numbers line up across a row. */}
       <span className="flex items-start justify-between gap-1">
         <span className="grid h-6 w-6 place-items-center rounded-full font-display text-xs leading-none text-muted-foreground/70 sm:text-sm">{n}</span>
@@ -331,6 +458,8 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
       <div className="mb-1.5 grid grid-cols-7">
         {weekdays().map(w => <div key={w} className="pl-1.5 text-[11px] uppercase tracking-wide text-muted-foreground sm:pl-2">{w}</div>)}
       </div>
+      {/* One selection outline per month; it glides from day to day within it. */}
+      <GlideGroup>
       <div className="grid grid-cols-7 gap-px overflow-hidden rounded-xl border border-border bg-border">
         {Array.from({ length: lead }, (_, i) => { const n = prevCount - lead + 1 + i; return outside(`${prevMonth}-${String(n).padStart(2, '0')}`, n, i) })}
         {Array.from({ length: count }, (_, i) => {
@@ -351,22 +480,31 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
               key={iso}
               disabled={future}
               onClick={() => onSelect(iso)}
+              onPointerEnter={e => { if (e.pointerType === 'mouse' && !future) dayIntent(iso) }}
+              onPointerLeave={dayIntentEnd}
+              onPointerDown={() => { if (!future) loadDay(iso).catch(() => {}) }}
               aria-label={label}
               aria-pressed={isSelected}
               className={cn(
                 CELL, cellBg(col),
-                'group flex flex-col items-stretch gap-1 text-left transition-colors focus-visible:outline-none',
+                'group relative flex flex-col items-stretch gap-1 text-left transition-colors focus-visible:outline-none',
                 // The highlights are marked important so they beat the weekend tint,
                 // whose theme variant would otherwise sort after them.
                 future ? 'cursor-default' : !isSelected && 'hover:bg-muted/50!',
                 // Selected: full muted plus an inset hairline, so it stays apart
                 // from the weekend tint (which is itself a muted mix) in every theme.
-                selected === iso && 'bg-muted! shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--foreground)_28%,transparent)]',
+                // The inset hairline is the gliding outline below.
+                selected === iso && 'bg-muted!',
                 // The desktop panel opens on a default day; only mark it where the panel shows.
-                !selected && fallback === iso && 'lg:bg-muted! lg:shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--foreground)_28%,transparent)]',
+                !selected && fallback === iso && 'lg:bg-muted!',
                 'focus-visible:bg-muted/70!',
               )}
             >
+              {/* A 160 ms glide instead of the spring: it keeps up with a held arrow key. */}
+              {isSelected && (
+                <Glide layoutId="cal-sel" radius={0} transition={held ? OUTLINE_HELD : OUTLINE}
+                  className={cn('z-[1] shadow-[inset_0_0_0_1.5px_color-mix(in_oklch,var(--foreground)_28%,transparent)]', !selected && 'hidden lg:block')} />
+              )}
               <span className="flex items-start justify-between gap-1">
                 <span className={cn(
                   'grid h-6 w-6 place-items-center rounded-full font-display text-xs leading-none sm:text-sm',
@@ -419,10 +557,12 @@ function MonthGrid({ data, month, today, selected, fallback, onSelect, onJump }:
         })}
         {Array.from({ length: trail }, (_, i) => outside(`${nextMonth}-${String(i + 1).padStart(2, '0')}`, i + 1, (lead + count + i) % 7))}
       </div>
+      </GlideGroup>
     </div>
   )
 }
 
+// The phone's day sheet: slides up over a fading veil, and back down when closed.
 function MobileSheet({ children, onClose }: { children: React.ReactNode; onClose: () => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose() }
@@ -430,14 +570,16 @@ function MobileSheet({ children, onClose }: { children: React.ReactNode; onClose
     return () => window.removeEventListener('keydown', onKey)
   }, [onClose])
   return (
-    <div className="lg:hidden">
-      <div className="fixed inset-0 z-40 bg-black/40" onClick={onClose} />
-      <div role="dialog" aria-modal="true"
-        className="fixed inset-x-0 bottom-0 z-50 max-h-[86vh] overflow-y-auto rounded-t-[22px] bg-card pb-[env(safe-area-inset-bottom)] shadow-2xl animate-in slide-in-from-bottom-4">
+    <>
+      <m.div className="fixed inset-0 z-40 bg-black/40" onClick={onClose}
+        initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.18, ease: EASE }} />
+      <m.div role="dialog" aria-modal="true"
+        initial={{ y: '100%' }} animate={{ y: 0, transition: { duration: 0.28, ease: EASE } }} exit={{ y: '100%', transition: { duration: 0.2, ease: EASE } }}
+        className="fixed inset-x-0 bottom-0 z-50 max-h-[86vh] overflow-y-auto rounded-t-[22px] bg-card pb-[env(safe-area-inset-bottom)] shadow-2xl">
         <div className="mx-auto mt-2 h-1 w-10 rounded-full bg-border" />
         {children}
-      </div>
-    </div>
+      </m.div>
+    </>
   )
 }
 
@@ -455,19 +597,68 @@ function chapterRange(chapters: string[], to: (a: string, b: string) => string):
   return to(chapters[0], chapters[chapters.length - 1])
 }
 
-function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () => void }) {
+// The card's frame: its height follows the content, gliding (260 ms) rather
+// than jumping when a day with more or less to show replaces the one there.
+// The content changes in one step; only the frame's edge travels. Started from
+// the resize observer, so the glide begins in the frame the content changes.
+const HEIGHT_MS = 260
+const SPRING = 'cubic-bezier(0.2, 0.8, 0.2, 1)'
+const REDUCED = '(prefers-reduced-motion: reduce)'
+function CardFrame({ className, children }: { className?: string; children: React.ReactNode }) {
+  const outer = useRef<HTMLDivElement>(null)
+  const inner = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const box = outer.current, el = inner.current
+    if (!box || !el) return
+    let last = el.offsetHeight
+    let run: Animation | null = null
+    const ro = new ResizeObserver(() => {
+      const next = el.offsetHeight
+      if (next === last) return
+      // From the height drawn last, or from mid-glide, so a quick second change retargets.
+      const from = run ? box.getBoundingClientRect().height : last
+      last = next
+      run?.cancel()
+      if (window.matchMedia(REDUCED).matches) return
+      run = box.animate([{ height: `${from}px` }, { height: `${next}px` }], { duration: HEIGHT_MS, easing: SPRING })
+      run.onfinish = () => { run = null }
+    })
+    ro.observe(el)
+    return () => { ro.disconnect(); run?.cancel() }
+  }, [])
+  return (
+    <div ref={outer} className={cn('overflow-hidden', className)}>
+      <div ref={inner}>{children}</div>
+    </div>
+  )
+}
+
+function DayCard({ day: dayProp, today, onClose }: { day: string | null; today: string; onClose?: () => void }) {
   const { t } = useLingui()
-  const [data, setData] = useState<DayResponse | null>(null)
+  useSyncExternalStore(subscribeCache, readCacheRev)
+  const fresh = dayProp ? dayCache.get(dayProp) ?? null : null
+  // The last day drawn: held while a day that is not in memory loads.
+  const [painted, setPainted] = useState<DayResponse | null>(fresh)
+  if (fresh && fresh !== painted) setPainted(fresh)
   useEffect(() => {
     if (!dayProp) return
-    let live = true
-    api.get<DayResponse>(`/stats/calendar/day?day=${dayProp}&tz_offset=${tzOffset()}`).then(r => { if (live) setData(r) }).catch(() => {})
-    return () => { live = false }
-  }, [dayProp])
+    loadDay(dayProp).catch(() => {})
+    // The days either side, so the next arrow press is served from memory.
+    return whenIdle(() => {
+      for (const d of [addDays(dayProp, -1), addDays(dayProp, 1)]) if (d <= today) loadDay(d).catch(() => {})
+    })
+  }, [dayProp, today])
+  const data = fresh ?? painted
+  // A different day is on its way: keep this one, dimmed after a moment, rather than flashing empty.
+  const dim = useDelayed(!!data && !!dayProp && data.date !== dayProp, DIM_MS)
+  // The sheet is its own frame; on desktop the card is.
+  const frame = onClose ? undefined : CARD
   if (!dayProp) {
-    return <p className={cn(CARD, 'px-6 py-16 text-center text-sm text-muted-foreground')}><Trans>No reading this month yet.</Trans></p>
+    return <CardFrame className={frame}><p className="px-6 py-16 text-center text-sm text-muted-foreground"><Trans>No reading this month yet.</Trans></p></CardFrame>
   }
-  const day = dayProp
+  // Heading and body always belong to the same day: the one drawn. While a
+  // new day loads the old card stays whole, dimmed, and changes in one step.
+  const day = data?.date ?? dayProp
 
   const title = parseDay(day).toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
   const header = (
@@ -477,22 +668,21 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
         <p className="text-xs text-muted-foreground">{day.slice(0, 4)}</p>
       </div>
       {onClose && (
-        <button onClick={onClose} aria-label={t`Close`} className="grid h-8 w-8 place-items-center rounded-full bg-muted text-foreground">
+        <button onClick={onClose} aria-label={t`Close`} className="grid h-8 w-8 place-items-center rounded-full bg-muted text-foreground touch-feedback">
           <X className="h-4 w-4" />
         </button>
       )}
     </div>
   )
-  // In the sheet (onClose set) the sheet is the frame, so the header can show
-  // while the day loads; on desktop nothing is drawn until there is a day.
-  if (!data) return onClose ? <div className="space-y-4 p-6">{header}</div> : null
-  // A different day is on its way: keep this one, dimmed, rather than flashing empty.
-  const stale = data.date !== day
-  const body = cn('transition-opacity duration-200', stale && 'opacity-40', !onClose && CARD)
+  // The sheet opens only once its day is in (or failed to load), so this is
+  // the failure case; on desktop nothing is drawn until there is a day.
+  if (!data) return onClose ? <CardFrame><div className="space-y-4 p-6">{header}</div></CardFrame> : null
+  const body = cn('transition-opacity duration-150', dim && 'opacity-40')
   if (data.books.length === 0) {
     const n = data.streak?.day ?? 0, len = data.streak?.length ?? 0
     const streakLine = data.streak?.is_best ? t`Day ${n} of your best streak (${len} days)` : t`Day ${n} of a ${len}-day streak`
     return (
+      <CardFrame className={frame}>
       <div className={cn('space-y-4 p-6', body)}>
         {header}
         {data.reader_day ? (
@@ -513,6 +703,7 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
           </div>
         )}
       </div>
+      </CardFrame>
     )
   }
 
@@ -556,16 +747,17 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
   // and speed out rather than show a 0 that reads like a measurement.
   const hasPages = data.pages > 0
   const pph = data.seconds ? Math.round(data.pages / (data.seconds / 3600)) : 0
-  const stats = [
-    { value: formatDuration(data.seconds), label: t`Time` },
-    ...(hasPages ? [{ value: data.pages.toLocaleString(), label: t`Pages` }] : []),
-    { value: String(data.sittings.length), label: t`Sittings` },
-    ...(hasPages ? [{ value: t`${pph} p/h`, label: t`Speed` }] : []),
+  const stats: { n: number; fmt: (n: number) => string; label: string }[] = [
+    { n: data.seconds, fmt: formatDuration, label: t`Time` },
+    ...(hasPages ? [{ n: data.pages, fmt: (n: number) => n.toLocaleString(), label: t`Pages` }] : []),
+    { n: data.sittings.length, fmt: String, label: t`Sittings` },
+    ...(hasPages ? [{ n: pph, fmt: (n: number) => t`${n} p/h`, label: t`Speed` }] : []),
   ]
   // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS colours
   const shades = ['var(--primary)', 'color-mix(in oklch, var(--primary) 45%, var(--muted-foreground))', 'var(--muted-foreground)']
 
   return (
+    <CardFrame className={frame}>
     <div className={cn('space-y-6 p-6', body)}>
       {header}
       <p className="font-display text-lg leading-snug text-foreground">{quip}</p>
@@ -581,7 +773,7 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
       <div className="grid grid-cols-4 gap-3">
         {stats.map(s => (
           <div key={s.label} className="min-w-0">
-            <p className="whitespace-nowrap font-display text-lg leading-tight text-foreground tabular-nums">{s.value}</p>
+            <p className="whitespace-nowrap font-display text-lg leading-tight text-foreground tabular-nums">{s.fmt(s.n)}</p>
             <p className="truncate text-[11px] text-muted-foreground">{s.label}</p>
           </div>
         ))}
@@ -613,6 +805,7 @@ function DayCard({ day: dayProp, onClose }: { day: string | null; onClose?: () =
         </p>
       </div>
     </div>
+    </CardFrame>
   )
 }
 
@@ -629,9 +822,10 @@ function DayBookRow({ b }: { b: DayBook }) {
     return diff > 0 ? t`${n}% faster than your usual for this book` : t`${n}% slower than your usual for this book`
   })()
   return (
-    <Link to={`/books/${b.book_id}`} className="grid grid-cols-[48px_minmax(0,1fr)] gap-3 rounded-2xl bg-background p-3 transition-colors hover:bg-muted/40">
+    <BookLink book={{ id: b.book_id, title: b.title, author: b.author, series: b.series, series_index: b.series_index }}
+      className="grid grid-cols-[48px_minmax(0,1fr)] gap-3 rounded-2xl bg-background p-3 transition-colors hover:bg-muted/40 touch-feedback">
       {b.has_cover
-        ? <img src={coverUrl(b.book_id)} alt="" className="h-[72px] w-12 rounded-md object-cover shadow" />
+        ? <span data-cover-id={b.book_id} className="block h-[72px] w-12 overflow-hidden rounded-md shadow"><img src={coverUrl(b.book_id)} alt="" className="h-full w-full object-cover" /></span>
         : <span className="grid h-[72px] w-12 place-items-center rounded-md bg-muted"><BookOpen className="h-4 w-4 text-muted-foreground" /></span>}
       <div className="min-w-0">
         <p className="truncate font-display text-sm text-foreground">{b.title}</p>
@@ -657,6 +851,6 @@ function DayBookRow({ b }: { b: DayBook }) {
         )}
         {pace && <p className="mt-1 text-xs text-muted-foreground">{pace}</p>}
       </div>
-    </Link>
+    </BookLink>
   )
 }

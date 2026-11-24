@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Info } from 'lucide-react'
 import { useLingui } from '@lingui/react/macro'
+import { Pop } from '@/components/motion'
 
 // A small "i" that explains a chart or control on hover or tap. Tap-toggle so
 // it works on touch (native title tooltips don't). Reserved for the non-obvious.
@@ -33,14 +34,14 @@ export function InfoHint({ text, children, wide }: { text?: string; children?: R
       >
         <Info className="w-3 h-3" />
       </button>
-      {open && (
-        <span
-          role="tooltip"
-          className={`absolute left-0 top-5 z-20 ${wide ? 'w-80' : 'w-52'} rounded-lg bg-card px-3 py-2 text-[13px] leading-snug text-muted-foreground shadow-lg ring-1 ring-panel-ring`}
-        >
-          {children ?? text}
-        </span>
-      )}
+      <Pop
+        open={open}
+        origin="top-left"
+        role="tooltip"
+        className={`absolute left-0 top-5 z-20 ${wide ? 'w-80' : 'w-52'} rounded-lg bg-card px-3 py-2 text-[13px] leading-snug text-muted-foreground shadow-lg ring-1 ring-panel-ring`}
+      >
+        {children ?? text}
+      </Pop>
     </span>
   )
 }

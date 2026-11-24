@@ -9,7 +9,8 @@ import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
-import { Checkbox, Pill } from '@/components/page'
+import { Checkbox, Pill, Swap } from '@/components/page'
+import { SameWidth } from '@/components/FormMotion'
 
 interface MatchedRow {
   title: string
@@ -102,6 +103,8 @@ export function ReadingImport() {
         onChange={e => { if (e.target.files?.[0]) onFile(e.target.files[0]); e.target.value = '' }}
       />
 
+      {/* The picker and the preview take turns in one place. */}
+      <Swap id={preview ? 'preview' : 'picker'}>
       {!preview && (
         <div className="flex items-center gap-3">
           <Pill
@@ -112,12 +115,14 @@ export function ReadingImport() {
             {phase === 'previewing' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
             <Trans>Choose CSV export</Trans>
           </Pill>
+          <Swap id={error ? `e:${error}` : summary ? `s:${summary}` : ''} className="flex items-center gap-3">
           {summary && (
             <span className="flex items-center gap-1.5 text-[13px] text-success">
               <CheckCircle2 className="h-3.5 w-3.5" /> {summary}
             </span>
           )}
           {error && <span className="text-[13px] text-destructive">{error}</span>}
+          </Swap>
         </div>
       )}
 
@@ -190,7 +195,11 @@ export function ReadingImport() {
               variant="primary"
             >
               {phase === 'applying' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Upload className="h-3.5 w-3.5" />}
-              {(() => { const n = checked.size; return t`Apply ${n} selected` })()}
+              {/* As wide as the widest count, so Cancel stays put while boxes are ticked. */}
+              <SameWidth className="tabular-nums" active={0}>{[
+                (() => { const n = checked.size; return t`Apply ${n} selected` })(),
+                (() => { const n = '8'.repeat(String(preview.matched.length).length); return t`Apply ${n} selected` })(),
+              ]}</SameWidth>
             </Pill>
             <Pill
               onClick={() => { setPreview(null); setError(null) }}
@@ -201,6 +210,7 @@ export function ReadingImport() {
           </div>
         </div>
       )}
+      </Swap>
     </div>
   )
 }

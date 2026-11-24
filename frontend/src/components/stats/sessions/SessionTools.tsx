@@ -5,7 +5,8 @@ import { t } from '@lingui/core/macro'
 import { Trash2, Scissors } from 'lucide-react'
 import { cn, formatDuration } from '@/lib/utils'
 import { InfoHint } from '@/components/InfoHint'
-import { Input, Pill } from '@/components/page'
+import { Input, Pill, PRESS } from '@/components/page'
+import { Unfold } from '@/components/motion'
 import type { SessionEntry } from '@/components/stats/shared'
 import type { SessionActions } from './actions'
 
@@ -22,7 +23,7 @@ export function SessionTools({ s, a, keepSlot = false, className, buttonClass = 
           type="button"
           onClick={() => a.toggleTrim(s)}
           aria-expanded={a.trimId === s.id}
-          className={cn('grid place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', buttonClass, className)}
+          className={cn('touch-feedback grid place-items-center rounded-full text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground', PRESS, buttonClass, className)}
           title={t`Trim session`}
           aria-label={t`Trim session`}
         >
@@ -35,7 +36,7 @@ export function SessionTools({ s, a, keepSlot = false, className, buttonClass = 
         type="button"
         onClick={() => a.remove(s)}
         disabled={a.deleting.has(s.id)}
-        className={cn('grid place-items-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-40', buttonClass, className)}
+        className={cn('touch-feedback grid place-items-center rounded-full text-muted-foreground transition-colors hover:bg-destructive/10 hover:text-destructive disabled:opacity-40', PRESS, buttonClass, className)}
         title={s.kind === 'imported' ? t`Delete this imported sitting` : t`Delete session`}
         aria-label={s.kind === 'imported' ? t`Delete this imported sitting` : t`Delete session`}
       >
@@ -45,10 +46,10 @@ export function SessionTools({ s, a, keepSlot = false, className, buttonClass = 
   )
 }
 
-/** The new-duration form under a row whose scissors are open. */
+/** The new-duration form under a row whose scissors are open: unfolds in place, folds away on Cancel or Trim. */
 export function TrimPanel({ s, a, className }: { s: SessionEntry; a: SessionActions; className?: string }) {
-  if (a.trimId !== s.id) return null
   return (
+    <Unfold open={a.trimId === s.id}>
     <div className={cn('flex flex-wrap items-center gap-2 pb-3 text-[14px]', className)}>
       <span className="text-muted-foreground"><Trans>New duration</Trans></span>
       <InfoHint text={t`Trimming only shortens this session's length and end time. Page turns, progress and every other session stay untouched, and the previous duration is kept in the audit log. The suggestion re-prices this session's page turns at your usual reading pace.`} />
@@ -78,5 +79,6 @@ export function TrimPanel({ s, a, className }: { s: SessionEntry; a: SessionActi
         </Pill>
       </div>
     </div>
+    </Unfold>
   )
 }

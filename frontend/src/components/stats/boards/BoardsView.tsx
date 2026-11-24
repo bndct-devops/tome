@@ -8,7 +8,9 @@ import 'react-grid-layout/css/styles.css'
 import 'react-resizable/css/styles.css'
 import { createPortal } from 'react-dom'
 import { saveLocalDashboard, type PadWidth, type Persisted, type TabState, type Tile, type TileConfig } from './types'
-import { Input, Pill, PillGroup, Select } from '@/components/page'
+import { Glide, GlideGroup, Input, Pill, PillGroup, PRESS, Select } from '@/components/page'
+import { Pop } from '@/components/motion'
+import { EASE, reducedMotion } from '@/components/stats/kit/motion'
 import { ModalShell } from '@/components/ModalShell'
 import { Plus, RotateCcw, X, Sparkles, SlidersHorizontal, Pencil, Check, GripVertical, Clock, Activity, BookCheck, Flame, FileText, Target, Gauge, Search, Copy, Loader2, CloudOff, Download, Upload, Star, TrendingUp, ScatterChart as ScatterIcon, Trophy, Globe, Library as LibraryIcon, Clock3, Infinity as InfinityIcon, Type, Ruler, Repeat, type LucideIcon } from 'lucide-react'
 import { cn, formatDate, formatDuration } from '@/lib/utils'
@@ -881,12 +883,14 @@ const TIMEFRAMES = [
 // ── Config popover ────────────────────────────────────────────────────────────
 
 function ConfigPopover({
+  open,
   def,
   config,
   seriesOptions,
   onChange,
   onClose,
 }: {
+  open: boolean
   def: WidgetDef
   config: TileConfig
   seriesOptions?: string[]
@@ -895,16 +899,18 @@ function ConfigPopover({
 }) {
   // Backlog scopes (libraries + shelves) are the user's own - fetched on open.
   const [scopes, setScopes] = useState<BacklogScope[] | null>(null)
+  const wantScopes = open && !!def.scopePicker && scopes === null
   useEffect(() => {
-    if (!def.scopePicker) return
+    if (!wantScopes) return
     api.get<BacklogScope[]>('/stats/backlog-scopes').then(setScopes).catch(() => setScopes([]))
-  }, [def.scopePicker])
+  }, [wantScopes])
   // Close on outside click / Escape via a document listener rather than a fixed
   // overlay: the tile's RGL transform traps `position: fixed` inside the tile, so
   // an overlay can't cover the rest of the page. The opening click is stopped at
   // the trigger button, so it never reaches this listener and self-closes.
   const popRef = useRef<HTMLDivElement>(null)
   useEffect(() => {
+    if (!open) return
     const onDown = (e: PointerEvent) => {
       if (popRef.current && !popRef.current.contains(e.target as Node)) onClose()
     }
@@ -915,12 +921,13 @@ function ConfigPopover({
       document.removeEventListener('pointerdown', onDown)
       document.removeEventListener('keydown', onKey)
     }
-  }, [onClose])
+  }, [open, onClose])
   // The tile clips its content, so the panel is portalled to the body and
   // placed from an anchor where it used to sit; a scroll of the page closes it.
   const anchorRef = useRef<HTMLSpanElement>(null)
   const [pos, setPos] = useState<React.CSSProperties | null>(null)
   useLayoutEffect(() => {
+    if (!open) return
     const place = () => {
       const r = anchorRef.current?.getBoundingClientRect()
       if (!r) return
@@ -940,16 +947,19 @@ function ConfigPopover({
       main?.removeEventListener('scroll', close)
       window.removeEventListener('resize', place)
     }
-  }, [onClose])
+  }, [open, onClose])
   // eslint-disable-next-line lingui/no-unlocalized-strings -- class names, not copy
   const label = 'mb-1.5 text-[13px] font-medium text-muted-foreground'
   return (
     <>
     <span ref={anchorRef} aria-hidden className="pointer-events-none absolute right-2 top-9 h-0 w-0" />
-    {pos && createPortal(
-    <div
+    {createPortal(
+    // Kept mounted (with the tile in edit mode) so it can leave as it came (Pop).
+    <Pop
+      open={open && !!pos}
+      origin={pos && 'bottom' in pos ? 'bottom-right' : 'top-right'}
       ref={popRef}
-      style={pos}
+      style={pos ?? undefined}
       className="no-drag fixed z-[60] w-64 max-w-[calc(100vw-16px)] overflow-y-auto overscroll-contain rounded-xl bg-card p-3 text-[13px] shadow-lg ring-1 ring-panel-ring"
       onPointerDown={(e) => e.stopPropagation()}
       >
@@ -1046,7 +1056,7 @@ function ConfigPopover({
               >
                 <span
                   className={cn(
-                    'absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform',
+                    'absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform duration-150 ease-(--spring) motion-reduce:transition-none',
                     config.autoFit && 'translate-x-4',
                   )}
                 />
@@ -1057,7 +1067,7 @@ function ConfigPopover({
             </p>
           </div>
         )}
-    </div>,
+    </Pop>,
     document.body,
     )}
     </>
@@ -1067,11 +1077,13 @@ function ConfigPopover({
 // ── Add-widget gallery ─────────────────────────────────────────────────────────
 
 function AddWidgetModal({
+  open,
   ctx,
   present,
   onAdd,
   onClose,
 }: {
+  open: boolean
   ctx: WidgetCtx
   present: Set<string>
   onAdd: (defId: string) => void
@@ -1079,6 +1091,12 @@ function AddWidgetModal({
 }) {
   const [q, setQ] = useState('')
   const [boardFilter, setBoardFilter] = useState<'all' | 'on' | 'off'>('all')
+  // Kept mounted so it can close with its exit; each opening starts from the whole gallery.
+  const [wasOpen, setWasOpen] = useState(open)
+  if (open !== wasOpen) {
+    setWasOpen(open)
+    if (open) { setQ(''); setBoardFilter('all') }
+  }
   const needle = q.trim().toLowerCase()
   const matches = (id: string) => {
     if (boardFilter === 'on' && !present.has(id)) return false
@@ -1091,12 +1109,14 @@ function AddWidgetModal({
 
   return (
     <ModalShell
-      open
+      open={open}
       onClose={onClose}
       size="lg"
       title={t`Add a widget`}
       subtitle={t`Removed a tile? Add it back, or add another copy.`}
     >
+        {/* The gallery's previews only while open; ModalShell keeps them through the exit. */}
+        {open && <>
         <div className="mb-5 flex flex-wrap items-center gap-2">
           <div className="relative min-w-[200px] flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -1161,6 +1181,7 @@ function AddWidgetModal({
             </div>
           ))}
         </div>
+        </>}
     </ModalShell>
   )
 }
@@ -1202,6 +1223,7 @@ function TileShell({
   measureOnlyWhenEmpty?: boolean
 }) {
   const [cfgOpen, setCfgOpen] = useState(false)
+  const closeCfg = useCallback(() => setCfgOpen(false), [])
   const [hovering, setHovering] = useState(false)
   const [glare, setGlare] = useState({ x: 50, y: 50 })
   const tiltRef = useRef<HTMLDivElement>(null)
@@ -1318,7 +1340,7 @@ function TileShell({
         {...(editMode && !stacked ? dragHandleProps : {})}
         className={cn('flex items-center gap-1.5', kpi ? 'mb-1' : 'mb-3', editMode && !stacked && 'tile-drag-handle cursor-grab active:cursor-grabbing')}
       >
-        {editMode && !stacked && <GripVertical className="h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />}
+        {editMode && !stacked && <GripVertical className="k-arrive h-3.5 w-3.5 shrink-0 text-muted-foreground/50" />}
         {/* truncate, don't wrap: a wrapped title pushes the body out of 1-row tiles.
             Number tiles carry a small label (the Stat look); every other tile a
             20px section title in the display face. */}
@@ -1339,7 +1361,7 @@ function TileShell({
           </span>
         )}
         {editMode && (
-          <div className="ml-auto flex items-center gap-0.5">
+          <div className="k-arrive ml-auto flex items-center gap-0.5">
             {configurable && (
               <button
                 type="button"
@@ -1378,8 +1400,8 @@ function TileShell({
           </div>
         )}
       </div>
-      {cfgOpen && editMode && configurable && (
-        <ConfigPopover def={def} config={config} seriesOptions={seriesOptions} onChange={onConfigChange} onClose={() => setCfgOpen(false)} />
+      {editMode && configurable && (
+        <ConfigPopover open={cfgOpen} def={def} config={config} seriesOptions={seriesOptions} onChange={onConfigChange} onClose={closeCfg} />
       )}
       <div
         ref={contentRef}
@@ -1545,6 +1567,20 @@ function FreeGrid({
     }
   }, [editMode, containerRef])
 
+  // A removed tile fades out where it is (120 ms), then leaves the layout; the grid's
+  // own transition moves the tiles around it. Reduced motion: at once.
+  const leaving = useRef(new Set<string>())
+  const removeTile = useCallback((id: string) => {
+    const el = (containerRef.current as HTMLElement | null)?.querySelector<HTMLElement>(`[data-tile-id="${CSS.escape(id)}"]`)
+    if (!el || reducedMotion()) { onRemove(id); return }
+    if (leaving.current.has(id)) return
+    leaving.current.add(id)
+    const a = el.animate([{ opacity: 1 }, { opacity: 0 }], { duration: 120, easing: EASE, fill: 'forwards' })
+    const done = () => { leaving.current.delete(id); onRemove(id) }
+    a.onfinish = done
+    a.oncancel = done
+  }, [onRemove, containerRef])
+
   // Narrow screens: a 12-col drag grid is unusable, so stack the tiles in layout
   // order (top-to-bottom, left-to-right) at their configured heights instead.
   if (mounted && width > 0 && width < 640) {
@@ -1568,8 +1604,8 @@ function FreeGrid({
           // floor keeps the body measurable before its content mounts.
           const fit = def.autoH && withAutoFit(t).autoFit
           return (
-            <div key={t.id} style={fit ? { minHeight: 72 } : { height: h * 104 + (h - 1) * 16 }}>
-              <TileShell def={def} config={withAutoFit(t)} editMode={editMode} stacked seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
+            <div key={t.id} data-tile-id={t.id} style={fit ? { minHeight: 72 } : { height: h * 104 + (h - 1) * 16 }}>
+              <TileShell def={def} config={withAutoFit(t)} editMode={editMode} stacked seriesOptions={seriesOptions} onRemove={() => removeTile(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)}>
                 {def.render(ctx, t.config)}
               </TileShell>
             </div>
@@ -1617,8 +1653,8 @@ function FreeGrid({
           {tiles.map((t) => {
             const def = defById(t.defId)
             return (
-              <div key={t.id}>
-                <TileShell def={def} config={withAutoFit(t)} editMode={editMode} seriesOptions={seriesOptions} onRemove={() => onRemove(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)} onMeasure={(rows: number) => reportRows(t.id, rows)} measureOnlyWhenEmpty={!autoFitIds.has(t.id)}>
+              <div key={t.id} data-tile-id={t.id}>
+                <TileShell def={def} config={withAutoFit(t)} editMode={editMode} seriesOptions={seriesOptions} onRemove={() => removeTile(t.id)} onDuplicate={() => onDuplicate(t.id)} onConfigChange={(p) => onConfigChange(t.id, p)} onMeasure={(rows: number) => reportRows(t.id, rows)} measureOnlyWhenEmpty={!autoFitIds.has(t.id)}>
                   {def.render(ctx, t.config)}
                 </TileShell>
               </div>
@@ -2031,16 +2067,19 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
         {/* Phones: the row runs to the screen edge under a right-hand fade, so a
             cut-off last tab reads as "scroll for more"; the end padding is as
             wide as the fade so the last tab sits clear of it once scrolled. */}
-        <div className="flex min-w-0 items-center gap-1 overflow-x-auto max-sm:-ml-5 max-sm:pl-5 max-sm:-mr-5 max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] [scrollbar-width:none]">
+        {/* The active board's fill glides to the next one (page/Glide). */}
+        <GlideGroup>
+        <div className="isolate flex min-w-0 items-center gap-1 overflow-x-auto max-sm:-ml-5 max-sm:pl-5 max-sm:-mr-5 max-sm:pr-10 max-sm:[mask-image:linear-gradient(to_right,#000_calc(100%-40px),transparent)] [scrollbar-width:none]">
         {visibleTabs.map((t) => (
           <div
             key={t.id}
             ref={activeTabId === t.id ? activeTabRef : undefined}
             className={cn(
-              'group/tab flex h-9 shrink-0 items-center rounded-full transition-colors',
-              activeTabId === t.id ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+              'group/tab relative flex h-9 shrink-0 items-center rounded-full transition-colors',
+              activeTabId === t.id ? 'text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
             )}
           >
+            {activeTabId === t.id && <Glide behind className="bg-secondary" />}
             {renamingId === t.id ? (
               <input
                 autoFocus
@@ -2066,7 +2105,7 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
                 onClick={() => setActiveTabId(t.id)}
                 onDoubleClick={() => editMode && setRenamingId(t.id)}
                 title={editMode ? renameHint : undefined}
-                className="h-full whitespace-nowrap px-4 text-[14px] font-medium"
+                className={cn('touch-feedback h-full whitespace-nowrap px-4 text-[14px] font-medium', PRESS)}
               >
                 {t.label}
               </button>
@@ -2078,7 +2117,7 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
                   onClick={() => setRenamingId(t.id)}
                   aria-label={renameBoardLabel(t.label)}
                   title={renameBoardTitle}
-                  className={cn('-ml-2 rounded-full p-1 text-muted-foreground transition hover:text-foreground', visibleTabs.length > 1 ? '' : 'mr-2')}
+                  className={cn('k-arrive -ml-2 rounded-full p-1 text-muted-foreground transition hover:text-foreground', visibleTabs.length > 1 ? '' : 'mr-2')}
                 >
                   <Pencil className="h-3 w-3" />
                 </button>
@@ -2088,7 +2127,7 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
                     onClick={() => deleteTab(t.id)}
                     aria-label={deleteBoardLabel(t.label)}
                     title={deleteBoardTitle}
-                    className="mr-2 rounded-full p-1 text-muted-foreground transition hover:text-foreground"
+                    className="k-arrive mr-2 rounded-full p-1 text-muted-foreground transition hover:text-foreground"
                   >
                     <X className="h-3 w-3" />
                   </button>
@@ -2098,8 +2137,9 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
           </div>
         ))}
         </div>
+        </GlideGroup>
         {editMode && (
-          <div className="relative shrink-0">
+          <div className="k-arrive relative shrink-0">
             <Pill
               variant={tabMenuOpen ? 'secondary' : 'quiet'}
               icon
@@ -2109,10 +2149,8 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
             >
               <Plus className="h-4 w-4" />
             </Pill>
-            {tabMenuOpen && (
-              <>
-                <div className="fixed inset-0 z-40" onPointerDown={() => setTabMenuOpen(false)} />
-                <div className="absolute left-0 top-full z-50 mt-1.5 w-60 rounded-xl bg-card p-1.5 text-[14px] shadow-lg ring-1 ring-panel-ring">
+            {tabMenuOpen && <div className="fixed inset-0 z-40" onPointerDown={() => setTabMenuOpen(false)} />}
+            <Pop open={tabMenuOpen} origin="top-left" className="absolute left-0 top-full z-50 mt-1.5 w-60 rounded-xl bg-card p-1.5 text-[14px] shadow-lg ring-1 ring-panel-ring">
                   <button
                     type="button"
                     onClick={() => addTabWith(t`New board`, [], [], true)}
@@ -2149,7 +2187,7 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
                       {i18n._(d.label)}
                     </button>
                   ))}
-                </div>
+            </Pop>
                 <input
                   ref={importInputRef}
                   type="file"
@@ -2161,15 +2199,13 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
                     e.target.value = ''
                   }}
                 />
-              </>
-            )}
           </div>
         )}
 
         <div className="ml-auto flex shrink-0 flex-wrap items-center gap-1 pl-3 max-sm:pl-0">
           {editMode && (
             <>
-              <div className="hidden items-center gap-0.5 sm:flex">
+              <div className="k-arrive hidden items-center gap-0.5 sm:flex">
                 <span className="px-2 text-[13px] text-muted-foreground"><Trans>Padding</Trans></span>
                 {(['none', 'bit', 'lot'] as const).map((w) => (
                   <Pill key={w} variant={pad === w ? 'secondary' : 'quiet'} onClick={() => setPad(w)} className="px-3">
@@ -2177,13 +2213,13 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
                   </Pill>
                 ))}
               </div>
-              <Pill variant="quiet" onClick={() => setAddOpen(true)}>
+              <Pill variant="quiet" className="k-arrive" onClick={() => setAddOpen(true)}>
                 <Plus className="h-4 w-4" /> <Trans>Add tile</Trans>
               </Pill>
-              <Pill variant="quiet" onClick={reset}>
+              <Pill variant="quiet" className="k-arrive" onClick={reset}>
                 <RotateCcw className="h-4 w-4" /> <Trans>Reset</Trans>
               </Pill>
-              <Pill variant="quiet" onClick={exportBoard} title={t`Export this board as a JSON file (share or back up)`}>
+              <Pill variant="quiet" className="k-arrive" onClick={exportBoard} title={t`Export this board as a JSON file (share or back up)`}>
                 <Download className="h-4 w-4" /> <Trans>Export</Trans>
               </Pill>
             </>
@@ -2259,9 +2295,7 @@ export default function BoardsView({ stats, estimates, dashboard, shownIds, show
         </div>
       )}
 
-      {addOpen && (
-        <AddWidgetModal ctx={{ stats, estimates, goals, reloadGoals }} present={new Set(active.tiles.map((t) => t.defId))} onAdd={addWidget} onClose={() => setAddOpen(false)} />
-      )}
+      <AddWidgetModal open={addOpen} ctx={{ stats, estimates, goals, reloadGoals }} present={new Set(active.tiles.map((t) => t.defId))} onAdd={addWidget} onClose={() => setAddOpen(false)} />
 
       {/* undo bar - tile removal and board deletion are recoverable for ~6s */}
       {undo && (

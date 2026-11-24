@@ -1,4 +1,5 @@
 // Library-tab stats widgets - chart/content-only, shared by StatsPage and the Lab.
+import { BookLink } from '@/components/motion'
 import { Fragment, useState } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
@@ -232,12 +233,12 @@ export function PerBookTimeTable({ data }: { data: StatsResponse['per_book_time'
             <Fragment key={b.book_id}>
               <tr className={cn('hover:bg-accent/30 transition-colors', idx % 2 === 0 ? 'bg-muted/20' : '')}>
                 <td className="py-1.5 px-2">
-                  <div className="w-8 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+                  <div data-cover-id={b.has_cover ? b.book_id : undefined} className="w-8 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
                     {b.has_cover ? <img src={coverSrc(b.book_id, { w: 160 })} alt="" className="w-full h-full object-cover" loading="lazy" /> : <FileText className="w-3.5 h-3.5 text-muted-foreground" />}
                   </div>
                 </td>
                 <td className="py-1.5 px-2">
-                  <a href={`/books/${b.book_id}`} className="font-medium text-foreground hover:text-primary transition-colors line-clamp-1">{b.title}</a>
+                  <BookLink book={{ id: b.book_id, title: b.title }} className="font-medium text-foreground hover:text-primary transition-colors line-clamp-1">{b.title}</BookLink>
                 </td>
                 <td className="py-1.5 px-2 text-muted-foreground hidden sm:table-cell truncate max-w-[160px]">{b.author || '--'}</td>
                 <td className="py-1.5 px-2 text-right text-muted-foreground">{formatDuration(b.seconds)}</td>

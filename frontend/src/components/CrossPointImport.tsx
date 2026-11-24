@@ -10,7 +10,8 @@ import { cn } from '@/lib/utils'
 import { Plural, Trans, useLingui } from '@lingui/react/macro'
 import { msg } from '@lingui/core/macro'
 import { i18n, type MessageDescriptor } from '@lingui/core'
-import { Pill } from '@/components/page'
+import { Pill, Swap } from '@/components/page'
+import { Note, SameWidth } from '@/components/FormMotion'
 
 interface SkipReason {
   reason: string
@@ -167,20 +168,22 @@ export function CrossPointImport() {
         }}
       />
 
+      {/* The picker and the report take turns in one place. */}
+      <Swap id={report ? 'report' : 'picker'}>
       {!report && (
         <div className="flex flex-wrap items-center gap-3">
           <Pill onClick={() => fileRef.current?.click()} disabled={busy} variant="secondary">
             {phase === 'previewing' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <FileUp className="h-3.5 w-3.5" />}
             <Trans>Choose export file</Trans>
           </Pill>
-          {phase === 'previewing' && <span className="text-[13px] text-muted-foreground"><Trans>Reading the file...</Trans></span>}
+          {phase === 'previewing' && <span className="text-[13px] text-muted-foreground animate-in fade-in-40 duration-150 motion-reduce:animate-none"><Trans>Reading the file...</Trans></span>}
         </div>
       )}
-      {error && (
-        <p className="mt-3 flex max-w-[80ch] items-start gap-1.5 text-[13px] text-destructive">
+      <Note value={error}>{error => (
+        <p className="pt-3 flex max-w-[80ch] items-start gap-1.5 text-[13px] text-destructive">
           <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" /> <span className="break-words">{error}</span>
         </p>
-      )}
+      )}</Note>
 
       {report && (
         <div className="space-y-4">
@@ -212,8 +215,10 @@ export function CrossPointImport() {
               </Pill>
             )}
             <Pill variant="secondary" onClick={copy}>
-              {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
-              {copied ? <Trans>Copied</Trans> : <Trans>Copy report</Trans>}
+              <Swap id={copied ? 'copied' : 'copy'} className="inline-flex">
+                {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}
+              </Swap>
+              <SameWidth active={copied ? 1 : 0}>{[<Trans>Copy report</Trans>, <Trans>Copied</Trans>]}</SameWidth>
             </Pill>
             <Pill variant="quiet" onClick={reset} disabled={busy}>
               {report.applied ? <Trans>Done</Trans> : <Trans>Cancel</Trans>}
@@ -224,6 +229,7 @@ export function CrossPointImport() {
           </p>
         </div>
       )}
+      </Swap>
     </div>
   )
 }

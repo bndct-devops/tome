@@ -6,7 +6,10 @@ import { api } from '@/lib/api'
 import { cn, copyToClipboard } from '@/lib/utils'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
-import { Pill } from '@/components/page'
+import { Pill, PRESS, Swap } from '@/components/page'
+import { AnimatePresence, m } from 'motion/react'
+import { listItem } from '@/components/motion'
+import { RowsSkeleton } from '@/components/FormMotion'
 
 interface ShareLinkRow {
   id: number
@@ -50,18 +53,19 @@ export function ShareLinksOverview() {
         kills a link instantly.</Trans>
       </p>
       {rows === null ? (
-        <p className="animate-pulse text-[13px] text-muted-foreground"><Trans>Loading…</Trans></p>
+        <RowsSkeleton rows={3} rowClassName="h-[63px]" />
       ) : rows.length === 0 ? (
         <p className="text-[13px] text-muted-foreground">
           <Trans>Nothing shared yet. Use the share icon on a shelf, a series page, or a book page.</Trans>
         </p>
       ) : (
         <ul className="flex flex-col border-y border-border/70 divide-y divide-border/70">
+          <AnimatePresence initial={false}>
           {rows.map(row => {
             const Icon = KIND_ICON[row.kind]
             return (
-              <li
-                key={row.id}
+              <m.li key={row.id} {...listItem}>
+              <div
                 className={cn(
                   'flex items-center gap-2.5 py-2.5',
                   row.expired && 'opacity-60',
@@ -79,7 +83,7 @@ export function ShareLinksOverview() {
                     href={`/share/${row.token}`}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="shrink-0 inline-flex h-9 items-center rounded-full px-3 text-[14px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground"
+                    className={`shrink-0 inline-flex h-9 items-center rounded-full px-3 text-[14px] font-medium text-muted-foreground transition-colors hover:bg-secondary hover:text-foreground touch-feedback ${PRESS}`}
                   >
                     <Trans>Open</Trans>
                   </a>
@@ -92,7 +96,9 @@ export function ShareLinksOverview() {
                   aria-label={t`Copy link`}
                   className="shrink-0"
                 >
-                  {copiedId === row.id ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+                  <Swap id={copiedId === row.id ? 'copied' : 'copy'} className="inline-flex">
+                    {copiedId === row.id ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+                  </Swap>
                 </Pill>
                 <Pill
                   icon
@@ -104,9 +110,11 @@ export function ShareLinksOverview() {
                 >
                   <Trash2 className="h-4 w-4" />
                 </Pill>
-              </li>
+              </div>
+              </m.li>
             )
           })}
+          </AnimatePresence>
         </ul>
       )}
     </div>

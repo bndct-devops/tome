@@ -1,12 +1,16 @@
-import { useEffect, useId, useRef, useState, type ReactNode } from 'react'
-import { useParams, useNavigate, Link } from 'react-router-dom'
+import { useEffect, useId, useLayoutEffect, useRef, useState, type CSSProperties, type MouseEvent as ReactMouseEvent, type ReactNode, type RefObject } from 'react'
+import { flushSync } from 'react-dom'
+import { useParams, useNavigate, useLocation, Link } from 'react-router-dom'
+import { AnimatePresence, m } from 'motion/react'
 import {
   Camera, Download, Edit2, X, Trash2, Loader2, Sparkles, Library as LibraryIcon, Check,
   ChevronLeft, ChevronRight, StickyNote, ChevronDown, Play, Link2, RefreshCw,
   Plus, TrendingUp, TrendingDown, Minus, History as HistoryIcon, Share2, Eye,
-  ExternalLink,
+  ExternalLink, CalendarCheck,
 } from 'lucide-react'
 import { useAuth, isAdmin, isMember } from '@/contexts/AuthContext'
+import { useSidebarLists } from '@/lib/sidebarLists'
+import { refreshDeviceInventories, useDeviceInventories } from '@/lib/deviceBooks'
 import { useToast } from '@/contexts/ToastContext'
 import { FinishByPill } from '@/components/goals/FinishByPill'
 import { Trans, useLingui } from '@lingui/react/macro'
@@ -17,16 +21,18 @@ import { PositionHistoryModal } from '@/components/PositionHistoryModal'
 import { ShareModal } from '@/components/ShareShelfModal'
 import { SendButton } from '@/components/SendButton'
 import { DevicePills } from '@/components/DevicePills'
-import { BookAnimation } from '@/components/BookAnimation'
 import { StarRating } from '@/components/StarRating'
 import { CoverImage } from '@/components/CoverImage'
 import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { AppShell } from '@/components/AppShell'
 import { QuickLook } from '@/components/QuickLook'
-import { PageBody, SectionTitle, Stat, StatStrip, Field, Pill, Input, Select, Textarea, FormLabel, INPUT_CLASS } from '@/components/page'
+import { Glide, GlideGroup, PageBody, SectionTitle, Stat, StatStrip, Field, Pill, Input, Select, Swap, Textarea, FormLabel, INPUT_CLASS, PRESS, PRESS_LABEL } from '@/components/page'
+import { BookLink, CoverLift, EASE, EASE_CSS, Pop, RunningNumber, SeriesLink, Unfold, listItem, useSeriesNav, type BookPreview } from '@/components/motion'
+import { bookRequests, dropBookSeed, fetchBookSeed, heroCoverSrc, hintSeries, peekBookSeed, prefetchSeries, seriesDetailUrl, type BookSeed, type BookSeedKey } from '@/components/motion/nav'
 import { ModalShell, isModalOpen } from '@/components/ModalShell'
 import { NamedIcon } from '@/lib/icons'
 import { coverSrc } from '@/lib/covers'
+import { isPlainClick, readPreview } from '@/lib/coverTransition'
 import { SessionLog, SessionLogHint } from '@/components/stats/SessionLog'
 import { InfoHint } from '@/components/InfoHint'
 import { api } from '@/lib/api'
@@ -34,7 +40,7 @@ import type { BookDetail, BookFile, Library as LibraryType, BookStatus, ReadingS
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
 import { progressPercent, cn, formatDuration, formatDate } from '@/lib/utils'
-import { describePace, formatEstimateDays, formatEstimateHours, type BookEstimate } from '@/lib/backlog'
+import { describePace, formatEstimateDays, formatEstimateHours, type BookEstimate, type EstimatePace } from '@/lib/backlog'
 
 interface Facets {
   authors: string[]
@@ -168,6 +174,7 @@ interface SeriesVolume {
   title: string
   series_index: number | null
   cover_path: string | null
+  cover_color?: string | null
   updated_at: string | null
   reading_status: string | null
 }
@@ -190,64 +197,359 @@ async function downloadFile(book: BookDetail, f: BookFile) {
   URL.revokeObjectURL(url)
 }
 
-// Keyed on the book id: moving to the previous/next volume mounts a fresh page,
-// so no state from the old book survives and a slow or failed request for the
-// old book can no longer land on the new one (its setState hits an unmounted
-// component and is dropped).
-export function BookDetailPage() {
-  const { id } = useParams<{ id: string }>()
-  return <BookDetailView key={id} />
+// The page frame, shared by the page and its preview (below) so the hero cover
+// sits in the same place in both and React keeps the same element.
+const HEADER_CLS = 'flex min-h-9 flex-wrap items-center justify-between gap-x-4 gap-y-2'
+const GRID_CLS = 'grid items-start gap-10 lg:grid-cols-[220px_minmax(0,1fr)] lg:grid-rows-[auto_1fr]'
+const RAIL_COVER_CLS = 'mx-auto w-[200px] sm:w-[220px] lg:mx-0 lg:col-start-1 lg:row-start-1'
+const COVER_CLS = 'relative aspect-[2/3] overflow-hidden rounded-[12px] bg-muted'
+const MAIN_COL_CLS = 'order-2 flex min-w-0 flex-col gap-7 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2'
+const HERO_CLS = 'min-w-0 max-w-[680px]'
+// min-h-9: the previous/next buttons arrive later and must not grow the row,
+// and the crumbs sit at the actions' height whether or not those share their line.
+// Counts as 14rem wide when the row decides whether to wrap, then takes the
+// room that is left: a long series name is cut with an ellipsis (it is printed
+// in full above the title) before the actions drop to a second line.
+const CRUMBS_CLS = 'flex min-h-9 min-w-0 flex-1 basis-56 items-center gap-1.5 text-[13px] text-muted-foreground'
+const SERIES_LINE_CLS = 'block text-left text-[12px] font-bold uppercase tracking-[0.1em] text-primary hover:underline underline-offset-4'
+const TITLE_CLS = 'mt-2 font-display text-[30px] sm:text-[34px] font-bold leading-[1.05] text-foreground'
+const AUTHOR_CLS = 'mt-1.5 block text-left text-[16px] text-muted-foreground hover:text-primary transition-colors'
+// The sections under the hero, arriving after it: a short rise from partly there.
+const RISE_FROM = { opacity: 0.5, y: 10 }
+const RISE_TO = { opacity: 1, y: 0, transition: { duration: 0.24, ease: EASE } }
+
+// The header row's height at a viewport width, as the last page drew it: its
+// actions wrap at narrow widths, so the preview reserves what the page used.
+// Kept across visits (per browser) so the first book of a visit reserves it too.
+const HEADER_ROW_KEY = 'tome_book_header_row'
+let headerRow: { width: number; height: number } | null = (() => {
+  try { return JSON.parse(localStorage.getItem(HEADER_ROW_KEY) ?? 'null') } catch { return null }
+})()
+// The hero's title block as this book drew it: while the next book's lines
+// stand in, the block keeps at least this height, so the rows under it (and
+// the status pills' indicator) do not move before the page changes.
+let heroTitleH = 0
+
+/** The finish-by pill's usual label, unseen, so its slot is held on books that have none.
+ *  A goal's day ("Finish by Sep 28") is wider and is not reserved: that width would wrap
+ *  the header in a narrow window on every book. */
+function FinishByReserve() {
+  return (
+    <Pill variant="quiet" tabIndex={-1}>
+      <CalendarCheck className="h-4 w-4" />
+      <span className="hidden whitespace-nowrap sm:inline"><Trans>Finish by…</Trans></span>
+    </Pill>
+  )
 }
 
-function BookDetailView() {
-  const { t, i18n } = useLingui()
+const REDUCED = '(prefers-reduced-motion: reduce)'
+const reduced = () => window.matchMedia(REDUCED).matches
+
+// The title block as last drawn (mid-glide too) and when its page went: the
+// next book's page, mounting in the same commit, glides from that height
+// instead of moving the rows under it in one jump.
+let titleDrawn = { h: 0, at: 0 }
+const TITLE_GLIDE_MS = 240
+
+/** The hero's title block: when its height changes (a title on more or fewer
+ *  lines) the block glides to the new height. `innerRef` is the block itself. */
+function TitleGlide({ innerRef, style, children }: {
+  innerRef: RefObject<HTMLDivElement | null>
+  style?: CSSProperties
+  children: ReactNode
+}) {
+  const outerRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    const box = outerRef.current, el = innerRef.current
+    if (!box || !el) return
+    let last = el.offsetHeight
+    let run: Animation | null = null
+    const glide = (from: number, to: number) => {
+      run?.cancel()
+      run = null
+      if (Math.abs(from - to) < 1 || reduced()) return
+      box.style.overflow = 'clip'
+      run = box.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: TITLE_GLIDE_MS, easing: EASE_CSS })
+      const mine = run
+      const end = () => { if (run === mine) { run = null; box.style.overflow = '' } }
+      mine.onfinish = end
+      mine.oncancel = () => { if (run === mine || run === null) box.style.overflow = '' }
+    }
+    if (titleDrawn.h && performance.now() - titleDrawn.at < 100) glide(titleDrawn.h, last)
+    titleDrawn = { h: 0, at: 0 }
+    const ro = new ResizeObserver(() => {
+      const h = el.offsetHeight
+      if (h === last) return
+      const from = run ? box.getBoundingClientRect().height : last
+      last = h
+      glide(from, h)
+    })
+    ro.observe(el)
+    return () => {
+      titleDrawn = { h: run && box.isConnected ? box.getBoundingClientRect().height : last, at: performance.now() }
+      ro.disconnect()
+      run?.cancel()
+    }
+  }, [innerRef])
+  return (
+    <div ref={outerRef}>
+      <div ref={innerRef} style={style}>{children}</div>
+    </div>
+  )
+}
+
+// A step to the previous or next volume with the arrows: the arriving cover
+// and title come in from the side stepped towards. Played once per step,
+// across the dimmed wait and the page that follows it (which picks it up at
+// the same point rather than starting over).
+const CUE_MS = 200
+const CUE_PX = 10
+let cue: { id: number; dir: 1 | -1; at: number; started: number } | null = null
+function playCue(id: number, els: (HTMLElement | null)[]) {
+  if (!cue || cue.id !== id || reduced()) return
+  const now = performance.now()
+  if (!cue.started && now - cue.at > 2000) { cue = null; return }
+  const elapsed = cue.started ? now - cue.started : 0
+  if (elapsed >= CUE_MS) return
+  if (!cue.started) cue.started = now
+  const { dir } = cue
+  for (const el of els) {
+    if (!el) continue
+    const a = el.animate(
+      [{ transform: `translateX(${dir * CUE_PX}px)`, opacity: 0.6 }, { transform: 'none', opacity: 1 }],
+      { duration: CUE_MS, easing: EASE_CSS },
+    )
+    a.currentTime = elapsed
+  }
+}
+
+/** The hero cover. Opened from a card it starts with the card's thumbnail
+ *  (already in the cache, so it paints at once) and the full-size image fades
+ *  in over it once loaded; a direct visit shows the full image as before. */
+function cached(src: string): boolean {
+  const img = new Image()
+  img.src = src
+  return img.complete && img.naturalWidth > 0
+}
+
+// A series link asks for the series' answers again when they are older than this.
+const SERIES_WARM_MS = 3000
+
+/** The series' first cover in the "In this series" strip of the section
+ *  holding `link`, when it shows whole (not scrolled out of the strip). */
+function stripCover(link: Element): HTMLElement | null {
+  const el = link.closest('section')?.querySelector<HTMLElement>('[data-series-cover]')
+  const strip = el?.parentElement?.closest<HTMLElement>('.overflow-x-auto')
+  if (!el || !strip) return null
+  const r = el.getBoundingClientRect(), s = strip.getBoundingClientRect()
+  return r.left >= s.left - 1 && r.right <= s.right + 1 ? el : null
+}
+
+function HeroCover({ thumb, full, alt, color }: { thumb?: string | null; full: string | null; alt: string; color?: string | null }) {
+  // Already fetched (asked for ahead): shown at once instead of fading in over the thumbnail.
+  const [readySrc, setReadySrc] = useState<string | null>(() => (full && cached(full) ? full : null))
+  if (!thumb) return <CoverImage src={full} alt={alt} loading="eager" color={color} iconClassName="w-12 h-12" />
+  return (
+    <>
+      {color && <div className="absolute inset-0" style={{ backgroundColor: color }} />}
+      <img src={thumb} alt="" decoding="sync" className="absolute inset-0 h-full w-full object-cover" />
+      {full && (
+        <img
+          key={full}
+          src={full}
+          alt={alt}
+          ref={el => { if (el?.complete && el.naturalWidth) setReadySrc(full) }}
+          onLoad={() => setReadySrc(full)}
+          className={cn('absolute inset-0 h-full w-full object-cover transition-opacity duration-300', readySrc === full ? 'opacity-100' : 'opacity-0')}
+        />
+      )}
+    </>
+  )
+}
+
+// What a book page loads (components/motion/nav.ts): asked for ahead when a
+// link to the book is pressed or hovered, else on arrival; moving from one
+// book to another fetches them while the old page stays up.
+type SeedKey = BookSeedKey
+interface Seed extends Pick<BookSeed, 'values' | 'pending'> {
+  /** Handed over by a move from another book, which has waited for it already. */
+  waited?: boolean
+}
+const SEED_KEYS: SeedKey[] = ['book', 'status', 'adjacent', 'kosync', 'annotations', 'stats', 'estimate', 'series']
+const complete = (s: BookSeed) => SEED_KEYS.every(k => k in s.values)
+
+// The longest the old page waits, dimmed, for the next book's answers.
+const SWAP_CAP_MS = 1200
+// The longest a page that arrived on its own holds its sections back for the
+// late answers (reading stats, highlights) so they land together.
+const REVEAL_CAP_MS = 900
+
+// Held per login (the token the answer was asked with), like useKosyncStatus:
+// signing out or impersonating does not reload the page, and another account's
+// libraries or pace must never show.
+const currentToken = () => localStorage.getItem('tome_token')
+const mine = <T,>(c: { token: string | null; value: T } | null): T | null =>
+  (c && c.token === currentToken() ? c.value : null)
+
+// Libraries change rarely: the last answer draws the Libraries pill at once on
+// the next book instead of it arriving and moving the actions beside it.
+let lastLibraries: { token: string | null; value: LibraryType[] } | null = null
+
+// Whether this visit has asked for the device lists (see devicesIn).
+let devicesAsked = false
+const DEVICES_CAP_MS = 500
+
+// The reader's pace from the last estimate (it is the same for every book):
+// a book with a word count shows its estimate from it at once, the way the
+// server works it out (backend/services/backlog_estimate.py), until its own answer lands.
+let lastPace: { token: string | null; value: EstimatePace } | null = null
+function estimateFromPace(words: number, pace: EstimatePace): BookEstimate {
+  const seconds = Math.round(words / (pace.wpm || pace.default_wpm) * 60)
+  return {
+    seconds,
+    days: pace.minutes_per_day ? Math.round(seconds / 60 / pace.minutes_per_day * 10) / 10 : null,
+    method: pace.wpm ? 'words' : 'default',
+    pace,
+  }
+}
+
+/**
+ * One book page. Moving to another book keeps the page up: the next book's
+ * cover, title and series take the hero at once (from the preview the link
+ * handed over), the rest dims, and once its answers are in (or after
+ * SWAP_CAP_MS) a fresh page for it mounts with them. Each book still gets its
+ * own mount (keyed on the id), so nothing of the old book survives and a late
+ * answer for it can never land on the new one.
+ */
+export function BookDetailPage() {
   const { id } = useParams<{ id: string }>()
+  const location = useLocation()
+  // Opened from a link that asked ahead: the page mounts with what is in.
+  const [page, setPage] = useState<{ id: string | undefined; seed: Seed | null }>(() => {
+    const s = id ? peekBookSeed(Number(id)) : null
+    // A copy: the page reads which answers came with it once, at its mount.
+    return { id, seed: s && { values: { ...s.values }, pending: s.pending } }
+  })
+  // A move whose answers are all in already swaps in this render, without a dimmed frame.
+  const ready = id && id !== page.id ? peekBookSeed(Number(id)) : null
+  if (id && ready && complete(ready)) setPage({ id, seed: { values: { ...ready.values }, pending: ready.pending, waited: true } })
+  useEffect(() => {
+    if (!id || id === page.id) return
+    let live = true
+    const s = peekBookSeed(Number(id)) ?? fetchBookSeed(id)
+    const swap = () => { if (live) { live = false; setPage({ id, seed: { values: { ...s.values }, pending: s.pending, waited: true } }) } }
+    const timer = setTimeout(swap, SWAP_CAP_MS)
+    s.all.then(swap)
+    return () => { live = false; clearTimeout(timer) }
+  }, [id, page.id])
+  const next = id && id !== page.id ? (readPreview(location.state, Number(id)) ?? { id: Number(id), title: '' }) : null
+  // The shell stays across books (its sidebar asks nothing again); each book gets its own mount.
+  return <AppShell><BookDetailView key={page.id} id={page.id ?? ''} seed={page.seed} next={next} /></AppShell>
+}
+
+function BookDetailView({ id, seed, next }: {
+  id: string
+  seed: Seed | null
+  /** The book being moved to while its answers load: its preview takes the hero, the rest dims. */
+  next: BookPreview | null
+}) {
+  const { t, i18n } = useLingui()
   const navigate = useNavigate()
+  const openSeries = useSeriesNav()
+  const location = useLocation()
+  // What the card that opened this page knew: the hero paints from it at once.
+  // Read once: the router state moves on to the next book before this page goes.
+  const [preview] = useState(() => readPreview(location.state, Number(id)))
+  const seeded = <T,>(k: SeedKey): T | undefined => seed?.values[k] as T | undefined
+  const known = (k: SeedKey) => !!seed && k in seed.values
+  const seedStatus = seeded<BookStatus>('status')
+  const seedKosync = seeded<KosyncStatus>('kosync')
+  const headerRef = useRef<HTMLDivElement>(null)
+  const [heldHeader] = useState(() => (headerRow?.width === window.innerWidth ? headerRow.height : null))
+  useLayoutEffect(() => {
+    const el = headerRef.current
+    if (!el || (headerRow?.width === window.innerWidth && headerRow.height === el.offsetHeight)) return
+    headerRow = { width: window.innerWidth, height: el.offsetHeight }
+    try { localStorage.setItem(HEADER_ROW_KEY, JSON.stringify(headerRow)) } catch { /* storage off */ }
+  })
   const { user } = useAuth()
   const { toast } = useToast()
-  const [book, setBook] = useState<BookDetail | null>(null)
-  const [loading, setLoading] = useState(true)
+  const [book, setBook] = useState<BookDetail | null>(() => seeded<BookDetail>('book') ?? null)
+  const [loading, setLoading] = useState(() => !known('book'))
+  // The "On <device>" pills sit in the hero above the status row: the first
+  // page of a visit waits (briefly) for the device lists so they do not arrive
+  // later and push everything under them down.
+  const devicesNow = useDeviceInventories()
+  const [devicesIn, setDevicesIn] = useState(() => devicesAsked || devicesNow.length > 0)
+  useEffect(() => {
+    if (devicesIn) return
+    devicesAsked = true
+    let live = true
+    const done = () => { if (live) setDevicesIn(true) }
+    const cap = setTimeout(done, DEVICES_CAP_MS)
+    refreshDeviceInventories().finally(done)
+    return () => { live = false; clearTimeout(cap) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount
+  }, [])
   const bookTypes = useBookTypes()
   const [editing, setEditing] = useState(false)
   const [saving, setSaving] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const [downloadingId, setDownloadingId] = useState<number | null>(null)
-  const [draft, setDraft] = useState<Partial<BookDetail>>({})
+  const [draft, setDraft] = useState<Partial<BookDetail>>(() => seeded<BookDetail>('book') ?? {})
   const [draftBookTypeId, setDraftBookTypeId] = useState<number | null>(null)
   const [error, setError] = useState<string | null>(null)
   const [fetchModalOpen, setFetchModalOpen] = useState(false)
   const [coverPickerOpen, setCoverPickerOpen] = useState(false)
-  const [libraries, setLibraries] = useState<LibraryType[]>([])
+  // The sidebar's copy of the libraries (same answer) draws the Libraries pill at
+  // once when this page has none yet; it is refreshed below either way.
+  const sidebarLibraries = useSidebarLists(user?.id).libraries
+  const [libraries, setLibraries] = useState<LibraryType[]>(() => mine(lastLibraries) ?? sidebarLibraries)
+  const [librariesIn, setLibrariesIn] = useState(() => mine(lastLibraries) != null || sidebarLibraries.length > 0)
   const [libMenuOpen, setLibMenuOpen] = useState(false)
   const libMenuRef = useRef<HTMLDivElement>(null)
   const [libPending, setLibPending] = useState<Set<number>>(new Set())
   // optimistic local library_ids so UI updates instantly
-  const [localLibIds, setLocalLibIds] = useState<number[]>([])
-  const [bookStatus, setBookStatus] = useState<ReadingStatus>('unread')
-  const [statusKnown, setStatusKnown] = useState(false)
-  const [progressPct, setProgressPct] = useState<number | null>(null)
-  const [cfi, setCfi] = useState<string | null>(null)
-  const [progressAnimated, setProgressAnimated] = useState(false)
+  const [localLibIds, setLocalLibIds] = useState<number[]>(() => seeded<BookDetail>('book')?.library_ids ?? [])
+  const [bookStatus, setBookStatus] = useState<ReadingStatus>(() => seedStatus?.status ?? 'unread')
+  const [statusKnown, setStatusKnown] = useState(() => known('status'))
+  const [progressPct, setProgressPct] = useState<number | null>(() => seedStatus?.progress_pct ?? null)
+  const [cfi, setCfi] = useState<string | null>(() => seedStatus?.cfi ?? null)
+  // A page that mounted with its answers shows the bar at its value (another
+  // book's bar is not this one's to grow from); one that waited grows it.
+  const [progressAnimated, setProgressAnimated] = useState(() => known('status'))
   const [statusSaving, setStatusSaving] = useState(false)
-  const [rating, setRating] = useState<number | null>(null)
-  const [review, setReview] = useState('')       // saved review text
+  const [rating, setRating] = useState<number | null>(() => seedStatus?.rating ?? null)
+  // The stars' fill-in runs only once the pointer is on them, not on load.
+  const [ratingSettled, setRatingSettled] = useState(true)
+  const [review, setReview] = useState(() => seedStatus?.review ?? '')       // saved review text
   const [reviewDraft, setReviewDraft] = useState('')  // in-progress edit
   const [editingReview, setEditingReview] = useState(false)
-  const [kosyncDevice, setKosyncDevice] = useState<string | null>(null)
+  const [kosyncDevice, setKosyncDevice] = useState<string | null>(() => (seedKosync?.linked && seedKosync.device) || null)
   // Where the linked KOSync position stands, for the "Synced from" pill.
-  const [kosyncLinked, setKosyncLinked] = useState<{ percentage: number | null; timestamp: number | null } | null>(null)
+  const [kosyncLinked, setKosyncLinked] = useState<{ percentage: number | null; timestamp: number | null } | null>(() =>
+    seedKosync?.linked ? { percentage: seedKosync.percentage ?? null, timestamp: seedKosync.timestamp ?? null } : null)
   // Manual KOSync linking (#156): sync documents pushed by a KOSync client
   // (stock KOReader / Readest) that aren't attached to any Tome book yet.
-  const [kosyncUnlinked, setKosyncUnlinked] = useState<KosyncUnlinkedDoc[]>([])
+  const [kosyncUnlinked, setKosyncUnlinked] = useState<KosyncUnlinkedDoc[]>(() => (!seedKosync?.linked && seedKosync?.unlinked_documents) || [])
   const [kosyncPickerOpen, setKosyncPickerOpen] = useState(false)
   const [kosyncLinkDoc, setKosyncLinkDoc] = useState('')
   const [kosyncLinking, setKosyncLinking] = useState(false)
-  const [annotations, setAnnotations] = useState<Annotation[]>([])
+  const [annotations, setAnnotations] = useState<Annotation[]>(() => seeded<Annotation[]>('annotations') ?? [])
   const [confirmingHighlight, setConfirmingHighlight] = useState<number | string | null>(null)
   const [highlightsOpen, setHighlightsOpen] = useState(true)
-  const [readingStats, setReadingStats] = useState<ReadingStatsResponse | null>(null)
-  const [estimate, setEstimate] = useState<BookEstimate | null>(null)
+  const [readingStats, setReadingStats] = useState<ReadingStatsResponse | null>(() => seeded<ReadingStatsResponse>('stats') ?? null)
+  const [estimate, setEstimate] = useState<BookEstimate | null>(() => { const e = seeded<BookEstimate>('estimate'); if (e) lastPace = { token: currentToken(), value: e.pace }; return e ?? null })
+  // The late answers: the sections under the hero wait for them (or REVEAL_CAP_MS)
+  // and arrive together, so none of them lands later and pushes the others.
+  const [settled, setSettled] = useState(() => ({ stats: known('stats'), annotations: known('annotations'), estimate: known('estimate') }))
+  const settle = (k: keyof typeof settled) => setSettled(v => (v[k] ? v : { ...v, [k]: true }))
+  // A page handed its answers by the move from another book has waited already.
+  const [capped, setCapped] = useState(() => !!seed?.waited)
+  // Mounted with everything a block needs: it just appears with the page.
+  const [rise] = useState(() => !(known('book') && known('stats') && known('annotations')))
+  const [riseRail] = useState(() => rise || !known('estimate'))
   // Per-book session list (#150) - collapsed by default; the always-available
   // place to trim/delete a runaway session (the Stats tiles are removable).
   const [sessionsOpen, setSessionsOpen] = useState(false)
@@ -259,10 +561,20 @@ function BookDetailView() {
   // "Show more" only when the 4-line clamp actually hides text.
   const descRef = useRef<HTMLParagraphElement>(null)
   const [descClamped, setDescClamped] = useState(false)
+  // While the description opens or closes it is unclamped and its height runs.
+  const [descMoving, setDescMoving] = useState(false)
+  const descRun = useRef<Animation | null>(null)
+  const descShortH = useRef(0)
   const [downloadMenuOpen, setDownloadMenuOpen] = useState(false)
   const downloadMenuRef = useRef<HTMLDivElement>(null)
-  const [seriesVolumes, setSeriesVolumes] = useState<SeriesVolume[]>([])
+  const [seriesVolumes, setSeriesVolumes] = useState<SeriesVolume[]>(() => seeded<SeriesVolume[]>('series') ?? [])
+  const [seriesIn, setSeriesIn] = useState(() => known('series'))
+  // eslint-disable-next-line lingui/no-unlocalized-strings -- media query (Tailwind lg)
+  const [railBeside] = useState(() => window.matchMedia('(min-width: 64rem)').matches)
+  const seriesSeeded = useRef(known('series'))
+  const seriesPending = useRef(seed && !known('series') ? (seed.pending.series as Promise<SeriesVolume[]> | undefined) ?? null : null)
   const [quickLookId, setQuickLookId] = useState<number | null>(null)
+  const [quickLookFrom, setQuickLookFrom] = useState<{ origin?: DOMRect; cover?: string | null }>({})
   const [facets, setFacets] = useState<Facets>({ authors: [], series: [], tags: [], formats: [] })
   const [draftTags, setDraftTags] = useState<string[]>([])
   const [tagInput, setTagInput] = useState('')
@@ -270,7 +582,7 @@ function BookDetailView() {
     prev: { id: number; title: string; series_index?: number } | null
     next: { id: number; title: string; series_index?: number } | null
     mode: 'series' | 'author' | null
-  } | null>(null)
+  } | null>(() => seeded('adjacent') ?? null)
 
   const isDirty = editing && book != null && JSON.stringify(draft) !== JSON.stringify(book)
   // Same rule as the server: an admin changes any book, a member only the
@@ -333,26 +645,54 @@ function BookDetailView() {
     }
   }, [downloadMenuOpen])
 
-  useEffect(() => {
+  // Before paint: "Show more" arriving a frame late would push the sections under it.
+  useLayoutEffect(() => {
     const el = descRef.current
     if (!el) { setDescClamped(false); return }
-    const measure = () => { if (!descExpanded) setDescClamped(el.scrollHeight > el.clientHeight + 1) }
+    // Not while it moves: it is unclamped then; it measures again when the clamp is back.
+    const measure = () => { if (!descExpanded && !descMoving) setDescClamped(el.scrollHeight > el.clientHeight + 1) }
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
-  }, [book?.description, editing, descExpanded, loading])
+  }, [book?.description, editing, descExpanded, descMoving, loading, devicesIn, settled, capped])
 
+  const bookIn = book != null
+  useEffect(() => {
+    if (!bookIn) return
+    const name = book?.series
+    // The first answer came with the page, or is on its way with it.
+    if (seriesSeeded.current) { seriesSeeded.current = false; return }
+    const first = seriesPending.current
+    seriesPending.current = null
+    if (!name) { setSeriesVolumes([]); setSeriesIn(true); return }
+    ;(first ?? api.get<{ books: SeriesVolume[] }>(seriesDetailUrl(name)).then(d => d.books ?? []))
+      .then(setSeriesVolumes)
+      .catch(() => setSeriesVolumes([]))
+      .finally(() => setSeriesIn(true))
+  }, [bookIn, book?.series])
+
+  // The series page's hero (its first volume with a cover), fetched and decoded
+  // once this page is idle: every link to the series hands it on, so the series
+  // page paints it in its first frame, hovered first or not.
+  const seriesHeroId = seriesVolumes.find(v => v.cover_path)?.id
   useEffect(() => {
     const name = book?.series
-    if (!name) { setSeriesVolumes([]); return }
-    api.get<{ books: SeriesVolume[] }>(`/books/series-detail?name=${encodeURIComponent(name)}`)
-      .then(d => setSeriesVolumes(d.books ?? []))
-      .catch(() => setSeriesVolumes([]))
-  }, [book?.series])
+    if (!name || seriesHeroId == null) return
+    const hint = () => { hintSeries(name, coverSrc(seriesHeroId, { w: 400 })); prefetchSeries(name) }
+    if (typeof window.requestIdleCallback !== 'function') {
+      const timer = setTimeout(hint, 300)
+      return () => clearTimeout(timer)
+    }
+    const idle = window.requestIdleCallback(hint, { timeout: 1500 })
+    return () => window.cancelIdleCallback(idle)
+  }, [book?.series, seriesHeroId])
 
+  // Waiting to swap to another book: this page is on its way out, so its
+  // shortcuts (r, e, Escape) must not act on the outgoing book.
+  const swapping = next != null
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.defaultPrevented) return
+      if (e.defaultPrevented || swapping) return
       // A dialog (ModalShell, the quick look) owns the keyboard while open.
       if (isModalOpen() || quickLookId != null) return
       const tag = (e.target as HTMLElement).tagName
@@ -388,41 +728,70 @@ function BookDetailView() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [navigate, book, editing, canEdit, quickLookId, libMenuOpen, downloadMenuOpen, kosyncPickerOpen, confirmDelete])
+  }, [navigate, book, editing, canEdit, quickLookId, libMenuOpen, downloadMenuOpen, kosyncPickerOpen, confirmDelete, swapping])
 
   useEffect(() => {
     if (!id) return
-    setAdjacent(null)
-    setSessionsOpen(false)
-    setDescExpanded(false)
-    setConfirmDelete(false)
-    setKosyncLinked(null)
-    setKosyncDevice(null)
+    dropBookSeed(Number(id))
     // The shell scrolls inside <main>; a new book starts at its top.
     document.querySelector('main')?.scrollTo(0, 0)
-    api.get<BookDetail>(`/books/${id}`)
-      .then(b => { setBook(b); setDraft(b); setLocalLibIds(b.library_ids ?? []) })
+    const urls = bookRequests(id)
+    // An answer that came with the page is in its state already; one on its way is taken, not asked again.
+    const load = <T,>(k: Exclude<SeedKey, 'series'>): Promise<T> | null =>
+      known(k) ? null : ((seed?.pending[k] as Promise<T> | undefined) ?? api.get<T>(urls[k]))
+    load<BookDetail>('book')
+      ?.then(b => { setBook(b); setDraft(b); setLocalLibIds(b.library_ids ?? []) })
       .catch(() => setError(t`Book not found`))
       .finally(() => setLoading(false))
-    api.get<LibraryType[]>('/libraries').then(setLibraries).catch(() => toast.error(t`Failed to load libraries`))
-    api.get<BookStatus>(`/books/${id}/status`).then(s => { setBookStatus(s.status); setStatusKnown(true); setProgressPct(s.progress_pct); setCfi(s.cfi ?? null); setProgressAnimated(false); setRating(s.rating ?? null); setReview(s.review ?? ''); setEditingReview(false) }).catch(() => setStatusKnown(true))
-    api.get<typeof adjacent>(`/books/${id}/adjacent`).then(setAdjacent).catch(() => {})
-    api.get<KosyncStatus>(`/books/${id}/kosync-progress`)
-      .then(r => {
+    // With a copy from the last book the refresh waits until the page is in (one request fewer while it loads).
+    const libs = () => { const token = currentToken(); return api.get<LibraryType[]>('/libraries').then(l => { lastLibraries = { token, value: l }; setLibraries(l); setLibrariesIn(true) }).catch(() => toast.error(t`Failed to load libraries`)) }
+    const libsLater = librariesIn ? setTimeout(libs, 1500) : (libs(), undefined)
+    load<BookStatus>('status')?.then(s => { setBookStatus(s.status); setStatusKnown(true); setProgressPct(s.progress_pct); setCfi(s.cfi ?? null); setProgressAnimated(false); setRating(s.rating ?? null); setReview(s.review ?? ''); setEditingReview(false) }).catch(() => setStatusKnown(true))
+    load<typeof adjacent>('adjacent')?.then(setAdjacent).catch(() => {})
+    load<KosyncStatus>('kosync')
+      ?.then(r => {
         if (r.linked && r.device) setKosyncDevice(r.device)
         setKosyncLinked(r.linked ? { percentage: r.percentage ?? null, timestamp: r.timestamp ?? null } : null)
         setKosyncUnlinked(!r.linked && r.unlinked_documents ? r.unlinked_documents : [])
       })
       .catch(() => {})  // KOSync is optional - silent fail is fine
-    api.get<Annotation[]>(`/books/${id}/annotations?include_clippings=1&tz_offset=${new Date().getTimezoneOffset()}`).then(setAnnotations).catch(() => {})
-    api.get<ReadingStatsResponse>(`/books/${id}/reading-stats?tz_offset=${new Date().getTimezoneOffset()}`).then(setReadingStats).catch(() => {})
-    api.get<BookEstimate>(`/books/${id}/estimate?tz_offset=${new Date().getTimezoneOffset()}`).then(setEstimate).catch(() => {})
+    load<Annotation[]>('annotations')?.then(setAnnotations).catch(() => {}).finally(() => settle('annotations'))
+    load<ReadingStatsResponse>('stats')?.then(setReadingStats).catch(() => {}).finally(() => settle('stats'))
+    const paceToken = currentToken()
+    load<BookEstimate>('estimate')?.then(e => { lastPace = { token: paceToken, value: e.pace }; setEstimate(e) }).catch(() => {}).finally(() => settle('estimate'))
+    const cap = setTimeout(() => setCapped(true), REVEAL_CAP_MS)
+    return () => { clearTimeout(cap); clearTimeout(libsLater) }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount (the page is keyed on the book)
   }, [id])
 
-  // Animate progress bar from 0 after it loads
+  // The neighbours' covers, fetched ahead so previous/next paints its cover at once.
+  useEffect(() => {
+    for (const n of [adjacent?.prev, adjacent?.next]) {
+      const v = n && seriesVolumes.find(x => x.id === n.id)
+      if (v?.cover_path) new Image().src = coverSrc(v.id, { w: 160, v: v.updated_at })
+    }
+  }, [adjacent, seriesVolumes])
+
+  // Moving to another book: its hero shows at the top while the rest loads.
+  const heroTitleRef = useRef<HTMLDivElement>(null)
+  useLayoutEffect(() => {
+    if (!next && heroTitleRef.current) heroTitleH = heroTitleRef.current.offsetHeight
+  })
+  const nextId = next?.id
+  useLayoutEffect(() => {
+    if (nextId != null) document.querySelector('main')?.scrollTo(0, 0)
+  }, [nextId])
+  // The step's cue, on the book shown now (the one moved to, or this one once it is in).
+  const coverRef = useRef<HTMLDivElement>(null)
+  const shownId = nextId ?? book?.id
+  useLayoutEffect(() => {
+    if (shownId != null) playCue(shownId, [coverRef.current, heroTitleRef.current])
+  }, [shownId])
+
+  // Animate progress bar from 0 after it loads (one frame at 0 first)
   useEffect(() => {
     if (progressPct != null && progressPct > 0 && !progressAnimated) {
-      const t = setTimeout(() => setProgressAnimated(true), 100)
+      const t = setTimeout(() => setProgressAnimated(true), 20)
       return () => clearTimeout(t)
     }
   }, [progressPct, progressAnimated])
@@ -447,11 +816,12 @@ function BookDetailView() {
     }
   }
 
+  // The bar keeps its width and moves to the new one (progressAnimated stays
+  // set); only a bar that was not shown yet grows from zero.
   function applyStatus(s: BookStatus) {
     setBookStatus(s.status)
     setProgressPct(s.progress_pct)
     setCfi(s.cfi ?? null)
-    setProgressAnimated(false)
   }
 
   async function restoreStatus(prev: { status: ReadingStatus; progress_pct: number | null; cfi: string | null }) {
@@ -477,11 +847,13 @@ function BookDetailView() {
     if (!id || statusSaving || s === bookStatus) return
     const prev = { status: bookStatus, progress_pct: progressPct, cfi }
     setStatusSaving(true)
+    setBookStatus(s)
     try {
       const updated = await api.put<BookStatus>(`/books/${id}/status`, { status: s })
       applyStatus(updated)
       toast.info(STATUS_LABEL[s], { action: { label: t`Undo`, onClick: () => restoreStatus(prev) } })
     } catch {
+      setBookStatus(prev.status)
       toast.error(t`Failed to update reading status`)
     } finally {
       setStatusSaving(false)
@@ -612,24 +984,85 @@ function BookDetailView() {
     setDraft(d => ({ ...d, [key]: value || null }))
   }
 
-  if (loading) return (
-    <AppShell>
-      <div className="flex h-full min-h-[60vh] items-center justify-center">
-        <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
-      </div>
-    </AppShell>
+  // Until the book is in: the page frame, its hero from the preview when a
+  // link handed one over, else the cover's box and the title's lines held
+  // empty (no loader in the middle of an empty page).
+  if (loading || !devicesIn) return (
+    <>
+      <PageBody width="wide">
+        <div className={cn(HEADER_CLS, 'content-start')} style={heldHeader ? { minHeight: heldHeader } : undefined}>
+          <nav className={CRUMBS_CLS} aria-label={t`Breadcrumb`}>
+            <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>All books</Trans></Link>
+          </nav>
+        </div>
+        <div className={GRID_CLS} aria-busy>
+          <div className={RAIL_COVER_CLS}>
+            <div className={COVER_CLS} style={preview ? { boxShadow: 'var(--cover-bloom-hero)' } : undefined} data-hero-cover={preview?.id}>
+              {preview && <HeroCover thumb={preview.cover} full={null} alt={preview.title} color={preview.coverColor} />}
+            </div>
+          </div>
+          <div className={MAIN_COL_CLS}>
+            {!preview ? (
+              <div className={HERO_CLS}>
+                <div className="mt-2 h-[34px] w-3/5 rounded-[8px] bg-muted" />
+                <div className="mt-3 h-[18px] w-2/5 rounded-[6px] bg-muted/70" />
+              </div>
+            ) : (
+            <div className={HERO_CLS}>
+              {preview.series && (
+                <button type="button" className={SERIES_LINE_CLS}>
+                  {preview.series}{preview.series_index != null && (() => { const v = preview.series_index; return <> · <Trans>Volume {v}</Trans></> })()}
+                </button>
+              )}
+              <h1 className={TITLE_CLS}>{preview.title}</h1>
+              {preview.author && <button type="button" className={AUTHOR_CLS}>{preview.author}</button>}
+            </div>
+            )}
+          </div>
+        </div>
+      </PageBody>
+      {/* The page's children are a list (PageBody, then its dialogs); the same
+          shape here lets React keep the hero element when the page arrives. */}
+      {null}
+    </>
   )
 
   if (error || !book) return (
-    <AppShell>
+    <>
       <div className="flex h-full min-h-[60vh] flex-col items-center justify-center gap-3 text-center">
         <p className="text-muted-foreground">{error ?? t`Book not found`}</p>
         <Link to="/" className="text-sm text-primary hover:underline"><Trans>Back to library</Trans></Link>
       </div>
-    </AppShell>
+    </>
   )
 
   // ── Pieces ──────────────────────────────────────────────────────────────────
+
+  // Show more / less: the paragraph's height runs from where it is to the
+  // other state (220 ms); a second click turns it around midway. The clamp
+  // (with its ellipsis) is off while it moves and comes back when it is short.
+  function toggleDescription() {
+    const el = descRef.current
+    const open = !descExpanded
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
+    if (!el || window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setDescExpanded(open); return }
+    const from = el.getBoundingClientRect().height
+    if (open && !descMoving) descShortH.current = from
+    descRun.current?.cancel()
+    flushSync(() => { setDescExpanded(open); setDescMoving(true) })
+    const short = descShortH.current || 4 * parseFloat(getComputedStyle(el).lineHeight)
+    const to = open ? el.scrollHeight : short
+    el.style.overflow = 'hidden'
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS easing
+    const run = el.animate([{ height: `${from}px` }, { height: `${to}px` }], { duration: 220, easing: EASE_CSS })
+    descRun.current = run
+    run.onfinish = () => {
+      if (descRun.current !== run) return
+      el.style.overflow = ''
+      descRun.current = null
+      setDescMoving(false)
+    }
+  }
 
   const refreshStats = () =>
     api.get<ReadingStatsResponse>(`/books/${id}/reading-stats?tz_offset=${new Date().getTimezoneOffset()}`).then(setReadingStats).catch(() => {})
@@ -666,6 +1099,23 @@ function BookDetailView() {
     finally { setDownloadingId(null) }
   }
 
+  // The main column waits for its late answers (reading stats, highlights) so
+  // neither lands later and pushes the other; the rail also for the estimate.
+  const below = (settled.stats && settled.annotations) || capped
+  // A book with a word count always gets an estimate: its slot is held (filled
+  // at once from the last pace seen), so the rail need not wait for the answer.
+  const pace = mine(lastPace)
+  const shownEstimate = estimate ?? (book.word_count && pace ? estimateFromPace(book.word_count, pace) : null)
+  // Past the cap the sections still arrive in order: one never lands above one
+  // already shown (the reading blocks before highlights, both before the series).
+  const statsIn = settled.stats
+  const notesIn = statsIn && settled.annotations
+  // On a phone the rail comes after the whole column, the series strip included.
+  const belowRail = railBeside
+    ? (below && (settled.estimate || !!book.word_count)) || capped
+    : notesIn && seriesIn && (settled.estimate || !!book.word_count || capped)
+  // While the next book loads, everything of this one but the hero's lines dims and stops taking input.
+  const dim = cn('transition-opacity duration-150', next && 'pointer-events-none opacity-40')
   const readable = book.files.some(f => ['epub', 'cbz', 'cbr', 'pdf'].includes(f.format))
   const showProgress = progressPct != null && progressPct > 0 && bookStatus !== 'unread'
   const pctShown = Math.round(progressPercent(progressPct))
@@ -690,13 +1140,53 @@ function BookDetailView() {
 
   // ── Header line: where you are, previous/next volume, the page's actions ────
 
+  // What the next page's hero starts with: the neighbour's title in this
+  // series and the cover thumbnail the strip shows (fetched ahead above).
+  const neighbour = (n: { id: number; title: string; series_index?: number }): BookPreview => {
+    const v = seriesVolumes.find(x => x.id === n.id)
+    const sameSeries = adjacent?.mode === 'series' && !!book.series
+    return {
+      id: n.id, title: n.title,
+      author: adjacent?.mode ? book.author : undefined,
+      series: sameSeries ? book.series : undefined,
+      series_index: sameSeries ? (n.series_index ?? v?.series_index ?? null) : undefined,
+      cover: v ? (v.cover_path ? coverSrc(v.id, { w: 160, v: v.updated_at }) : null) : undefined,
+      coverColor: v?.cover_color ?? null,
+    }
+  }
+
+  // Pointed at or pressed before this page went idle: the series hero is asked for then.
+  // Its answers are asked for again then when a few seconds old (a status may have changed).
+  const warm = () => {
+    if (!book.series) return
+    if (seriesHeroId != null) hintSeries(book.series, coverSrc(seriesHeroId, { w: 400 }))
+    prefetchSeries(book.series, SERIES_WARM_MS)
+  }
+  // Opening the series: the cover nearest the link grows into the series
+  // hero (the crumb: this book's hero; "Open series": the series' first
+  // cover in the strip below it); going back it lands on this hero.
+  const toSeries = (from: 'hero' | 'strip') => (e: ReactMouseEvent<HTMLAnchorElement>) => {
+    if (!book.series || !isPlainClick(e)) return
+    e.preventDefault()
+    prefetchSeries(book.series, SERIES_WARM_MS)
+    const el = from === 'hero' ? coverRef.current : stripCover(e.currentTarget) ?? coverRef.current
+    openSeries(book.series, el, {
+      near: e.currentTarget,
+      from: {
+        id: book.id, title: book.title, author: book.author, series: book.series, series_index: book.series_index,
+        cover: book.cover_path ? heroCoverSrc(book) : null, coverColor: book.cover_color,
+      },
+    })
+  }
+  const warmSeries = { onPointerEnter: warm, onPointerDown: warm, onFocus: warm }
+
   const crumbs = (
-    <nav className="flex min-w-0 items-center gap-1.5 text-[13px] text-muted-foreground" aria-label={t`Breadcrumb`}>
+    <nav className={CRUMBS_CLS} aria-label={t`Breadcrumb`}>
       <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>All books</Trans></Link>
       {book.series && seriesHref ? (
         <>
           <span aria-hidden>/</span>
-          <Link to={seriesHref} className="truncate hover:text-foreground transition-colors">{book.series}</Link>
+          <SeriesLink name={book.series} {...warmSeries} onClick={toSeries('hero')} className="truncate hover:text-foreground transition-colors">{book.series}</SeriesLink>
         </>
       ) : adjacent?.mode === 'author' && book.author ? (
         <>
@@ -707,22 +1197,25 @@ function BookDetailView() {
       {adjacent && (adjacent.prev || adjacent.next) && (
         <span className="ml-1 inline-flex shrink-0 items-center">
           {adjacent.prev ? (
-            <Link to={`/books/${adjacent.prev.id}`} title={adjacent.prev.title} aria-label={t`Previous volume`}
-              className="grid h-7 w-7 place-items-center rounded-full hover:bg-secondary hover:text-foreground transition-colors">
+            <BookLink book={neighbour(adjacent.prev)} cover={null} title={adjacent.prev.title} aria-label={t`Previous volume`}
+              onClick={() => { cue = { id: adjacent.prev!.id, dir: -1, at: performance.now(), started: 0 } }}
+              className={cn('grid h-7 w-7 place-items-center rounded-full hover:bg-secondary hover:text-foreground touch-feedback', PRESS)}>
               <ChevronLeft className="h-4 w-4" />
-            </Link>
+            </BookLink>
           ) : <span className="grid h-7 w-7 place-items-center opacity-30" aria-hidden><ChevronLeft className="h-4 w-4" /></span>}
           {adjacent.next ? (
-            <Link to={`/books/${adjacent.next.id}`} title={adjacent.next.title} aria-label={t`Next volume`}
-              className="grid h-7 w-7 place-items-center rounded-full hover:bg-secondary hover:text-foreground transition-colors">
+            <BookLink book={neighbour(adjacent.next)} cover={null} title={adjacent.next.title} aria-label={t`Next volume`}
+              onClick={() => { cue = { id: adjacent.next!.id, dir: 1, at: performance.now(), started: 0 } }}
+              className={cn('grid h-7 w-7 place-items-center rounded-full hover:bg-secondary hover:text-foreground touch-feedback', PRESS)}>
               <ChevronRight className="h-4 w-4" />
-            </Link>
+            </BookLink>
           ) : <span className="grid h-7 w-7 place-items-center opacity-30" aria-hidden><ChevronRight className="h-4 w-4" /></span>}
         </span>
       )}
     </nav>
   )
 
+  const actionsMode = editing ? 'edit' : confirmDelete ? 'confirm' : 'view'
   const pageActions = editing ? (
     <div className="flex items-center gap-1.5">
       <Pill variant="quiet" onClick={cancelEdit}><X className="h-4 w-4" /><Trans>Cancel</Trans></Pill>
@@ -741,10 +1234,19 @@ function BookDetailView() {
       </Pill>
     </div>
   ) : (
-    <div className="-mr-2 flex flex-wrap items-center justify-end gap-0.5">
+    <div className="-mr-2 ml-auto flex flex-wrap items-center justify-end gap-0.5">
       {/* First, so its late arrival or longer label ("Finish by Dec 31") moves nothing to its right. */}
+      {/* Its slot is held on every book at its widest label (unseen under it), so a read volume,
+          which has none, or one with a goal leaves the actions and the previous/next arrows where they were. */}
       {book.content_type !== 'chapter' && (
-        <FinishByPill target={{ bookId: book.id, title: book.title, cover: book.cover_path ? book.id : null }} done={bookStatus === 'read'} pending={!statusKnown} iconOnPhone />
+        <span className="grid">
+          <span className="invisible col-start-1 row-start-1 flex justify-end" aria-hidden inert>
+            <FinishByReserve />
+          </span>
+          <span className="col-start-1 row-start-1 flex justify-end">
+            <FinishByPill target={{ bookId: book.id, title: book.title, cover: book.cover_path ? book.id : null }} done={bookStatus === 'read'} pending={!statusKnown} iconOnPhone />
+          </span>
+        </span>
       )}
       {canEdit && (
         <Pill variant="quiet" onClick={startEdit} aria-label={t`Edit`}>
@@ -757,19 +1259,20 @@ function BookDetailView() {
         </Pill>
       )}
       {/* A book without a file is a personal reading record: it never goes into a library. */}
-      {member && book.status !== 'no_file' && libraries.some(l => l.can_edit) && (
+      {/* An admin edits every library: until the list is in, the pill holds its place unseen. */}
+      {member && book.status !== 'no_file' && (libraries.some(l => l.can_edit) || (!librariesIn && isAdmin(user))) && (
         <div className="relative" ref={libMenuRef}>
           <Pill variant="quiet" onClick={() => setLibMenuOpen(o => !o)} aria-expanded={libMenuOpen} aria-label={t`Libraries`}
-            className={cn(libMenuOpen && 'bg-secondary text-foreground')}>
+            disabled={!librariesIn} aria-hidden={!librariesIn || undefined} tabIndex={librariesIn ? undefined : -1}
+            className={cn(libMenuOpen && 'bg-secondary text-foreground', !librariesIn && 'invisible')}>
             <LibraryIcon className="h-4 w-4" /><span className="hidden sm:inline"><Trans>Libraries</Trans></span>
             {localLibIds.length > 0 && (
               <span className="ml-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-secondary px-1.5 text-[12px] font-semibold tabular-nums text-foreground">
-                {localLibIds.length}
+                <RunningNumber value={localLibIds.length} />
               </span>
             )}
           </Pill>
-          {libMenuOpen && (
-            <div role="menu" className={cn(menuCls, 'left-0 w-60 sm:left-auto sm:right-0')}>
+          <Pop open={libMenuOpen} origin="top" role="menu" className={cn(menuCls, 'left-0 w-60 origin-top-left sm:left-auto sm:right-0 sm:origin-top-right')}>
               <p className="px-3 pb-1.5 pt-2 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                 <Trans>Add to library</Trans>
               </p>
@@ -798,8 +1301,7 @@ function BookDetailView() {
                   </div>
                 )
               })}
-            </div>
-          )}
+          </Pop>
         </div>
       )}
       {member && book.status !== 'no_file' && (
@@ -817,20 +1319,30 @@ function BookDetailView() {
 
   // ── Rail: cover, files, details, genres ─────────────────────────────────────
 
+  // Moving to another book: its cover takes the hero now (keyed, so the old
+  // picture is gone at once instead of lingering under a loading one).
   const cover = (
     <div
-      className={cn('relative aspect-[2/3] overflow-hidden rounded-[12px] bg-muted', canEdit && 'group cursor-pointer')}
+      className={cn(COVER_CLS, canEdit && !next && 'group cursor-pointer')}
       style={{ boxShadow: 'var(--cover-bloom-hero)' }}
-      onClick={() => canEdit && setCoverPickerOpen(true)}
-      title={canEdit ? t`Change cover` : undefined}
+      onClick={() => canEdit && !next && setCoverPickerOpen(true)}
+      title={canEdit && !next ? t`Change cover` : undefined}
+      data-hero-cover={next?.id ?? book.id}
+      ref={coverRef}
     >
-      <CoverImage
-        src={book.cover_path ? `/api/books/${book.id}/cover?v=${encodeURIComponent(book.updated_at)}` : null}
+      {next ? (
+        next.cover !== undefined
+          ? <HeroCover key={next.id} thumb={next.cover} full={null} alt={next.title} color={next.coverColor} />
+          : <CoverImage key={next.id} src={coverSrc(next.id, { w: 400 })} alt={next.title} loading="eager" color={next.coverColor} iconClassName="w-12 h-12" />
+      ) : (
+      <HeroCover
+        thumb={book.cover_path ? preview?.cover : null}
+        full={book.cover_path ? heroCoverSrc(book) : null}
         alt={book.title}
-        loading="eager"
-        iconClassName="w-12 h-12"
+        color={book.cover_color ?? preview?.coverColor}
       />
-      {canEdit && (
+      )}
+      {canEdit && !next && (
         <div className="absolute inset-0 flex items-center justify-center bg-black/40 opacity-0 transition-opacity group-hover:opacity-100">
           <Camera className="h-8 w-8 text-white drop-shadow" />
         </div>
@@ -880,13 +1392,15 @@ function BookDetailView() {
       {book.files.length > 0 && <Field label={t`Format`} value={book.files.map(f => f.format.toUpperCase()).join(', ')} />}
       {/* How long the whole book would take at your pace (#187). In-progress
           books additionally get "Est. remaining" in the Reading section. */}
-      {estimate?.seconds != null && (
+      {shownEstimate?.seconds != null ? (
         <Field label={t`Est. read time`} value={
-          <span title={[estimate.days != null ? formatEstimateDays(estimate.days) : null, describePace(estimate.pace, estimate.method)].filter(Boolean).join(' · ')}>
-            {formatEstimateHours(estimate.seconds)}
+          <span title={[shownEstimate.days != null ? formatEstimateDays(shownEstimate.days) : null, describePace(shownEstimate.pace, shownEstimate.method)].filter(Boolean).join(' · ')}>
+            {formatEstimateHours(shownEstimate.seconds)}
           </span>
         } />
-      )}
+      ) : !settled.estimate && book.word_count ? (
+        <Field label={t`Est. read time`} value={<span className="invisible">{formatEstimateHours(3600)}</span>} />
+      ) : null}
       {/* Hardcover match, only when the sync matcher has linked this book */}
       {book.hardcover_slug && (
         // eslint-disable-next-line lingui/no-unlocalized-strings -- product name
@@ -950,7 +1464,7 @@ function BookDetailView() {
       <div className="flex flex-wrap gap-1.5">
         {book.tags.map(tg => (
           <button key={tg.id} type="button" onClick={() => navigate(`/?tab=books&tag=${encodeURIComponent(tg.tag)}`)}
-            className="inline-flex h-7 items-center rounded-full bg-secondary px-3 text-[13px] text-foreground hover:bg-surface-hover hover:text-primary transition-colors">
+            className={cn('inline-flex h-7 items-center rounded-full bg-secondary px-3 text-[13px] text-foreground hover:bg-surface-hover hover:text-primary touch-feedback', PRESS)}>
             {tg.tag}
           </button>
         ))}
@@ -961,22 +1475,38 @@ function BookDetailView() {
   // The rail is two grid children so phones can read cover, then the hero,
   // then details; on desktop both sit in the left column.
   const railCover = (
-    <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0 lg:col-start-1 lg:row-start-1">
+    <div className={RAIL_COVER_CLS}>
       {cover}
       {fileLines}
     </div>
   )
   const railDetails = (
-    <aside className="order-3 mx-auto w-full max-w-[420px] lg:order-none lg:mx-0 lg:max-w-none lg:col-start-1 lg:row-start-2">
+    <m.aside className="order-3 mx-auto w-full max-w-[420px] lg:order-none lg:mx-0 lg:max-w-none lg:col-start-1 lg:row-start-2"
+      initial={riseRail ? RISE_FROM : false} animate={RISE_TO}>
+      <div className={dim} inert={!!next}>
       <div className={cn(smallCaps, 'mb-3')}><Trans>Details</Trans></div>
-      {details}
-      {genres && <div className="mt-6">{genres}</div>}
-    </aside>
+      <Swap id={editing ? 'edit' : 'view'}>{details}</Swap>
+      {genres && <Swap id={editing ? 'edit' : 'view'} className="mt-6">{genres}</Swap>}
+      </div>
+    </m.aside>
   )
 
   // ── Hero: series, title, author, status, progress, actions, sync, rating ───
 
-  const heroTitle = editing ? (
+  // The hero's lines for the book being moved to, from its preview.
+  const nextTitle = next && next.title ? (
+    <>
+      {next.series && (
+        <button type="button" className={SERIES_LINE_CLS} tabIndex={-1}>
+          {next.series}{next.series_index != null && (() => { const v = next.series_index; return <> · <Trans>Volume {v}</Trans></> })()}
+        </button>
+      )}
+      <h1 className={TITLE_CLS}>{next.title}</h1>
+      {next.author && <button type="button" className={AUTHOR_CLS} tabIndex={-1}>{next.author}</button>}
+    </>
+  ) : null
+
+  const heroTitle = nextTitle ?? (editing ? (
     <div className="flex flex-col gap-4">
       <div>
         <FormLabel htmlFor="edit-title"><Trans>Title</Trans></FormLabel>
@@ -1009,11 +1539,11 @@ function BookDetailView() {
     <>
       {book.series && (
         <button type="button" onClick={() => navigate(`/?tab=books&series=${encodeURIComponent(book.series!)}`)}
-          className={cn(smallCaps, 'block text-left text-primary hover:underline underline-offset-4')}>
+          className={SERIES_LINE_CLS}>
           {book.series}{book.series_index != null && (() => { const v = book.series_index; return <> · <Trans>Volume {v}</Trans></> })()}
         </button>
       )}
-      <h1 className="mt-2 font-display text-[30px] sm:text-[34px] font-bold leading-[1.05] text-foreground">
+      <h1 className={TITLE_CLS}>
         {book.title}
         {book.content_type === 'chapter' && (
           <span className="ml-3 inline-flex h-6 -translate-y-1 items-center rounded-full bg-secondary px-2.5 align-middle font-sans text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
@@ -1024,44 +1554,49 @@ function BookDetailView() {
       {book.subtitle && <p className="mt-1.5 text-[16px] text-foreground/80">{book.subtitle}</p>}
       {book.author && (
         <button type="button" onClick={() => navigate(`/?tab=books&author=${encodeURIComponent(book.author!)}`)}
-          className="mt-1.5 block text-left text-[16px] text-muted-foreground hover:text-primary transition-colors">
+          className={AUTHOR_CLS}>
           {book.author}
         </button>
       )}
       <DevicePills bookId={book.id} className="mt-3 flex" />
     </>
-  )
+  ))
 
+  // One indicator glides to the chosen status (it moves on the click; the
+  // request follows and undoes it on failure).
   const statusRow = (
-    <div className="mt-5 flex flex-wrap items-center gap-2">
-      {STATUS_PILLS.map(s => (
-        <button
-          key={s.id}
-          type="button"
-          disabled={statusSaving}
-          onClick={() => handleStatusChange(s.id)}
-          title={s.title}
-          aria-pressed={bookStatus === s.id}
-          className={cn(
-            'h-8 rounded-full px-3.5 text-[13px] font-medium transition-colors disabled:cursor-default',
-            bookStatus === s.id ? 'bg-foreground text-background' : 'bg-secondary text-muted-foreground hover:text-foreground',
-          )}
-        >
-          {s.label}
-        </button>
-      ))}
-      {statusSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-    </div>
+    <GlideGroup value={bookStatus}>
+      <div className="isolate mt-5 flex flex-wrap items-center gap-2">
+        {STATUS_PILLS.map(s => (
+          <button
+            key={s.id}
+            type="button"
+            disabled={statusSaving}
+            onClick={() => handleStatusChange(s.id)}
+            title={s.title}
+            aria-pressed={bookStatus === s.id}
+            className={cn(
+              'group/pg relative h-8 rounded-full bg-secondary px-3.5 text-[13px] font-medium transition-colors duration-200 disabled:cursor-default',
+              bookStatus === s.id ? 'text-background' : 'text-muted-foreground hover:text-foreground',
+            )}
+          >
+            {bookStatus === s.id && <Glide className="bg-foreground" />}
+            <span className={cn('relative z-[1]', PRESS_LABEL)}>{s.label}</span>
+          </button>
+        ))}
+        {statusSaving && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+      </div>
+    </GlideGroup>
   )
 
   const progressRow = showProgress ? (
     <div className="mt-5 max-w-[560px]">
       <div className="flex items-center gap-3">
         <div className="h-[6px] flex-1 overflow-hidden rounded-full" style={{ background: 'var(--rail)' }}>
-          <div className="h-full rounded-full bg-primary transition-[width] duration-700 ease-out"
+          <div className="h-full rounded-full bg-primary transition-[width] duration-300 ease-(--spring)"
             style={{ width: progressAnimated ? `${Math.min(100, pctShown)}%` : '0%' }} />
         </div>
-        <span className="min-w-[3.25em] text-right text-[17px] font-bold proportional-nums text-foreground">{pctShown}%</span>
+        <span className="min-w-[3.25em] text-right text-[17px] font-bold proportional-nums text-foreground"><RunningNumber value={pctShown} className="proportional-nums" />%</span>
       </div>
       {book.hardcover_pages != null && book.hardcover_pages > 0 && (() => {
         // Print-edition pagination (from the matched Hardcover edition):
@@ -1083,8 +1618,7 @@ function BookDetailView() {
       <Pill size="lg" icon onClick={() => setDownloadMenuOpen(o => !o)} aria-expanded={downloadMenuOpen} aria-label={t`Download`} title={t`Download`}>
         {downloadingId != null ? <Loader2 className="h-4 w-4 animate-spin" /> : <Download className="h-4 w-4" />}
       </Pill>
-      {downloadMenuOpen && (
-        <div className={cn(menuCls, 'left-0 min-w-44')}>
+      <Pop open={downloadMenuOpen} origin="top-left" className={cn(menuCls, 'left-0 min-w-44')}>
           {book.files.map(f => (
             <button key={f.id} type="button" onClick={() => downloadOne(f)} disabled={downloadingId === f.id}
               className="flex w-full items-center justify-between gap-4 rounded-lg px-3 py-2 text-[14px] text-foreground hover:bg-secondary transition-colors disabled:opacity-60">
@@ -1092,8 +1626,7 @@ function BookDetailView() {
               {f.file_size ? <span className="text-[13px] tabular-nums text-muted-foreground">{formatBytes(f.file_size)}</span> : null}
             </button>
           ))}
-        </div>
-      )}
+      </Pop>
     </div>
   ) : null
 
@@ -1128,6 +1661,7 @@ function BookDetailView() {
     </div>
   ) : null
 
+  const syncMode = kosyncDevice && kosyncLinked ? 'linked' : kosyncUnlinked.length > 0 && !kosyncDevice ? 'unlinked' : 'none'
   const syncRow = kosyncDevice && kosyncLinked ? (
     <div className="mt-4">
       <span className="inline-flex h-9 max-w-full items-center gap-2 rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground">
@@ -1143,6 +1677,7 @@ function BookDetailView() {
     </div>
   ) : kosyncUnlinked.length > 0 && !kosyncDevice ? (
     <div className="mt-4">
+      <Swap id={kosyncPickerOpen ? 'picker' : 'link'}>
       {!kosyncPickerOpen ? (
         <Pill variant="quiet" className="-ml-3"
           onClick={() => { setKosyncPickerOpen(true); setKosyncLinkDoc(kosyncUnlinked[0]?.document ?? '') }}
@@ -1166,13 +1701,28 @@ function BookDetailView() {
           <Pill variant="quiet" onClick={() => setKosyncPickerOpen(false)}><Trans>Cancel</Trans></Pill>
         </div>
       )}
+      </Swap>
     </div>
   ) : null
 
   const ratingRow = (
     <div className="mt-5">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <StarRating value={rating} onChange={saveRating} />
+        {/* Stars fill one after another up to the pointer (styles/view-transitions.css)
+            once the pointer is on them; the clicked star pops. */}
+        <div
+          className="rating-motion"
+          data-settled={ratingSettled ? '' : undefined}
+          onPointerEnter={() => setRatingSettled(false)}
+          onClickCapture={e => {
+            const star = (e.target as Element).closest('button')
+            if (star && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+              star.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.3)' }, { transform: 'scale(1)' }], { duration: 240, easing: EASE_CSS })
+            }
+          }}
+        >
+          <StarRating value={rating} onChange={saveRating} />
+        </div>
         <span className="text-[13px] text-muted-foreground">
           {rating ? t`You rated this ${rating}/5` : t`Rate this book`}
         </span>
@@ -1182,6 +1732,9 @@ function BookDetailView() {
           </button>
         )}
       </div>
+      {/* The review opens under the stars, and its text and its editor swap in place. */}
+      <Unfold open={editingReview || !!review}>
+      <Swap id={editingReview ? 'edit' : 'text'}>
       {editingReview ? (
         <Textarea
           value={reviewDraft}
@@ -1201,17 +1754,23 @@ function BookDetailView() {
           </button>
         </div>
       ) : null}
+      </Swap>
+      </Unfold>
     </div>
   )
 
   const hero = (
-    <div className="min-w-0 max-w-[680px]">
-      {heroTitle}
-      {statusRow}
-      {progressRow}
-      {actionRow}
-      {syncRow}
-      {ratingRow}
+    <div className={HERO_CLS}>
+      <TitleGlide innerRef={heroTitleRef} style={next ? { minHeight: heroTitleH } : undefined}>
+        <Swap id={editing && !next ? 'edit' : 'view'}>{heroTitle}</Swap>
+      </TitleGlide>
+      <div className={dim} inert={!!next}>
+        {statusRow}
+        {progressRow}
+        {actionRow}
+        <Swap id={syncMode}>{syncRow}</Swap>
+        {ratingRow}
+      </div>
     </div>
   )
 
@@ -1220,16 +1779,17 @@ function BookDetailView() {
   const descriptionSection = (
     <section className="max-w-[720px]">
       <SectionTitle size={20}><Trans>Description</Trans></SectionTitle>
+      <Swap id={editing ? 'edit' : 'view'}>
       {editing ? (
         <Textarea value={field('description') ?? ''} onChange={e => setField('description', e.target.value)} rows={8}
           placeholder={t`No description`} className="mt-3 text-[15px]" aria-label={t`Description`} />
       ) : book.description ? (
         <>
-          <p ref={descRef} className={cn('mt-3 text-[15px] leading-relaxed text-foreground/85', !descExpanded && 'line-clamp-4')}>
+          <p ref={descRef} className={cn('mt-3 text-[15px] leading-relaxed text-foreground/85', !descExpanded && !descMoving && 'line-clamp-4')}>
             {book.description}
           </p>
           {(descClamped || descExpanded) && (
-            <button type="button" onClick={() => setDescExpanded(e => !e)}
+            <button type="button" onClick={toggleDescription}
               className="mt-2 text-[14px] font-medium text-primary hover:underline underline-offset-4">
               {descExpanded ? t`Show less` : t`Show more`}
             </button>
@@ -1238,6 +1798,7 @@ function BookDetailView() {
       ) : (
         <p className="mt-3 text-[15px] text-muted-foreground"><Trans>No description</Trans></p>
       )}
+      </Swap>
     </section>
   )
 
@@ -1272,15 +1833,15 @@ function BookDetailView() {
           <h2 className="font-display text-[20px] font-bold leading-none text-foreground">
             {(() => { const n = own.sessions; return <Trans>Sessions <span className="font-semibold text-muted-foreground">({n})</span></Trans> })()}
           </h2>
-          <ChevronDown className={cn('h-5 w-5 text-muted-foreground transition-transform', sessionsOpen && 'rotate-180')} />
+          <ChevronDown className={cn('h-5 w-5 text-muted-foreground transition-transform duration-200 ease-(--spring)', sessionsOpen && 'rotate-180')} />
         </button>
         <SessionLogHint />
       </div>
-      {sessionsOpen && (
-        <div className="mt-4">
-          <SessionLog bookId={Number(id)} onChange={refreshStats} />
+      <Unfold open={sessionsOpen}>
+        <div className="pt-4">
+          <SessionLog bookId={Number(id)} onChange={refreshStats} expected={own.sessions} />
         </div>
-      )}
+      </Unfold>
     </section>
   ) : null
 
@@ -1292,21 +1853,22 @@ function BookDetailView() {
           <h2 className="font-display text-[20px] font-bold leading-none text-foreground">
             {(() => { const n = annotations.length; return <Trans>Highlights and notes <span className="font-semibold text-muted-foreground">({n})</span></Trans> })()}
           </h2>
-          <ChevronDown className={cn('h-5 w-5 text-muted-foreground transition-transform', highlightsOpen && 'rotate-180')} />
+          <ChevronDown className={cn('h-5 w-5 text-muted-foreground transition-transform duration-200 ease-(--spring)', highlightsOpen && 'rotate-180')} />
         </button>
         <Link to="/highlights" className="shrink-0 text-[15px] font-medium text-primary hover:underline underline-offset-4">
           <Trans>All highlights</Trans>
         </Link>
       </div>
-      {highlightsOpen && (
-        <ul className="mt-2">
+      <Unfold open={highlightsOpen}>
+        <ul className="pt-2">
+          <AnimatePresence initial={false}>
           {annotations.map((a, i) => (
-            <li key={a.id} className={cn('group py-4', i > 0 && 'border-t border-border/70')}>
+            <m.li key={a.id} {...listItem} className={cn('group py-4', i > 0 && 'border-t border-border/70')}>
               {a.highlighted_text && (
                 <p className="max-w-[720px] text-[15px] leading-relaxed text-foreground/90">{a.highlighted_text}</p>
               )}
-              {editingNoteId === a.id ? (
-                <div className="mt-2.5 flex max-w-[720px] flex-col gap-2">
+              <Unfold open={editingNoteId === a.id}>
+                <div className="flex max-w-[720px] flex-col gap-2 pt-2.5">
                   <Textarea value={editingNoteDraft} onChange={e => setEditingNoteDraft(e.target.value)} autoFocus rows={2}
                     placeholder={t`Your note, syncs back to KOReader on the next sync`}
                     className="min-h-[64px]" />
@@ -1315,7 +1877,8 @@ function BookDetailView() {
                     <Pill variant="quiet" onClick={() => setEditingNoteId(null)}><Trans>Cancel</Trans></Pill>
                   </span>
                 </div>
-              ) : a.note ? (
+              </Unfold>
+              {editingNoteId !== a.id && a.note ? (
                 <p className="mt-1.5 flex max-w-[720px] items-start gap-1.5 text-[14px] text-muted-foreground">
                   <StickyNote className="mt-0.5 h-3.5 w-3.5 shrink-0" />
                   <span className="leading-relaxed">{a.note}</span>
@@ -1330,14 +1893,15 @@ function BookDetailView() {
                     <Trans>CrossInk clipping</Trans>
                   </span>
                 ) : confirmingHighlight === a.id ? (
-                  <span className="flex shrink-0 items-center gap-3 text-[13px]">
+                  <m.span key="confirm" initial={{ opacity: 0.6, x: 4 }} animate={{ opacity: 1, x: 0 }} transition={{ duration: 0.16, ease: EASE }}
+                    className="flex shrink-0 items-center gap-3 text-[13px]">
                     <button onClick={() => deleteHighlight(a.id)} className="font-medium text-destructive hover:underline">
                       <Trans>Delete</Trans>
                     </button>
                     <button onClick={() => setConfirmingHighlight(null)} className="text-muted-foreground hover:text-foreground">
                       <Trans>Cancel</Trans>
                     </button>
-                  </span>
+                  </m.span>
                 ) : (
                   <span className="flex shrink-0 items-center gap-0.5">
                     <button
@@ -1359,17 +1923,18 @@ function BookDetailView() {
                   </span>
                 )}
               </div>
-            </li>
+            </m.li>
           ))}
+          </AnimatePresence>
         </ul>
-      )}
+      </Unfold>
     </section>
   ) : null
 
-  const seriesSection = seriesVolumes.length > 1 && seriesHref ? (
+  const seriesSection = seriesVolumes.length > 1 && book.series ? (
     <section>
       <SectionTitle size={20} action={
-        <Link to={seriesHref} className="text-primary hover:underline underline-offset-4"><Trans>Open series</Trans></Link>
+        <SeriesLink name={book.series} {...warmSeries} onClick={toSeries('strip')} className="text-primary hover:underline underline-offset-4"><Trans>Open series</Trans></SeriesLink>
       }>
         <Trans>In this series</Trans>
       </SectionTitle>
@@ -1379,22 +1944,33 @@ function BookDetailView() {
           const idx = v.series_index
           return (
             <div key={v.id} className="w-[104px] shrink-0">
-              <button type="button" onClick={() => !here && setQuickLookId(v.id)} aria-label={v.title} title={v.title}
+              {/* A cover opens the quick look; the caption opens the book, its cover growing into the hero. */}
+              <CoverLift disabled={here}>
+              <button type="button" aria-label={v.title} title={v.title}
+                onClick={e => {
+                  if (here) return
+                  setQuickLookFrom({ origin: e.currentTarget.getBoundingClientRect(), cover: v.cover_path ? coverSrc(v.id, { w: 400, v: v.updated_at }) : null })
+                  setQuickLookId(v.id)
+                }}
+                data-cover-id={here ? undefined : v.id}
+                data-series-cover={v.id === seriesHeroId ? book.series : undefined}
                 className={cn(
-                  'relative block aspect-[2/3] w-full overflow-hidden rounded-[8px] bg-muted transition',
+                  'relative block aspect-[2/3] w-full overflow-hidden rounded-[8px] bg-muted transition-opacity duration-150',
                   here ? 'cursor-default ring-2 ring-primary ring-offset-2 ring-offset-background'
-                    : v.reading_status === 'read' ? 'opacity-55 hover:opacity-100' : 'hover:opacity-90',
+                    : v.reading_status === 'read' ? 'opacity-55 hover:opacity-100' : '',
                 )}
                 style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
-                <CoverImage src={v.cover_path ? coverSrc(v.id, { w: 160, v: v.updated_at }) : null} alt="" iconClassName="w-5 h-5" />
+                <CoverImage src={v.cover_path ? coverSrc(v.id, { w: 160, v: v.updated_at }) : null} alt="" color={v.cover_color} iconClassName="w-5 h-5" />
               </button>
+              </CoverLift>
               {here ? (
                 <div className="mt-2 truncate text-[13px] font-medium text-foreground">{idx != null ? t`Vol. ${idx}` : v.title}</div>
               ) : (
-                <Link to={`/books/${v.id}`} title={v.title}
+                <BookLink book={{ id: v.id, title: v.title, author: book.author, series: book.series, series_index: v.series_index, coverColor: v.cover_color }}
+                  title={v.title}
                   className="mt-2 block truncate text-[13px] text-muted-foreground hover:text-foreground transition-colors">
                   {idx != null ? t`Vol. ${idx}` : v.title}
-                </Link>
+                </BookLink>
               )}
             </div>
           )
@@ -1404,39 +1980,56 @@ function BookDetailView() {
   ) : null
 
   return (
-    <AppShell>
+    <>
       {/* Phones: the app-wide keyboard-shortcut button (App.tsx) sits over the
           book's action pills, and a phone has no keyboard to use it with. */}
       {/* eslint-disable-next-line lingui/no-unlocalized-strings -- CSS */}
       <PageBody width="wide">
         {/* The page header for a book: where you are on the left, the page's
             actions on the right. The hero's h1 is the title. */}
-        <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
+        {/* Opened from a card, the row keeps the height the preview reserved
+            while its later parts (previous/next, Finish by) arrive. */}
+        <div ref={headerRef} className={cn(HEADER_CLS, 'content-start')} style={preview && heldHeader ? { minHeight: heldHeader } : undefined}>
           {crumbs}
-          {pageActions}
+          <div className={cn('ml-auto min-w-0', dim)} inert={!!next}><Swap id={actionsMode}>{pageActions}</Swap></div>
         </div>
 
-        <div className="grid items-start gap-10 lg:grid-cols-[220px_minmax(0,1fr)] lg:grid-rows-[auto_1fr]">
+        <div className={GRID_CLS}>
           {railCover}
-          <div className="order-2 flex min-w-0 flex-col gap-7 lg:order-none lg:col-start-2 lg:row-start-1 lg:row-span-2">
+          <div className={MAIN_COL_CLS}>
             {hero}
-            {descriptionSection}
-            {readingSection}
-            {readingStats?.intensity && (
-              <IntensityBlock data={readingStats.intensity} bookId={Number(id)} onChange={refreshStats} />
+            {/* The sections arrive together once the late answers are in, rising a
+                little; arriving with the page from another book, they just show. */}
+            {below && (
+              <div className={dim} inert={!!next}>
+              <m.div className="flex flex-col gap-7" initial={rise ? RISE_FROM : false} animate={RISE_TO}>
+                {descriptionSection}
+                {statsIn && readingSection}
+                {statsIn && readingStats?.intensity && (
+                  <IntensityBlock data={readingStats.intensity} bookId={Number(id)} onChange={refreshStats} />
+                )}
+                {statsIn && readingStats?.chapters && readingStats.chapters.length > 0 && (
+                  <ChapterTimesBlock chapters={readingStats.chapters} />
+                )}
+                {statsIn && sessionsSection}
+                {notesIn && highlightsSection}
+                {notesIn && seriesSection}
+              </m.div>
+              </div>
             )}
-            {readingStats?.chapters && readingStats.chapters.length > 0 && (
-              <ChapterTimesBlock chapters={readingStats.chapters} />
-            )}
-            {sessionsSection}
-            {highlightsSection}
-            {seriesSection}
           </div>
-          {railDetails}
+          {belowRail && railDetails}
         </div>
       </PageBody>
 
-      {quickLookId != null && <QuickLook bookId={quickLookId} onClose={() => setQuickLookId(null)} />}
+      <AnimatePresence>
+        {quickLookId != null && (() => {
+          const v = seriesVolumes.find(x => x.id === quickLookId)
+          return <QuickLook key={quickLookId} bookId={quickLookId} origin={quickLookFrom.origin} cover={quickLookFrom.cover}
+            preview={v ? { title: v.title, author: book.author, series: book.series, series_index: v.series_index } : undefined}
+            onClose={() => setQuickLookId(null)} />
+        })()}
+      </AnimatePresence>
       <MetadataFetchModal
         book={book}
         open={fetchModalOpen}
@@ -1449,8 +2042,10 @@ function BookDetailView() {
         onClose={() => setCoverPickerOpen(false)}
         onApplied={updated => { setBook(updated); setDraft(updated) }}
       />
+      <AnimatePresence>
       {showShare && (
         <ShareModal
+          key="share"
           title={book.title}
           endpoint={`/books/${book.id}/share`}
           noun="book"
@@ -1459,6 +2054,7 @@ function BookDetailView() {
       )}
       {showPositionHistory && (
         <PositionHistoryModal
+          key="positions"
           bookId={Number(id)}
           onClose={() => setShowPositionHistory(false)}
           onRestored={() => {
@@ -1469,7 +2065,8 @@ function BookDetailView() {
           }}
         />
       )}
-    </AppShell>
+      </AnimatePresence>
+    </>
   )
 }
 
@@ -1558,7 +2155,8 @@ export function ActivityChart({ timeline, bookId, onChange }: {
               <div
                 key={d.date}
                 className={cn(
-                  'flex-1 min-w-px bg-primary/60 hover:bg-primary transition-colors rounded-t-sm',
+                  // Height runs to a new value after a log, trim or delete (not on arrival: the first paint has no "before").
+                  'flex-1 min-w-px bg-primary/60 hover:bg-primary transition-[background-color,height] duration-300 ease-(--spring) motion-reduce:transition-none rounded-t-sm',
                   clickable && 'cursor-pointer',
                 )}
                 style={{ height: pct > 0 ? `${Math.round(pct * 100)}%` : '0%' }}
@@ -1594,7 +2192,7 @@ export function ActivityChart({ timeline, bookId, onChange }: {
               <InfoHint text={t`How far through the book you'd read by each date.`} />
             </span>
             {lastProgress != null && (
-              <p className="min-w-[3em] text-right text-[13px] proportional-nums text-muted-foreground/60">{Math.round(lastProgress)}%</p>
+              <p className="min-w-[3em] text-right text-[13px] proportional-nums text-muted-foreground/60"><RunningNumber value={Math.round(lastProgress)} className="proportional-nums" />%</p>
             )}
           </div>
           <div className="relative h-7">
@@ -1687,8 +2285,8 @@ export function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity
           </Pill>
         }
       />
-      {confirmClear && (
-        <div className="mt-3 flex flex-wrap items-center gap-2 text-[14px]">
+      <Unfold open={confirmClear}>
+        <div className="flex flex-wrap items-center gap-2 pt-3 text-[14px]">
           <span className="text-muted-foreground">
             <Trans>Remove all of this book&apos;s imported KOReader history? Web and manual sessions stay. Reading it on the device again will re-import from there on.</Trans>
           </span>
@@ -1699,7 +2297,7 @@ export function IntensityBlock({ data, bookId, onChange }: { data: BookIntensity
             <Trans>Cancel</Trans>
           </Pill>
         </div>
-      )}
+      </Unfold>
       {/* Dwell across the book, 0% → 100%. Taller bar = more time spent there. */}
       <div className="mt-4 relative h-16">
         <div className="absolute bottom-0 left-0 right-0 h-px bg-border/40" />
@@ -1746,8 +2344,8 @@ export function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
         foot={(() => { const dur = formatDuration(total); const n = chapters.length; return <span className="tabular-nums">{t`${dur} across ${n} chapters`}</span> })()}
       />
       <ChapterLineChart chapters={chapters} />
-      {showDetails && (
-        <ul className="mt-3 space-y-1.5">
+      <Unfold open={showDetails}>
+        <ul className="space-y-1.5 pt-3">
           {chapters.map(c => (
             <li
               key={c.idx}
@@ -1769,7 +2367,7 @@ export function ChapterTimesBlock({ chapters }: { chapters: ChapterTime[] }) {
             </li>
           ))}
         </ul>
-      )}
+      </Unfold>
       <button
         onClick={() => setShowDetails(v => !v)}
         className="mt-3 text-[14px] font-medium text-primary hover:underline underline-offset-4"
@@ -1920,8 +2518,8 @@ export function ManualLogControls({ bookId, onChange, exportRows }: {
           </>
         )}
       </div>
-      {logging && (
-        <form onSubmit={submitLog} className="mt-3 flex flex-wrap items-end gap-3">
+      <Unfold open={logging}>
+        <form onSubmit={submitLog} className="flex flex-wrap items-end gap-3 pt-3">
           <div>
             <FormLabel htmlFor={`log-minutes-${bookId}`}><Trans>Minutes</Trans></FormLabel>
             <Input
@@ -1949,7 +2547,7 @@ export function ManualLogControls({ bookId, onChange, exportRows }: {
             </Pill>
           </div>
         </form>
-      )}
+      </Unfold>
     </div>
   )
 }
@@ -1984,6 +2582,7 @@ function ReadingBody({ own, aggregate, bookId, onChange }: StatsLayoutProps) {
   const h = Math.floor(own.total_seconds / 3600)
   const m = Math.round((own.total_seconds % 3600) / 60)
   const pace = own.pace_pages_per_min
+  const hours = (n: number) => { const h = Math.round(n); return t`${h}h` }
 
   const dates: { label: string; value: string }[] = []
   if (own.first_read) dates.push({ label: t`First read`, value: formatDate(own.first_read.slice(0, 10)) })
@@ -2002,7 +2601,8 @@ function ReadingBody({ own, aggregate, bookId, onChange }: StatsLayoutProps) {
     <div className="mt-5 flex flex-col gap-6">
       <StatStrip cols={5} bordered={false} className="gap-y-6">
         <Stat size={30} label={t`Time reading`}
-          value={h > 0 ? t`${h}h` : m}
+          value={h > 0 ? h : m} measure={h > 0 ? 'h' : 'min'}
+          format={h > 0 ? hours : undefined}
           unit={h > 0 ? t`${m}m` : t`min`}
           foot={own.momentum ? <MomentumChip momentum={own.momentum} /> : undefined} />
         <Stat size={30} label={t`Sessions`} value={own.sessions} />
@@ -2026,10 +2626,10 @@ function ReadingBody({ own, aggregate, bookId, onChange }: StatsLayoutProps) {
           <div className="mt-4">
             <div className="mb-1.5 flex items-center justify-between">
               <span className="text-[13px] text-muted-foreground/70"><Trans>Progress</Trans></span>
-              <span className="min-w-[3em] text-right text-[13px] font-medium proportional-nums text-foreground">{Math.round(own.progress * 100)}%</span>
+              <span className="min-w-[3em] text-right text-[13px] font-medium proportional-nums text-foreground"><RunningNumber value={Math.round(own.progress * 100)} className="proportional-nums" />%</span>
             </div>
             <div className="h-1.5 overflow-hidden rounded-full bg-muted">
-              <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(Math.round(own.progress * 100), 100)}%` }} />
+              <div className="h-full rounded-full bg-primary transition-[width] duration-300 ease-(--spring)" style={{ width: `${Math.min(Math.round(own.progress * 100), 100)}%` }} />
             </div>
           </div>
         )}

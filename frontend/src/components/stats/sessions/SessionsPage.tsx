@@ -5,14 +5,15 @@
 // Motion: the first page's rows fade in once per session (kit/motion.ts); rows
 // from "Show more" take a quick fade of their own; a filter or sort switch only
 // dims. Hover: a row washes, its cover and title lead to the book.
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
+import { AnimatePresence, m } from 'motion/react'
+import { BookLink, listItem } from '@/components/motion'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { ArrowUpDown, ChevronDown, Loader2, TriangleAlert } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn, formatDuration } from '@/lib/utils'
-import { Pill } from '@/components/page'
+import { Glide, GlideGroup, Pill, PRESS_LABEL } from '@/components/page'
 import type { SessionEntry, SessionsPage as SessionsAnswer } from '@/components/stats/shared'
 import { Cover, Pending, Ph } from '@/components/stats/kit/Kit'
 import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
@@ -33,8 +34,6 @@ const COLS_LONGEST = 'grid-cols-[110px_minmax(0,1fr)_80px_150px_110px_72px]'
 const PHONE_TOOL = 'h-8 w-7'
 // A row washes on hover a little past its hairline ends (a layer behind it, so no box moves).
 const ROW_HOVER = 'relative isolate before:pointer-events-none before:absolute before:inset-y-0 before:-inset-x-2 before:-z-10 before:rounded-[6px] before:transition-colors hover:before:bg-secondary/60'
-// Rows past the first page: a quick fade as they arrive (not part of the entry).
-const LATE_ROW = 'motion-safe:animate-[k-fade_200ms_cubic-bezier(0.2,0.8,0.2,1)_both]'
 /* eslint-enable lingui/no-unlocalized-strings */
 
 type View = { key: string; total: number; counts: SessionsAnswer['counts']; sessions: SessionEntry[]; dayTotals: Record<string, number> }
@@ -141,7 +140,9 @@ export function SessionsPage() {
             <Trans><span className="font-medium text-foreground">Not counted</span>: a live device session whose sitting is also described by imported history. Listed for completeness, excluded from the totals so nothing is counted twice.</Trans>
           </p>
           <div data-box="sessions-chips" data-stats-controls="" className={cn('mt-5 flex items-center', desktop ? 'gap-1.5' : 'flex-wrap gap-1')}>
-            <div role="radiogroup" aria-label={t`Which sessions`} className={cn('flex items-center', desktop ? 'gap-1.5' : 'gap-1')}>
+            {/* The fill of the chosen chip glides to the next one (page/Glide). */}
+            <GlideGroup>
+            <div role="radiogroup" aria-label={t`Which sessions`} className={cn('isolate flex items-center', desktop ? 'gap-1.5' : 'gap-1')}>
               {chips.map((ch) => {
                 const on = ch.id === filter
                 return (
@@ -152,17 +153,21 @@ export function SessionsPage() {
                     aria-checked={on}
                     onClick={() => setFilter(ch.id)}
                     className={cn(
-                      'inline-flex items-center whitespace-nowrap rounded-full font-medium transition-colors',
+                      'group/pg relative inline-flex items-center whitespace-nowrap rounded-full font-medium transition-colors',
                       desktop ? 'h-[34px] gap-[7px] px-3.5 text-[14px]' : 'h-8 gap-1.5 px-3 text-[13px]',
-                      on ? 'bg-secondary text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
+                      on ? 'text-foreground' : 'text-muted-foreground hover:bg-secondary hover:text-foreground',
                     )}
                   >
-                    {ch.label}
-                    <span className="text-[13px] font-normal tabular-nums text-muted-foreground"><Ph on={ch.n == null}>{ch.n == null ? PH.count : num(ch.n)}</Ph></span>
+                    {on && <Glide behind className="bg-secondary" />}
+                    <span className={cn(PRESS_LABEL, desktop ? 'gap-[7px]' : 'gap-1.5', 'inline-flex items-center')}>
+                      {ch.label}
+                      <span className="text-[13px] font-normal tabular-nums text-muted-foreground"><Ph on={ch.n == null}>{ch.n == null ? PH.count : num(ch.n)}</Ph></span>
+                    </span>
                   </button>
                 )
               })}
             </div>
+            </GlideGroup>
             {/* The order as the app's choice menu (kit/Menu.tsx), as the Library's sort pill. */}
             <div className={cn(desktop && 'ml-auto')}>
               <ChoiceMenu
@@ -192,8 +197,12 @@ export function SessionsPage() {
                   : <Trans>No sessions in this view.</Trans>}
               </p>
             ) : longest ? (
-              <div>
-                {view.sessions.map((s, i) => <Row key={s.id} s={s} i={i} desktop={desktop} a={actions} withDate />)}
+              // Rows that stay (a new filter, a delete) glide to their new place; a row that
+              // goes fades out of the flow while the rows under it close up; new rows appear in place.
+              <div className="relative">
+                <AnimatePresence initial={false} mode="popLayout">
+                  {view.sessions.map((s, i) => <Row key={s.id} s={s} i={i} desktop={desktop} a={actions} withDate />)}
+                </AnimatePresence>
               </div>
             ) : (
               <Days view={view} desktop={desktop} a={actions} />
@@ -241,21 +250,25 @@ function Days({ view, desktop, a }: { view: View; desktop: boolean; a: SessionAc
   const groups = groupByDay(view.sessions)
   let k = 0
   return (
-    <div className="flex flex-col gap-7">
-      {groups.map((g, gi) => {
-        const secs = view.dayTotals[g.day]
-        const dur = secs != null ? formatDuration(secs) : null
-        return (
-          <div key={g.day || gi}>
-            <DayHead
-              i={gi}
-              label={dayLabel(g.day)}
-              total={dur != null ? <Trans><b className="font-semibold text-foreground">{dur}</b> counted</Trans> : ' '}
-            />
-            {g.rows.map((s) => <Row key={s.id} s={s} i={k++} desktop={desktop} a={a} />)}
-          </div>
-        )
-      })}
+    <div className="relative flex flex-col gap-7">
+      <AnimatePresence initial={false} mode="popLayout">
+        {groups.map((g, gi) => {
+          const secs = view.dayTotals[g.day]
+          const dur = secs != null ? formatDuration(secs) : null
+          return (
+            <m.div key={g.day || gi} {...listItem} className="relative">
+              <DayHead
+                i={gi}
+                label={dayLabel(g.day)}
+                total={dur != null ? <Trans><b className="font-semibold text-foreground">{dur}</b> counted</Trans> : ' '}
+              />
+              <AnimatePresence initial={false} mode="popLayout">
+                {g.rows.map((s) => <Row key={s.id} s={s} i={k++} desktop={desktop} a={a} />)}
+              </AnimatePresence>
+            </m.div>
+          )
+        })}
+      </AnimatePresence>
     </div>
   )
 }
@@ -263,7 +276,7 @@ function Days({ view, desktop, a }: { view: View; desktop: boolean; a: SessionAc
 const timeOf = (iso: string | null) => (iso ? new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '-')
 const dateOf = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) : '-')
 
-function Row({ s, i, desktop, a, withDate = false }: { s: SessionEntry; i: number; desktop: boolean; a: SessionActions; withDate?: boolean }) {
+function Row({ s, i, desktop, a, withDate = false, ref }: { s: SessionEntry; i: number; desktop: boolean; a: SessionActions; withDate?: boolean; ref?: Ref<HTMLDivElement> }) {
   const dur = s.duration_seconds != null ? formatDuration(s.duration_seconds) : '-'
   const when = withDate ? dateOf(s.started_at) : timeOf(s.started_at)
   const status = s.kind === 'imported' ? t`Imported` : !s.counted ? t`Not counted` : ''
@@ -272,18 +285,19 @@ function Row({ s, i, desktop, a, withDate = false }: { s: SessionEntry; i: numbe
     : !s.counted ? t`Not in totals: this book's imported KOReader history already covers this reading` : undefined
   const warn = s.suspect && <TriangleAlert className="h-3.5 w-3.5 shrink-0 text-warning" aria-label={t`Unusually long session`} />
   const cover = s.book_id ? (
-    <Link to={`/books/${s.book_id}`} className="group/cover shrink-0 rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={s.book_title} tabIndex={-1}>
-      <Cover id={s.book_id} h={40} className="rounded-[4px] transition-transform duration-200 group-hover/cover:-translate-y-0.5" />
-    </Link>
+    <BookLink book={{ id: s.book_id, title: s.book_title }} className="shrink-0 rounded-[4px] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring" aria-label={s.book_title} tabIndex={-1}>
+      <Cover id={s.book_id} h={40} className="rounded-[4px]" lift />
+    </BookLink>
   ) : <Cover id={null} h={40} className="rounded-[4px]" />
   const title = s.book_id
-    ? <Link to={`/books/${s.book_id}`} className="transition-colors hover:text-primary focus-visible:underline focus-visible:outline-none underline-offset-4">{s.book_title}</Link>
+    ? <BookLink book={{ id: s.book_id, title: s.book_title }} className="transition-colors hover:text-primary focus-visible:underline focus-visible:outline-none underline-offset-4">{s.book_title}</BookLink>
     : <span className="text-muted-foreground">{s.book_title}</span>
   const device = sourceLabel(s.device)
-  // The first page fades in with the entry (opacity only: the row's box stays put); later pages fade as they arrive.
-  const motion = i < PAGE ? { className: K.fade, style: stagger(i, PAGE) } : { className: LATE_ROW, style: undefined }
+  // The first page fades in with the entry (opacity only: the row's box stays put); later pages appear in place.
+  // The row itself (no box) is the list item: it closes up over a deleted row above it.
   return (
-    <div className={cn('border-b', HAIR, ROW_HOVER, motion.className)} style={motion.style}>
+    <m.div ref={ref} {...listItem} className={cn('border-b', HAIR, ROW_HOVER)}>
+    <div className={cn(i < PAGE && K.fade)} style={i < PAGE ? stagger(i, PAGE) : undefined}>
       {desktop ? (
         <div data-box={`srow-${i}`} className={cn('grid h-14 items-center gap-x-4', withDate ? COLS_LONGEST : COLS)}>
           <span className="whitespace-nowrap text-[14px] tabular-nums text-muted-foreground" {...(withDate ? tipAttrs({ title: timeOf(s.started_at) }) : {})}>{when}</span>
@@ -314,6 +328,7 @@ function Row({ s, i, desktop, a, withDate = false }: { s: SessionEntry; i: numbe
       )}
       <TrimPanel s={s} a={a} />
     </div>
+    </m.div>
   )
 }
 

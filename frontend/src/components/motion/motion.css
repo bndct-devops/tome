@@ -1,0 +1,32 @@
+/* RunningNumber: while a figure runs, a hidden zero-height line before it
+   holds the start and end values, so the box is as wide as the wider one.
+   Generated content stays out of textContent and innerText. */
+.running-number {
+  display: inline-block;
+}
+.running-number[data-reserve]::before {
+  content: attr(data-reserve);
+  display: block;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: pre;
+}
+
+/* CoverLift and every lifting cover (lib/tilt.ts): a short press. It scales the
+   wrapper with the `scale` property, apart from the tilt's transform and its
+   200 ms transition, so the press takes 120 ms. Nothing under reduced motion. */
+.cover-lift {
+  transition: scale 120ms var(--spring);
+}
+.cover-lift:active {
+  scale: 0.97;
+}
+@media (prefers-reduced-motion: reduce) {
+  .cover-lift {
+    transition: none;
+  }
+  .cover-lift:active {
+    scale: none;
+  }
+}

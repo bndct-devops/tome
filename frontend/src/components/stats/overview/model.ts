@@ -45,7 +45,7 @@ export function heroBars(daily: StatsResponse['daily']) {
   // The average per bar of what the chart shows (for All, `daily` is the last 365 days).
   const sum = daily.reduce((a, d) => a + d.seconds, 0)
   const avg = n === 0 ? 0 : sum / (weekly ? n / 7 : n)
-  const monthStarts = daily.map((d, i) => ({ d, i })).filter(({ d }) => d.date.endsWith('-01')).map(({ d, i }) => ({ index: i, label: monthShort(d.date) }))
+  const monthStarts = daily.map((d, i) => ({ d, i })).filter(({ d }) => d.date.endsWith('-01')).map(({ d, i }) => ({ index: i, date: d.date, label: monthShort(d.date) }))
   return { bars, avg, monthStarts, nDays: Math.max(1, n), weekly }
 }
 

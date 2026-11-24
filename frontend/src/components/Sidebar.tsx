@@ -1,11 +1,11 @@
-import { Fragment, useCallback, useId, useState, useRef, useEffect, useMemo, type ReactNode } from 'react'
+import { Fragment, createContext, useCallback, useContext, useId, useLayoutEffect, useState, useRef, useEffect, useMemo, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import { useSearchParams, useLocation, useNavigate, Link } from 'react-router-dom'
 import {
   BookOpen, Plus, Pencil, Share2, Trash2,
   PanelLeftClose, PanelLeftOpen, Layers, Home, BarChart3,
   Settings, Shield, LogOut, ChevronsUpDown, Lock, X, BookPlus, ExternalLink,
-  Sun, Moon, MoonStar, Flame, Coffee, Check, Sparkles, Users, Quote, BookMarked, CalendarDays, Loader2,
+  Sun, Moon, MoonStar, Flame, Coffee, Check, Sparkles, Users, Quote, BookMarked, CalendarDays, Loader2, GripVertical,
   type LucideIcon,
 } from 'lucide-react'
 import { api } from '@/lib/api'
@@ -14,10 +14,15 @@ import type { Library, SavedFilter } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { EntityModal } from '@/components/EntityModal'
 import { ModalShell, useEscape } from '@/components/ModalShell'
-import { Pill, Input, FormLabel, Checkbox } from '@/components/page'
+import { Pill, Input, FormLabel, Checkbox, Glide, GlideGroup } from '@/components/page'
+import { GLIDE } from '@/components/page/glideTransition'
+import { useToast } from '@/contexts/ToastContext'
+import { rememberOrder } from '@/lib/sidebarLists'
+import { AnimatePresence, m } from 'motion/react'
+import { EASE, Pop, RunningNumber, Unfold } from '@/components/motion'
 import { TomeMark } from '@/components/TomeMark'
 import { useAuth, isAdmin, isMember, type AuthUser } from '@/contexts/AuthContext'
-import { applyTheme, getStoredTheme, type ThemeId } from '@/lib/theme'
+import { getStoredTheme, switchTheme, type ThemeId } from '@/lib/theme'
 import { DOCS, docsLink } from '@/lib/docs'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { NamedIcon, loadAllIcons } from '@/lib/icons'
@@ -111,12 +116,12 @@ export function IconPicker({ value, onChange, inline = false }: { value: string;
           type="button"
           onClick={() => { setOpen(o => !o); setSearch('') }}
           aria-expanded={open}
-          className="inline-flex items-center gap-2 h-9 pl-2.5 pr-3.5 rounded-lg bg-secondary text-[14px] text-foreground hover:bg-surface-hover transition-colors"
+          className="inline-flex items-center gap-2 h-9 pl-2.5 pr-3.5 rounded-lg bg-secondary text-[14px] text-foreground hover:bg-surface-hover transition-colors touch-feedback"
         >
           <span className="grid place-items-center w-6 h-6 rounded-md bg-background/60"><NamedIcon icon={value} className="w-4 h-4" /></span>
           {open ? <Trans>Close icons</Trans> : <Trans>Change icon</Trans>}
         </button>
-        {open && <div className="mt-2 rounded-xl bg-secondary/50 p-2.5">{panel}</div>}
+        <Unfold open={open}><div className="mt-2 rounded-xl bg-secondary/50 p-2.5">{panel}</div></Unfold>
       </div>
     )
   }
@@ -126,17 +131,15 @@ export function IconPicker({ value, onChange, inline = false }: { value: string;
       <button
         type="button"
         onClick={() => { setOpen(o => !o); setSearch('') }}
-        className="flex items-center justify-center w-9 h-9 rounded-full bg-secondary hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors"
+        className="flex items-center justify-center w-9 h-9 rounded-full bg-secondary hover:bg-surface-hover text-muted-foreground hover:text-foreground transition-colors touch-feedback"
         title={t`Choose icon`}
         aria-label={t`Choose icon`}
       >
         <NamedIcon icon={value} className="w-4 h-4" />
       </button>
-      {open && (
-        <div className="absolute left-0 top-full mt-1 z-50 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-2 w-72">
-          {panel}
-        </div>
-      )}
+      <Pop open={open} origin="top-left" className="absolute left-0 top-full mt-1 z-50 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-2 w-72">
+        {panel}
+      </Pop>
     </div>
   )
 }
@@ -229,11 +232,25 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
   const isAllBooks = !activeLibrary && !activeSavedFilter && activeTab === 'books'
   const isSeriesTab = activeTab === 'series'
 
+  // Collapse and expand: the width moves (200 ms) over content that keeps its
+  // full-width layout, clipped by the edge, so no label reflows. Expanding
+  // shows the list at once and the edge uncovers it; collapsing keeps the
+  // list (its labels fading) until the edge has passed, then the rail.
+  const [moving, setMoving] = useState(false)
+  const moveTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined)
+  useEffect(() => () => clearTimeout(moveTimer.current), [])
   function toggleOpen() {
     const next = !open
     setOpen(next)
     localStorage.setItem(SIDEBAR_KEY, next ? 'open' : 'closed')
+    clearTimeout(moveTimer.current)
+    // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { setMoving(false); return }
+    setMoving(true)
+    moveTimer.current = setTimeout(() => setMoving(false), 220)
   }
+  const listShown = open || moving
+  const closing = !open && moving
 
   // Navigate to the dashboard (pathname '/') with these params. Using navigate
   // (not setSearchParams) means these work from a non-dashboard page too - the
@@ -262,6 +279,11 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
       badge: { count: binderyCount, pulse: badgePulse } },
     { id: 'hardcover', group: 'manage', label: t`Hardcover`, icon: BookMarked, to: '/hardcover', visible: isMember },
   ] satisfies NavItem[]).filter(item => item.visible?.(user) ?? true)
+
+  // A library can stay selected under Series (the tab keeps library_id); its
+  // tint then gets its own indicator so the two never fight over one.
+  const navActive = navItems.some(i => ('to' in i ? location.pathname === i.to : i.active))
+  const listGlideId = navActive ? 'glide-list' : 'glide'
 
   // Three groups: what you use daily, your reading, and the things you manage.
   const groups: { id: NavGroup; label: string | null }[] = [
@@ -310,6 +332,23 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
 
   const [shareShelf, setShareShelf] = useState<SavedFilter | null>(null)
 
+  // Drag to reorder. The server keeps one order per library for everyone, and
+  // skips libraries the caller may not edit, so only someone who may edit every
+  // library in the list gets to drag (admins, or a member seeing only their own).
+  const { toast } = useToast()
+  const canReorderLibs = libraries.length > 1 && libraries.every(l => l.can_edit)
+  const orderFailed = t`Could not save the new order`
+  const libOrder = useDragOrder(libraries, async ids => {
+    await api.post('/libraries/reorder', { ids })
+    rememberOrder(user?.id, 'libraries', ids)
+    onLibrariesChange()
+  }, () => toast.error(orderFailed))
+  const shelfOrder = useDragOrder(savedFilters, async ids => {
+    await api.post('/saved-filters/reorder', { ids })
+    rememberOrder(user?.id, 'savedFilters', ids)
+    onSavedFiltersChange()
+  }, () => toast.error(orderFailed))
+
   function openEditFilterModal(sf: SavedFilter) {
     setModalTitle(t`Edit shelf`)
     setModalInitialName(sf.name)
@@ -322,19 +361,26 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
     setModalOpen(true)
   }
 
-  const libraryAndShelfSections = (
+  // `glide`: the active tint travels between rows. Off in the phone drawer: it
+  // slides on a transform, and any pick there closes it anyway. `drag`: rows
+  // are draggable; in the drawer only while it is open, since rows that measure
+  // while the drawer jumps into place (reduced motion) would fly in after it.
+  const libraryAndShelfSections = (glide: boolean, drag: boolean) => (
     <>
       <Section
         title={t`Libraries`}
         onAdd={openCreateLibModal} addLabel={t`New library`}
       >
-        {libraries.map(lib => (
+        <DragList ids={libOrder.ids} enabled={canReorderLibs && drag} onReorder={libOrder.set} onDrop={libOrder.save}>
+        {() => libOrder.shown.map(lib => (
+          <DragRow key={lib.id} id={lib.id} enabled={canReorderLibs && drag}>{(grip, lifted) => (
           <SidebarItem
-            key={lib.id}
+            grip={grip}
             label={lib.name}
             iconName={lib.icon ?? 'Library'}
             count={lib.book_count}
             active={activeLibrary === lib.id}
+            glideId={glide && !lifted ? listGlideId : undefined}
             isPrivate={lib.is_public === false}
             onClick={() => { selectLibrary(lib.id); onMobileClose() }}
             onEdit={lib.can_edit ? () => openEditLibModal(lib) : undefined}
@@ -344,19 +390,24 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
               onLibrariesChange()
             } : undefined}
           />
+          )}</DragRow>
         ))}
+        </DragList>
       </Section>
 
       {savedFilters.length > 0 && (
         <Section
           title={t`Shelves`}
         >
-          {savedFilters.map(sf => (
+          <DragList ids={shelfOrder.ids} enabled={drag} onReorder={shelfOrder.set} onDrop={shelfOrder.save}>
+          {() => shelfOrder.shown.map(sf => (
+            <DragRow key={sf.id} id={sf.id} enabled={drag}>{(grip, lifted) => (
             <SidebarItem
-              key={sf.id}
+              grip={grip}
               label={sf.name}
               iconName={sf.icon ?? 'Bookmark'}
               active={activeSavedFilter === sf.id}
+              glideId={glide && !lifted ? listGlideId : undefined}
               onClick={() => { selectSavedFilter(sf); onMobileClose() }}
               onEdit={() => openEditFilterModal(sf)}
               onShare={() => setShareShelf(sf)}
@@ -366,7 +417,9 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 onSavedFiltersChange()
               }}
             />
+            )}</DragRow>
           ))}
+          </DragList>
         </Section>
       )}
     </>
@@ -392,8 +445,11 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           100% { transform: scale(1); }
         }
       `}</style>
+      {/* Mounted while open; AnimatePresence lets each dialog play its exit. */}
+      <AnimatePresence>
       {modalOpen && (
         <EntityModal
+          key="entity"
           title={modalTitle}
           initialName={modalInitialName}
           initialIcon={modalInitialIcon}
@@ -404,6 +460,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
       )}
       {shareShelf && (
         <ShareModal
+          key="share"
           title={shareShelf.name}
           endpoint={`/shelves/${shareShelf.id}/share`}
           noun="shelf"
@@ -412,6 +469,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
       )}
       {libModalOpen && (
         <LibraryModal
+          key="library"
           title={libModalTitle}
           initialName={libModalInitialName}
           initialIcon={libModalInitialIcon}
@@ -424,35 +482,40 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           onClose={() => setLibModalOpen(false)}
         />
       )}
+      </AnimatePresence>
       <aside className={cn(
         // Part of the frame: no line against the content panel, which is set
         // into the frame colour. The wordmark lives here, full height.
-        'shrink-0 flex-col bg-frame transition-all duration-200',
+        'shrink-0 flex-col bg-frame transition-[width] duration-200 ease-[var(--spring)] motion-reduce:transition-none',
         desktopHidden ? 'hidden' : 'hidden md:flex',
-        open ? 'w-64' : 'w-14'
-      )} data-shell-sidebar>
-        <div className={cn('group h-14 shrink-0 flex items-center gap-2 cursor-default', open ? 'px-5' : 'justify-center')}>
-          <TomeMark className="w-5 h-5 text-primary logo-bob" strokeWidth={7} />
-          {open && <span className="font-semibold text-[14px] text-foreground">Tome</span>}
+        open ? 'w-64' : 'w-14',
+        moving && 'overflow-hidden',
+      )} data-shell-sidebar data-closing={closing || undefined}>
+        {/* The mark sits at the rail's centre in both states, so it never moves. */}
+        <div className="group h-14 shrink-0 flex items-center gap-2 cursor-default w-64 px-[18px]">
+          <TomeMark className="w-5 h-5 shrink-0 text-primary logo-bob" strokeWidth={7} />
+          {listShown && <span className="sb-label font-semibold text-[14px] text-foreground">Tome</span>}
         </div>
-        {!open && (
-          <div className="flex flex-col items-center flex-1 overflow-y-auto py-2 space-y-0.5 overscroll-contain">
+        {!listShown && (
+          <GlideGroup>
+          <m.div layoutScroll className="isolate flex flex-col items-center flex-1 overflow-y-auto py-2 space-y-0.5 overscroll-contain">
             {navItems.map(item => <NavEntry key={item.id} item={item} variant="rail" />)}
             {libraries.length > 0 && (
               <div className="w-6 h-px bg-border my-0.5" />
             )}
-            {libraries.map(lib => (
+            {libOrder.shown.map(lib => (
               <RailTip key={lib.id} label={lib.name}>
               <button
                 onClick={() => selectLibrary(lib.id)}
                 aria-label={lib.name}
                 className={cn(
-                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all touch-feedback',
                   activeLibrary === lib.id
-                    ? 'bg-primary/10 text-primary'
+                    ? 'bg-primary/10 text-primary glide-host'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 )}
               >
+                {activeLibrary === lib.id && <Glide key={listGlideId} behind className="bg-primary/10" radius={8} layoutId={listGlideId} />}
                 <span className="w-4 h-4 flex items-center justify-center group-hover:animate-[wiggle_0.4s_ease-in-out]">
                   {getIcon(lib.icon ?? 'Library', 'w-4 h-4')}
                 </span>
@@ -462,39 +525,43 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             {savedFilters.length > 0 && (
               <div className="w-6 h-px bg-border my-0.5" />
             )}
-            {savedFilters.map(sf => (
+            {shelfOrder.shown.map(sf => (
               <RailTip key={sf.id} label={sf.name}>
               <button
                 onClick={() => selectSavedFilter(sf)}
                 aria-label={sf.name}
                 className={cn(
-                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+                  'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all touch-feedback',
                   activeSavedFilter === sf.id
-                    ? 'bg-primary/10 text-primary'
+                    ? 'bg-primary/10 text-primary glide-host'
                     : 'text-muted-foreground hover:text-foreground hover:bg-muted'
                 )}
               >
+                {activeSavedFilter === sf.id && <Glide key={listGlideId} behind className="bg-primary/10" radius={8} layoutId={listGlideId} />}
                 <span className="w-4 h-4 flex items-center justify-center group-hover:animate-[wiggle_0.4s_ease-in-out]">
                   {getIcon(sf.icon ?? 'Bookmark', 'w-4 h-4')}
                 </span>
               </button>
               </RailTip>
             ))}
-          </div>
+          </m.div>
+          </GlideGroup>
         )}
 
-        {open && (
-          <nav className="flex-1 overflow-y-auto px-3 pt-1 pb-4 overscroll-contain">
+        {listShown && (
+          <GlideGroup>
+          <m.nav layoutScroll className="isolate flex-1 w-64 shrink-0 overflow-y-auto px-3 pt-1 pb-4 overscroll-contain">
             {renderGroups('sidebar')}
-            {libraryAndShelfSections}
-          </nav>
+            {libraryAndShelfSections(true, true)}
+          </m.nav>
+          </GlideGroup>
         )}
 
         {/* User profile footer - single trigger, popover on click */}
-        {open && (
+        {listShown && (
           <UserMenu user={user} logout={logout} onCollapse={toggleOpen} />
         )}
-        {!open && (
+        {!listShown && (
           <CollapsedUserMenu user={user} logout={logout} onExpand={toggleOpen} />
         )}
       </aside>
@@ -513,9 +580,9 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
           <div
             className={cn(
               'fixed inset-y-0 left-0 z-50 w-72 flex flex-col bg-frame safe-top',
+              'transition-transform duration-[350ms] ease-[var(--spring)] motion-reduce:transition-none',
               mobileOpen ? 'translate-x-0' : '-translate-x-full'
             )}
-            style={{ transition: 'transform 0.35s var(--spring)' }}
           >
             {/* Header with close button */}
             <div className="flex items-center justify-between px-5 h-14 shrink-0">
@@ -535,10 +602,10 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
             {/* One scroll area for the nav and the account block. A pinned
                 footer took half a phone screen, leaving the nav a sliver that
                 ended at the Libraries header with the lists scrolled out of view. */}
-            <div className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
+            <m.div layoutScroll className="flex-1 min-h-0 overflow-y-auto overscroll-contain">
             <nav className="px-3 py-3">
               {renderGroups('drawer', onMobileClose)}
-              {libraryAndShelfSections}
+              {libraryAndShelfSections(false, mobileOpen)}
             </nav>
 
             {/* Mobile user footer */}
@@ -594,7 +661,7 @@ export function Sidebar({ libraries, savedFilters, activeTab, onLibrariesChange,
                 </button>
               </div>
             </div>
-            </div>
+            </m.div>
           </div>
         </div>
     </>
@@ -617,7 +684,7 @@ type NavVariant = 'rail' | 'sidebar' | 'drawer'
 
 const NAV_VARIANTS: Record<NavVariant, { entryClassName: string; activeClassName: string; iconClassName: string; showLabel: boolean }> = {
   rail: {
-    entryClassName: 'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all',
+    entryClassName: 'group relative flex items-center justify-center w-9 h-9 rounded-lg transition-all touch-feedback',
     activeClassName: 'bg-primary/10 text-primary',
     iconClassName: 'w-4 h-4',
     showLabel: false,
@@ -641,13 +708,17 @@ function NavEntry({ item, variant, onActivate }: { item: NavItem; variant: NavVa
   const style = NAV_VARIANTS[variant]
   const { icon: Icon, label, badge } = item
   const active = 'to' in item ? pathname === item.to : item.active
-  const className = cn(style.entryClassName, active ? style.activeClassName : 'text-muted-foreground hover:text-foreground hover:bg-muted')
+  const glide = variant !== 'drawer'
+  const className = cn(style.entryClassName, 'relative', active ? cn(style.activeClassName, glide && 'glide-host') : 'text-muted-foreground hover:text-foreground hover:bg-muted')
   const labelProps = style.showLabel ? {} : { 'aria-label': label }
   const content = (
     <>
+      {active && glide && <Glide behind className="bg-primary/10" radius={8} />}
       <Icon className={cn(style.iconClassName, 'group-hover:animate-[wiggle_0.4s_ease-in-out]')} />
-      {style.showLabel && <span className="truncate">{label}</span>}
-      {badge && badge.count > 0 && <NavBadge variant={variant} {...badge} />}
+      {style.showLabel && <span className="sb-label truncate">{label}</span>}
+      <AnimatePresence initial={false}>
+        {badge && badge.count > 0 && <NavBadge key="badge" variant={variant} {...badge} />}
+      </AnimatePresence>
     </>
   )
   const entry = 'to' in item
@@ -662,13 +733,16 @@ function NavEntry({ item, variant, onActivate }: { item: NavItem; variant: NavVa
  * anything positioned inside it would be clipped.
  */
 function RailTip({ label, children }: { label: string; children: ReactNode }) {
+  // The place is kept after hiding, so the tip fades out where it stood.
   const [at, setAt] = useState<{ x: number; y: number } | null>(null)
+  const [shown, setShown] = useState(false)
   function show(el: Element | null) {
     if (!el) return
     const r = el.getBoundingClientRect()
     setAt({ x: r.right + 8, y: r.top + r.height / 2 })
+    setShown(true)
   }
-  const hide = () => setAt(null)
+  const hide = () => setShown(false)
   return (
     <span
       className="contents"
@@ -682,27 +756,42 @@ function RailTip({ label, children }: { label: string; children: ReactNode }) {
     >
       {children}
       {at && createPortal(
-        <span
+        <Pop
+          open={shown}
+          origin="left"
           aria-hidden
           className="pointer-events-none fixed z-[60] -translate-y-1/2 whitespace-nowrap rounded-lg bg-card px-2.5 py-1 text-[13px] text-foreground shadow-lg ring-1 ring-panel-ring"
           style={{ left: at.x, top: at.y }}
         >
           {label}
-        </span>,
+        </Pop>,
         document.body,
       )}
     </span>
   )
 }
 
+// Grows in when the count goes above zero and shrinks away at zero (160 ms);
+// a rising count runs to its new value with a short pulse.
+const BADGE_IN = { initial: { scale: 0 }, animate: { scale: 1 }, exit: { scale: 0 }, transition: { duration: 0.16, ease: EASE } } as const
+
 function NavBadge({ variant, count, pulse }: { variant: NavVariant; count: number; pulse: boolean }) {
-  const pulseClassName = pulse && 'animate-[badge-ping_0.4s_ease-in-out]'
+  const pulseClassName = pulse && 'animate-[badge-ping_0.3s_ease-in-out] motion-reduce:animate-none'
   // The rail is icon-only, too narrow for a number.
-  if (variant === 'rail') return <span className={cn('absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-primary', pulseClassName)} />
+  if (variant === 'rail') {
+    return (
+      <m.span {...BADGE_IN} className="absolute top-1 right-1 w-1.5 h-1.5">
+        {/* An <i>, so the link holds one span: the rail badge. */}
+        <i className={cn('block w-full h-full rounded-full bg-primary', pulseClassName)} />
+      </m.span>
+    )
+  }
   return (
-    <span className={cn('ml-auto min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-primary text-primary-foreground text-[12px] font-semibold tabular-nums', pulseClassName)}>
-      {count}
-    </span>
+    <m.span {...BADGE_IN} className="ml-auto grid">
+      <span className={cn('min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-primary text-primary-foreground text-[12px] font-semibold tabular-nums', pulseClassName)}>
+        <RunningNumber value={count} />
+      </span>
+    </m.span>
   )
 }
 
@@ -725,7 +814,7 @@ function ThemeMenuItems({ itemClass }: { itemClass: string }) {
           {/* hairline between the neutral core and the warm pair */}
           {id === 'amber' && <div className="h-px bg-border my-1" />}
           <button
-            onClick={() => { applyTheme(id); setCurrent(id) }}
+            onClick={() => { switchTheme(id); setCurrent(id) }}
             className={itemClass}
           >
             <Icon className="w-4 h-4 shrink-0" />
@@ -749,11 +838,11 @@ function MobileThemeRow() {
         return (
         <button
           key={id}
-          onClick={() => { applyTheme(id); setCurrent(id) }}
+          onClick={() => { switchTheme(id); setCurrent(id) }}
           title={themeName}
           aria-label={t`${themeName} theme`}
           className={cn(
-            'flex items-center justify-center w-9 h-9 rounded-lg transition-colors',
+            'flex items-center justify-center w-9 h-9 rounded-lg transition-colors touch-feedback',
             current === id
               ? 'bg-primary/10 text-primary'
               : 'text-muted-foreground hover:text-foreground hover:bg-muted'
@@ -782,7 +871,7 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
   const close = useCallback(() => setOpen(false), [])
   useEscape(open, close)
 
-  const menuItem = 'flex items-center gap-2.5 w-full h-8 px-3 text-[14px] rounded-lg transition-colors hover:bg-secondary text-foreground/85 hover:text-foreground'
+  const menuItem = 'flex items-center gap-2.5 w-full h-8 px-3 text-[14px] rounded-lg transition-colors hover:bg-secondary text-foreground/85 hover:text-foreground touch-feedback'
   const destructive = menuItem + ' text-destructive/80 hover:text-destructive hover:bg-destructive/10'
 
   return (
@@ -791,7 +880,7 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
       <button
         onClick={onExpand}
         aria-label={t`Expand sidebar`}
-        className="flex items-center justify-center w-9 h-8 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
+        className="flex items-center justify-center w-9 h-8 rounded-lg text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors touch-feedback"
       >
         <PanelLeftOpen className="w-4 h-4" />
       </button>
@@ -800,15 +889,14 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
       <button
         onClick={() => setOpen(o => !o)}
         aria-label={user?.username ?? t`User menu`}
-        className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-secondary transition-colors"
+        className="flex items-center justify-center w-10 h-10 rounded-lg hover:bg-secondary transition-colors touch-feedback"
       >
         <div className="flex w-8 h-8 items-center justify-center rounded-full bg-primary text-[12px] font-bold text-primary-foreground">
           {(user?.username ?? '?').slice(0, 1).toUpperCase()}
         </div>
       </button>
       </RailTip>
-      {open && (
-        <div className="absolute bottom-full left-1 mb-1 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 z-50 w-48">
+      <Pop open={open} origin="bottom-left" className="absolute bottom-full left-1 mb-1 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 z-50 w-48">
           <Link to="/settings" onClick={() => setOpen(false)} className={menuItem}>
             <Settings className="w-4 h-4 shrink-0" />
             <Trans>Settings</Trans>
@@ -831,8 +919,7 @@ function CollapsedUserMenu({ user, logout, onExpand }: { user: { username: strin
             <LogOut className="w-4 h-4 shrink-0" />
             <Trans>Log out</Trans>
           </button>
-        </div>
-      )}
+      </Pop>
     </div>
   )
 }
@@ -852,19 +939,19 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
   const close = useCallback(() => setOpen(false), [])
   useEscape(open, close)
 
-  const menuItem = 'flex items-center gap-2.5 w-full h-8 px-3 text-[14px] rounded-lg transition-colors hover:bg-secondary text-foreground/85 hover:text-foreground'
+  const menuItem = 'flex items-center gap-2.5 w-full h-8 px-3 text-[14px] rounded-lg transition-colors hover:bg-secondary text-foreground/85 hover:text-foreground touch-feedback'
   const destructive = menuItem + ' text-destructive/80 hover:text-destructive hover:bg-destructive/10'
 
   return (
-    <div ref={ref} className="relative shrink-0 px-3 py-3 flex items-center gap-1">
+    <div ref={ref} className="relative shrink-0 w-64 px-3 py-3 flex items-center gap-1">
       <button
         onClick={() => setOpen(o => !o)}
-        className="flex items-center gap-3 flex-1 min-w-0 px-1 py-1 rounded-lg hover:bg-secondary transition-colors text-left"
+        className="flex items-center gap-3 flex-1 min-w-0 px-1 py-1 rounded-lg hover:bg-secondary transition-colors text-left touch-feedback"
       >
         <div className="flex w-8 h-8 items-center justify-center rounded-full bg-primary text-[12px] font-bold text-primary-foreground shrink-0">
           {(user?.username ?? '?').slice(0, 1).toUpperCase()}
         </div>
-        <span className="min-w-0 flex-1">
+        <span className="sb-label min-w-0 flex-1">
           <span className="block truncate text-[14px] font-medium text-foreground">{user?.username}</span>
           {(user?.is_admin || user?.role === 'admin') && <span className="block text-[11px] leading-none text-muted-foreground"><Trans>Admin</Trans></span>}
         </span>
@@ -874,13 +961,12 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
         onClick={onCollapse}
         title={t`Collapse sidebar`}
         aria-label={t`Collapse sidebar`}
-        className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0 text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors"
+        className="flex items-center justify-center w-8 h-8 rounded-lg shrink-0 text-muted-foreground/60 hover:text-foreground hover:bg-secondary transition-colors touch-feedback"
       >
         <PanelLeftClose className="w-4 h-4" />
       </button>
 
-      {open && (
-        <div className="absolute bottom-full left-3 right-3 mb-1 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 z-50">
+      <Pop open={open} origin="bottom" className="absolute bottom-full left-3 right-3 mb-1 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring p-1.5 z-50">
           <Link to="/settings" onClick={() => setOpen(false)} className={menuItem}>
             <Settings className="w-4 h-4 shrink-0" />
             <Trans>Settings</Trans>
@@ -903,15 +989,14 @@ function UserMenu({ user, logout, onCollapse }: { user: { username: string; is_a
             <LogOut className="w-4 h-4 shrink-0" />
             <Trans>Log out</Trans>
           </button>
-        </div>
-      )}
+      </Pop>
     </div>
   )
 }
 
 /** A group label in the nav: small caps, no icon. */
 function GroupLabel({ children }: { children: React.ReactNode }) {
-  return <div className="px-3 mt-5 mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">{children}</div>
+  return <div className="sb-label px-3 mt-5 mb-1 text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80">{children}</div>
 }
 
 function Section({ title, onAdd, addLabel, onTitleClick, children }: {
@@ -924,12 +1009,12 @@ function Section({ title, onAdd, addLabel, onTitleClick, children }: {
 }) {
   return (
     <div>
-      <div className="flex items-center justify-between px-3 mt-5 mb-1">
+      <div className="sb-label flex items-center justify-between px-3 mt-5 mb-1">
         <button
           onClick={onTitleClick}
           className={cn(
             'text-[11px] font-semibold uppercase tracking-[0.08em] text-muted-foreground/80 transition-colors',
-            onTitleClick && 'hover:text-foreground cursor-pointer'
+            onTitleClick && 'hover:text-foreground cursor-pointer touch-feedback'
           )}
         >
           {title}
@@ -937,7 +1022,7 @@ function Section({ title, onAdd, addLabel, onTitleClick, children }: {
         {onAdd && (
           <button
             onClick={onAdd}
-            className="w-5 h-5 grid place-items-center rounded text-muted-foreground/70 hover:text-foreground hover:bg-secondary transition-colors"
+            className="w-5 h-5 grid place-items-center rounded text-muted-foreground/70 hover:text-foreground hover:bg-secondary transition-colors touch-feedback"
             title={addLabel}
             aria-label={addLabel}
           >
@@ -950,8 +1035,10 @@ function Section({ title, onAdd, addLabel, onTitleClick, children }: {
   )
 }
 
-function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdit, onShare, onDelete }: {
+function SidebarItem({ grip, label, iconName, count, active, glideId, isPrivate, onClick, onEdit, onShare, onDelete }: {
+  grip?: ReactNode
   label: string
+  glideId?: string
   iconName: string
   count?: number
   active: boolean
@@ -965,15 +1052,18 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
   return (
     <div
       className={cn(
-        'group flex items-center gap-2.5 w-full h-9 px-3 rounded-lg text-[14px] transition-colors cursor-pointer',
+        'group relative flex items-center gap-2.5 w-full h-9 px-3 rounded-lg text-[14px] transition-colors cursor-pointer touch-feedback',
         active
-          ? 'bg-primary/10 text-foreground font-medium [&_svg]:text-primary'
+          ? cn('bg-primary/10 text-foreground font-medium [&_svg]:text-primary', glideId && 'glide-host')
           : 'text-muted-foreground hover:text-foreground hover:bg-muted'
       )}
       onClick={onClick}
     >
+      {/* Keyed by its id: a row whose indicator switches ids must mount a new one, not rename it. */}
+      {active && glideId && <Glide key={glideId} behind className="bg-primary/10" radius={8} layoutId={glideId} />}
+      {grip}
       <span className="shrink-0 sidebar-item-icon w-4 h-4 grid place-items-center">{getIcon(iconName, 'w-4 h-4')}</span>
-      <span className="truncate flex-1">{label}</span>
+      <span className="sb-label truncate flex-1">{label}</span>
       {isPrivate && (
         <span title={t`Private library`} className="shrink-0 flex items-center group-hover:hidden group-focus-within:hidden">
           <Lock className="w-3 h-3 text-muted-foreground/50" />
@@ -981,15 +1071,15 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
       )}
       {/* A ghost "0" on an empty library was pure noise - no count reads cleaner. */}
       {count != null && count > 0 && !isPrivate && (
-        <span className="text-[12px] tabular-nums shrink-0 text-muted-foreground/70 group-hover:hidden group-focus-within:hidden">
-          {count}
+        <span className="sb-label text-[12px] tabular-nums shrink-0 text-muted-foreground/70 group-hover:hidden group-focus-within:hidden">
+          <RunningNumber value={count} />
         </span>
       )}
       <div className="hidden group-hover:flex group-focus-within:flex items-center gap-0.5 shrink-0">
         {onEdit && (
           <button
             onClick={e => { e.stopPropagation(); onEdit() }}
-            className="p-0.5 rounded hover:text-foreground transition-colors"
+            className="p-0.5 rounded hover:text-foreground transition-colors touch-feedback"
             title={t`Edit`}
             aria-label={t`Edit`}
           >
@@ -999,7 +1089,7 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
         {onShare && (
           <button
             onClick={e => { e.stopPropagation(); onShare() }}
-            className="p-0.5 rounded hover:text-foreground transition-colors"
+            className="p-0.5 rounded hover:text-foreground transition-colors touch-feedback"
             title={t`Share`}
             aria-label={t`Share`}
           >
@@ -1009,7 +1099,7 @@ function SidebarItem({ label, iconName, count, active, isPrivate, onClick, onEdi
         {onDelete && (
           <button
             onClick={async e => { e.stopPropagation(); await onDelete() }}
-            className="p-0.5 rounded hover:text-destructive transition-colors"
+            className="p-0.5 rounded hover:text-destructive transition-colors touch-feedback"
             title={t`Delete`}
             aria-label={t`Delete`}
           >
@@ -1162,5 +1252,163 @@ function LibraryModal({ title, initialName, initialIcon, initialIsPublic, librar
         {error && <p className="text-[13px] text-destructive">{error}</p>}
       </div>
     </ModalShell>
+  )
+}
+
+/**
+ * Live order for a dragged list. `shown` follows the drag; on drop the new
+ * order is saved, and a failed save puts the server's order back.
+ */
+function useDragOrder<T extends { id: number }>(items: T[], save: (ids: number[]) => Promise<void>, onFail: () => void) {
+  const [order, setOrder] = useState<number[] | null>(null)
+  const ids = items.map(i => i.id)
+  const live = order != null && order.length === ids.length && order.every(id => ids.includes(id)) ? order : null
+  const shown = live ? live.map(id => items.find(i => i.id === id)!) : items
+  const latest = useRef<number[] | null>(null)
+  // The order last sent, and the props it was sent over. Until new props
+  // arrive, the server holds `ids` from here, not the (stale) props.
+  const told = useRef<{ over: string; ids: number[] } | null>(null)
+  const key = ids.join(',')
+  return {
+    ids: live ?? ids,
+    shown,
+    set: (next: number[]) => { latest.current = next; setOrder(next) },
+    save: () => {
+      const next = latest.current
+      if (!next || next.length !== ids.length || !next.every(id => ids.includes(id))) return
+      const server = told.current?.over === key ? told.current.ids : ids
+      if (next.every((id, i) => id === server[i])) return
+      told.current = { over: key, ids: next }
+      save(next).catch(() => { latest.current = null; told.current = null; setOrder(null); onFail() })
+    },
+  }
+}
+
+type DragCtx = { ids: number[]; onReorder: (ids: number[]) => void; onDrop: () => void }
+const DragDropContext = createContext<DragCtx>({ ids: [], onReorder: () => {}, onDrop: () => {} })
+
+/** A sidebar list whose rows can be dragged into a new order. */
+function DragList({ ids, enabled, onReorder, onDrop, children }: {
+  ids: number[]
+  enabled: boolean
+  onReorder: (ids: number[]) => void
+  onDrop: () => void
+  children: () => ReactNode
+}) {
+  if (!enabled) return <>{children()}</>
+  return (
+    <DragDropContext.Provider value={{ ids, onReorder, onDrop }}>
+      {/* relative: the rows' offsetTop is measured against this box. */}
+      <div className="relative space-y-0.5" data-drag-list>{children()}</div>
+    </DragDropContext.Provider>
+  )
+}
+
+/**
+ * One draggable row. A mouse drags the whole row once it moves 3 px, so a
+ * plain click still navigates; touch drags only from the grip, so the drawer
+ * still scrolls under a finger. The dragged row follows the pointer on a
+ * transform with a slight lift; the others step aside (layout="position",
+ * measured only when the order changes) when its centre crosses their middle;
+ * on release it settles into its slot with the GLIDE spring.
+ */
+function DragRow({ id, enabled, children }: { id: number; enabled: boolean; children: (grip: ReactNode, lifted: boolean) => ReactNode }) {
+  const { t } = useLingui()
+  const { ids, onReorder, onDrop } = useContext(DragDropContext)
+  const ref = useRef<HTMLDivElement>(null)
+  const dragged = useRef(false)
+  // Pointer offset from the row's slot while dragging; null at rest.
+  const [ty, setTy] = useState<number | null>(null)
+  const want = useRef(0)
+  const order = ids.join(',')
+
+  // After a reorder moves this row in the DOM, re-aim it at the pointer.
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (ty == null || !el) return
+    setTy(want.current - el.offsetTop)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [order])
+
+  if (!enabled) return <>{children(null, false)}</>
+
+  function begin(e: React.PointerEvent, threshold: number) {
+    const el = ref.current
+    const list = el?.closest<HTMLElement>('[data-drag-list]')
+    if (!el || !list) return
+    const startY = e.clientY
+    let active = false
+    let grab = 0
+    let current = ids
+    const move = (ev: PointerEvent) => {
+      if (!active) {
+        if (Math.abs(ev.clientY - startY) < threshold) return
+        active = true
+        dragged.current = true
+        grab = startY - el.getBoundingClientRect().top
+        document.body.style.userSelect = 'none'
+      }
+      ev.preventDefault()
+      const box = list.getBoundingClientRect()
+      const h = el.offsetHeight
+      const top = Math.max(-6, Math.min(box.height - h + 6, ev.clientY - box.top - grab))
+      want.current = top
+      const mid = top + h / 2
+      const rows = Array.from(list.children).filter((c): c is HTMLElement => c !== el && c instanceof HTMLElement)
+      const target = rows.filter(r => r.offsetTop + r.offsetHeight / 2 < mid).length
+      const others = current.filter(x => x !== id)
+      const next = [...others.slice(0, target), id, ...others.slice(target)]
+      if (next.some((x, i) => x !== current[i])) { current = next; onReorder(next) }
+      setTy(top - el.offsetTop)
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      window.removeEventListener('pointercancel', up)
+      if (!active) return
+      document.body.style.userSelect = ''
+      setTy(null)
+      onDrop()
+      // The click that follows this pointerup must not navigate.
+      setTimeout(() => { dragged.current = false }, 0)
+    }
+    window.addEventListener('pointermove', move, { passive: false })
+    window.addEventListener('pointerup', up)
+    window.addEventListener('pointercancel', up)
+  }
+
+  const lifted = ty != null
+  const grip = (
+    <>
+      {/* Mouse: a hint in the left padding on hover. */}
+      <span aria-hidden className="pointer-events-none absolute left-0 inset-y-0 w-3 grid place-items-center opacity-0 group-hover:opacity-50 transition-opacity pointer-coarse:hidden">
+        <GripVertical className="w-3 h-3" />
+      </span>
+      {/* Touch: a real handle at the end of the row. */}
+      <span
+        aria-hidden
+        title={t`Drag to reorder`}
+        onPointerDown={e => { e.stopPropagation(); begin(e, 3) }}
+        onClick={e => e.stopPropagation()}
+        className="hidden pointer-coarse:grid order-last -mr-2 w-8 self-stretch place-items-center text-muted-foreground/60 touch-none"
+      >
+        <GripVertical className="w-4 h-4" />
+      </span>
+    </>
+  )
+  return (
+    <m.div
+      ref={ref}
+      layout={lifted ? false : 'position'}
+      layoutDependency={order}
+      animate={{ y: ty ?? 0, scale: lifted ? 1.03 : 1 }}
+      transition={lifted ? { duration: 0 } : GLIDE}
+      onPointerDown={e => { if (e.pointerType === 'mouse' && e.button === 0) begin(e, 3) }}
+      onClickCapture={e => { if (dragged.current) { e.stopPropagation(); e.preventDefault() } }}
+      style={{ borderRadius: 8, position: 'relative', zIndex: lifted ? 3 : undefined }}
+      className={cn('transition-[background-color,box-shadow] duration-150', lifted && 'bg-card text-foreground shadow-[0_14px_28px_-10px_rgb(0_0_0/0.55)]')}
+    >
+      {children(grip, lifted)}
+    </m.div>
   )
 }

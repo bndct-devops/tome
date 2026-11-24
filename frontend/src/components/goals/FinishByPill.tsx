@@ -5,6 +5,7 @@
 // nothing to offer. Until the goals are in the pill keeps its place unseen, so
 // it never appears beside the other actions and moves them.
 import { useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { useNavigate } from 'react-router-dom'
 import { CalendarCheck, CalendarClock } from 'lucide-react'
 import { t } from '@lingui/core/macro'
@@ -61,8 +62,10 @@ export function FinishByPill({ target, done, pending, iconOnPhone }: {
         )}
         <span className={cn((iconOnPhone || open) && 'hidden sm:inline')}>{label}</span>
       </Pill>
+      <AnimatePresence>
       {dialog && goals && (
         <GoalDialog
+          key="goal"
           mode={dialog}
           goals={goals}
           onClose={() => setDialog(null)}
@@ -71,6 +74,7 @@ export function FinishByPill({ target, done, pending, iconOnPhone }: {
           }}
         />
       )}
+      </AnimatePresence>
     </>
   )
 }

@@ -1,6 +1,9 @@
-import { forwardRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
+import { forwardRef, useRef, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes, type TextareaHTMLAttributes } from 'react'
 import { Check } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import { Glide, GlideGroup } from './Glide'
+import { GLIDE_FILL, useIndicatorSplit } from './glideTransition'
+import { PRESS_LABEL } from '@/components/motion/press'
 
 // Form controls in the refreshed vocabulary. One filled, borderless field
 // (bg-secondary, 36px, 14px text, ring on focus); selects get the chevron from
@@ -57,7 +60,8 @@ export const Checkbox = forwardRef<HTMLInputElement, ChoiceProps>(function Check
     <label className={cn('inline-flex items-start gap-2.5 cursor-pointer select-none', disabled && 'opacity-50 cursor-not-allowed', className)}>
       <span className="relative mt-0.5 inline-flex h-[18px] w-[18px] shrink-0">
         <input ref={ref} type="checkbox" disabled={disabled} className="peer absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed" {...rest} />
-        <span className="pointer-events-none inline-flex h-full w-full items-center justify-center rounded-[5px] bg-card ring-1 ring-muted-foreground/45 transition-colors peer-checked:bg-primary peer-checked:ring-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring [&>svg]:opacity-0 peer-checked:[&>svg]:opacity-100">
+        {/* data-check-box: a list that selects hundreds of rows at once stops this fade by that name. */}
+        <span data-check-box className="pointer-events-none inline-flex h-full w-full items-center justify-center rounded-[5px] bg-card ring-1 ring-muted-foreground/45 transition-colors peer-checked:bg-primary peer-checked:ring-primary peer-focus-visible:ring-2 peer-focus-visible:ring-ring [&>svg]:opacity-0 peer-checked:[&>svg]:opacity-100">
           <Check className="h-3 w-3 text-primary-foreground" strokeWidth={3} />
         </span>
       </span>
@@ -91,36 +95,64 @@ export const Radio = forwardRef<HTMLInputElement, ChoiceProps>(function Radio({ 
   )
 })
 
+/** One choice of a PillGroup. */
+export interface PillOption<T extends string> {
+  value: T
+  label: ReactNode
+  disabled?: boolean
+  /** The pill's tooltip. */
+  title?: string
+  /** Unavailable but still focusable and clickable (the click can explain why): drawn
+   *  dimmed with a not-allowed cursor and no hover; `onChange` still gets the click. */
+  'aria-disabled'?: boolean
+  /** Drawn faded while not chosen (one already in use, say), still a full choice. */
+  dimmed?: boolean
+}
+
 /** A row of exclusive choices as pills (sort order, scope, layout preset). */
-export function PillGroup<T extends string>({ value, onChange, options, size = 'md', className, 'aria-label': ariaLabel }: {
+export function PillGroup<T extends string>({ value, onChange, options, size = 'md', className, pillClassName, 'aria-label': ariaLabel }: {
   value: T
   onChange: (v: T) => void
-  options: { value: T; label: ReactNode; disabled?: boolean }[]
+  options: PillOption<T>[]
   size?: 'sm' | 'md'
   className?: string
+  /** Added to every pill (after the size's own classes, so it can change the padding). */
+  pillClassName?: string
   'aria-label'?: string
 }) {
+  const rowRef = useRef<HTMLDivElement>(null)
+  useIndicatorSplit(rowRef, value)
+
+  // The filled pill is one indicator that glides to the chosen option; it sits
+  // over the other pills' fills and under every label.
   return (
-    <div role="radiogroup" aria-label={ariaLabel} className={cn('inline-flex flex-wrap gap-1.5', className)}>
-      {options.map(o => (
-        <button
-          key={o.value}
-          type="button"
-          role="radio"
-          aria-checked={o.value === value}
-          disabled={o.disabled}
-          onClick={() => onChange(o.value)}
-          className={cn(
-            'rounded-full font-medium transition-colors disabled:opacity-50',
-            size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-9 px-4 text-[14px]',
-            o.value === value
-              ? 'bg-foreground text-background'
-              : 'bg-secondary text-foreground hover:bg-surface-hover',
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
+    <GlideGroup value={value}>
+      <div ref={rowRef} role="radiogroup" aria-label={ariaLabel} className={cn('isolate inline-flex flex-wrap gap-1.5', className)}>
+        {options.map(o => (
+          <button
+            key={o.value}
+            type="button"
+            role="radio"
+            aria-checked={o.value === value}
+            aria-disabled={o['aria-disabled']}
+            title={o.title}
+            disabled={o.disabled}
+            onClick={() => onChange(o.value)}
+            className={cn(
+              'group/pg relative rounded-full font-medium disabled:opacity-50',
+              size === 'sm' ? 'h-8 px-3 text-[13px]' : 'h-9 px-4 text-[14px]',
+              o.value === value ? 'text-background' : 'text-foreground',
+              o.value !== value && (o.dimmed || o['aria-disabled']) && 'opacity-55',
+              o['aria-disabled'] && 'cursor-not-allowed',
+              pillClassName,
+            )}
+          >
+            {o.value === value && <Glide className="bg-foreground" />}
+            <span data-split="" className={cn('relative z-[1]', PRESS_LABEL)}>{o.label}</span>
+            <span aria-hidden className={cn(GLIDE_FILL, !o['aria-disabled'] && 'group-hover/pg:bg-surface-hover')} />
+          </button>
+        ))}
+      </div>
+    </GlideGroup>
   )
 }

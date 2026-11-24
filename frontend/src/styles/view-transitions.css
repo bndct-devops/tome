@@ -1,0 +1,94 @@
+/* Cover to hero (lib/coverTransition.ts): the cover travels with the spring
+   curve, the rest of the page cross-fades quickly. Scoped to that transition
+   so other view transitions keep their own timing. */
+html[data-cover-transition]::view-transition-group(book-cover) {
+  animation-duration: 340ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html[data-cover-transition]::view-transition-old(book-cover),
+html[data-cover-transition]::view-transition-new(book-cover) {
+  /* A list thumbnail is 3:4, the hero 2:3: crop instead of stretching. */
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  animation-duration: 340ms;
+  animation-timing-function: cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+html[data-cover-transition]::view-transition-old(root),
+html[data-cover-transition]::view-transition-new(root) {
+  animation-duration: 180ms;
+}
+/* Between a book page and its series (lib/coverTransition `cut`): the page
+   changes at once, so no title, pill or bar is ever drawn twice; only the
+   cover moves, and its picture changes with a short cross-fade. */
+html[data-cover-cut]::view-transition-old(root) {
+  animation: none;
+  opacity: 0;
+}
+html[data-cover-cut]::view-transition-new(root) {
+  animation: none;
+}
+html[data-cover-cut]::view-transition-old(book-cover),
+html[data-cover-cut]::view-transition-new(book-cover) {
+  animation-duration: 160ms;
+  animation-timing-function: ease-out;
+}
+
+/* Page to page (components/motion/TransitionRouter): a short root cross-fade.
+   The overlay lets the pointer through (also during a cover transition), so a
+   click during it reaches the new page instead of being swallowed. */
+html[data-route-transition]::view-transition,
+html[data-cover-transition]::view-transition {
+  pointer-events: none;
+}
+html[data-route-transition]::view-transition-group(root),
+html[data-route-transition]::view-transition-old(root),
+html[data-route-transition]::view-transition-new(root) {
+  animation-duration: 120ms;
+  animation-timing-function: ease-out;
+}
+
+/* Library grid <-> list: the list-only columns arrive after the covers land. */
+@keyframes library-columns-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+/* The cards that travel get their own layers for the length of the switch,
+   so a frame moves pictures instead of repainting them. */
+[data-view-switch] > [data-item]:not([data-held]),
+[data-view-switch] > [data-item]:not([data-held]) [data-travel] {
+  will-change: transform;
+}
+[data-view-switch="list"] .library-extra {
+  animation: library-columns-in 160ms ease-out 300ms both;
+}
+
+/* A rating star filling in (BookDetailPage wraps StarRating in .rating-motion):
+   stars fill one after the other. */
+@keyframes rating-fill {
+  from { transform: scale(0.6); opacity: 0.35; }
+  to { transform: scale(1); opacity: 1; }
+}
+.rating-motion button > span {
+  animation: rating-fill 180ms cubic-bezier(0.2, 0.8, 0.2, 1) both;
+}
+.rating-motion button:nth-child(2) > span { animation-delay: 35ms; }
+.rating-motion button:nth-child(3) > span { animation-delay: 70ms; }
+.rating-motion button:nth-child(4) > span { animation-delay: 105ms; }
+.rating-motion button:nth-child(5) > span { animation-delay: 140ms; }
+.rating-motion[data-settled] button > span { animation: none; }
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-cover-transition]::view-transition-group(*),
+  html[data-cover-transition]::view-transition-old(*),
+  html[data-cover-transition]::view-transition-new(*),
+  html[data-route-transition]::view-transition-group(*),
+  html[data-route-transition]::view-transition-old(*),
+  html[data-route-transition]::view-transition-new(*) {
+    animation: none !important;
+  }
+  [data-view-switch="list"] .library-extra,
+  .rating-motion button > span {
+    animation: none;
+  }
+}

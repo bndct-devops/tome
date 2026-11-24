@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef, useCallback } from 'react'
+import { memo, startTransition, useEffect, useLayoutEffect, useState, useRef, useCallback } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { useNavigate } from 'react-router-dom'
 import { t, msg, plural } from '@lingui/core/macro'
@@ -9,7 +9,7 @@ import {
   Check, ArrowLeft, ArrowRight, SkipForward, RefreshCw,
   ExternalLink, Sparkles, Filter, Wand2, Upload, BookMarked,
 } from 'lucide-react'
-import { api } from '@/lib/api'
+import { api, notifyWrite } from '@/lib/api'
 import type { BookDetail, BookType, Library, MetadataCandidate } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { BookAnimation } from '@/components/BookAnimation'
@@ -19,8 +19,11 @@ import { useShiftSelect } from '@/lib/useShiftSelect'
 import { CoverImage } from './CoverImage'
 import { useToast } from '@/contexts/ToastContext'
 import { coverSrc } from '@/lib/covers'
-import { Checkbox, FormLabel, Input, Pill, Select, Textarea } from '@/components/page'
+import { Checkbox, FormLabel, Input, Pill, PRESS, Select, Swap, Textarea } from '@/components/page'
 import { ModalShell, useEscape } from '@/components/ModalShell'
+import { AnimatePresence } from 'motion/react'
+import { Pop, Unfold } from '@/components/motion'
+import { RowsSkeleton } from '@/components/FormMotion'
 
 const API = import.meta.env.VITE_API_URL ?? ''
 
@@ -71,6 +74,54 @@ const MISSING_FIELD_OPTIONS = [
 // eslint-disable-next-line lingui/no-unlocalized-strings -- class names
 const HEAD = 'text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground'
 
+// The table's first frame holds this many rows (more than a screen); the rest
+// follow in steps after it, so opening a big library never stalls a frame.
+const FIRST_ROWS = 40
+const ROW_STEP = 60
+const MIN_TABLE_PX = 200
+// Selecting or clearing many rows: the rows in view change at once, the rest this many per frame.
+const SEL_STEP = 150
+
+/** Rows kept on screen while a re-sorted or re-filtered table fills from the top. */
+interface RowWindow { from: number; to: number; pitch: number }
+
+/** Indexes of the rendered rows that are in view, whichever of the table or the page scrolls. */
+function rowsInView(el: HTMLElement): RowWindow | null {
+  const trs = el.querySelectorAll<HTMLTableRowElement>('tbody > tr:not([data-gap])')
+  if (trs.length < 2) return null
+  const r0 = trs[0].getBoundingClientRect().top
+  const pitch = trs[1].getBoundingClientRect().top - r0
+  if (pitch <= 0) return null
+  const box = el.getBoundingClientRect()
+  const port = el.closest('main')?.getBoundingClientRect()
+  const top = Math.max(box.top, port?.top ?? 0)
+  const bottom = Math.min(box.bottom, port?.bottom ?? window.innerHeight)
+  return { from: Math.max(0, Math.floor((top - r0) / pitch)), to: Math.max(0, Math.ceil((bottom - r0) / pitch) + 1), pitch }
+}
+
+/**
+ * How many of `total` rows to render: `FIRST_ROWS` at once, then `ROW_STEP` more after each painted frame.
+ * `restart()` (called with a sort or filter change) starts over from `FIRST_ROWS`: moving or
+ * inserting hundreds of rows in one commit costs 60 to 100 ms of style and layout. When the table is
+ * scrolled past the first rows, the rows under the viewport render at once below a spacer, so the
+ * scroll position holds and nothing in view is missing.
+ */
+function useRowsShown(total: number, scrollRef: React.RefObject<HTMLDivElement | null>) {
+  const [rows, setRows] = useState<{ shown: number; win: RowWindow | null }>({ shown: FIRST_ROWS, win: null })
+  const { shown } = rows
+  useEffect(() => {
+    if (shown >= total) return
+    let timer = 0
+    const frame = requestAnimationFrame(() => { timer = window.setTimeout(() => setRows(r => ({ ...r, shown: r.shown + ROW_STEP }))) })
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
+  }, [shown, total])
+  const restart = useCallback(() => {
+    const view = scrollRef.current ? rowsInView(scrollRef.current) : null
+    setRows({ shown: FIRST_ROWS, win: view && view.to > FIRST_ROWS ? view : null })
+  }, [scrollRef])
+  return { ...rows, restart }
+}
+
 /** "Missing" filter: a pill that opens a small checklist. */
 function MissingFilter({ open, setOpen, selected, onToggle }: {
   open: boolean
@@ -99,21 +150,19 @@ function MissingFilter({ open, setOpen, selected, onToggle }: {
         <Filter className="w-3.5 h-3.5" />
         <Trans>Missing</Trans>
         {selected.length > 0 && <span className="font-semibold">({selected.length})</span>}
-        <ChevronDown className="w-3.5 h-3.5" />
+        <ChevronDown className={cn('w-3.5 h-3.5 transition-transform duration-200 ease-(--spring)', open && 'rotate-180')} />
       </Pill>
-      {open && (
-        <div className="absolute top-full left-0 mt-1.5 z-20 min-w-[180px] rounded-xl bg-card shadow-lg ring-1 ring-panel-ring py-1.5">
+      <Pop open={open} origin="top-left" className="absolute top-full left-0 mt-1.5 z-20 min-w-[180px] rounded-xl bg-card shadow-lg ring-1 ring-panel-ring py-1.5">
           {MISSING_FIELD_OPTIONS.map(opt => (
             <Checkbox
               key={opt.key}
               checked={selected.includes(opt.key)}
               onChange={() => onToggle(opt.key)}
               label={i18n._(opt.label)}
-              className="flex w-full px-3 py-1.5 hover:bg-secondary"
+              className="flex w-full px-3 py-1.5 hover:bg-secondary transition-colors"
             />
           ))}
-        </div>
-      )}
+      </Pop>
     </div>
   )
 }
@@ -219,15 +268,92 @@ function EditCell({ value, bookId, field, onSaved }: EditCellProps) {
   return (
     <span
       onClick={startEdit}
-      className="cursor-pointer hover:bg-secondary rounded-md px-1.5 py-0.5 text-[13px] block truncate group relative"
+      className="cursor-pointer hover:bg-secondary transition-colors rounded-md px-1.5 py-0.5 text-[13px] block truncate group relative"
       title={value || undefined}
     >
-      {saving && <Loader2 className="inline h-3 w-3 animate-spin mr-1" />}
-      {saved && <Check className="inline h-3 w-3 text-success mr-1" />}
       {value || <span className="text-muted-foreground/40 italic">-</span>}
+      {/* Saving and saved sit over the cell's end, so the text never moves. */}
+      {/* Plain elements, not a motion component: this cell is rendered thousands of times. */}
+      {(saving || saved) && (
+        <span className="absolute right-1 top-1/2 -translate-y-1/2 pointer-events-none">
+          {saving
+            ? <Loader2 className="h-3 w-3 animate-spin" />
+            : <Check className="h-3 w-3 text-success animate-in fade-in-40 zoom-in-90 duration-150 motion-reduce:animate-none" />}
+        </span>
+      )}
     </span>
   )
 }
+
+// One table row. Memoised: selecting a row or opening a menu re-renders the
+// manager, and re-rendering every row of a large library cost 100 ms a click.
+const MetaRow = memo(function MetaRow({ book, selected, onToggle, setBooks }: {
+  book: AuditBook
+  selected: boolean
+  onToggle: (id: number, shiftKey: boolean) => void
+  setBooks: React.Dispatch<React.SetStateAction<AuditBook[]>>
+}) {
+  return (
+    <tr
+      className={cn('hover:bg-secondary/50 transition-colors', selected && 'bg-primary/5')}
+    >
+      <td className="pl-0.5 pr-2 py-1.5">
+        <Checkbox
+          checked={selected}
+          onChange={e => onToggle(book.id, e.nativeEvent instanceof MouseEvent ? e.nativeEvent.shiftKey : false)}
+          aria-label={t`Select`}
+        />
+      </td>
+      <td className="px-2 py-1.5">
+        {book.cover_path ? (
+          <img
+            src={API + coverSrc(book.id, { w: 160 })}
+            alt=""
+            loading="lazy"
+            className="w-7 h-10 object-cover rounded-[4px]"
+          />
+        ) : (
+          <div className="w-7 h-10 rounded-[4px] bg-secondary flex items-center justify-center">
+            <BookOpen className="w-3 h-3 text-muted-foreground" />
+          </div>
+        )}
+      </td>
+      <td className="px-2 py-1.5">
+        <EditCell value={book.title} bookId={book.id} field="title" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val, fields_present: { ...b.fields_present, title: !!val }, completeness: Object.values({ ...b.fields_present, [field]: !!val }).filter(Boolean).length } : b))} />
+      </td>
+      <td className="px-2 py-1.5">
+        <EditCell value={book.subtitle} bookId={book.id} field="subtitle" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val } : b))} />
+      </td>
+      <td className="px-2 py-1.5">
+        <EditCell value={book.author} bookId={book.id} field="author" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val, fields_present: { ...b.fields_present, author: !!val }, completeness: Object.values({ ...b.fields_present, author: !!val }).filter(Boolean).length } : b))} />
+      </td>
+      <td className="px-2 py-1.5">
+        <EditCell value={book.series} bookId={book.id} field="series" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val, fields_present: { ...b.fields_present, series: !!val }, completeness: Object.values({ ...b.fields_present, series: !!val }).filter(Boolean).length } : b))} />
+      </td>
+      <td className="px-2 py-1.5">
+        <EditCell value={book.series_index?.toString() ?? ''} bookId={book.id} field="series_index" onSaved={(id, _field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, series_index: val ? Number(val) : null } : b))} />
+      </td>
+      <td className="px-2 py-1.5">
+        <EditCell value={book.year?.toString() ?? ''} bookId={book.id} field="year" onSaved={(id, _field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, year: val ? Number(val) : null, fields_present: { ...b.fields_present, year: !!val }, completeness: Object.values({ ...b.fields_present, year: !!val }).filter(Boolean).length } : b))} />
+      </td>
+      <td className="px-2 py-1.5 text-center">
+        <Dot present={book.fields_present.description} />
+      </td>
+      <td className="px-2 py-1.5 text-center">
+        <Dot present={book.fields_present.cover} />
+      </td>
+      <td className="px-2 py-1.5">
+        <EditCell value={book.isbn} bookId={book.id} field="isbn" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val, fields_present: { ...b.fields_present, isbn: !!val }, completeness: Object.values({ ...b.fields_present, isbn: !!val }).filter(Boolean).length } : b))} />
+      </td>
+      <td className="px-2 py-1.5">
+        <EditCell value={book.language} bookId={book.id} field="language" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val, fields_present: { ...b.fields_present, language: !!val }, completeness: Object.values({ ...b.fields_present, language: !!val }).filter(Boolean).length } : b))} />
+      </td>
+      <td className="px-2 py-1.5">
+        <CompletenessBadge score={book.completeness} total={book.completeness_total} />
+      </td>
+    </tr>
+  )
+})
 
 // ── Review Flow ───────────────────────────────────────────────────────────────
 
@@ -257,8 +383,9 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
 
   const loadBook = useCallback(async (id: number) => {
     setLoadingBook(true)
-    setBook(null)
     setSelectedCandidate(null)
+    setCandidates([])
+    setCandidateError(null)
     setFields([])
     setDraft({})
     setCustomQuery('')
@@ -272,11 +399,9 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
   }, [])
 
   const fetchCandidates = useCallback(async (id: number, q?: string) => {
+    // A refetch keeps the candidates on screen, dimmed, until the new ones land.
     setLoadingCandidates(true)
-    setCandidates([])
     setCandidateError(null)
-    setSelectedCandidate(null)
-    setFields([])
     try {
       const qs = q?.trim() ? `?q=${encodeURIComponent(q)}` : ''
       const resp = await fetch(`${API}/api/books/${id}/fetch-metadata${qs}`, {
@@ -288,6 +413,8 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
         setSelectedCandidate(data[0])
         setFields(buildFieldRows(book, data[0]))
       } else if (data.length === 0) {
+        setSelectedCandidate(null)
+        setFields([])
         setCandidateError(t`No candidates found.`)
       }
     } catch {
@@ -363,6 +490,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
             headers: { 'Content-Type': 'application/json', ...authHeader() },
             body: JSON.stringify(body),
           })
+          notifyWrite('POST', `/books/${book.id}/apply-metadata`)
         } else if (Object.keys(draft).length > 0) {
           await api.put(`/books/${book.id}`, draft)
         }
@@ -388,7 +516,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
   // Summary screen
   if (summary) {
     return (
-      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center">
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-center animate-in fade-in-40 duration-150 motion-reduce:animate-none">
         <Check className="w-12 h-12 text-success" />
         <h2 className="font-display text-[22px] font-bold"><Trans>Review complete</Trans></h2>
         <p className="text-[15px] text-muted-foreground">
@@ -414,7 +542,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
           </span>
           <div className="flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--rail)' }}>
             <div
-              className="h-full bg-primary rounded-full transition-all"
+              className="h-full bg-primary rounded-full transition-[width] duration-300 ease-(--spring) motion-reduce:transition-none"
               style={{ width: `${((idx + 1) / queue.length) * 100}%` }}
             />
           </div>
@@ -422,14 +550,14 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
         <div className="w-24" />
       </div>
 
-      {loadingBook && (
+      {loadingBook && !book && (
         <div className="flex items-center justify-center py-24">
           <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
         </div>
       )}
 
-      {book && !loadingBook && (
-        <div className="flex flex-col lg:flex-row flex-1 overflow-hidden">
+      {book && (
+        <div className={cn('flex flex-col lg:flex-row flex-1 overflow-hidden transition-opacity duration-150', loadingBook && 'opacity-50 pointer-events-none')}>
           {/* Left: current metadata */}
           <div className="w-full lg:w-[420px] shrink-0 border-b lg:border-b-0 lg:border-r border-border/70 overflow-y-auto py-4 lg:py-6 lg:pr-6 space-y-4 max-h-[40vh] lg:max-h-none">
             <div className="flex gap-4">
@@ -498,10 +626,9 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
               </Pill>
             </div>
 
-            {loadingCandidates && (
-              <div className="flex justify-center py-8">
-                <Loader2 className="w-5 h-5 animate-spin text-muted-foreground" />
-              </div>
+            {/* First fetch for this book: the candidates' place, held. */}
+            {loadingCandidates && candidates.length === 0 && (
+              <RowsSkeleton rows={3} rowClassName="h-[76px] px-2.5" className="border-y-0 divide-y-0" />
             )}
 
             {candidateError && !loadingCandidates && (
@@ -509,15 +636,15 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
             )}
 
             {/* Candidate list */}
-            {candidates.length > 0 && !loadingCandidates && (
-              <div className="space-y-2">
+            {candidates.length > 0 && (
+              <div className={cn('space-y-2 transition-opacity duration-150', loadingCandidates && 'opacity-50')}>
                 <p className="text-[13px] text-muted-foreground">{plural(candidates.length, { one: '# candidate. Click to select.', other: '# candidates. Click to select.' })}</p>
                 {candidates.map(c => (
                   <button
                     key={`${c.source}-${c.source_id}`}
                     onClick={() => selectCandidate(c)}
                     className={cn(
-                      'w-full text-left rounded-lg p-2.5 flex gap-3 transition-colors',
+                      'w-full text-left rounded-lg p-2.5 flex gap-3 transition-[background-color,box-shadow] duration-150 touch-feedback', PRESS,
                       selectedCandidate?.source_id === c.source_id && selectedCandidate?.source === c.source
                         ? 'bg-primary/10 ring-1 ring-primary/40'
                         : 'hover:bg-secondary'
@@ -546,7 +673,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
             )}
 
             {/* Diff table */}
-            {selectedCandidate && fields.length > 0 && (
+            <Unfold open={!!selectedCandidate && fields.length > 0} gap={16}>
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
                   <p className="text-[12px] font-bold text-muted-foreground uppercase tracking-[0.1em]"><Trans>Field diff</Trans></p>
@@ -611,23 +738,25 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
                   })}
                 </div>
               </div>
-            )}
+            </Unfold>
           </div>
         </div>
       )}
 
       {/* Footer nav */}
-      {book && !loadingBook && (
+      {book && (
         <div className="border-t border-border px-6 py-3 flex items-center justify-between">
-          <Pill variant="quiet" onClick={prev} disabled={idx === 0}>
+          <Pill variant="quiet" onClick={prev} disabled={idx === 0 || loadingBook}>
             <ArrowLeft className="w-3.5 h-3.5" /> <Trans>Previous</Trans>
           </Pill>
           <div className="flex items-center gap-2">
-            {applyError && <span className="text-[13px] text-destructive">{applyError}</span>}
-            <Pill variant="secondary" onClick={skip}>
+            <Swap id={applyError ?? ''}>
+              {applyError && <span className="text-[13px] text-destructive">{applyError}</span>}
+            </Swap>
+            <Pill variant="secondary" onClick={skip} disabled={loadingBook}>
               <SkipForward className="w-3.5 h-3.5" /> <Trans>Skip</Trans>
             </Pill>
-            <Pill variant="primary" onClick={applyAndNext} disabled={applying}>
+            <Pill variant="primary" onClick={applyAndNext} disabled={applying || loadingBook}>
               {applying ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <ArrowRight className="w-3.5 h-3.5" />}
               <Trans>Apply and next</Trans>
             </Pill>
@@ -716,10 +845,10 @@ function StandardizeModal({ proposals, onClose, onApplied }: StandardizeModalPro
         <>
           {applying && (
             <div className="mr-auto flex-1 h-1.5 rounded-full overflow-hidden" style={{ background: 'var(--rail)' }}>
-              <div className="h-full bg-primary rounded-full transition-all" style={{ width: `${progress}%` }} />
+              <div className="h-full bg-primary rounded-full transition-[width] duration-300 ease-(--spring) motion-reduce:transition-none" style={{ width: `${progress}%` }} />
             </div>
           )}
-          {error && <p className="mr-auto flex-1 text-[13px] text-destructive">{error}</p>}
+          {error && <p className="mr-auto flex-1 text-[13px] text-destructive animate-in fade-in-40 duration-150 motion-reduce:animate-none">{error}</p>}
           <Pill variant="quiet" onClick={onClose} disabled={applying}>
             <Trans>Cancel</Trans>
           </Pill>
@@ -1017,6 +1146,7 @@ export function MetadataManager() {
         api.get<BookType[]>('/book-types'),
         api.get<Library[]>('/libraries'),
       ])
+      restartRows()
       setBooks(auditData.filter(b => b.content_type !== 'chapter'))
       setBookTypes(btData)
       setLibraries(libData)
@@ -1030,15 +1160,17 @@ export function MetadataManager() {
   function handleSearchChange(val: string) {
     setSearch(val)
     if (searchDebounce.current) clearTimeout(searchDebounce.current)
-    searchDebounce.current = setTimeout(() => setDebouncedSearch(val), 250)
+    searchDebounce.current = setTimeout(() => { restartRows(); setDebouncedSearch(val) }, 250)
   }
 
   function toggleSort(col: SortCol) {
+    restartRows()
     if (sortCol === col) setSortDir(d => d === 'asc' ? 'desc' : 'asc')
     else { setSortCol(col); setSortDir('asc') }
   }
 
   function toggleMissingField(key: string) {
+    restartRows()
     setMissingFields(prev =>
       prev.includes(key) ? prev.filter(f => f !== key) : [...prev, key]
     )
@@ -1085,19 +1217,110 @@ export function MetadataManager() {
   })
 
   const { handleToggle } = useShiftSelect(sorted.map(b => b.id))
+  const tableRef = useRef<HTMLDivElement>(null)
+  const { shown: rowsShown, win: rowWindow, restart: restartRows } = useRowsShown(sorted.length, tableRef)
+
+  // Rendered rows: the first `rowsShown`, then (while filling) a spacer and the rows under the viewport.
+  const n = sorted.length
+  const gapRows = rowWindow && rowWindow.from > rowsShown && rowWindow.from < n ? rowWindow.from - rowsShown : 0
+  const rowSlices: ({ start: number; items: AuditBook[] } | null)[] = gapRows > 0
+    ? [{ start: 0, items: sorted.slice(0, rowsShown) }, null, { start: rowWindow!.from, items: sorted.slice(rowWindow!.from, rowWindow!.to) }]
+    : [{ start: 0, items: rowsShown >= n ? sorted : sorted.slice(0, Math.max(rowsShown, rowWindow?.to ?? 0)) }]
+
+  // After a select all or clear, rows outside `from..to` (the view) and past
+  // `upto` still show the previous selection for a frame or two.
+  const [selLag, setSelLag] = useState<{ prev: Set<number>; from: number; to: number; upto: number } | null>(null)
+  useEffect(() => {
+    if (!selLag) return
+    let timer = 0
+    const frame = requestAnimationFrame(() => {
+      timer = window.setTimeout(() => setSelLag(l => !l || l.upto + SEL_STEP >= n ? null : { ...l, upto: l.upto + SEL_STEP }))
+    })
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
+  }, [selLag, n])
+  function rowSelected(i: number, id: number) {
+    if (!selLag || i < selLag.upto || (i >= selLag.from && i < selLag.to)) return selected.has(id)
+    return selLag.prev.has(id)
+  }
 
   function toggleSelect(id: number, shiftKey: boolean) {
+    if (shiftKey) tableRef.current?.setAttribute('data-snap', '')
+    setSelLag(null)
     setSelected(prev => {
       const index = sorted.findIndex(b => b.id === id)
       return handleToggle(id, index, shiftKey, prev)
     })
   }
 
+  // A stable handler for the memoised rows; it always calls the current toggleSelect.
+  const toggleRef = useRef(toggleSelect)
+  useEffect(() => { toggleRef.current = toggleSelect })
+  const onToggleRow = useCallback((id: number, shiftKey: boolean) => toggleRef.current(id, shiftKey), [])
+
+  // Many rows changing at once snap instead of fading their colours (hundreds
+  // of colour transitions starting in one frame cost more than they show),
+  // and render in slices (a transition), so a big table never holds up a frame.
+  // data-snap stops the rows' and the checkboxes' (data-check-box)
+  // transitions; the selectors name only those so toggling it restyles little.
+  useLayoutEffect(() => {
+    const el = tableRef.current
+    if (!el?.hasAttribute('data-snap') || selLag) return
+    let timer = 0
+    const frame = requestAnimationFrame(() => { timer = window.setTimeout(() => el.removeAttribute('data-snap')) })
+    return () => { cancelAnimationFrame(frame); clearTimeout(timer) }
+  }, [selected, selLag])
+  // One vertical scroller at every size: two nested ones let a wheel over the
+  // toolbar bring the page back to the top while the table stays scrolled,
+  // leaving a row half under the sticky header. Where at least MIN_TABLE_PX is
+  // left below the table's top, the table scrolls in exactly that space and the
+  // page does not; below that, the table takes its full height, the page
+  // scrolls, and the header (data-paged) is not sticky.
+  const tableShown = !loading || books.length > 0
+  useLayoutEffect(() => {
+    const el = tableRef.current
+    const main = el?.closest('main')
+    if (!el || !main || mode !== 'table') return
+    let frame = 0
+    const fit = () => {
+      cancelAnimationFrame(frame)
+      frame = requestAnimationFrame(() => {
+        const top = el.getBoundingClientRect().top - main.getBoundingClientRect().top + main.scrollTop
+        // What sits below the table inside main: later siblings and bottom padding of each ancestor.
+        let after = 0
+        for (let n: Element = el; n !== main && n.parentElement; n = n.parentElement) {
+          for (let sib = n.nextElementSibling; sib; sib = sib.nextElementSibling) after += (sib as HTMLElement).offsetHeight
+          const cs = getComputedStyle(n.parentElement)
+          after += parseFloat(cs.paddingBottom) + parseFloat(cs.borderBottomWidth)
+        }
+        const room = Math.floor(main.clientHeight - top - after)
+        el.toggleAttribute('data-paged', room < MIN_TABLE_PX)
+        el.style.maxHeight = room < MIN_TABLE_PX ? 'none' : `${room}px`
+      })
+    }
+    fit()
+    const ro = new ResizeObserver(fit)
+    ro.observe(main)
+    if (el.parentElement) ro.observe(el.parentElement)
+    return () => { ro.disconnect(); cancelAnimationFrame(frame) }
+  }, [mode, tableShown])
+
+  function setSelectedMany(next: Set<number>) {
+    const el = tableRef.current
+    // Measured before data-snap is set: that restyles every row, and reading
+    // positions after it would force that restyle inside the click.
+    const view = el ? rowsInView(el) : null
+    el?.setAttribute('data-snap', '')
+    startTransition(() => {
+      setSelLag({ prev: selected, from: view?.from ?? 0, to: view?.to ?? FIRST_ROWS, upto: 0 })
+      setSelected(next)
+    })
+  }
+
   function toggleSelectAll() {
     if (selected.size === sorted.length) {
-      setSelected(new Set())
+      setSelectedMany(new Set())
     } else {
-      setSelected(new Set(sorted.map(b => b.id)))
+      setSelectedMany(new Set(sorted.map(b => b.id)))
     }
   }
 
@@ -1125,6 +1348,7 @@ export function MetadataManager() {
 
   function clearFilters() {
     setSearch('')
+    restartRows()
     setDebouncedSearch('')
     setFilterSeries('')
     setFilterTypeId('')
@@ -1144,7 +1368,7 @@ export function MetadataManager() {
     return (
       <button
         onClick={() => toggleSort(col)}
-        className={cn('flex items-center gap-0.5 text-[12px] font-bold uppercase tracking-[0.1em] hover:text-foreground transition-colors', active ? 'text-foreground' : 'text-muted-foreground')}
+        className={cn('flex items-center gap-0.5 text-[12px] font-bold uppercase tracking-[0.1em] hover:text-foreground transition-colors touch-feedback', PRESS, active ? 'text-foreground' : 'text-muted-foreground')}
       >
         {label}
         {active ? (sortDir === 'asc' ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />) : <ChevronUp className="w-3 h-3 opacity-20" />}
@@ -1152,8 +1376,10 @@ export function MetadataManager() {
     )
   }
 
-  if (mode === 'review') {
-    return (
+  // The table and the review cross-fade in one place.
+  return (
+    <Swap id={mode}>
+      {mode === 'review' ? (
       <div className="h-[calc(100vh-56px)] flex flex-col">
         <ReviewFlow
           queue={reviewQueue}
@@ -1161,19 +1387,24 @@ export function MetadataManager() {
           onBookUpdated={handleBookUpdated}
         />
       </div>
-    )
-  }
+      ) : tableView()}
+    </Swap>
+  )
 
+  function tableView() {
   return (
     <div className="flex flex-col gap-3">
       {/* Standardize modal */}
-      {standardizeProposals && (
-        <StandardizeModal
-          proposals={standardizeProposals}
-          onClose={() => setStandardizeProposals(null)}
-          onApplied={() => { setStandardizeProposals(null); loadData() }}
-        />
-      )}
+      <AnimatePresence>
+        {standardizeProposals && (
+          <StandardizeModal
+            key="standardize"
+            proposals={standardizeProposals}
+            onClose={() => setStandardizeProposals(null)}
+            onApplied={() => { setStandardizeProposals(null); loadData() }}
+          />
+        )}
+      </AnimatePresence>
 
       <BulkMetadataReviewModal
         bookIds={bulkModalBookIds}
@@ -1229,23 +1460,23 @@ export function MetadataManager() {
             className="pl-8 pr-8"
           />
           {search && (
-            <button onClick={() => handleSearchChange('')} aria-label={t`Clear search`} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
+            <button onClick={() => handleSearchChange('')} aria-label={t`Clear search`} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground transition-colors animate-in fade-in-40 duration-150 motion-reduce:animate-none">
               <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
 
-        <Select value={filterSeries} onChange={e => setFilterSeries(e.target.value)} aria-label={t`Series`} className="w-auto max-w-[14rem]">
+        <Select value={filterSeries} onChange={e => { restartRows(); setFilterSeries(e.target.value) }} aria-label={t`Series`} className="w-auto max-w-[14rem]">
           <option value="">{t`All series`}</option>
           {allSeries.map(s => <option key={s} value={s}>{s}</option>)}
         </Select>
 
-        <Select value={filterTypeId} onChange={e => setFilterTypeId(e.target.value)} aria-label={t`Type`} className="w-auto">
+        <Select value={filterTypeId} onChange={e => { restartRows(); setFilterTypeId(e.target.value) }} aria-label={t`Type`} className="w-auto">
           <option value="">{t`All types`}</option>
           {bookTypes.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
         </Select>
 
-        <Select value={filterLibId} onChange={e => setFilterLibId(e.target.value)} aria-label={t`Library`} className="w-auto">
+        <Select value={filterLibId} onChange={e => { restartRows(); setFilterLibId(e.target.value) }} aria-label={t`Library`} className="w-auto">
           <option value="">{t`All libraries`}</option>
           {libraries.map(l => <option key={l.id} value={l.id}>{l.name}</option>)}
         </Select>
@@ -1257,11 +1488,17 @@ export function MetadataManager() {
           onToggle={toggleMissingField}
         />
 
-        {hasFilters && (
-          <Pill variant="quiet" onClick={clearFilters}>
-            <Trans>Clear</Trans>
-          </Pill>
-        )}
+        {/* Kept in place while no filter is set, so the count beside it does not jump. */}
+        <Pill
+          variant="quiet"
+          onClick={clearFilters}
+          disabled={!hasFilters}
+          aria-hidden={!hasFilters || undefined}
+          tabIndex={hasFilters ? undefined : -1}
+          className={cn('transition-[opacity,color,background-color] duration-150', !hasFilters && 'opacity-0 disabled:opacity-0')}
+        >
+          <Trans>Clear</Trans>
+        </Pill>
 
         <span className="text-[13px] text-muted-foreground ml-1 tabular-nums">
           {(() => {
@@ -1302,7 +1539,7 @@ export function MetadataManager() {
       </div>
 
       {/* Bulk bar */}
-      {selected.size > 0 && (
+      <Unfold open={selected.size > 0} gap={12}>
         <div className="flex flex-wrap items-center gap-2 border-y border-border/70 py-2">
           {(() => { const n = selected.size; return <span className="text-[14px] font-medium text-foreground">{t`${n} selected`}</span> })()}
           <div className="flex-1" />
@@ -1318,27 +1555,28 @@ export function MetadataManager() {
             {standardizeLoading ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Wand2 className="w-3.5 h-3.5" />}
             <Trans>Standardize</Trans>
           </Pill>
-          <Pill variant="quiet" icon onClick={() => setSelected(new Set())} aria-label={t`Clear selection`} title={t`Clear selection`}>
+          <Pill variant="quiet" icon onClick={() => setSelectedMany(new Set())} aria-label={t`Clear selection`} title={t`Clear selection`}>
             <X className="w-4 h-4" />
           </Pill>
         </div>
-      )}
+      </Unfold>
 
       {/* Error / loading */}
-      {error && <p className="text-[14px] text-destructive">{error}</p>}
-      {loading && (
-        <div className="flex items-center justify-center py-16">
-          <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
-        </div>
+      <Unfold open={!!error} gap={12}>
+        <p className="text-[14px] text-destructive">{error}</p>
+      </Unfold>
+      {/* The first load holds the table's place; a reload keeps the table, dimmed. */}
+      {loading && books.length === 0 && (
+        <RowsSkeleton rows={10} rowClassName="h-[53px]" />
       )}
 
       {/* Table: rows on hairlines */}
-      {!loading && (
-        <div className="overflow-auto max-h-[calc(100vh-220px)] border-y border-border/70">
+      {(!loading || books.length > 0) && (
+        <div ref={tableRef} className={cn('overflow-auto max-h-[calc(100dvh-220px)] border-y border-border/70 transition-opacity duration-150 data-snap:[&_tr]:transition-none data-snap:[&_[data-check-box]]:transition-none data-paged:[&_thead]:static data-paged:will-change-transform', loading && 'opacity-50 pointer-events-none')}>
           <table className="w-full min-w-[1120px] table-fixed text-[13px]">
             <thead className="sticky top-0 z-10 bg-background">
               <tr className="border-b border-border/70">
-                <th className="w-9 pl-0 pr-2 py-2.5 text-left">
+                <th className="w-9 pl-0.5 pr-2 py-2.5 text-left">
                   <Checkbox
                     checked={selected.size === sorted.length && sorted.length > 0}
                     onChange={toggleSelectAll}
@@ -1360,66 +1598,12 @@ export function MetadataManager() {
               </tr>
             </thead>
             <tbody className="divide-y divide-border/70">
-              {sorted.map(book => (
-                <tr
-                  key={book.id}
-                  className={cn('hover:bg-secondary/50 transition-colors', selected.has(book.id) && 'bg-primary/5')}
-                >
-                  <td className="pl-0 pr-2 py-1.5">
-                    <Checkbox
-                      checked={selected.has(book.id)}
-                      onChange={e => toggleSelect(book.id, e.nativeEvent instanceof MouseEvent ? e.nativeEvent.shiftKey : false)}
-                      aria-label={t`Select`}
-                    />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    {book.cover_path ? (
-                      <img
-                        src={API + coverSrc(book.id, { w: 160 })}
-                        alt=""
-                        className="w-7 h-10 object-cover rounded-[4px]"
-                      />
-                    ) : (
-                      <div className="w-7 h-10 rounded-[4px] bg-secondary flex items-center justify-center">
-                        <BookOpen className="w-3 h-3 text-muted-foreground" />
-                      </div>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <EditCell value={book.title} bookId={book.id} field="title" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val, fields_present: { ...b.fields_present, title: !!val }, completeness: Object.values({ ...b.fields_present, [field]: !!val }).filter(Boolean).length } : b))} />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <EditCell value={book.subtitle} bookId={book.id} field="subtitle" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val } : b))} />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <EditCell value={book.author} bookId={book.id} field="author" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val, fields_present: { ...b.fields_present, author: !!val }, completeness: Object.values({ ...b.fields_present, author: !!val }).filter(Boolean).length } : b))} />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <EditCell value={book.series} bookId={book.id} field="series" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val, fields_present: { ...b.fields_present, series: !!val }, completeness: Object.values({ ...b.fields_present, series: !!val }).filter(Boolean).length } : b))} />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <EditCell value={book.series_index?.toString() ?? ''} bookId={book.id} field="series_index" onSaved={(id, _field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, series_index: val ? Number(val) : null } : b))} />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <EditCell value={book.year?.toString() ?? ''} bookId={book.id} field="year" onSaved={(id, _field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, year: val ? Number(val) : null, fields_present: { ...b.fields_present, year: !!val }, completeness: Object.values({ ...b.fields_present, year: !!val }).filter(Boolean).length } : b))} />
-                  </td>
-                  <td className="px-2 py-1.5 text-center">
-                    <Dot present={book.fields_present.description} />
-                  </td>
-                  <td className="px-2 py-1.5 text-center">
-                    <Dot present={book.fields_present.cover} />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <EditCell value={book.isbn} bookId={book.id} field="isbn" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val, fields_present: { ...b.fields_present, isbn: !!val }, completeness: Object.values({ ...b.fields_present, isbn: !!val }).filter(Boolean).length } : b))} />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <EditCell value={book.language} bookId={book.id} field="language" onSaved={(id, field, val) => setBooks(prev => prev.map(b => b.id === id ? { ...b, [field]: val, fields_present: { ...b.fields_present, language: !!val }, completeness: Object.values({ ...b.fields_present, language: !!val }).filter(Boolean).length } : b))} />
-                  </td>
-                  <td className="px-2 py-1.5">
-                    <CompletenessBadge score={book.completeness} total={book.completeness_total} />
-                  </td>
-                </tr>
-              ))}
+              {/* One flat keyed list, so rows keep their elements when the spacer goes. */}
+              {rowSlices.flatMap(slice => slice === null ? [
+                <tr key="gap" data-gap="" aria-hidden><td colSpan={13} className="p-0" style={{ height: gapRows * (rowWindow?.pitch ?? 0) - 1 }} /></tr>,
+              ] : slice.items.map((book, i) => (
+                <MetaRow key={book.id} book={book} selected={rowSelected(slice.start + i, book.id)} onToggle={onToggleRow} setBooks={setBooks} />
+              )))}
               {sorted.length === 0 && (
                 <tr>
                   <td colSpan={13} className="px-4 py-12 text-center text-muted-foreground text-[14px]">
@@ -1433,4 +1617,5 @@ export function MetadataManager() {
       )}
     </div>
   )
+  }
 }

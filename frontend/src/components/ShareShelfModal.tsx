@@ -4,14 +4,29 @@
 // files. The `endpoint` prop is the management URL (e.g. /shelves/3/share).
 import { useEffect, useState } from 'react'
 import { createPortal } from 'react-dom'
+import { AnimatePresence, m } from 'motion/react'
 import { Check, Copy, Link2, Loader2, Trash2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { ModalShell } from '@/components/ModalShell'
 import { FormLabel, PillGroup, Pill } from '@/components/page'
 import { copyToClipboard } from '@/lib/utils'
+import { EASE } from '@/components/motion'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 
+/** The copy icon turning into a check: the new icon grows in place. */
+function CopyIcon({ copied, className }: { copied: boolean; className?: string }) {
+  return (
+    <AnimatePresence initial={false}>
+      <m.span key={copied ? 'done' : 'copy'} className="inline-flex"
+        initial={{ scale: 0.6, opacity: 0.4 }} animate={{ scale: 1, opacity: 1 }} transition={{ duration: 0.16, ease: EASE }}>
+        {copied ? <Check className={className} /> : <Copy className="h-4 w-4" />}
+      </m.span>
+    </AnimatePresence>
+  )
+}
+
+/** Mount it inside `<AnimatePresence>` (`{show && <ShareModal …/>}`) so it closes with its exit. */
 export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
   title: string
   endpoint: string
@@ -98,7 +113,7 @@ export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
       </Pill>
       <Pill variant="quiet" onClick={onClose}><Trans>Close</Trans></Pill>
       <Pill variant="primary" onClick={copy}>
-        {copied ? <Check className="h-4 w-4" /> : <Copy className="h-4 w-4" />}
+        <CopyIcon copied={copied} className="h-4 w-4" />
         {copied ? <Trans>Copied</Trans> : <Trans>Copy link</Trans>}
       </Pill>
     </>
@@ -134,7 +149,7 @@ export function ShareModal({ title, endpoint, noun = 'shelf', onClose }: {
           <div className="flex items-center gap-2">
             <code data-share-url className="flex h-9 min-w-0 flex-1 items-center truncate rounded-lg bg-secondary px-3 font-mono text-[13px] text-foreground">{url}</code>
             <Pill icon onClick={copy} title={t`Copy link`} aria-label={t`Copy link`} className="shrink-0">
-              {copied ? <Check className="h-4 w-4 text-success" /> : <Copy className="h-4 w-4" />}
+              <CopyIcon copied={copied} className="h-4 w-4 text-success" />
             </Pill>
           </div>
           <p className="text-[13px] text-muted-foreground">

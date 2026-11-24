@@ -280,17 +280,19 @@ class GoalData:
             ]
         return self._type_books[book_type_id]
 
-    def reading(self, book_type_id: Optional[int], since: Optional[date]) -> dict[date, tuple[int, int, int]]:
-        """Reading day -> (seconds, sessions, pages), Stats' reconciled counting,
-        for every day from ``since`` (None: all time)."""
+    def reading(self, book_type_id: Optional[int], since: Optional[date]) -> dict[date, tuple[int, None, int]]:
+        """Reading day -> (seconds, None, pages), Stats' reconciled counting,
+        for every day from ``since`` (None: all time). The session count is
+        left out (rr.daily_map sessions=False): no goal uses it."""
         have = self._reading.get(book_type_id)
         if have is not None and (have[0] is None or (since is not None and have[0] <= since)):
             return have[1]
         # A margin of two days around the UTC cut covers every zone and the
         # rollover; days outside the asked range are dropped by key.
         start_dt = datetime.combine(since - timedelta(days=2), time()) if since else None
+        # Goals read seconds and pages only, never the session count.
         raw = rr.daily_map(self.db, self.user.id, self.day, self.covered, start_dt, None,
-                           book_ids=self._book_ids(book_type_id))
+                           book_ids=self._book_ids(book_type_id), sessions=False)
         out = {}
         for k, v in raw.items():
             if not k:
@@ -541,7 +543,7 @@ def finish_estimate(gd: GoalData, series: Optional[str], book_id: Optional[int],
         ):
             status[bid] = (st, prog or 0.0)
     page_pct = _page_progress(gd.db, gd.user.id, ids)
-    secs = rr.book_seconds(gd.db, gd.user.id, gd.day, gd.covered, None, None) if ids else {}
+    secs = rr.book_seconds(gd.db, gd.user.id, gd.day, gd.covered, None, None, sessions=False) if ids else {}
 
     read = [b for b in books if status.get(b.id, ("unread", 0))[0] == "read"]
     left = [b for b in books if b not in read]
@@ -1073,7 +1075,7 @@ def _median_book_minutes(gd: GoalData) -> Optional[float]:
                 .filter(UserBookStatus.user_id == gd.user.id, UserBookStatus.status == "read")}
     if not read_ids:
         return None
-    secs = rr.book_seconds(gd.db, gd.user.id, gd.day, gd.covered, None, None)
+    secs = rr.book_seconds(gd.db, gd.user.id, gd.day, gd.covered, None, None, sessions=False)
     mins = [secs[b][0] / 60 for b in read_ids if b in secs and secs[b][0] / 60 >= MIN_BOOK_MINUTES]
     if len(mins) < MIN_TIMED_BOOKS:
         return None

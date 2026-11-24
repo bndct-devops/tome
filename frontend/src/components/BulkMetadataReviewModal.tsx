@@ -1,11 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
-import { AlertCircle, ArrowRight, Check, ChevronDown, ChevronUp, Loader2, Search } from 'lucide-react'
-import { api } from '@/lib/api'
+import { AlertCircle, ArrowRight, Check, ChevronDown, Loader2, Search } from 'lucide-react'
+import { api, notifyWrite } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
-import { Checkbox, Pill } from '@/components/page'
+import { Checkbox, Pill, PRESS, Swap } from '@/components/page'
+import { Unfold } from '@/components/motion'
 import type { MetadataCandidate } from '@/lib/books'
 import { CoverImage } from './CoverImage'
 import { coverSrc } from '@/lib/covers'
@@ -167,6 +168,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
           headers: { 'Content-Type': 'application/json', ...authHeader() },
           body: JSON.stringify(body),
         })
+        notifyWrite('POST', `/books/${result.book_id}/apply-metadata`)
       } catch {
         // non-fatal: continue with rest
       }
@@ -247,6 +249,8 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
         </div>
       )}
 
+      {/* Searching, the results and the finished batch take turns in one place. */}
+      <Swap id={doneState ? 'done' : loading ? 'loading' : 'results'}>
       {doneState && (
         <div className="flex flex-col items-center justify-center gap-3 py-12 text-center">
           <Check className="h-10 w-10 text-success" />
@@ -290,7 +294,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
 
             return (
               <li key={result.book_id} className="border-b border-border/70 py-3">
-                <div className={cn('flex items-start gap-3', !(state.approved && hasMatch) && 'opacity-60')}>
+                <div className={cn('flex items-start gap-3 transition-opacity duration-150', !(state.approved && hasMatch) && 'opacity-60')}>
                   {/* Approve checkbox */}
                   <Checkbox
                     checked={state.approved && hasMatch}
@@ -347,7 +351,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                         <button
                           type="button"
                           onClick={() => { onManualSearch(result.book_id); handleClose() }}
-                          className="inline-flex items-center gap-1 text-[14px] text-primary hover:underline underline-offset-4"
+                          className={`inline-flex items-center gap-1 text-[14px] text-primary hover:underline underline-offset-4 touch-feedback ${PRESS}`}
                         >
                           <Search className="h-3.5 w-3.5" /> <Trans>Search manually</Trans>
                         </button>
@@ -367,14 +371,14 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                         aria-expanded={state.expanded}
                         className="mt-1.5 h-8 w-8"
                       >
-                        {state.expanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                        <ChevronDown className={cn('h-4 w-4 transition-transform duration-200 ease-(--spring)', state.expanded && 'rotate-180')} />
                       </Pill>
                     )}
                   </div>
                 </div>
 
                 {/* Candidate picker (expanded) */}
-                {state.expanded && result.candidates.length > 1 && (
+                <Unfold open={state.expanded && result.candidates.length > 1}>
                   <ul className="ml-[30px] mt-2 border-t border-border/70">
                     {result.candidates.map((c, i) => {
                       const picked = (state.selectedIndex ?? result.best_match_index) === i
@@ -384,7 +388,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                             type="button"
                             onClick={() => selectCandidate(result.book_id, i)}
                             className={cn(
-                              '-mx-2 flex w-[calc(100%+1rem)] items-start gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-secondary/70',
+                              '-mx-2 flex w-[calc(100%+1rem)] items-start gap-3 rounded-lg px-2 py-2 text-left transition-colors hover:bg-secondary/70 touch-feedback', PRESS,
                               picked && 'bg-secondary/60',
                             )}
                           >
@@ -408,12 +412,13 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
                       )
                     })}
                   </ul>
-                )}
+                </Unfold>
               </li>
             )
           })}
         </ul>
       )}
+      </Swap>
     </ModalShell>
   )
 }

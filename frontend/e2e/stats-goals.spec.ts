@@ -187,7 +187,8 @@ test('Dialog: suggested targets from the reader\'s own days, presets without his
       await expect(group.getByRole('radio').first()).toBeVisible()
       const values = await group.getByRole('radio').evaluateAll((els) => els.map((e) => e.querySelector('span')?.textContent))
       expect(new Set(values).size, `${kind}: ${values}`).toBe(values.length)
-      const cut = await group.evaluate((g) => [...g.querySelectorAll('[role="radio"] span')]
+      // (Text only: the chosen chip's gliding indicator is an aria-hidden span.)
+      const cut = await group.evaluate((g) => [...g.querySelectorAll('[role="radio"] span:not([aria-hidden])')]
         .filter((el) => el.scrollWidth > el.clientWidth + 0.5 || getComputedStyle(el).textOverflow === 'ellipsis' ||
           el.getBoundingClientRect().right > el.closest('[role="radio"]')!.getBoundingClientRect().right + 0.5)
         .map((el) => el.textContent))

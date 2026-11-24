@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Send, Loader2, AlertTriangle } from 'lucide-react'
 import { BookAnimation } from '@/components/BookAnimation'
 import { ModalShell } from '@/components/ModalShell'
-import { FormLabel, Pill, Select } from '@/components/page'
+import { FormLabel, Pill, Select, Swap } from '@/components/page'
 import { api } from '@/lib/api'
 import { useToast } from '@/contexts/ToastContext'
 import type { BookFile } from '@/lib/books'
@@ -125,6 +125,7 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
       size="sm"
       footer={footer}
     >
+      <Swap id={loading ? 'loading' : sending ? 'sending' : smtpConfigured === false ? 'off' : devices.length === 0 ? 'none' : 'form'}>
       {loading ? (
         <div className="flex items-center justify-center py-8">
           <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
@@ -203,6 +204,7 @@ export function SendToDeviceModal({ open, onClose, books }: SendToDeviceModalPro
           )}
         </div>
       )}
+      </Swap>
     </ModalShell>
   )
 }

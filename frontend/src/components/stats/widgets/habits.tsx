@@ -1,4 +1,5 @@
 // Habits-tab stats widgets - chart/content-only, shared by StatsPage and the Lab.
+import { BookLink } from '@/components/motion'
 import {
   ResponsiveContainer,
   AreaChart,
@@ -235,8 +236,8 @@ export function CompletionEstimatesList({ estimates }: { estimates: CompletionEs
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
       {estimates.map((est) => (
-        <a key={est.book_id} href={`/books/${est.book_id}`} className="group flex items-start gap-3 rounded-lg p-2 hover:bg-accent/30 transition-colors">
-          <div className="w-9 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+        <BookLink key={est.book_id} book={{ id: est.book_id, title: est.title }} className="group flex items-start gap-3 rounded-lg p-2 hover:bg-accent/30 transition-colors">
+          <div data-cover-id={est.has_cover ? est.book_id : undefined} className="w-9 h-12 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
             {est.has_cover ? <img src={coverSrc(est.book_id, { w: 160 })} alt="" className="w-full h-full object-cover" /> : <FileText className="w-4 h-4 text-muted-foreground" />}
           </div>
           <div className="flex-1 min-w-0">
@@ -253,7 +254,7 @@ export function CompletionEstimatesList({ estimates }: { estimates: CompletionEs
               {est.progress < 100 && est.confidence === 'low' && est.estimated_days != null && <span className="ml-1 text-muted-foreground/50"><Trans>(low confidence)</Trans></span>}
             </p>
           </div>
-        </a>
+        </BookLink>
       ))}
     </div>
   )

@@ -334,6 +334,8 @@ def _create_book_entry(
         status="active",
         added_by=added_by,
     )
+    from backend.services.cover_color import refresh_cover_color
+    refresh_cover_color(book)
     db.add(book)
     db.flush()
 

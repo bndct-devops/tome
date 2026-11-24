@@ -1,0 +1,64 @@
+/* LibraryGrid: a card that leaves (popped out by AnimatePresence) fades over
+   the one arriving in its place, so the grid cross-changes. */
+[data-item][data-motion-pop-id] {
+  z-index: 1;
+  pointer-events: none;
+}
+
+/* ReserveLabel: the label shows in a cell as wide as the widest of
+   data-reserve's lines. Generated content stays out of the accessible name. */
+.reserve-label {
+  display: inline-grid;
+  justify-items: start;
+}
+.reserve-label::before {
+  content: attr(data-reserve);
+  grid-area: 1 / 1;
+  height: 0;
+  overflow: hidden;
+  visibility: hidden;
+  white-space: pre;
+}
+.reserve-label > span {
+  grid-area: 1 / 1;
+}
+
+/* LibraryGrid, grouping by series and back: while it runs, the grid is its
+   own stacking context with the bare covers of the volumes that leave
+   (data-group-ghosts) under every card, and a stack's top card over the
+   volumes that come out from under it. Nothing here changes layout. */
+[data-grouping] {
+  isolation: isolate;
+}
+/* Grid and flex items take a z-index as they are. */
+[data-grouping] > [data-item][data-group-top] {
+  z-index: 1;
+}
+/* A card that leaves is drawn as a bare cover instead: it goes at once. */
+[data-grouping] > [data-motion-pop-id] {
+  visibility: hidden;
+}
+[data-group-ghosts] {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+}
+[data-group-ghosts] > [data-ghost] {
+  position: absolute;
+  overflow: hidden;
+  transform-origin: 0 0;
+}
+[data-group-ghosts] img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+/* A volume on its way out of a stack: its cover only, the text when it lands. */
+[data-emerge] * {
+  visibility: hidden;
+}
+[data-emerge] img {
+  visibility: visible;
+}

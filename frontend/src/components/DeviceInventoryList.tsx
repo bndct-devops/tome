@@ -5,6 +5,9 @@ import { api } from '@/lib/api'
 import { isStale, refreshDeviceInventories, syncedAgo, useDeviceInventories } from '@/lib/deviceBooks'
 import { cn } from '@/lib/utils'
 import { useToast } from '@/contexts/ToastContext'
+import { AnimatePresence, m } from 'motion/react'
+import { listItem } from '@/components/motion'
+import { PRESS, Swap } from '@/components/page'
 
 /** Settings > KOReader: the devices that report which books they hold
  *  (TomeSync build 50+), with a way to forget one you no longer use. */
@@ -40,13 +43,14 @@ export function DeviceInventoryList() {
         <Trans>Each device sends the list of Tome books on it when it syncs. Books show an "On ..." pill, and the library can be filtered by device. Forget a device you no longer use; one still in use sends its list again on its next sync.</Trans>
       </p>
       <div className="border-y border-border/70 text-[13px] divide-y divide-border/70">
+        <AnimatePresence initial={false}>
         {devices.map(d => {
           const name = d.name
           const count = d.book_count
           const ago = syncedAgo(d.synced_at)
           const stale = isStale(d)
           return (
-            <div key={d.name} className="flex items-center gap-3 px-3 py-2">
+            <m.div key={d.name} {...listItem} className="flex items-center gap-3 px-3 py-2">
               <span className="font-medium text-foreground truncate flex-1 min-w-0">{name}</span>
               <span className="text-muted-foreground tabular-nums shrink-0">
                 <Plural value={count} one="# book" other="# books" />
@@ -54,27 +58,33 @@ export function DeviceInventoryList() {
               <span className={cn('shrink-0 hidden sm:block', stale ? 'text-warning' : 'text-muted-foreground')}>
                 <Trans>synced {ago}</Trans>
               </span>
+              <Swap id={confirming === name ? 'confirm' : 'idle'} className="shrink-0 flex">
               {confirming === name ? (
                 <button
                   onClick={() => forget(name)}
                   disabled={busy === name}
-                  className="shrink-0 px-2 py-0.5 rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 transition-colors disabled:opacity-50"
+                  className={`shrink-0 px-2 py-0.5 rounded-md bg-destructive/10 text-destructive hover:bg-destructive/20 disabled:opacity-50 touch-feedback ${PRESS}`}
                 >
-                  {busy === name ? <Loader2 className="w-3 h-3 animate-spin" /> : <Trans>Forget</Trans>}
+                  <span className="inline-grid">
+                    <span className={cn('[grid-area:1/1]', busy === name && 'invisible')}><Trans>Forget</Trans></span>
+                    {busy === name && <Loader2 className="[grid-area:1/1] place-self-center w-3 h-3 animate-spin" />}
+                  </span>
                 </button>
               ) : (
                 <button
                   onClick={() => setConfirming(name)}
-                  className="shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive transition-colors"
+                  className={`shrink-0 p-1 rounded hover:bg-destructive/10 text-muted-foreground hover:text-destructive touch-feedback ${PRESS}`}
                   title={t`Forget ${name}`}
                   aria-label={t`Forget ${name}`}
                 >
                   <Trash2 className="w-3 h-3" />
                 </button>
               )}
-            </div>
+              </Swap>
+            </m.div>
           )
         })}
+        </AnimatePresence>
       </div>
     </div>
   )

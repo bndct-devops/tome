@@ -1,9 +1,10 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
-import { BrowserRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { Keyboard } from 'lucide-react'
 import { AuthProvider, useAuth } from '@/contexts/AuthContext'
 import { ToastProvider } from '@/contexts/ToastContext'
 import { MotionProvider } from '@/lib/motion'
+import { TransitionRouter } from '@/components/motion'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { ImpersonationBanner } from '@/components/ImpersonationBanner'
 import { ForcePasswordChange } from '@/components/ForcePasswordChange'
@@ -237,7 +238,7 @@ function AppRoutes() {
 
 function App() {
   return (
-    <BrowserRouter>
+    <TransitionRouter>
       <AuthProvider>
         <ToastProvider>
           <MotionProvider>
@@ -246,7 +247,7 @@ function App() {
           </MotionProvider>
         </ToastProvider>
       </AuthProvider>
-    </BrowserRouter>
+    </TransitionRouter>
   )
 }
 

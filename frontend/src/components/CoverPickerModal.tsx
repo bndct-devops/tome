@@ -4,6 +4,8 @@ import type { BookDetail } from '@/lib/books'
 import { ModalShell } from '@/components/ModalShell'
 import { FormLabel, Input, Pill } from '@/components/page'
 import { cn } from '@/lib/utils'
+import { notifyWrite } from '@/lib/api'
+import { CoverLift } from '@/components/motion'
 import { Trans, Plural } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 
@@ -89,6 +91,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
         body: form,
       })
       if (!r.ok) throw new Error(await r.text())
+      notifyWrite('POST', `/books/${book.id}/cover`)
       const updated: BookDetail = await r.json()
       onApplied(updated)
       handleClose()
@@ -111,6 +114,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
         body: form,
       })
       if (!r.ok) throw new Error(await r.text())
+      notifyWrite('POST', `/books/${book.id}/cover`)
       const updated: BookDetail = await r.json()
       onApplied(updated)
       handleClose()
@@ -154,9 +158,15 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
         </div>
 
         {/* Candidate grid */}
+        {/* The first search: tiles in the grid's own shape, so the covers land without a jump. */}
         {loading && candidates.length === 0 && (
-          <div className="flex justify-center py-8">
-            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          <div aria-busy>
+            <div className="mb-3 h-[19.5px]" />
+            <div className="grid grid-cols-3 gap-3 sm:grid-cols-5">
+              {Array.from({ length: 10 }, (_, i) => (
+                <div key={i} className={cn('aspect-[2/3] rounded-[8px] bg-muted', i >= 6 && 'hidden sm:block')} />
+              ))}
+            </div>
           </div>
         )}
 
@@ -169,12 +179,12 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
               {candidates.map((c, i) => {
                 const isThis = applyingUrl === c.cover_url
                 return (
+                  <CoverLift key={i} disabled={applyingUrl !== null}>
                   <button
-                    key={i}
                     type="button"
                     disabled={applyingUrl !== null}
                     onClick={() => applyUrl(c.cover_url)}
-                    className="group relative aspect-[2/3] overflow-hidden rounded-[8px] bg-secondary transition hover:ring-2 hover:ring-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
+                    className="group relative block aspect-[2/3] w-full overflow-hidden rounded-[8px] bg-secondary transition hover:ring-2 hover:ring-primary focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-not-allowed"
                     style={{ boxShadow: 'var(--cover-bloom-fan)' }}
                     title={c.label}
                   >
@@ -206,6 +216,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
                       </div>
                     )}
                   </button>
+                  </CoverLift>
                 )
               })}
             </div>

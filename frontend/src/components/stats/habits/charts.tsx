@@ -6,9 +6,11 @@
 // lead to their book (click, Enter on the focused sitting, a second tap on touch).
 import { useRef, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent as ReactPointerEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { useBookNav } from '@/components/motion'
 import { t, plural } from '@lingui/core/macro'
 import { formatDuration } from '@/lib/utils'
-import { K, stagger } from '@/components/stats/kit/motion'
+import { K, stagger, type Entry } from '@/components/stats/kit/motion'
+import { useCrossFade, useTween } from '@/components/stats/kit/tween'
 import { guideHost, useTips } from '@/components/stats/kit/tip'
 import { Guide, type GuideSlot } from '@/components/stats/kit/Guide'
 import { dec1, num } from '@/components/stats/kit/tokens'
@@ -72,12 +74,16 @@ export function ChartEmpty({ H, children }: { H: number; children: string }) {
  */
 function useBookLinks() {
   const navigate = useNavigate()
+  const openBook = useBookNav()
   const wasHot = useRef(false)
   const book = (el: EventTarget | null) => (el instanceof Element ? el.closest('[data-book]') : null)
   const go = (m: Element, newTab: boolean) => {
-    const to = `/books/${m.getAttribute('data-book')}`
-    if (newTab) window.open(to, '_blank', 'noopener')
-    else navigate(to)
+    const id = Number(m.getAttribute('data-book'))
+    const title = m.getAttribute('data-book-title')
+    if (newTab) window.open(`/books/${id}`, '_blank', 'noopener')
+    // The book page paints its hero at once; a chart mark has no cover to grow.
+    else if (title) openBook({ id, title }, null)
+    else navigate(`/books/${id}`)
   }
   return {
     onPointerDown: (e: ReactPointerEvent) => { wasHot.current = !!book(e.target)?.hasAttribute('data-hot') },
@@ -96,7 +102,9 @@ function useBookLinks() {
 }
 
 // ── When you read: hour × weekday, weekday totals right, hour totals under ────
-export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
+export function Rhythm({ entry, W, grid, byCol, colN, byDow, phone, loading }: {
+  /** The section's entry: a new range moves the totals to their new sizes (the cells take their new shade at once). */
+  entry: Entry
   W: number
   grid: HourGrid
   byCol: number[]
@@ -133,6 +141,9 @@ export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
     const sessions = sessionsLine(byDow.n[r] ?? 0)
     return { title: daysLong()[r], value: s > 0 ? dur(s) : t`No reading`, note: s > 0 ? t`${sessions} · ${pct}% of the reading` : undefined }
   }, { x: 1, y: ncol })
+  const tw = useTween(entry, loading ? null : byCol, `${W}:${phone}`)
+  // The cells take their new shade under a fading copy of the old ones.
+  const xf = useCrossFade(entry, loading ? null : grid.map((row) => row.map((c) => c.lv).join('')).join('|'), `${W}:${phone}`)
   if (loading) return <Placeholder W={W} H={H} x={labelW} h={heatH} />
   const days = inWeekOrder([t`Mon`, t`Tue`, t`Wed`, t`Thu`, t`Fri`, t`Sat`, t`Sun`])
   const maxDow = Math.max(1, ...byDow.s)
@@ -140,7 +151,8 @@ export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
   const barMax = W - 64 - barX
   const maxH = Math.max(1, ...byCol)
   return (
-    <svg {...tips} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading time by hour and weekday`}>
+    <svg {...tips} ref={tw} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Reading time by hour and weekday`}>
+      <g ref={xf}>
       {grid.map((row, r) => {
         const y = r * rp
         return (
@@ -152,13 +164,14 @@ export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
           </g>
         )
       })}
+      </g>
       <g className="k-bars">
       {byCol.map((s, k) => {
         const h = Math.round((s / maxH) * histH)
         return (
           <g key={k} className="k-col">
             <rect className="k-hit" data-tip-i={7 * ncol + k} x={xs[k] - gap / 2} y={hy} width={ws[k] + gap} height={histH} />
-            {h > 0 && <path className={`${K.grow} k-bar k-nohit`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, ws[k], h, Math.min(2, h))} fill="var(--chart-accent)" />}
+            {h > 0 && <path className={`${K.grow} k-bar k-nohit`} data-k={`h${k}`} style={stagger(k, ncol)} d={roundedTop(xs[k], base - h, ws[k], h, Math.min(2, h))} fill="var(--chart-accent)" />}
           </g>
         )
       })}
@@ -170,7 +183,7 @@ export function Rhythm({ W, grid, byCol, colN, byDow, phone, loading }: {
           <g key={r} className="k-col">
             <rect className="k-hit" data-tip-i={8 * ncol + r} x={heatR + 8} y={y - gap / 2} width={W - heatR - 8} height={rp} rx={3} />
             {!phone && s > 0 && (
-              <rect className={`${K.growX} k-bar k-nohit`} style={stagger(r, 7)} x={barX} y={y + (rowH - 12) / 2} width={Math.max(2, Math.round((s / maxDow) * barMax))} height={12} rx={2} fill="var(--chart-accent)" />
+              <rect className={`${K.growX} k-bar k-nohit`} data-k={`d${r}`} data-kt="barx" style={stagger(r, 7)} x={barX} y={y + (rowH - 12) / 2} width={Math.max(2, Math.round((s / maxDow) * barMax))} height={12} rx={2} fill="var(--chart-accent)" />
             )}
             {s > 0 ? (
               <text className={K.fade} style={late(r, 7)} x={W} y={y + rowH / 2 + 4} textAnchor="end" fill="var(--foreground)" fontSize={12} fontWeight={500}>{formatDuration(s)}</text>
@@ -263,6 +276,7 @@ export function Timeline({ W, rows, phone, loading }: { W: number; rows: TlRow[]
                   style={stagger(i, TL_ROWS)}
                   data-tip-i={at++}
                   data-book={b.bookId ?? undefined}
+                  data-book-title={b.bookId != null ? b.title ?? undefined : undefined}
                   x={a} y={y + 2} width={e - a} height={trackH - 4} rx={2} fill="var(--chart-accent)"
                 />
               )
@@ -287,7 +301,7 @@ export function Timeline({ W, rows, phone, loading }: { W: number; rows: TlRow[]
 }
 
 // ── Session length: five buckets, the count above each bar ────────────────────
-export function Lengths({ W, H, counts, loading }: { W: number; H: number; counts: number[]; loading?: boolean }) {
+export function Lengths({ entry, W, H, counts, loading }: { entry: Entry; W: number; H: number; counts: number[]; loading?: boolean }) {
   const valH = 18, labH = 22
   const plotH = H - valH - labH
   const base = valH + plotH
@@ -298,13 +312,14 @@ export function Lengths({ W, H, counts, loading }: { W: number; H: number; count
     const pct = share(n, total)
     return { title: long, value: plural(n, { one: '# sitting', other: '# sittings' }), note: t`${pct}% of sittings` }
   })
+  const tw = useTween(entry, loading ? null : counts, W)
   if (loading) return <Placeholder W={W} H={H} y={valH} h={plotH} />
   const labels = [t`Under 15m`, t`15 to 30m`, t`30 to 60m`, t`1 to 2h`, t`Over 2h`]
   const slot = W / labels.length
   const bw = Math.round(Math.min(slot * 0.62, 56))
   const max = Math.max(1, ...counts)
   return (
-    <svg {...tips} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Sittings by length`}>
+    <svg {...tips} ref={tw} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Sittings by length`}>
       <g className="k-bars">
       {counts.map((n, i) => {
         const x = Math.round(slot * i + (slot - bw) / 2)
@@ -312,8 +327,8 @@ export function Lengths({ W, H, counts, loading }: { W: number; H: number; count
         return (
           <g key={i} className="k-col">
             <rect className="k-hit" data-tip-i={i} x={Math.round(slot * i)} y={0} width={Math.round(slot)} height={base} rx={4} />
-            {h > 0 && <path className={`${K.grow} k-bar k-nohit`} style={stagger(i, counts.length)} d={roundedTop(x, base - h, bw, h, Math.min(3, h))} fill="var(--chart-accent)" />}
-            <text className={K.fade} style={late(i, counts.length)} x={x + bw / 2} y={base - h - 5} textAnchor="middle" fill="var(--foreground)" fontWeight={500}>{num(n)}</text>
+            {h > 0 && <path className={`${K.grow} k-bar k-nohit`} data-k={`l${i}`} style={stagger(i, counts.length)} d={roundedTop(x, base - h, bw, h, Math.min(3, h))} fill="var(--chart-accent)" />}
+            <text className={K.fade} data-k={`n${i}`} data-kt="move" style={late(i, counts.length)} x={x + bw / 2} y={base - h - 5} textAnchor="middle" fill="var(--foreground)" fontWeight={500}>{num(n)}</text>
             <text x={x + bw / 2} y={H - 4} textAnchor="middle">{labels[i]}</text>
           </g>
         )
@@ -326,9 +341,12 @@ export function Lengths({ W, H, counts, loading }: { W: number; H: number; count
 
 // ── Pace: a dot per reading day, the trailing 7-day mean as a line ────────────
 // Hover anywhere in the plot: a guide snaps to the nearest day (kit/Guide.tsx).
-export function Pace({ W, H, dots, days, nDays, ticks, loading }: { W: number; H: number; dots: PaceDot[]; days: PaceDay[]; nDays: number; ticks: { index: number; label: string }[]; loading?: boolean }) {
+export function Pace({ entry, W, H, dots, days, nDays, ticks, loading }: { entry: Entry; W: number; H: number; dots: PaceDot[]; days: PaceDay[]; nDays: number; ticks: { index: number; label: string }[]; loading?: boolean }) {
   const padL = 28, padB = 22, padT = 8
   const n = dots.length
+  // A new range redraws the whole plot (scale, ticks, line, dots): it takes its place
+  // under a fading copy of the old one.
+  const xf = useCrossFade(entry, loading ? null : `${nDays}:${dots.map((d) => `${d.i}/${d.ppm.toFixed(2)}`).join(',')}:${ticks.map((m) => m.index).join(',')}`, `${W}:${H}`)
   if (loading) return <Placeholder W={W} H={H} x={padL} y={padT} h={H - padT - padB} />
   const plotW = W - padL, plotH = H - padT - padB
   const top = Math.ceil(Math.max(1, ...dots.map((d) => d.ppm)) + 0.25)
@@ -368,6 +386,7 @@ export function Pace({ W, H, dots, days, nDays, ticks, loading }: { W: number; H
   })
   return (
     <svg {...guideHost} className={SVG} width={W} height={H} viewBox={`0 0 ${W} ${H}`} role="img" aria-label={t`Pages per minute per reading day`}>
+      <g ref={xf}>
       {lines.map((v) => {
         const yy = Math.round(y(v)) + 0.5
         return (
@@ -388,6 +407,7 @@ export function Pace({ W, H, dots, days, nDays, ticks, loading }: { W: number; H
       {dots.map((d, k) => (
         <circle key={d.i} className={`k-cell k-nohit ${K.fade}`} style={stagger(k, n)} data-dot={d.i} cx={x(d.i)} cy={y(d.ppm)} r={3} fill="var(--chart-accent)" fillOpacity={0.5} stroke="transparent" strokeWidth={6} />
       ))}
+      </g>
       <Guide x0={padL} x1={W} y0={padT} y1={by} slots={slots} />
     </svg>
   )

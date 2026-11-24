@@ -4,6 +4,7 @@
 // sessions/SessionTools.tsx). Opened by the reader, so it may push the rows
 // below it down; it never moves anything on its own.
 import { useCallback, useEffect, useRef, useState } from 'react'
+import { AnimatePresence, m } from 'motion/react'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { ChevronDown, Loader2, TriangleAlert } from 'lucide-react'
@@ -17,13 +18,14 @@ import { sourceLabel, useSessionActions } from '@/components/stats/sessions/acti
 import { SessionTools, TrimPanel } from '@/components/stats/sessions/SessionTools'
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { AttributedPagesMark } from '@/components/stats/AttributedPagesMark'
+import { listItem } from '@/components/motion'
+import { PRESS } from '@/components/page'
 
 const PAGE = 10
 /* eslint-disable lingui/no-unlocalized-strings -- placeholder text and CSS */
 const PH = { when: 'Nov 11, 2026, 08:27 AM', dur: '1h 19m', dev: 'KOReader', status: 'Imported' }
 const COLS = 'grid-cols-[190px_100px_minmax(0,1fr)_100px_72px]'
 const PHONE_TOOL = 'h-8 w-7'
-const ARRIVE = 'motion-safe:animate-[k-fade_200ms_cubic-bezier(0.2,0.8,0.2,1)_both]'
 /* eslint-enable lingui/no-unlocalized-strings */
 
 const tz = () => new Date().getTimezoneOffset()
@@ -85,7 +87,7 @@ export function BookSessions({ id, bookId, desktop, onChanged }: { id: string; b
   const remaining = view ? Math.max(0, view.total - view.sessions.length) : 0
   const indent = desktop ? 'pl-[45px]' : 'pl-[41px]'
   return (
-    <div id={id} role="region" aria-label={t`Sessions of this book`} aria-busy={!view && !failed} className={cn('border-t pb-4 pt-2', HAIR, indent, ARRIVE)}>
+    <div id={id} role="region" aria-label={t`Sessions of this book`} aria-busy={!view && !failed} className={cn('border-t pb-4 pt-2', HAIR, indent)}>
       <div className="flex h-7 items-center text-[13px] text-muted-foreground">
         {view ? (() => {
           const all = plural(view.total, { one: '# session', other: '# sessions' })
@@ -95,9 +97,12 @@ export function BookSessions({ id, bookId, desktop, onChanged }: { id: string; b
       </div>
       {!view && !failed && <Row desktop={desktop} />}
       {view && view.sessions.length === 0 && <p className="flex h-11 items-center text-[14px] text-muted-foreground"><Trans>No sessions recorded for this book.</Trans></p>}
-      {view?.sessions.map((s) => <Row key={s.id} s={s} desktop={desktop} a={a} />)}
+      {/* Rows that stay close up over a deleted one, which fades; added rows appear in place. */}
+      <AnimatePresence initial={false}>
+        {view?.sessions.map((s) => <Row key={s.id} s={s} desktop={desktop} a={a} />)}
+      </AnimatePresence>
       {remaining > 0 && (
-        <button type="button" onClick={showMore} disabled={more} className="mt-2 inline-flex h-8 items-center gap-1.5 text-[14px] font-medium text-primary underline-offset-4 hover:underline disabled:opacity-60">
+        <button type="button" onClick={showMore} disabled={more} className={cn('touch-feedback mt-2 inline-flex h-8 items-center gap-1.5 text-[14px] font-medium text-primary underline-offset-4 hover:underline disabled:opacity-60', PRESS)}>
           {more ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ChevronDown className="h-3.5 w-3.5" />}
           {(() => { const left = num(remaining); return <Trans>Show more ({left} remaining)</Trans> })()}
         </button>
@@ -126,7 +131,7 @@ function Row({ s, desktop, a }: { s?: SessionEntry; desktop: boolean; a?: Return
   const device = sourceLabel(s.device)
   const pages = s.pages_turned ? plural(s.pages_turned, { one: '# page', other: '# pages' }) : null
   return (
-    <div className={cn('border-t', HAIR, ARRIVE)}>
+    <m.div {...listItem} className={cn('border-t', HAIR)}>
       {desktop ? (
         <div className={cn('grid h-11 items-center gap-x-4 text-[14px]', COLS)}>
           <span className="whitespace-nowrap tabular-nums text-muted-foreground">{when}</span>
@@ -145,6 +150,6 @@ function Row({ s, desktop, a }: { s?: SessionEntry; desktop: boolean; a?: Return
         </div>
       )}
       <TrimPanel s={s} a={a} />
-    </div>
+    </m.div>
   )
 }

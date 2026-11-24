@@ -5,7 +5,7 @@
 // a phone, the first tap shows the tip). Entry: dots fade in along the x axis and
 // the mean line draws (kit/motion.ts); the section around the chart decides when.
 import { useRef, type CSSProperties, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useBookNav } from '@/components/motion'
 import { t, plural } from '@lingui/core/macro'
 import { formatDuration } from '@/lib/utils'
 import { K, stagger } from '@/components/stats/kit/motion'
@@ -29,13 +29,14 @@ const LATE = { '--k-d': '320ms' } as CSSProperties
  * (TipLayer) and a tap on the dot whose tip is showing opens it; Enter opens the
  * dot reached with the arrow keys.
  */
-function useDotLinks(bookOf: (i: number) => number | null) {
-  const navigate = useNavigate()
+function useDotLinks(bookOf: (i: number) => { id: number; title: string; author?: string | null } | null) {
+  const openBook = useBookNav()
   const tap = useRef<{ touch: boolean; hot: boolean }>({ touch: false, hot: false })
   const markOf = (el: EventTarget | null) => (el instanceof Element ? el.closest('[data-tip-i]') : null)
   const open = (m: Element | null) => {
-    const id = m ? bookOf(Number(m.getAttribute('data-tip-i'))) : null
-    if (id != null) navigate(`/books/${id}`)
+    const b = m ? bookOf(Number(m.getAttribute('data-tip-i'))) : null
+    // The book page paints its hero at once; a dot has no cover to grow.
+    if (b) openBook(b, null)
   }
   return {
     onPointerDown: (e: PointerEvent) => { const m = markOf(e.target); tap.current = { touch: e.pointerType !== 'mouse', hot: !!m?.hasAttribute('data-hot') } },
@@ -72,7 +73,7 @@ export function TimeVsRating({ W, H, books, loading }: { W: number; H: number; b
     if (!b) return null
     return { title: b.title, value: starsWord(b.rating), note: b.seconds > 0 ? (() => { const d = formatDuration(b.seconds); return t`${d} read in Tome` })() : t`No reading time in Tome` }
   })
-  const links = useDotLinks((i) => shown.current[i]?.book.book_id ?? null)
+  const links = useDotLinks((i) => { const b = shown.current[i]?.book; return b ? { id: b.book_id, title: b.title, author: b.author } : null })
   if (loading || W <= padL + padR) return <Placeholder W={Math.max(1, W)} H={H} x={padL} y={padT} h={H - padT - padB} />
   const plotW = W - padL - padR, plotH = H - padT - padB
   const maxH = Math.max(1, ...books.map((b) => b.seconds / 3600))
@@ -131,7 +132,7 @@ const LANE = 30
 export function OverTime({ W, books, loading }: { W: number; books: RatedBook[]; loading: boolean }) {
   const H = OVER_TIME_H
   const padL = 34, padT = 6, padR = 8
-  const navigate = useNavigate()
+  const openBook = useBookNav()
   if (loading || W <= padL + padR) return <Placeholder W={Math.max(1, W)} H={H} x={padL} y={padT} h={5 * LANE} />
   const { points, groups } = timeline(books)
   const plotW = W - padL - padR
@@ -235,7 +236,7 @@ export function OverTime({ W, books, loading }: { W: number; books: RatedBook[];
       {counts.map((c, i) => c && (
         <text key={i} x={c.x.toFixed(1)} y={c.y.toFixed(1)} className={`${K.fade} k-nohit fill-foreground text-[10px] font-semibold`} style={LATE}>{c.label}</text>
       ))}
-      <Guide x0={padL} x1={W - padR} y0={padT} y1={by} slots={slots} onOpen={(k) => { const ids = slots[k]?.ids ?? []; if (ids.length === 1) navigate(`/books/${ids[0]}`) }} />
+      <Guide x0={padL} x1={W - padR} y0={padT} y1={by} slots={slots} onOpen={(k) => { const ids = slots[k]?.ids ?? []; const b = ids.length === 1 ? books.find((x) => x.book_id === ids[0]) : undefined; if (b) openBook({ id: b.book_id, title: b.title, author: b.author }, null) }} />
     </svg>
   )
 }

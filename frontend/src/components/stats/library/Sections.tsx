@@ -1,7 +1,8 @@
 // The Library page's lower sections: Backlog, the three small charts, the
 // monthly additions and the All books table.
-import { Fragment, useMemo, useState, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { Fragment, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { BookLink, Unfold } from '@/components/motion'
+import { PRESS } from '@/components/page'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronDown } from 'lucide-react'
@@ -12,6 +13,7 @@ import { Cover, Ph } from '@/components/stats/kit/Kit'
 import { DIM, HAIR, UNDIM, num } from '@/components/stats/kit/tokens'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, stagger, useEntry } from '@/components/stats/kit/motion'
+import { useTween } from '@/components/stats/kit/tween'
 import { tipAttrs } from '@/components/stats/kit/tip'
 import { ChoiceMenu } from '@/components/stats/kit/Menu'
 import { AddedChart, ChartPlaceholder, SmallBars, type SmallBar } from './charts'
@@ -393,7 +395,17 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
   const [open, setOpen] = useState<number | null>(null)
   const data = stats?.per_book_time ?? null
   const sorted = useMemo(() => (data ? [...data].sort((a, b) => (asc ? a[key] - b[key] : b[key] - a[key]) || a.title.localeCompare(b.title)) : null), [data, key, asc])
-  const list = sorted ? (all ? sorted : sorted.slice(0, BOOKS_SHOWN)) : Array.from({ length: rows }, () => null)
+  const list = sorted ? sorted.slice(0, BOOKS_SHOWN) : Array.from({ length: rows }, () => null)
+  // Past the first rows: unfolded under them by "Show all", folded away by "Show fewer".
+  const rest = sorted ? sorted.slice(BOOKS_SHOWN) : []
+  // A panel unfolding moves the rows under it once it has settled: read their places again then.
+  const [settled, setSettled] = useState(0)
+  useEffect(() => {
+    const id = window.setTimeout(() => setSettled((n) => n + 1), 240)
+    return () => window.clearTimeout(id)
+  }, [open, all])
+  // A new range or a new sort: the cells of a book that stays slide to its new row (rows keep their boxes).
+  const tw = useTween(e, sorted, `${desktop}:${all}:${open}:${settled}`)
   const sort = (k: SortKey) => {
     if (k === key) setAsc(!asc)
     else { setKey(k); setAsc(false) }
@@ -420,7 +432,7 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
       {(stats ? n === 0 : rows === 0) ? (
         <Note h={rowH}>{stats && t`No reading in ${rangePhrase}.`}</Note>
       ) : (
-        <div role="table" aria-label={t`All books by reading time`}>
+        <div ref={tw} role="table" aria-label={t`All books by reading time`} className="relative">
           <div role="row" className={cn('grid h-[28px] items-center pb-1.5', cols)}>
             <span />
             <span role="columnheader" className={cn(th, 'text-muted-foreground')}><Trans>Title</Trans></span>
@@ -430,7 +442,9 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
             {desktop && <span role="columnheader" className="text-right">{sortHead('pages_turned', <Trans>Pages</Trans>)}</span>}
             <span role="columnheader"><span className="sr-only"><Trans>Sessions of the book</Trans></span></span>
           </div>
-          {list.map((b, i) => {
+          {[list, rest].map((part, half) => {
+          const drawn = part.map((b, j) => {
+            const i = half === 0 ? j : BOOKS_SHOWN + j
             const row = cn('grid items-center border-t text-[14px]', HAIR, cols)
             const style = { height: rowH }
             const box = i < BOOKS_SHOWN ? `book-${i}` : undefined
@@ -449,22 +463,24 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
                 <ChevronDown className={cn('h-4 w-4 transition-transform duration-200', isOpen && 'rotate-180')} aria-hidden="true" />
               </button>
             ) : null
+            // Each cell is a mark of its book (useTween): the row's box and hairline stay put.
+            const mk = (c: number) => (b ? { 'data-k': `${b.book_id}:${c}`, 'data-kt': 'move' } : {})
             const cells = (
               <>
-                <span role="cell">
-                  <Cover id={b ? (b.has_cover ? b.book_id : null) : null} h={44} className={cn('rounded-[6px]', b && cn(K.fade, 'transition-transform duration-200 group-hover:-translate-y-0.5'))} />
+                <span role="cell" {...mk(0)}>
+                  <Cover id={b ? (b.has_cover ? b.book_id : null) : null} book={b?.book_id} h={44} className={cn('rounded-[6px]', b && cn(K.fade, 'transition-transform duration-200 group-hover:-translate-y-0.5'))} />
                 </span>
-                <span role="cell" className="min-w-0">
+                <span role="cell" className="min-w-0" {...mk(1)}>
                   <span className={cn('block truncate font-semibold text-foreground transition-colors group-hover:text-primary', desktop ? 'text-[15px]' : 'text-[14px] leading-[19px]')}>
                     {b ? b.title : <Ph on>{PH.title}</Ph>}
                   </span>
                   {!desktop && <span className="mt-0.5 block truncate text-[13px] text-muted-foreground"><Ph on={!b}>{b ? b.author ?? ' ' : PH.author}</Ph></span>}
                 </span>
-                {desktop && <span role="cell" className="truncate text-muted-foreground"><Ph on={!b}>{b ? b.author ?? '—' : PH.author}</Ph></span>}
-                <span role="cell" className="whitespace-nowrap text-right text-foreground"><Ph on={!b}>{b ? formatDuration(b.seconds) : PH.dur}</Ph></span>
-                {desktop && <span role="cell" className="text-right tabular-nums text-foreground"><Ph on={!b}>{b ? num(b.sessions) : PH.n}</Ph></span>}
-                {desktop && <span role="cell" className="text-right tabular-nums text-foreground"><Ph on={!b}>{b ? num(b.pages_turned) : PH.n}</Ph></span>}
-                <span role="cell" className="flex justify-end">{toggle}</span>
+                {desktop && <span role="cell" className="truncate text-muted-foreground" {...mk(2)}><Ph on={!b}>{b ? b.author ?? '—' : PH.author}</Ph></span>}
+                <span role="cell" className="whitespace-nowrap text-right text-foreground" {...mk(3)}><Ph on={!b}>{b ? <CountUp entry={e} value={b.seconds} format={formatDuration} align="end" /> : PH.dur}</Ph></span>
+                {desktop && <span role="cell" className="text-right tabular-nums text-foreground" {...mk(4)}><Ph on={!b}>{b ? <CountUp entry={e} value={b.sessions} format={num} align="end" /> : PH.n}</Ph></span>}
+                {desktop && <span role="cell" className="text-right tabular-nums text-foreground" {...mk(5)}><Ph on={!b}>{b ? <CountUp entry={e} value={b.pages_turned} format={num} align="end" /> : PH.n}</Ph></span>}
+                <span role="cell" className="flex justify-end" {...mk(6)}>{toggle}</span>
               </>
             )
             // A row leads to its book (a link stretched under the cells; the row washes and the
@@ -473,14 +489,19 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
             return b ? (
               <Fragment key={b.book_id}>
                 <div role="row" data-box={box} className={cn(row, 'group relative transition-colors hover:bg-accent/30 [&>[role=cell]]:pointer-events-none', isOpen && 'bg-accent/20')} style={style}>
-                  <Link to={`/books/${b.book_id}`} aria-label={b.title} className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" />
+                  <BookLink book={{ id: b.book_id, title: b.title, author: b.author }} aria-label={b.title} className="absolute inset-0 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring" />
                   {cells}
                 </div>
-                {isOpen && <BookSessions id={panel!} bookId={b.book_id} desktop={desktop} />}
+                {/* Opens in place; the rows under it are pushed down by its height, never moved themselves. */}
+                <Unfold open={isOpen}>
+                  <BookSessions id={panel!} bookId={b.book_id} desktop={desktop} />
+                </Unfold>
               </Fragment>
             ) : (
               <div key={i} role="row" data-box={box} className={row} style={style}>{cells}</div>
             )
+          })
+          return half === 0 ? <Fragment key="first">{drawn}</Fragment> : <Unfold key="rest" open={all && drawn.length > 0}>{drawn}</Unfold>
           })}
         </div>
       )}
@@ -489,7 +510,7 @@ export function AllBooks({ stats, desktop, rows, more, range, dim }: { stats: St
       )}
       {n > BOOKS_SHOWN && (
         <div className="mt-3 flex h-6 items-center">
-          <button type="button" onClick={() => setAll(!all)} className="text-[15px] font-medium text-primary hover:underline underline-offset-4">
+          <button type="button" onClick={() => setAll(!all)} className={cn('touch-feedback text-[15px] font-medium text-primary hover:underline underline-offset-4', PRESS)}>
             {all ? <Trans>Show fewer</Trans> : (() => { const total = num(n); return <Trans>Show all {total}</Trans> })()}
           </button>
         </div>

@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useId, useLayoutEffect, useRef, useState, useCallback } from 'react'
-import { AnimatePresence, m } from 'motion/react'
+import { AnimatePresence, m, useReducedMotion } from 'motion/react'
 import { useSearchParams, useNavigate, useLocation, useNavigationType } from 'react-router-dom'
 import {
   X,
@@ -18,8 +18,9 @@ import { plural, msg } from '@lingui/core/macro'
 import type { MessageDescriptor } from '@lingui/core'
 import { useToast } from '@/contexts/ToastContext'
 import { useSidebarLists } from '@/lib/sidebarLists'
-import { BookCard, type ViewMode } from '@/components/BookCard'
-import { SeriesStackCard } from '@/components/SeriesStackCard'
+import type { ViewMode } from '@/components/BookCard'
+import { LibraryGrid, LibrarySkeleton, STAGE_FROM, type LibraryGridHandle, type ResumePoint, type StatusMap } from '@/components/library/LibraryGrid'
+import { CountLabel, ToggleFill, ReserveLabel } from '@/components/library/Toolbar'
 import { StarRating } from '@/components/StarRating'
 import { SeriesRating } from '@/components/SeriesRating'
 import { SeriesFollowButton } from '@/components/SeriesFollowButton'
@@ -32,9 +33,8 @@ import { AutocompleteInput } from '@/components/AutocompleteInput'
 import { UploadModal } from '@/components/UploadModal'
 import { ManageSeriesModal } from '@/components/ManageSeriesModal'
 import { SendButton } from '@/components/SendButton'
-import { BookAnimation } from '@/components/BookAnimation'
 import { HomeTab } from '@/components/home/HomeTab'
-import { api } from '@/lib/api'
+import { api, onWrite } from '@/lib/api'
 import type { Book, ReadingStatus, Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
@@ -44,10 +44,14 @@ import { devicesFor, useDeviceInventories } from '@/lib/deviceBooks'
 import { describePace, formatEstimateDays, formatEstimateHours, type BacklogSummary } from '@/lib/backlog'
 import { SeriesReadingStats } from '@/components/SeriesReadingStats'
 import { SeriesCoverageStrip } from '@/components/SeriesCoverageStrip'
-import { QuickLook } from '@/components/QuickLook'
+import { QuickLook, type QuickLookPreview } from '@/components/QuickLook'
+import { Unfold, Pop, CoverLift, RunningNumber, BookLink, useSeriesNav, useBookNav, coverThumb, listItem, EASE, EASE_CSS } from '@/components/motion'
+import { GlideGroup, Glide } from '@/components/page/Glide'
+import { findSeriesCover, openSeriesWithCover, readSeriesPreview, seriesPreviewState } from '@/lib/coverTransition'
+import { peekSeriesSeed } from '@/components/motion/nav'
 import { SortMenu } from '@/components/library/SortMenu'
 import { FinishByPill } from '@/components/goals/FinishByPill'
-import { PageBody, PageHeader, SectionTitle, Pill, Select, Input, FormLabel, INPUT_CLASS } from '@/components/page'
+import { PageBody, PageHeader, SectionTitle, Pill, PillGroup, Select, Input, FormLabel, INPUT_CLASS } from '@/components/page'
 // Library / Series tab icons, kept apart from the shared import above.
 import { ArrowLeft, Eye, Upload } from 'lucide-react'
 import { coverSrc } from '@/lib/covers'
@@ -60,6 +64,7 @@ interface SeriesItem {
   name: string
   book_count: number
   cover_book_id: number
+  cover_color?: string | null
   description: string | null
   author: string | null
   read_count: number
@@ -80,6 +85,7 @@ interface SeriesDetailBook {
   title: string
   series_index: number | null
   cover_path: string | null
+  cover_color?: string | null
   reading_status: 'unread' | 'reading' | 'read' | 'shelved' | 'want_to_read'
   progress_pct: number | null
 }
@@ -215,25 +221,72 @@ function BulkDeleteModal({ open, books, selectedIds, onCancel, onConfirm }: Bulk
 
 const seriesScroll = new Map<string, number>()
 
-type StatusMap = Record<number, { status: ReadingStatus; progress_pct: number | null; rating: number | null }>
-
 // The library list as it was when the page was last left, so coming back
 // (from a book, Stats, anywhere) shows it at once and where it was scrolled
 // to, then refreshes it quietly. One entry: the list for one set of filters.
 let listCache: {
   key: string
   books: Book[]
+  /** Whether `books` is the grouped (series stacks) list. */
+  grouped: boolean
   total: number | null
   statuses: StatusMap
   hasMore: boolean
   scrollTop: number
+  /** The first card on screen when the list was left. */
+  resume: ResumePoint | null
   locationKey: string
 } | null = null
+
+/** Resolves once these books' covers are in the browser (at most 300 ms). */
+function coversReady(books: Book[], signal?: AbortSignal): Promise<void> {
+  const urls = books.flatMap(b => [
+    ...(b.cover_path ? [coverSrc(b.id, { w: 400, v: b.updated_at })] : []),
+    ...(b.stack_cover_ids ?? []).slice(0, 2).map(id => coverSrc(id, { w: 400 })),
+  ])
+  const loads = urls.map(url => {
+    const img = new Image()
+    img.src = url
+    return img.decode().catch(() => {})
+  })
+  return Promise.race([
+    Promise.all(loads).then(() => {}),
+    new Promise<void>(r => { setTimeout(r, 300); signal?.addEventListener('abort', () => r()) }),
+  ])
+}
+
+/** A first page fetched ahead for the Group series toggle (`res` once it is in). */
+interface GroupList {
+  key: string
+  at: number
+  res: { data: Book[]; headers: Headers } | null
+  promise: Promise<{ data: Book[]; headers: Headers } | null>
+}
+const GROUP_LIST_TTL = 30_000
+
+/** A function whose identity never changes and that always calls the latest `fn`. */
+function useStableCallback<A extends unknown[], R>(fn: (...args: A) => R): (...args: A) => R {
+  const ref = useRef(fn)
+  useLayoutEffect(() => { ref.current = fn })
+  return useCallback((...args: A) => ref.current(...args), [])
+}
+
+/** The new list with the old objects kept where a book did not change, so its card does not re-render. */
+function shareBooks(prev: Book[], next: Book[]): Book[] {
+  if (prev.length === 0) return next
+  const byId = new Map(prev.map(b => [b.id, b]))
+  return next.map(b => {
+    const old = byId.get(b.id)
+    return old && JSON.stringify(old) === JSON.stringify(b) ? old : b
+  })
+}
 
 export function DashboardPage() {
   const { t, i18n } = useLingui()
   const { user } = useAuth()
   const navigate = useNavigate()
+  const openSeries = useSeriesNav()
+  const openBook = useBookNav()
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false)
   const [searchParams, setSearchParams] = useSearchParams()
   const [focusedIndex, setFocusedIndex] = useState<number | null>(null)
@@ -254,7 +307,17 @@ export function DashboardPage() {
     (localStorage.getItem(ORDER_KEY) as SortOrder | null) ?? 'asc')
 
   function persistView(v: ViewPref) { setView(v); localStorage.setItem(VIEW_KEY, v) }
-  function persistGridSize(s: number) { setGridSize(s); localStorage.setItem(GRID_SIZE_KEY, String(s)) }
+
+  // The grid/list switch: each card keeps its box, cover and title travel to
+  // their place in the other layout (LibraryGrid measures the cards on screen
+  // first, the first card on screen keeps its place in the scroll).
+  const libraryGridRef = useRef<LibraryGridHandle | null>(null)
+  function switchView(v: ViewPref) {
+    if (v === view) return
+    libraryGridRef.current?.prepare('view')
+    persistView(v)
+  }
+  function persistGridSize(s: number) { libraryGridRef.current?.prepare('size'); setGridSize(s); localStorage.setItem(GRID_SIZE_KEY, String(s)) }
   function persistSort(s: SortField) { setSort(s); localStorage.setItem(SORT_KEY, s) }
   function persistOrder(o: SortOrder) { setOrder(o); localStorage.setItem(ORDER_KEY, o) }
 
@@ -270,15 +333,27 @@ export function DashboardPage() {
   const tab = (searchParams.get('tab') || 'home') as 'home' | 'books' | 'series'
   const [seriesList, setSeriesList] = useState<SeriesItem[]>([])
   const [seriesLoading, setSeriesLoading] = useState(false)
-  const [expandedSeries, setExpandedSeries] = useState<string | null>(null)
-  const [seriesDetail, setSeriesDetail] = useState<SeriesDetail | null>(null)
+  // False until the first series list is in: until then the grid shows its
+  // shape, never a false "No series yet".
+  const [seriesLoaded, setSeriesLoaded] = useState(false)
+  // Volumes just marked read: their badges grow in (once, not on every load).
+  const [justMarked, setJustMarked] = useState(false)
+  // Opened from a book page, the series' answers were asked for ahead
+  // (components/motion/nav): the detail paints complete in its first frame.
+  const [seriesSeed] = useState(() => {
+    const name = tab === 'series' ? searchParams.get('series_detail') : null
+    const seed = name ? peekSeriesSeed(name) : null
+    return seed && name ? { name, ...seed } : null
+  })
+  const [expandedSeries, setExpandedSeries] = useState<string | null>(seriesSeed?.name ?? null)
+  const [seriesDetail, setSeriesDetail] = useState<SeriesDetail | null>((seriesSeed?.detail as SeriesDetail | undefined) ?? null)
   const [shareSeries, setShareSeries] = useState<string | null>(null)
   const [seriesDetailLoading, setSeriesDetailLoading] = useState(false)
   const [markingAllRead, setMarkingAllRead] = useState(false)
   // Series meta (status badges) - keyed by series name
-  const [seriesMetaMap, setSeriesMetaMap] = useState<Record<string, SeriesStatus>>({})
+  const [seriesMetaMap, setSeriesMetaMap] = useState<Record<string, SeriesStatus>>((seriesSeed?.meta as Record<string, SeriesStatus> | undefined) ?? {})
   // Arcs for the currently open series detail
-  const [seriesArcs, setSeriesArcs] = useState<Arc[]>([])
+  const [seriesArcs, setSeriesArcs] = useState<Arc[]>((seriesSeed?.arcs as Arc[] | undefined) ?? [])
   // Manage series modal
   const [manageSeriesOpen, setManageSeriesOpen] = useState(false)
   const [seriesDescExpanded, setSeriesDescExpanded] = useState(false)
@@ -312,6 +387,7 @@ export function DashboardPage() {
     })
     setExpandedSeries(null)
     setSeriesDetail(null)
+    setJustMarked(false)
     setSeriesLoading(true)
     api.get<SeriesItem[]>('/books/series')
       .then(list => {
@@ -319,10 +395,12 @@ export function DashboardPage() {
         fetchSeriesMetaForList(list)
       })
       .catch(() => {})
-      .finally(() => setSeriesLoading(false))
+      .finally(() => { setSeriesLoading(false); setSeriesLoaded(true) })
   }
 
   function openSeriesDetail(seriesName: string) {
+    // The grow-in was for the volumes just marked, not the next series shown.
+    setJustMarked(false)
     if (expandedSeries === seriesName) {
       setExpandedSeries(null)
       setSeriesDetail(null)
@@ -349,14 +427,21 @@ export function DashboardPage() {
   // A series' detail is a URL (?tab=series&series_detail=Name), so the way
   // back from a book returns to it. The grid pushes it, the Series crumb
   // drops it, and this effect follows the URL either way.
-  function showSeries(name: string | null) {
+  function showSeries(name: string | null, state?: unknown) {
     setSearchParams(prev => {
       const next = new URLSearchParams(prev)
       next.set('tab', 'series')
       if (name) next.set('series_detail', name)
       else next.delete('series_detail')
       return next
-    })
+    }, state ? { state } : undefined)
+  }
+
+  // The Series crumb: back the way the series was opened from the grid (the
+  // cover returns to its card), else to the grid.
+  function backToSeries() {
+    if ((location.state as { fromSeriesGrid?: boolean } | null)?.fromSeriesGrid) navigate(-1)
+    else showSeries(null)
   }
 
   // Auto-open series detail when navigating via ?tab=series&series_detail=Name
@@ -364,7 +449,7 @@ export function DashboardPage() {
     if (tab !== 'series') return
     const detailName = searchParams.get('series_detail')
     if (!detailName) {
-      if (expandedSeries) { setExpandedSeries(null); setSeriesDetail(null); setSeriesArcs([]) }
+      if (expandedSeries) { setExpandedSeries(null); setSeriesDetail(null); setSeriesArcs([]); setJustMarked(false) }
       return
     }
     if (detailName === expandedSeries) return
@@ -376,9 +461,10 @@ export function DashboardPage() {
         setSeriesList(list)
         fetchSeriesMetaForList(list)
         setSeriesLoading(false)
+        setSeriesLoaded(true)
         openSeriesDetail(detailName)
       })
-      .catch(() => setSeriesLoading(false))
+      .catch(() => { setSeriesLoading(false); setSeriesLoaded(true) })
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, searchParams])
 
@@ -464,6 +550,7 @@ export function DashboardPage() {
       // Refresh detail
       if (expandedSeries) {
         const detail = await api.get<SeriesDetail>(`/books/series-detail?name=${encodeURIComponent(expandedSeries)}`)
+        setJustMarked(true)
         setSeriesDetail(detail)
       }
     } catch {
@@ -658,7 +745,10 @@ export function DashboardPage() {
     }
   }
   function clearSelection() { setSelected(new Set()) }
-  function exitSelectionMode() { setSelectionMode(false); setSelected(new Set()) }
+  function exitSelectionMode() {
+    if (selectionMode) libraryGridRef.current?.prepare('select')
+    setSelectionMode(false); setSelected(new Set())
+  }
 
   async function bulkDownload() {
     if (!selected.size) return
@@ -808,20 +898,27 @@ export function DashboardPage() {
   const locationKeyRef = useRef(location.key)
   locationKeyRef.current = location.key
   // Filters + sort of the list the current `books` belong to.
-  const listKey = () => {
+  const listKeyFor = (grouped: boolean) => {
     const p = buildFilterParams()
     p.set('sort', sort)
     p.set('order', order)
-    if (groupActive) p.set('group_by_series', 'true')
+    if (grouped) p.set('group_by_series', 'true')
     return p.toString()
   }
+  const listKey = () => listKeyFor(groupActive)
   const [seed] = useState(() => (listCache && listCache.key === listKey() ? listCache : null))
+  // Back to a long list: it renders around the card that was first on screen.
+  const [resume] = useState(() => (
+    seed && seed.resume && navigationType === 'POP' && seed.locationKey === location.key && seed.books.length > STAGE_FROM && seed.resume.height > 0 ? seed.resume : undefined
+  ))
   const seededRef = useRef(!!seed)
   const loadedKeyRef = useRef(seed?.key ?? '')
   const [books, setBooks] = useState<Book[]>(() => seed?.books ?? [])
+  // Whether `books` is the grouped list: the cards follow the list they show,
+  // not the toggle, so a toggle changes nothing until its list is in.
+  const [listGrouped, setListGrouped] = useState(() => seed?.grouped ?? groupActive)
   const { handleToggle } = useShiftSelect(books.map(b => b.id))
 
-  const booksGridRef = useRef<HTMLDivElement | null>(null)
   const [totalCount, setTotalCount] = useState<number | null>(() => seed?.total ?? null)
   const [readingStatuses, setReadingStatuses] = useState<StatusMap>(() => seed?.statuses ?? {})
   const [facets, setFacets] = useState<Facets>({ series: [], authors: [], tags: [], formats: [], languages: [] })
@@ -830,7 +927,17 @@ export function DashboardPage() {
   const [filterOpen, setFilterOpen] = useState(false)
   // Quick look opened from a cover in the Library grid or a series' volumes.
   const [quickLookId, setQuickLookId] = useState<number | null>(null)
+  // The cover box it was opened on: the quick look grows out of it and back.
+  const [quickLookFrom, setQuickLookFrom] = useState<{ origin?: DOMRect; cover?: string | null }>({})
+  const openQuickLook = useCallback((id: number, origin?: DOMRect, cover?: string | null) => { setQuickLookFrom({ origin, cover }); setQuickLookId(id) }, [])
   const closeQuickLook = useCallback(() => setQuickLookId(null), [])
+  // The header lines the quick look shows until the book is in.
+  const quickLookPreview = (id: number): QuickLookPreview | undefined => {
+    const b = books.find(x => x.id === id)
+    if (b) return { title: b.title, author: b.author, series: b.series, series_index: b.series_index }
+    const v = seriesDetail?.books.find(x => x.id === id)
+    return v && seriesDetail ? { title: v.title, author: seriesDetail.author, series: seriesDetail.name, series_index: v.series_index } : undefined
+  }
 
   const { toast } = useToast()
   const toastSuccess = toast.success
@@ -844,6 +951,13 @@ export function DashboardPage() {
   const [loadingMore, setLoadingMore] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const PAGE_SIZE = 60
+  // Group series: the list the toggle switches to, fetched while the pointer
+  // is on the toggle (and the list it leaves, kept for the way back), so a
+  // click regroups the cards at once. Keyed by listKey; an entry goes when it
+  // is used, expires, or any write goes through (it may lack or show a book).
+  const groupLists = useRef(new Map<string, GroupList>())
+  const groupToggled = useRef(false)
+  useEffect(() => onWrite(() => groupLists.current.clear()), [])
 
   function buildFilterParams(): URLSearchParams {
     const params = new URLSearchParams()
@@ -877,12 +991,20 @@ export function DashboardPage() {
     const skip = reset ? 0 : booksRef.current.length
     const limit = quiet ? Math.max(PAGE_SIZE, Math.ceil(booksRef.current.length / PAGE_SIZE) * PAGE_SIZE) : PAGE_SIZE
     const key = listKey()
+    // The Group series toggle's list, fetched ahead (see prefetchGroup).
+    let ahead: GroupList | undefined
+    if (reset) {
+      const found = groupToggled.current && !quiet ? groupLists.current.get(key) : undefined
+      groupToggled.current = false
+      if (found) groupLists.current.delete(key)
+      if (found && performance.now() - found.at < GROUP_LIST_TTL) ahead = found
+    }
 
     if (reset) {
       abortRef.current?.abort()
       abortRef.current = new AbortController()
       if (booksRef.current.length === 0) setLoading(true)
-      else if (!quiet) setRefreshing(true)
+      else if (!quiet && !ahead?.res) setRefreshing(true)
       hasMoreRef.current = true
       setHasMore(true)
     } else {
@@ -900,54 +1022,73 @@ export function DashboardPage() {
     params.set('skip', String(skip))
     params.set('limit', String(limit))
     if (groupActive) params.set('group_by_series', 'true')
-    api.getWithHeaders<Book[]>(`/books?${params}`, signal)
-      .then(({ data: newBooks, headers }) => {
+
+    const apply = ({ data: newBooks, headers }: { data: Book[]; headers: Headers }) => {
+      if (signal?.aborted) return
+      if (reset) {
+        loadedKeyRef.current = key
+        const raw = headers.get('x-total-count')
+        setTotalCount(raw !== null ? Number(raw) : null)
+      }
+      let merged: Book[]
+      if (reset) {
+        // The cards on screen are measured before they move.
+        if (!quiet) libraryGridRef.current?.prepare('list', { toGrouped: groupActive })
+        merged = shareBooks(booksRef.current, newBooks)
+        setListGrouped(groupActive)
+      } else {
+        const seen = new Set(booksRef.current.map(b => b.id))
+        merged = [...booksRef.current, ...newBooks.filter(b => !seen.has(b.id))]
+      }
+      booksRef.current = merged
+      setBooks(merged)
+      hasMoreRef.current = newBooks.length === limit
+      setHasMore(newBooks.length === limit)
+      if (newBooks.length > 0) {
+        api.post<Record<string, { status: string; progress_pct: number | null; rating: number | null }>>('/books/statuses', { book_ids: newBooks.map(b => b.id) })
+          .then(map => {
+            const s: StatusMap = {}
+            Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct, rating: val.rating ?? null } })
+            setReadingStatuses(prev => ({ ...prev, ...s }))
+          })
+          .catch(() => {})
+      } else if (reset) {
+        setReadingStatuses({})
+      }
+    }
+    const settle = () => {
+      if (reset) {
+        // An aborted reset was superseded by a newer one that owns the
+        // loading flags - leave them alone.
         if (signal?.aborted) return
-        if (reset) {
-          loadedKeyRef.current = key
-          const raw = headers.get('x-total-count')
-          setTotalCount(raw !== null ? Number(raw) : null)
-        }
-        let merged: Book[]
-        if (reset) {
-          merged = newBooks
-        } else {
-          const seen = new Set(booksRef.current.map(b => b.id))
-          merged = [...booksRef.current, ...newBooks.filter(b => !seen.has(b.id))]
-        }
-        booksRef.current = merged
-        setBooks(merged)
-        hasMoreRef.current = newBooks.length === limit
-        setHasMore(newBooks.length === limit)
-        if (newBooks.length > 0) {
-          api.post<Record<string, { status: string; progress_pct: number | null; rating: number | null }>>('/books/statuses', { book_ids: newBooks.map(b => b.id) })
-            .then(map => {
-              const s: StatusMap = {}
-              Object.entries(map).forEach(([id, val]) => { s[Number(id)] = { status: val.status as ReadingStatus, progress_pct: val.progress_pct, rating: val.rating ?? null } })
-              setReadingStatuses(prev => ({ ...prev, ...s }))
-            })
-            .catch(() => {})
-        } else if (reset) {
-          setReadingStatuses({})
-        }
+        setLoading(false)
+        setRefreshing(false)
+      } else {
+        // Always clear, even when aborted: this request is finished and a
+        // stuck loadingMore would stall the infinite scroll for good.
+        setLoadingMore(false)
+      }
+    }
+    // Already in: the new list shows in this same commit.
+    if (ahead?.res) {
+      apply(ahead.res)
+      settle()
+      return
+    }
+    const fetchPage = () => api.getWithHeaders<Book[]>(`/books?${params}`, signal)
+      // A new list over a shown one waits (dimmed, briefly) for its first
+      // covers, so the cards that arrive have their pictures.
+      .then(async res => {
+        if (reset && !quiet && booksRef.current.length > 0) await coversReady(res.data.slice(0, 30), signal)
+        return res
       })
+    ;(ahead ? ahead.promise.then(res => res ?? fetchPage()) : fetchPage())
+      .then(apply)
       .catch(err => {
         if (err instanceof Error && err.name === 'AbortError') return
         toastError(t`Failed to load books`)
       })
-      .finally(() => {
-        if (reset) {
-          // An aborted reset was superseded by a newer one that owns the
-          // loading flags - leave them alone.
-          if (signal?.aborted) return
-          setLoading(false)
-          setRefreshing(false)
-        } else {
-          // Always clear, even when aborted: this request is finished and a
-          // stuck loadingMore would stall the infinite scroll for good.
-          setLoadingMore(false)
-        }
-      })
+      .finally(settle)
   }, [sort, order, search, filterSeries, filterNoSeries, filterAuthor, filterTag, filterFormat, filterLanguage, filterLibrary, filterReadingStatus, filterMinRating, filterMinWords, filterMaxWords, filterMissing, contentType, filterOwnership, filterAddedBy, filterOnDevice, filterNotOnDevice, groupActive])
 
   useEffect(() => {
@@ -957,20 +1098,54 @@ export function DashboardPage() {
     } else loadBooks()
   }, [loadBooks])
 
+  // The Group series toggle's next list: fetched when the pointer reaches the
+  // toggle (or it takes focus), with its first covers, so the click shows it
+  // in the same frame instead of after the request.
+  function prefetchGroup() {
+    if (filterSeries) return
+    const key = listKeyFor(!groupActive)
+    const have = groupLists.current.get(key)
+    if (have && performance.now() - have.at < GROUP_LIST_TTL) return
+    for (const [k, v] of groupLists.current) if (performance.now() - v.at > GROUP_LIST_TTL) groupLists.current.delete(k)
+    const params = new URLSearchParams(key)
+    params.set('skip', '0')
+    params.set('limit', String(PAGE_SIZE))
+    const entry: GroupList = { key, at: performance.now(), res: null, promise: Promise.resolve(null) }
+    entry.promise = api.getWithHeaders<Book[]>(`/books?${params}`)
+      .then(async res => { await coversReady(res.data.slice(0, 30)); entry.res = res; return res })
+      .catch(() => null)
+    groupLists.current.set(key, entry)
+  }
+  function toggleGroup() {
+    const key = listKey()
+    // The list shown now is the way back, already in.
+    if (!filterSeries && books.length > 0 && loadedKeyRef.current === key) {
+      const res = { data: books.slice(0, PAGE_SIZE), headers: new Headers(totalCount != null ? { 'x-total-count': String(totalCount) } : {}) }
+      groupLists.current.set(key, { key, at: performance.now(), res, promise: Promise.resolve(res) })
+    }
+    groupToggled.current = !filterSeries
+    persistGroup(!groupBySeries)
+  }
+
   // Keep the list (and, on leaving, the scroll position) for the way back.
   useEffect(() => {
     if (!loadedKeyRef.current) return
     listCache = {
-      key: loadedKeyRef.current, books, total: totalCount, statuses: readingStatuses, hasMore,
-      scrollTop: listCache?.scrollTop ?? 0, locationKey: listCache?.locationKey ?? '',
+      key: loadedKeyRef.current, books, grouped: listGrouped, total: totalCount, statuses: readingStatuses, hasMore,
+      scrollTop: listCache?.scrollTop ?? 0, resume: listCache?.resume ?? null, locationKey: listCache?.locationKey ?? '',
     }
-  }, [books, totalCount, readingStatuses, hasMore])
+  }, [books, listGrouped, totalCount, readingStatuses, hasMore])
   useLayoutEffect(() => {
     const main = bodyRef.current?.closest('main') ?? null
-    // Back/forward to the entry the list was left from: same place as before.
-    if (seed && navigationType === 'POP' && seed.locationKey === location.key && main) main.scrollTop = seed.scrollTop
+    // Back/forward to the entry the list was left from: same place as before
+    // (a long list: LibraryGrid puts its first card back instead).
+    if (seed && navigationType === 'POP' && seed.locationKey === location.key && main && !resume) main.scrollTop = seed.scrollTop
     return () => {
-      if (listCache && main) { listCache.scrollTop = main.scrollTop; listCache.locationKey = locationKeyRef.current }
+      if (listCache && main) {
+        listCache.scrollTop = main.scrollTop
+        listCache.resume = libraryGridRef.current?.resumePoint() ?? null
+        listCache.locationKey = locationKeyRef.current
+      }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -1068,9 +1243,9 @@ export function DashboardPage() {
   function loadFacets() { api.get<Facets>('/books/facets').then(setFacets).catch(() => {}) }
   useEffect(() => { loadFacets() }, [])
 
-  // Mirror groupActive into a ref so the keydown handler (bound once) sees it
-  const groupActiveRef = useRef(false)
-  useEffect(() => { groupActiveRef.current = groupActive }, [groupActive])
+  // Mirror the shown list's grouping into a ref so the keydown handler (bound once) sees it
+  const listGroupedRef = useRef(false)
+  useEffect(() => { listGroupedRef.current = listGrouped }, [listGrouped])
 
 
   // The focused card lives in a ref too, so the key handler reads and writes
@@ -1114,10 +1289,14 @@ export function DashboardPage() {
         if ((e.target as HTMLElement).closest('a')) return
         if (prev !== null && booksRef.current[prev]) {
           const b = booksRef.current[prev]
-          if (groupActiveRef.current && b.series && b.status !== 'no_file') {
-            navigate(`/?tab=series&series_detail=${encodeURIComponent(b.series)}`)
+          // The focused card's cover grows into the page it opens.
+          if (listGroupedRef.current && b.series && b.status !== 'no_file') {
+            openSeries(b.series)
           } else {
-            navigate(`/books/${b.id}`)
+            openBook({
+              id: b.id, title: b.title, author: b.author, series: b.series, series_index: b.series_index,
+              coverColor: b.cover_color,
+            })
           }
         }
         return
@@ -1131,10 +1310,10 @@ export function DashboardPage() {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [navigate])
+  }, [openBook, openSeries])
 
   useEffect(() => {
-    api.get<SeriesItem[]>('/books/series').then(setSeriesList).catch(() => {})
+    api.get<SeriesItem[]>('/books/series').then(setSeriesList).catch(() => {}).finally(() => setSeriesLoaded(true))
   }, [])
 
   // ── Filter chip helpers ───────────────────────────────────────────────────
@@ -1172,24 +1351,15 @@ export function DashboardPage() {
   delete saveableParams.library_id
   if (saveableParams.content_type !== 'chapter') delete saveableParams.content_type
 
-  // Grid columns flow from the spring-smoothed cover size; card typography
-  // follows the slider value. The grid/list switch swaps in place: the old
-  // view-fade faded the new view up from nothing inside the painted panel.
-  // List rows sit on hairlines, no boxes.
+  // What the cards call: the same functions for the page's whole life, so a
+  // render of the page re-renders no card.
+  const onToggleCard = useStableCallback((id: number, shift: boolean) => toggleSelect(id, shift))
+  const onTagCard = useStableCallback((tag: string) => setFilter('tag', tag))
+  const onSeriesCard = useStableCallback((series: string) => setFilter('series', series))
+  const onAuthorCard = useStableCallback((author: string) => setFilter('author', author))
+
+  // Card typography follows the slider value; the grid itself is LibraryGrid.
   const cardView: ViewMode = view === 'list' ? 'list' : gridSize < 150 ? 'small' : 'large'
-  const gridClass = view === 'list'
-    // eslint-disable-next-line lingui/no-unlocalized-strings -- Tailwind classes
-    ? 'flex flex-col divide-y divide-border/70'
-    : cn(
-        'grid transition-[gap] duration-300 ease-out',
-        gridSize < 150 ? 'gap-x-3 gap-y-5' : 'gap-x-5 gap-y-7'
-      )
-  // min(size, 42vw) keeps phones at two columns regardless of the slider  - 
-  // without it a 180px minimum fits only one track on a 390px screen
-  const gridStyle = view === 'list'
-    ? undefined
-    // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS grid template
-    : { gridTemplateColumns: `repeat(auto-fill, minmax(min(${gridSize}px, 42vw), 1fr))` }
 
   // Active library name for heading
   const activeLibraryName = filterLibrary ? libraries.find(l => l.id === filterLibrary)?.name : null
@@ -1225,14 +1395,18 @@ export function DashboardPage() {
       }
     >
 
-      {shareSeries && (
-        <ShareModal
-          title={shareSeries}
-          endpoint={`/series/${encodeURIComponent(shareSeries)}/share`}
-          noun="series"
-          onClose={() => setShareSeries(null)}
-        />
-      )}
+      {/* Dialogs mounted while open: AnimatePresence keeps each for its exit. */}
+      <AnimatePresence>
+        {shareSeries && (
+          <ShareModal
+            key={shareSeries}
+            title={shareSeries}
+            endpoint={`/series/${encodeURIComponent(shareSeries)}/share`}
+            noun="series"
+            onClose={() => setShareSeries(null)}
+          />
+        )}
+      </AnimatePresence>
       <UploadModal
         isOpen={uploadModalOpen}
         onClose={() => setUploadModalOpen(false)}
@@ -1247,8 +1421,10 @@ export function DashboardPage() {
         }}
       />
 
+      <AnimatePresence>
       {manageSeriesOpen && expandedSeries && (
         <ManageSeriesModal
+          key={expandedSeries}
           seriesName={expandedSeries}
           volumes={
             seriesDetail
@@ -1271,11 +1447,12 @@ export function DashboardPage() {
           }}
         />
       )}
+      </AnimatePresence>
 
       {/* ── Body: the dashboard tabs. The frame's panel scrolls; this wrapper
             only carries the page padding (the shared PageBody comes with the
             per-tab rebuilds). ────────────────────────────────────────────── */}
-        <div ref={bodyRef}>
+        <div ref={bodyRef} data-dashboard="">
           {/* Every tab brings its own PageBody + PageHeader now; the library
               name heading only had a job before the Library tab had a header. */}
           {tab === 'home' && activeLibraryName && (
@@ -1290,36 +1467,60 @@ export function DashboardPage() {
           ) : tab === 'series' ? (
             /* ── Series tab: the series grid, or one series' detail ──────────── */
             <PageBody width="wide">
-            {expandedSeries ? (
-              seriesDetailLoading || !seriesDetail ? (
+            {/* The URL names the series from the first render (opened from a book page, say), so
+                the page's first frame is its detail, not the grid. */}
+            {/* The URL alone decides between grid and detail: going Back, the grid is in the very
+                commit the URL changes in, so the cover has its card to return to. */}
+            {searchParams.get('series_detail') ? (
+              seriesDetailLoading || !seriesDetail || expandedSeries !== searchParams.get('series_detail') ? (() => {
+                // While the series loads: its frame with the hero cover the
+                // card showed, in the place the loaded page puts it, so the
+                // cover transition has somewhere to land at once.
+                const name = searchParams.get('series_detail')!
+                const listed = seriesList.find(s => s.name === name)
+                const previewCover = readSeriesPreview(location.state, name)?.cover
+                  ?? (listed?.cover_book_id ? coverSrc(listed.cover_book_id, { w: 400 }) : null)
+                return (
                 <>
-                  <PageHeader
-                    eyebrow={
+                  {/* The loaded header wraps its actions under the crumb on a phone. */}
+                  <div className="flex items-center justify-between gap-4 flex-wrap min-h-9 max-sm:min-h-[72px]">
+                    <div className="text-[13px] text-muted-foreground flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => showSeries(null)}
-                        className="inline-flex items-center gap-1 uppercase hover:text-foreground transition-colors"
+                        onClick={backToSeries}
+                        className="inline-flex items-center gap-1 hover:text-foreground transition-colors touch-feedback"
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
                         <Trans>Series</Trans>
                       </button>
-                    }
-                    title={expandedSeries === '__unserialized__' ? t`No series` : expandedSeries}
-                  />
-                  <div className="flex justify-center py-16">
-                    <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                    </div>
+                  </div>
+                  <div className="grid gap-8 lg:gap-10 lg:grid-cols-[220px_minmax(0,1fr)] items-start">
+                    <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0">
+                      <div data-series-hero={name} className="rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-hero)' }}>
+                        <div className="relative aspect-[2/3]">
+                          {/* No picture known yet: the box holds empty rather than drawing "no cover". */}
+                          {previewCover && <CoverImage src={previewCover} alt="" loading="eager" color={listed?.cover_color} iconClassName="w-10 h-10" />}
+                        </div>
+                      </div>
+                    </div>
+                    <div className="min-w-0">
+                      <h1 className="font-display text-[34px] leading-none font-bold text-foreground">{name === '__unserialized__' ? t`No series` : name}</h1>
+                    </div>
                   </div>
                 </>
-              ) : (() => {
+                )
+              })() : (() => {
                 const isUnserialized = seriesDetail.name === '__unserialized__'
                 const total = seriesDetail.books.length
-                const readCount = seriesDetail.books.filter(b => b.reading_status === 'read').length
-                const readingCount = seriesDetail.books.filter(b => b.reading_status === 'reading').length
-                const unreadCount = total - readCount - readingCount
-                const readPct = total ? (readCount / total) * 100 : 0
-                const readingPct = total ? (readingCount / total) * 100 : 0
+                const readN = seriesDetail.books.filter(b => b.reading_status === 'read').length
+                const readingN = seriesDetail.books.filter(b => b.reading_status === 'reading').length
+                const unreadN = total - readN - readingN
+                const readPct = total ? (readN / total) * 100 : 0
+                const readingPct = total ? (readingN / total) * 100 : 0
                 const heroCoverId = seriesList.find(s => s.name === seriesDetail.name)?.cover_book_id
-                  ?? seriesDetail.books[0]?.id ?? null
+                  ?? (seriesDetail.books.find(b => b.cover_path) ?? seriesDetail.books[0])?.id ?? null
+                const heroCoverColor = seriesDetail.books.find(b => b.id === heroCoverId)?.cover_color
                 const sections = groupVolumesByArc(seriesDetail.books, seriesArcs)
                 const hasArcs = seriesArcs.length > 0
                 const coverage = seriesDetail.books.map(b => ({
@@ -1333,8 +1534,8 @@ export function DashboardPage() {
                     <div className="text-[13px] text-muted-foreground flex items-center gap-1.5">
                       <button
                         type="button"
-                        onClick={() => showSeries(null)}
-                        className="inline-flex items-center gap-1 hover:text-foreground transition-colors"
+                        onClick={backToSeries}
+                        className="inline-flex items-center gap-1 hover:text-foreground transition-colors touch-feedback"
                       >
                         <ArrowLeft className="w-3.5 h-3.5" />
                         <Trans>Series</Trans>
@@ -1352,8 +1553,8 @@ export function DashboardPage() {
                             {/* First, so its late arrival or longer label ("Finish by Dec 31") moves nothing to its right. */}
                             {!isUnserialized && (
                               <FinishByPill
-                                target={{ series: seriesDetail.name, cover: heroCoverId, read: readCount, total }}
-                                done={total > 0 && readCount === total}
+                                target={{ series: seriesDetail.name, cover: heroCoverId, read: readN, total }}
+                                done={total > 0 && readN === total}
                               />
                             )}
                             {!isUnserialized && (
@@ -1379,11 +1580,12 @@ export function DashboardPage() {
                   {/* ── Rail (cover, coverage) and content (title, state, description, actions, stats) ── */}
                   <div className="grid gap-8 lg:gap-10 lg:grid-cols-[220px_minmax(0,1fr)] items-start">
                     <div className="mx-auto w-[200px] sm:w-[220px] lg:mx-0">
-                      <div className="rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-hero)' }}>
+                      <div data-series-hero={seriesDetail.name} className="rounded-[12px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-hero)' }}>
                         <div className="relative aspect-[2/3]">
                           <CoverImage
                             src={heroCoverId != null ? coverSrc(heroCoverId, { w: 400 }) : null}
                             alt=""
+                            color={heroCoverColor}
                             iconClassName="w-10 h-10"
                           />
                         </div>
@@ -1411,7 +1613,7 @@ export function DashboardPage() {
                               key={sec.arcId}
                               type="button"
                               onClick={() => document.getElementById(`series-arc-${sec.arcId}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
-                              className="h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-surface-hover transition-colors"
+                              className="h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-surface-hover transition-[color,background-color,transform] touch-feedback"
                             >
                               {sec.name}
                             </button>
@@ -1422,20 +1624,29 @@ export function DashboardPage() {
                       <SeriesRating seriesName={seriesDetail.name} isUnserialized={isUnserialized} />
 
 
-                      {/* Progress through the series */}
-                      <div>
+                      {/* Progress through the series: the bar and the figures move
+                          when they change (Mark all read); another series starts fresh. */}
+                      <div key={seriesDetail.name}>
                         <div className="flex items-center gap-3">
                           <div
                             className="h-[6px] flex-1 rounded-full overflow-hidden flex"
                             style={{ background: 'var(--rail)' }}
                           >
-                            <div className="h-full bg-primary" style={{ width: `${readPct}%` }} />
-                            <div className="h-full bg-primary/50" style={{ width: `${readingPct}%` }} />
+                            <div className="h-full bg-primary transition-[width] duration-300 ease-(--spring)" style={{ width: `${readPct}%` }} />
+                            <div className="h-full bg-primary/50 transition-[width] duration-300 ease-(--spring)" style={{ width: `${readingPct}%` }} />
                           </div>
-                          <span className="text-[17px] font-bold tabular-nums text-foreground">{Math.round(readPct)}%</span>
+                          <span className="text-[17px] font-bold tabular-nums text-foreground">
+                            <RunningNumber value={Math.round(readPct)} format={n => `${Math.round(n)}%`} />
+                          </span>
                         </div>
                         <p className="mt-1.5 text-[13px] text-muted-foreground">
-                          <Trans>{readCount} read &middot; {readingCount} reading &middot; {unreadCount} unread</Trans>
+                          {(() => {
+                            // Same message as before; the figures inside it run.
+                            const readCount = <RunningNumber value={readN} />
+                            const readingCount = <RunningNumber value={readingN} />
+                            const unreadCount = <RunningNumber value={unreadN} />
+                            return <Trans>{readCount} read &middot; {readingCount} reading &middot; {unreadCount} unread</Trans>
+                          })()}
                         </p>
                         {seriesDetail.backlog && seriesDetail.backlog.estimated > 0 && (
                           <p className="mt-1 text-[13px] text-muted-foreground" title={describePace(seriesDetail.backlog.pace, seriesDetail.backlog.by_type.some(t => t.type_avg > 0) ? 'type_avg' : 'words')}>
@@ -1466,12 +1677,9 @@ export function DashboardPage() {
 
                       {seriesDetail.description && (
                         <div className="max-w-[680px]">
-                          <p className={cn(
-                            'text-[15px] text-foreground/80 leading-relaxed whitespace-pre-line',
-                            !seriesDescExpanded && 'line-clamp-3'
-                          )}>
+                          <ClampedText expanded={seriesDescExpanded} className="text-[15px] text-foreground/80 leading-relaxed whitespace-pre-line">
                             {seriesDetail.description}
-                          </p>
+                          </ClampedText>
                           {seriesDetail.description.length > 240 && (
                             <button
                               onClick={() => setSeriesDescExpanded(v => !v)}
@@ -1528,25 +1736,32 @@ export function DashboardPage() {
                       )}
                       <div className="mt-4 grid grid-cols-4 sm:grid-cols-6 md:grid-cols-8 lg:grid-cols-10 gap-x-3 gap-y-4">
                         {section.volumes.map(vol => (
-                          <div
+                          <BookLink
                             key={vol.id}
-                            onClick={() => navigate(`/books/${vol.id}`)}
+                            book={{
+                              id: vol.id, title: vol.title, author: seriesDetail.author ?? null, series: seriesDetail.name,
+                              series_index: vol.series_index, cover: vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null,
+                              coverColor: vol.cover_color,
+                            }}
                             title={vol.title}
-                            className="group relative cursor-pointer touch-feedback"
+                            className="group relative block cursor-pointer rounded-[8px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
                           >
+                            <CoverLift>
                             <div
-                              className="relative aspect-[2/3] w-full rounded-[8px] overflow-hidden bg-muted transition-transform duration-150 group-hover:-translate-y-0.5"
+                              data-cover-id={vol.id}
+                              className="relative aspect-[2/3] w-full rounded-[8px] overflow-hidden bg-muted"
                               style={{ boxShadow: 'var(--cover-bloom-fan)' }}
                             >
                               <CoverImage
                                 src={vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null}
                                 alt={vol.title}
+                                color={vol.cover_color}
                                 iconClassName="w-4 h-4"
                               />
                               {/* Quick-read play button - top-left corner on hover */}
                               <button
                                 type="button"
-                                onClick={e => { e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
+                                onClick={e => { e.preventDefault(); e.stopPropagation(); navigate(`/reader/${vol.id}`) }}
                                 className="absolute top-1 left-1 z-10 w-7 h-7 rounded-full bg-background/75 backdrop-blur-sm text-foreground hover:bg-background flex items-center justify-center opacity-0 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 title={t({ message: 'Read', context: 'action' })}
                                 aria-label={t({ message: 'Read', context: 'action' })}
@@ -1556,7 +1771,7 @@ export function DashboardPage() {
                               {/* Quick look - top-right corner on hover; the status dot steps aside */}
                               <button
                                 type="button"
-                                onClick={e => { e.stopPropagation(); setQuickLookId(vol.id) }}
+                                onClick={e => { e.preventDefault(); e.stopPropagation(); openQuickLook(vol.id, e.currentTarget.parentElement?.getBoundingClientRect(), vol.cover_path ? coverSrc(vol.id, { w: 400, v: vol.updated_at }) : null) }}
                                 className="absolute top-1 right-1 z-10 w-7 h-7 rounded-full bg-background/75 backdrop-blur-sm text-foreground hover:bg-background flex items-center justify-center opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto group-focus-within:opacity-100 transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                                 title={t`Quick look`}
                                 aria-label={t`Quick look`}
@@ -1568,7 +1783,7 @@ export function DashboardPage() {
                                   bottom edge. Other states draw nothing. */}
                               {vol.reading_status === 'read' && (
                                 <span
-                                  className="absolute top-1.5 right-1.5 w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground grid place-items-center shadow-sm transition-opacity group-hover:opacity-0 group-focus-within:opacity-0"
+                                  className={cn('absolute top-1.5 right-1.5 w-[18px] h-[18px] rounded-full bg-primary text-primary-foreground grid place-items-center shadow-sm transition-[opacity,scale] duration-200 ease-(--spring) group-hover:opacity-0 group-focus-within:opacity-0', justMarked && 'starting:scale-0')}
                                   title={t({ message: 'Read', context: 'status' })}
                                   aria-label={t({ message: 'Read', context: 'status' })}
                                 >
@@ -1577,7 +1792,7 @@ export function DashboardPage() {
                               )}
                               {vol.reading_status === 'reading' && (
                                 <div className="absolute inset-x-0 bottom-0 z-[1] h-[3px] bg-black/40" aria-hidden>
-                                  <div className="h-full bg-primary" style={{ width: `${Math.max(4, Math.round(progressPercent(vol.progress_pct)))}%` }} />
+                                  <div className="h-full bg-primary transition-[width] duration-300" style={{ width: `${Math.max(4, Math.round(progressPercent(vol.progress_pct)))}%` }} />
                                 </div>
                               )}
                               {/* Volume bar: number left, on-device glyph right */}
@@ -1600,7 +1815,8 @@ export function DashboardPage() {
                                 )
                               })()}
                             </div>
-                          </div>
+                            </CoverLift>
+                          </BookLink>
                         ))}
                       </div>
                     </section>
@@ -1611,15 +1827,21 @@ export function DashboardPage() {
             ) : (
               <>
               <PageHeader
-                eyebrow={seriesLoading ? undefined : (() => {
+                eyebrow={!seriesLoaded ? undefined : (() => {
                   const n = seriesList.filter(s => s.name !== '__unserialized__').length
                   return <Plural value={n} one="# series" other="# series" />
                 })()}
                 title={<Trans>Series</Trans>}
               />
-              {seriesLoading ? (
-                <div className="flex justify-center py-24">
-                  <BookAnimation variant="refresh" className="block w-10 h-10 text-primary" />
+              {!seriesLoaded || (seriesLoading && seriesList.length === 0) ? (
+                <div aria-busy="true" className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-x-5 gap-y-8 animate-pulse">
+                  {Array.from({ length: 10 }, (_, i) => (
+                    <div key={i}>
+                      <div className="aspect-[2/3] rounded-[8px] bg-muted" />
+                      <div className="mt-2.5 h-3.5 w-4/5 rounded bg-muted" />
+                      <div className="mt-2 h-3 w-1/2 rounded bg-muted" />
+                    </div>
+                  ))}
                 </div>
               ) : seriesList.length === 0 ? (
                 <div className="flex flex-col items-start gap-4 py-10">
@@ -1637,7 +1859,7 @@ export function DashboardPage() {
                     return (
                       <button
                         key={s.name}
-                        onClick={() => {
+                        onClick={e => {
                           if (isUnserialized) {
                             setSearchParams(prev => {
                               const p = new URLSearchParams(prev)
@@ -1647,20 +1869,27 @@ export function DashboardPage() {
                               return p
                             })
                           } else {
-                            showSeries(s.name)
+                            // The cover grows into the series page's hero; the page's
+                            // Series crumb then goes back the same way.
+                            const cover = findSeriesCover(s.name, e.currentTarget)
+                            openSeriesWithCover(cover, s.name, () => showSeries(s.name, { ...seriesPreviewState({ name: s.name, cover: coverThumb(cover) }), fromSeriesGrid: true }))
                           }
                         }}
-                        className="group flex flex-col text-left min-w-0 touch-feedback focus:outline-none"
+                        className="group flex flex-col text-left min-w-0 focus:outline-none"
                       >
-                        <div
-                          className="relative aspect-[2/3] rounded-[8px] bg-muted overflow-hidden transition-transform duration-200 group-hover:-translate-y-0.5 group-focus-visible:ring-2 group-focus-visible:ring-ring"
-                          style={{ boxShadow: 'var(--cover-bloom-fan)' }}
-                        >
-                          <CoverImage
-                            src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
-                            alt={isUnserialized ? t`Unserialized` : s.name}
-                          />
-                        </div>
+                        <CoverLift>
+                          <div
+                            data-series-cover={isUnserialized ? undefined : s.name}
+                            className="relative aspect-[2/3] rounded-[8px] bg-muted overflow-hidden group-focus-visible:ring-2 group-focus-visible:ring-ring"
+                            style={{ boxShadow: 'var(--cover-bloom-fan)' }}
+                          >
+                            <CoverImage
+                              src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
+                              alt={isUnserialized ? t`Unserialized` : s.name}
+                              color={s.cover_color}
+                            />
+                          </div>
+                        </CoverLift>
                         <div className="pt-2.5 flex flex-col gap-0.5 min-w-0">
                           <div className="flex items-start gap-1.5 flex-wrap">
                             <span className="text-[14px] font-medium text-foreground leading-snug line-clamp-2 group-hover:text-primary transition-colors">
@@ -1688,8 +1917,8 @@ export function DashboardPage() {
                               className="mt-2 h-[3px] rounded-full overflow-hidden flex"
                               style={{ background: 'color-mix(in oklch, var(--primary) 25%, var(--background))' }}
                             >
-                              <div className="h-full bg-primary" style={{ width: `${(s.read_count / s.book_count) * 100}%` }} />
-                              <div className="h-full bg-primary/50" style={{ width: `${(s.reading_count / s.book_count) * 100}%` }} />
+                              <div className="h-full bg-primary transition-[width] duration-300 ease-(--spring)" style={{ width: `${(s.read_count / s.book_count) * 100}%` }} />
+                              <div className="h-full bg-primary/50 transition-[width] duration-300 ease-(--spring)" style={{ width: `${(s.reading_count / s.book_count) * 100}%` }} />
                             </div>
                           )}
                         </div>
@@ -1706,22 +1935,32 @@ export function DashboardPage() {
           <PageBody width="wide">
           <div className="flex flex-col gap-4">
           <PageHeader
-            eyebrow={loading
+            eyebrow={loading && totalCount == null
               ? '…'
               : (() => {
                   // Grouped rows are series stacks + standalones - "titles", not the
                   // ambiguous "entries" (which read like a book count and never matched it).
                   // The total of the current view (filters included); how many rows have
-                  // loaded so far is paging, not information for the header.
+                  // loaded so far is paging, not information for the header. While a new
+                  // list loads, the old count stays, dimmed like the cards.
                   const n = totalCount ?? books.length
-                  return groupActive
-                    ? plural(n, { one: '# title', other: '# titles' })
-                    : plural(n, { one: '# book', other: '# books' })
+                  return (
+                    <CountLabel
+                      // Grouping changes what is counted: the new figure shows at once, not run to.
+                      key={listGrouped ? 'titles' : 'books'}
+                      className={cn('transition-opacity duration-150', refreshing && 'opacity-50')}
+                      value={n}
+                      text={listGrouped
+                        ? plural(n, { one: '# title', other: '# titles' })
+                        : plural(n, { one: '# book', other: '# books' })}
+                    />
+                  )
                 })()}
             title={activeLibraryName ?? <Trans>All books</Trans>}
             actions={
               /* Capped at the viewport so the row wraps on phones instead of
-                 running off the side. */
+                 running off the side. Every control keeps its slot: nothing
+                 here moves when another one is toggled. */
               <div className="flex flex-wrap items-center sm:justify-end gap-1 max-w-[calc(100vw-2.5rem)]">
                 <SortMenu
                   fields={(Object.keys(SORT_LABELS) as SortField[]).map(f => ({ id: f, label: i18n._(SORT_LABELS[f]) }))}
@@ -1731,44 +1970,64 @@ export function DashboardPage() {
                 />
 
                 <Pill
-                  variant={filterOpen || activeFilterChips.length > 0 ? 'secondary' : 'quiet'}
+                  variant="quiet"
                   onClick={() => setFilterOpen(o => !o)}
                   aria-expanded={filterOpen}
                   aria-label={t`Filters`}
                   title={t`Filters`}
-                  className="px-3"
+                  className={cn('relative isolate px-3', (filterOpen || activeFilterChips.length > 0) && 'text-foreground')}
                 >
+                  <ToggleFill on={filterOpen || activeFilterChips.length > 0} />
                   <SlidersHorizontal className="w-4 h-4" />
                   <span className="hidden lg:inline"><Trans>Filters</Trans></span>
                   {/* Counts filter chips only: a search alone (hasFilters) is not
                       a filter and used to show a "0" badge. */}
-                  {activeFilterChips.length > 0 && (
-                    <span className="min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-foreground text-background text-[12px] font-semibold tabular-nums">
-                      {activeFilterChips.length}
-                    </span>
-                  )}
+                  <AnimatePresence initial={false}>
+                    {activeFilterChips.length > 0 && (
+                      <m.span
+                        key="count"
+                        initial={{ width: 0, opacity: 0, scale: 0.6 }}
+                        animate={{ width: 'auto', opacity: 1, scale: 1 }}
+                        exit={{ width: 0, opacity: 0, scale: 0.6 }}
+                        transition={{ duration: 0.16, ease: EASE }}
+                        className="inline-flex justify-end overflow-hidden -ml-1.5"
+                      >
+                        <span className="ml-1.5 min-w-5 h-5 px-1.5 grid place-items-center rounded-full bg-foreground text-background text-[12px] font-semibold tabular-nums">
+                          <RunningNumber value={activeFilterChips.length} />
+                        </span>
+                      </m.span>
+                    )}
+                  </AnimatePresence>
                 </Pill>
 
                 {/* Group by series toggle */}
                 <Pill
-                  variant={groupBySeries ? 'secondary' : 'quiet'}
-                  onClick={() => persistGroup(!groupBySeries)}
+                  variant="quiet"
+                  onClick={toggleGroup}
+                  onPointerEnter={prefetchGroup}
+                  onPointerDown={prefetchGroup}
+                  onFocus={prefetchGroup}
                   title={groupBySeries ? t`Show individual volumes` : t`Group volumes by series`}
                   aria-label={t`Group by series`}
                   aria-pressed={groupBySeries}
-                  className="px-3"
+                  className={cn('relative isolate px-3', groupBySeries && 'text-foreground')}
                 >
+                  <ToggleFill on={groupBySeries} />
                   <Layers className="w-4 h-4" />
                   <span className="hidden xl:inline"><Trans>Group series</Trans></span>
                 </Pill>
 
-                {/* Select mode toggle - selection operates on individual books, hidden while grouped */}
-                {books.length > 0 && !groupActive && (
-                  <>
+                {/* Select mode: selection works on single books, so it rests while
+                    grouped, in its place. */}
+                {(() => {
+                  const selectLabel = selectionMode ? (selected.size > 0 ? t`Deselect all` : t`Select all`) : t`Select`
+                  return (
                     <Pill
-                      variant={selectionMode ? 'secondary' : 'quiet'}
+                      variant="quiet"
+                      disabled={books.length === 0 || groupActive}
                       onClick={() => {
                         if (!selectionMode) {
+                          libraryGridRef.current?.prepare('select')
                           setSelectionMode(true)
                           selectAll()
                         } else if (selected.size > 0) {
@@ -1777,32 +2036,31 @@ export function DashboardPage() {
                           selectAll()
                         }
                       }}
-                      className="px-3"
-                      aria-label={selectionMode ? (selected.size > 0 ? t`Deselect all` : t`Select all`) : t`Select`}
-                      title={selectionMode ? (selected.size > 0 ? t`Deselect all` : t`Select all`) : t`Select`}
+                      className={cn('relative isolate px-3 disabled:opacity-35', selectionMode && 'text-foreground')}
+                      aria-label={selectLabel}
+                      title={selectLabel}
                     >
-                      {selectionMode
-                        ? selected.size > 0
-                          ? <><XSquare className="w-4 h-4" /><span className="hidden xl:inline"><Trans>Deselect all</Trans></span></>
-                          : <><CheckSquare className="w-4 h-4" /><span className="hidden xl:inline"><Trans>Select all</Trans></span></>
-                        : <><CheckSquare className="w-4 h-4" /><span className="hidden xl:inline"><Trans>Select</Trans></span></>
-                      }
+                      <ToggleFill on={selectionMode} />
+                      {selectionMode && selected.size > 0 ? <XSquare className="w-4 h-4" /> : <CheckSquare className="w-4 h-4" />}
+                      <ReserveLabel className="hidden xl:inline-grid" labels={[t`Select`, t`Select all`, t`Deselect all`]}>{selectLabel}</ReserveLabel>
                     </Pill>
-                    {selectionMode && (
-                      <Pill
-                        variant="quiet"
-                        icon
-                        onClick={exitSelectionMode}
-                        title={t`Exit selection mode`}
-                        aria-label={t`Exit selection mode`}
-                      >
-                        <X className="w-4 h-4" />
-                      </Pill>
-                    )}
-                  </>
-                )}
+                  )
+                })()}
+                {/* Its slot is kept while not selecting. */}
+                <Pill
+                  variant="quiet"
+                  icon
+                  onClick={exitSelectionMode}
+                  title={t`Exit selection mode`}
+                  aria-label={t`Exit selection mode`}
+                  aria-hidden={!selectionMode || undefined}
+                  tabIndex={selectionMode ? undefined : -1}
+                  className={cn('transition-[opacity,scale,color,background-color]! motion-reduce:transition-none', !selectionMode && 'opacity-0 scale-75 pointer-events-none')}
+                >
+                  <X className="w-4 h-4" />
+                </Pill>
 
-                {/* Cover size (grid only) + grid / list */}
+                {/* Cover size (grid only, resting in the list) + grid / list */}
                 <div className="flex items-center">
                   <input
                     type="range"
@@ -1814,64 +2072,78 @@ export function DashboardPage() {
                     title={t`Cover size`}
                     aria-label={t`Cover size`}
                     tabIndex={view === 'grid' ? 0 : -1}
+                    disabled={view !== 'grid'}
                     className={cn(
-                      'cover-slider transition-all duration-200',
-                      view === 'grid'
-                        ? 'w-20 sm:w-24 opacity-100 mx-2'
-                        : 'w-0 opacity-0 mx-0 pointer-events-none'
+                      'cover-slider w-20 sm:w-24 mx-2 transition-opacity duration-150',
+                      view === 'grid' ? 'opacity-100' : 'opacity-35 pointer-events-none'
                     )}
                     style={{
                       background: `linear-gradient(to right, var(--primary) ${((gridSize - GRID_SIZE_MIN) / (GRID_SIZE_MAX - GRID_SIZE_MIN)) * 100}%, var(--input) 0)`,
                     }}
                   />
-                  {([
-                    { mode: 'grid' as ViewPref, Icon: LayoutGrid, title: t`Grid view` },
-                    { mode: 'list' as ViewPref, Icon: List, title: t`List view` },
-                  ]).map(({ mode, Icon, title }) => (
-                    <Pill
-                      key={mode}
-                      icon
-                      variant={view === mode ? 'secondary' : 'quiet'}
-                      onClick={() => persistView(mode)}
-                      title={title}
-                      aria-label={title}
-                      aria-pressed={view === mode}
-                    >
-                      <Icon className="w-4 h-4" />
-                    </Pill>
-                  ))}
+                  <GlideGroup>
+                    <div className="isolate flex items-center">
+                      {([
+                        { mode: 'grid' as ViewPref, Icon: LayoutGrid, title: t`Grid view` },
+                        { mode: 'list' as ViewPref, Icon: List, title: t`List view` },
+                      ]).map(({ mode, Icon, title }) => (
+                        <Pill
+                          key={mode}
+                          icon
+                          variant="quiet"
+                          onClick={() => switchView(mode)}
+                          title={title}
+                          aria-label={title}
+                          aria-pressed={view === mode}
+                          className={cn('relative', view === mode && 'text-foreground')}
+                        >
+                          {view === mode && <Glide behind className="bg-secondary" />}
+                          <Icon className="w-4 h-4" />
+                        </Pill>
+                      ))}
+                    </div>
+                  </GlideGroup>
                 </div>
               </div>
             }
           />
 
           {/* ── Active filters as chips, Add shelf, Clear all ─────────────── */}
-          {(activeFilterChips.length > 0 || hasFilters) && (
-            <div className="flex items-center gap-2 flex-wrap">
-              {activeFilterChips.map(f => (
-                <span key={f.key} className="inline-flex items-center gap-1 h-8 pl-3.5 pr-1.5 rounded-full bg-secondary text-[13px] font-medium text-foreground">
-                  {f.label}
-                  <button
-                    type="button"
-                    onClick={() => setFilter(f.key, '')}
-                    aria-label={t`Remove filter`}
-                    className="w-6 h-6 grid place-items-center rounded-full text-muted-foreground hover:text-destructive hover:bg-background/60 transition-colors"
-                  >
-                    <X className="w-3.5 h-3.5" />
-                  </button>
-                </span>
-              ))}
+          {/* The row unfolds; chips come and go in it, the rest glide. */}
+          <Unfold open={activeFilterChips.length > 0 || hasFilters} gap={16}>
+            <div className="relative flex items-center gap-2 flex-wrap">
+              <AnimatePresence mode="popLayout" initial={false}>
+                {activeFilterChips.map(f => (
+                  <m.span key={f.key} {...listItem} className="inline-flex items-center gap-1 h-8 pl-3.5 pr-1.5 rounded-full bg-secondary text-[13px] font-medium text-foreground">
+                    {f.label}
+                    <button
+                      type="button"
+                      onClick={() => setFilter(f.key, '')}
+                      aria-label={t`Remove filter`}
+                      className="w-6 h-6 grid place-items-center rounded-full text-muted-foreground hover:text-destructive hover:bg-background/60 transition-colors touch-feedback"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                    </button>
+                  </m.span>
+                ))}
 
-              {/* Save filter button - only when content filters active (not library) */}
-              <SaveFilterButton params={saveableParams} onSaved={loadSavedFilters} />
+                {/* Save filter button - only when content filters active (not library) */}
+                <m.span key="save" layout="position" transition={listItem.transition}>
+                  <SaveFilterButton params={saveableParams} onSaved={loadSavedFilters} />
+                </m.span>
 
-              <Pill variant="quiet" onClick={clearFilters}>
-                <Trans>Clear all</Trans>
-              </Pill>
+                <m.span key="clear" layout="position" transition={listItem.transition}>
+                  <Pill variant="quiet" onClick={clearFilters}>
+                    <Trans>Clear all</Trans>
+                  </Pill>
+                </m.span>
+              </AnimatePresence>
             </div>
-          )}
+          </Unfold>
 
           {/* ── Filter panel ──────────────────────────────────────────────── */}
+          {/* Unfolds under the header; gap 16 = the column's gap-4. */}
+          <Unfold open={filterOpen} gap={16}>
           {filterOpen && (() => {
             /* eslint-disable lingui/no-unlocalized-strings -- Tailwind classes */
             const opt = (active: boolean) => cn(
@@ -1899,11 +2171,15 @@ export function DashboardPage() {
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={rowLabel}><Trans>Status</Trans></span>
-                {(['', 'unread', 'want_to_read', 'reading', 'read', 'shelved'] as const).map(s => (
-                  <button key={s} type="button" onClick={() => setFilter('reading_status', s)} className={opt(filterReadingStatus === s)}>
-                    {s === '' ? t`All` : i18n._(READING_STATUS_LABELS[s])}
-                  </button>
-                ))}
+                <PillGroup
+                  size="sm"
+                  aria-label={t`Status`}
+                  value={filterReadingStatus}
+                  onChange={v => setFilter('reading_status', v)}
+                  options={(['', 'unread', 'want_to_read', 'reading', 'read', 'shelved'] as const).map(s => ({
+                    value: s as string, label: s === '' ? t`All` : i18n._(READING_STATUS_LABELS[s]),
+                  }))}
+                />
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={rowLabel}><Trans>Length</Trans></span>
@@ -1926,45 +2202,46 @@ export function DashboardPage() {
                   </Fragment>
                 ))}
                 </div>
-                {(filterMinWords || filterMaxWords) && (
-                  <span className="text-[13px] text-muted-foreground sm:ml-2"><Trans>Books without a word count are hidden.</Trans></span>
-                )}
+                <Unfold open={!!(filterMinWords || filterMaxWords)}>
+                  <span className="block text-[13px] text-muted-foreground sm:ml-2"><Trans>Books without a word count are hidden.</Trans></span>
+                </Unfold>
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={rowLabel}><Trans>Rating</Trans></span>
-                {([
-                  { value: '', label: t`All`, starless: true },
-                  { value: '1', label: t`Rated`, starless: true },
-                  { value: '3', label: '3+', starless: false },
-                  { value: '4', label: '4+', starless: false },
-                  { value: '5', label: '5', starless: false },
-                ]).map(({ value, label, starless }) => (
-                  <button
-                    key={value}
-                    type="button"
-                    onClick={() => setFilter('min_rating', value)}
-                    className={opt((filterMinRating ? String(filterMinRating) : '') === value)}
-                  >
-                    {!starless && <Star className="w-3 h-3 fill-current" />}
-                    {label}
-                  </button>
-                ))}
+                <PillGroup
+                  size="sm"
+                  aria-label={t`Rating`}
+                  value={filterMinRating ? String(filterMinRating) : ''}
+                  onChange={v => setFilter('min_rating', v)}
+                  options={([
+                    { value: '', label: t`All`, starless: true },
+                    { value: '1', label: t`Rated`, starless: true },
+                    { value: '3', label: '3+', starless: false },
+                    { value: '4', label: '4+', starless: false },
+                    { value: '5', label: '5', starless: false },
+                  ]).map(({ value, label, starless }) => ({
+                    value,
+                    label: starless ? label : <span className="inline-flex items-center gap-1"><Star className="w-3 h-3 fill-current" />{label}</span>,
+                  }))}
+                />
               </div>
               <div className="flex items-center gap-2 flex-wrap">
                 <span className={rowLabel}><Trans>Missing</Trans></span>
-                {([
-                  { value: '', label: t`All` },
-                  { value: 'cover', label: t`Cover` },
-                  { value: 'description', label: t`Description` },
-                  { value: 'author', label: t`Author` },
-                  { value: 'series', label: t`Series` },
-                  { value: 'any', label: t`Any` },
-                  { value: 'file', label: t`File` },
-                ]).map(({ value, label }) => (
-                  <button key={value} type="button" onClick={() => setFilter('missing', value)} className={opt(filterMissing === value)}>
-                    {label}
-                  </button>
-                ))}
+                <PillGroup
+                  size="sm"
+                  aria-label={t`Missing`}
+                  value={filterMissing}
+                  onChange={v => setFilter('missing', v)}
+                  options={[
+                    { value: '', label: t`All` },
+                    { value: 'cover', label: t`Cover` },
+                    { value: 'description', label: t`Description` },
+                    { value: 'author', label: t`Author` },
+                    { value: 'series', label: t`Series` },
+                    { value: 'any', label: t`Any` },
+                    { value: 'file', label: t`File` },
+                  ]}
+                />
               </div>
               {/* Device filter: one pill per device, click cycles off / on / not on */}
               {devices.length > 0 && (
@@ -1983,6 +2260,7 @@ export function DashboardPage() {
                           : t`Click: ${name} does not matter`}
                         className={cn(
                           opt(state === 'on'),
+                          'touch-feedback transition-[color,background-color,transform]',
                           state === 'not' && 'bg-destructive/10 text-destructive hover:text-destructive',
                         )}
                       >
@@ -1997,15 +2275,17 @@ export function DashboardPage() {
               {isMember(user) && !isAdmin(user) && (
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className={rowLabel}><Trans>Books</Trans></span>
-                  {([
-                    { value: '', label: t`All` },
-                    { value: 'mine', label: t`My books` },
-                    { value: 'shared', label: t`Shared library` },
-                  ] as const).map(({ value, label }) => (
-                    <button key={value} type="button" onClick={() => setFilter('ownership', value)} className={opt(filterOwnership === value)}>
-                      {label}
-                    </button>
-                  ))}
+                  <PillGroup
+                    size="sm"
+                    aria-label={t`Books`}
+                    value={filterOwnership}
+                    onChange={v => setFilter('ownership', v)}
+                    options={[
+                      { value: '', label: t`All` },
+                      { value: 'mine', label: t`My books` },
+                      { value: 'shared', label: t`Shared library` },
+                    ]}
+                  />
                 </div>
               )}
               {/* Uploader filter - admins only */}
@@ -2041,11 +2321,12 @@ export function DashboardPage() {
             </div>
             )
           })()}
+          </Unfold>
 
           {/* ── Bulk action bar ──────────────────────────────────────────── */}
-          {selectionMode && (
+          <Unfold open={selectionMode} gap={16}>
             <div className="flex flex-wrap items-center gap-2 py-2.5 border-y border-border/70">
-              <span className="text-[15px] font-semibold text-foreground tabular-nums mr-auto">{(() => { const n = selected.size; return t`${n} selected` })()}</span>
+              {(() => { const n = selected.size; return <CountLabel className="text-[15px] font-semibold text-foreground tabular-nums mr-auto" value={n} text={t`${n} selected`} /> })()}
               <Pill onClick={bulkDownload} disabled={bulkPending || selected.size === 0}>
                 <Download className="w-4 h-4" />
                 <Trans>Download ZIP</Trans>
@@ -2086,10 +2367,8 @@ export function DashboardPage() {
                     <LibraryIcon className="w-4 h-4" />
                     <Trans>Add to library</Trans>
                   </Pill>
-                  {bulkLibMenu && (
-                    <>
-                      <div className="fixed inset-0 z-10" onClick={() => setBulkLibMenu(false)} />
-                      <div className="absolute right-0 top-full mt-2 z-20 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring py-1.5 min-w-56 max-w-[calc(100vw-2rem)]">
+                  {bulkLibMenu && <div className="fixed inset-0 z-10" onClick={() => setBulkLibMenu(false)} />}
+                  <Pop open={bulkLibMenu} origin="top-right" className="absolute right-0 top-full mt-2 z-20 rounded-xl bg-card shadow-lg ring-1 ring-panel-ring py-1.5 min-w-56 max-w-[calc(100vw-2rem)]">
                         <p className="border-b border-border px-3 pb-2 pt-0.5 mb-1 text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground">
                           <Trans>Add to library</Trans>
                         </p>
@@ -2104,9 +2383,7 @@ export function DashboardPage() {
                             <span className="truncate">{lib.name}</span>
                           </button>
                         ))}
-                      </div>
-                    </>
-                  )}
+                  </Pop>
                 </div>
               )}
               <Pill
@@ -2121,11 +2398,11 @@ export function DashboardPage() {
                 <Trans>Done</Trans>
               </Pill>
             </div>
-          )}
+          </Unfold>
           </div>
 
           {/* ── Series matching the search ───────────────────────────────── */}
-          {search && !groupActive && searchSeries.length > 0 && (
+          <Unfold open={!!search && !groupActive && searchSeries.length > 0} gap={28}>
             <section>
               <p className="text-[12px] font-bold uppercase tracking-[0.1em] text-muted-foreground mb-3 flex items-center gap-1.5">
                 <Layers className="w-3.5 h-3.5" />
@@ -2137,16 +2414,19 @@ export function DashboardPage() {
                   return (
                     <button
                       key={name}
-                      onClick={() => navigate(`/?tab=series&series_detail=${encodeURIComponent(name)}`)}
-                      className="group flex items-center gap-3 w-72 shrink-0 p-2 pr-3 text-left rounded-xl hover:bg-secondary transition-colors"
+                      onClick={e => openSeries(name, undefined, { near: e.currentTarget })}
+                      className="group flex items-center gap-3 w-72 shrink-0 p-2 pr-3 text-left rounded-xl hover:bg-secondary transition-colors touch-feedback"
                     >
-                      <div className="relative w-12 aspect-[2/3] shrink-0 rounded-[6px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
-                        <CoverImage
-                          src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
-                          alt={name}
-                          iconClassName="w-4 h-4"
-                        />
-                      </div>
+                      <CoverLift className="w-12">
+                        <div data-series-cover={name} className="relative aspect-[2/3] rounded-[6px] overflow-hidden bg-muted" style={{ boxShadow: 'var(--cover-bloom-fan)' }}>
+                          <CoverImage
+                            src={s.cover_book_id ? coverSrc(s.cover_book_id, { w: 400 }) : null}
+                            alt={name}
+                            color={s.cover_color}
+                            iconClassName="w-4 h-4"
+                          />
+                        </div>
+                      </CoverLift>
                       <div className="flex flex-col gap-0.5 min-w-0 flex-1">
                         <span className="text-[15px] font-medium text-foreground leading-tight line-clamp-2 group-hover:text-primary transition-colors">{name}</span>
                         {s.author && <span className="text-[13px] text-muted-foreground truncate">{s.author}</span>}
@@ -2157,8 +2437,8 @@ export function DashboardPage() {
                         </span>
                         {s.book_count > 0 && (s.read_count > 0 || s.reading_count > 0) && (
                           <div className="mt-1 h-[3px] rounded-full overflow-hidden flex" style={{ background: 'color-mix(in oklch, var(--primary) 25%, var(--background))' }}>
-                            <div className="h-full bg-primary" style={{ width: `${(s.read_count / s.book_count) * 100}%` }} />
-                            <div className="h-full bg-primary/50" style={{ width: `${(s.reading_count / s.book_count) * 100}%` }} />
+                            <div className="h-full bg-primary transition-[width] duration-300 ease-(--spring)" style={{ width: `${(s.read_count / s.book_count) * 100}%` }} />
+                            <div className="h-full bg-primary/50 transition-[width] duration-300 ease-(--spring)" style={{ width: `${(s.reading_count / s.book_count) * 100}%` }} />
                           </div>
                         )}
                       </div>
@@ -2167,7 +2447,7 @@ export function DashboardPage() {
                 })}
               </HScrollRow>
             </section>
-          )}
+          </Unfold>
 
           {/* ── Grid / list, with the search result count above ─────────── */}
           <div>
@@ -2175,14 +2455,12 @@ export function DashboardPage() {
               empty state below, and it said "no results" twice. */}
           {search && !loading && totalCount !== null && totalCount > 0 && (
             <p className="text-[14px] text-muted-foreground mb-4">
-              {plural(totalCount, { one: `# result for "${search}"`, other: `# results for "${search}"` })}
+              <CountLabel value={totalCount} text={plural(totalCount, { one: `# result for "${search}"`, other: `# results for "${search}"` })} />
             </p>
           )}
 
           {loading ? (
-            <div className="flex justify-center py-24">
-              <BookAnimation variant="refresh" className="block w-12 h-12 text-primary" />
-            </div>
+            <LibrarySkeleton list={view === 'list'} gridSize={gridSize} />
           ) : books.length === 0 ? (
             <div className="flex flex-col items-start gap-4 py-10">
               {search ? (
@@ -2219,51 +2497,26 @@ export function DashboardPage() {
               )}
             </div>
           ) : (
-            <div key={view} ref={booksGridRef} className={cn(gridClass, refreshing && 'opacity-50 transition-opacity duration-150')} style={gridStyle}>
-              {/* Motion layout animations: `layout` glides the survivors on a
-                  reflow (cover-size slider, filter changes). Arriving cards
-                  appear in place, never fading up from nothing inside the
-                  painted panel; leaving cards fade out. */}
-              <AnimatePresence mode="popLayout" initial={false}>
-              {books.map((book, i) => (
-                <m.div
-                  key={`${cardView}-${groupActive && book.series && book.status !== 'no_file' ? 'stack-' : ''}${book.id}`}
-                  layout
-                  initial={false}
-                  animate={{ opacity: 1, scale: 1 }}
-                  exit={{ opacity: 0, scale: 0.92 }}
-                  transition={{ layout: { duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }, duration: 0.15 }}
-                >
-                {groupActive && book.series && book.status !== 'no_file' ? (
-                  <SeriesStackCard
-                    book={book}
-                    count={book.series_count ?? 1}
-                    view={cardView}
-                    index={i}
-                    focused={focusedIndex === i}
-                    onOpen={() => navigate(`/?tab=series&series_detail=${encodeURIComponent(book.series!)}`)}
-                  />
-                ) : (
-                <BookCard
-                  book={book}
-                  view={cardView}
-                  index={i}
-                  selected={selected.has(book.id)}
-                  focused={focusedIndex === i}
-                  onSelect={selectionMode ? (e) => { e.preventDefault(); toggleSelect(book.id, e.shiftKey) } : undefined}
-                  onTagClick={tag => setFilter('tag', tag)}
-                  onSeriesClick={series => setFilter('series', series)}
-                  onAuthorClick={author => setFilter('author', author)}
-                  onQuickLook={() => setQuickLookId(book.id)}
-                  readingStatus={readingStatuses[book.id]?.status}
-                  progressPct={readingStatuses[book.id]?.progress_pct}
-                  rating={readingStatuses[book.id]?.rating}
-                />
-                )}
-                </m.div>
-              ))}
-              </AnimatePresence>
-            </div>
+            <LibraryGrid
+              ref={libraryGridRef}
+              books={books}
+              grouped={listGrouped}
+              view={cardView}
+              gridSize={gridSize}
+              statuses={readingStatuses}
+              selected={selected}
+              selecting={selectionMode}
+              focusedIndex={focusedIndex}
+              refreshing={refreshing}
+              resume={resume}
+              staged={!resume && !!seed}
+              onToggle={onToggleCard}
+              onTag={onTagCard}
+              onSeries={onSeriesCard}
+              onAuthor={onAuthorCard}
+              onQuickLook={openQuickLook}
+              onOpenSeries={openSeries}
+            />
           )}
           {/* Infinite scroll sentinel */}
           <div ref={sentinelCallback} className="h-1 mt-2" />
@@ -2295,7 +2548,9 @@ export function DashboardPage() {
       />
 
       {/* ── Quick look (Library grid, series volumes) ───────────────────────── */}
-      {quickLookId != null && <QuickLook bookId={quickLookId} onClose={closeQuickLook} />}
+      <AnimatePresence>
+        {quickLookId != null && <QuickLook key={quickLookId} bookId={quickLookId} origin={quickLookFrom.origin} cover={quickLookFrom.cover} preview={quickLookPreview(quickLookId)} onClose={closeQuickLook} />}
+      </AnimatePresence>
 
       {/* ── Bulk metadata modal ─────────────────────────────────────────────── */}
       <ModalShell
@@ -2397,6 +2652,39 @@ export function DashboardPage() {
       </ModalShell>
     </ShellFrame>
   )
+}
+
+/** Text clamped to three lines that opens to its full height and closes back
+ *  smoothly (200 ms); the ellipsis is there whenever it is closed. */
+function ClampedText({ expanded, className, children }: { expanded: boolean; className?: string; children: React.ReactNode }) {
+  const ref = useRef<HTMLParagraphElement>(null)
+  const reduce = useReducedMotion()
+  // While closing, the full text stays until the box has shrunk to three lines.
+  const [closing, setClosing] = useState(false)
+  const [was, setWas] = useState(expanded)
+  if (was !== expanded) {
+    setWas(expanded)
+    setClosing(!expanded && !reduce)
+  }
+  useLayoutEffect(() => {
+    const el = ref.current
+    if (!el || reduce || was !== expanded) return
+    if (!expanded && !closing) return
+    const now = el.getBoundingClientRect().height
+    el.classList.add('line-clamp-3')
+    const short = el.getBoundingClientRect().height
+    el.classList.remove('line-clamp-3')
+    const [from, to] = expanded ? [short, now] : [now, short]
+    if (from === to) { if (!expanded) setClosing(false); return }
+    /* eslint-disable lingui/no-unlocalized-strings -- CSS values */
+    const anim = el.animate([{ height: `${from}px`, overflow: 'hidden' }, { height: `${to}px`, overflow: 'hidden' }], { duration: 200, easing: EASE_CSS })
+    /* eslint-enable lingui/no-unlocalized-strings */
+    if (!expanded) anim.onfinish = () => setClosing(false)
+    return () => anim.cancel()
+    // Runs once per open or close.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expanded])
+  return <p ref={ref} className={cn(className, !expanded && !closing && 'line-clamp-3')}>{children}</p>
 }
 
 function FilterSelect({ label, value, options, onChange }: {

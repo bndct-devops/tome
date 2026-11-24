@@ -5,6 +5,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { afterLoginPath } from '@/lib/afterLogin'
 import { ThemePill } from '@/components/ThemeToggle'
 import { Pill } from '@/components/page'
+import { AnimatePresence, m } from 'motion/react'
+import { Unfold, stepSwap } from '@/components/motion'
 import { AuthError, AuthField, AuthFrame, AuthInput, AuthPanel, AuthPasswordInput, Spinner } from '@/components/auth/AuthPanel'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { msg } from '@lingui/core/macro'
@@ -12,6 +14,7 @@ import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
 
 const API_BASE = '/api'
+
 
 // Human-readable messages for the ?sso_error= codes the OIDC callback bounces back.
 const SSO_ERRORS: Record<string, MessageDescriptor> = {
@@ -43,6 +46,9 @@ export function LoginPage() {
   const [password, setPassword] = useState('')
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
+  // The last message stays in the box while it folds away.
+  const [shownError, setShownError] = useState(error)
+  if (error && error !== shownError) setShownError(error)
   const [loading, setLoading] = useState(false)
 
   // SSO (OIDC) state
@@ -69,6 +75,8 @@ export function LoginPage() {
   const [qcLoading, setQcLoading] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // The outgoing panel stays clickable while it fades: one start at a time.
+  const qcStartingRef = useRef(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -102,6 +110,8 @@ export function LoginPage() {
   }
 
   async function startQuickConnect() {
+    if (qcStartingRef.current) return
+    qcStartingRef.current = true
     setQcMode(true)
     setQcError(null)
     setQcLoading(true)
@@ -122,6 +132,9 @@ export function LoginPage() {
           setQcError(t`Code expired. Try again.`)
         }
       }
+      // Never orphan an earlier pair of intervals.
+      if (timerRef.current) clearInterval(timerRef.current)
+      if (pollRef.current) clearInterval(pollRef.current)
       updateTimer()
       timerRef.current = setInterval(updateTimer, 1000)
 
@@ -158,6 +171,8 @@ export function LoginPage() {
       setQcMode(false)
     } finally {
       setQcLoading(false)
+      // Held past the button's fade-out, where a second click of a double click lands.
+      setTimeout(() => { qcStartingRef.current = false }, 300)
     }
   }
 
@@ -183,7 +198,9 @@ export function LoginPage() {
           the vertical centre, not panel + footer. */}
       <p aria-hidden className="invisible mb-6 text-[13px]">&nbsp;</p>
 
+      <AnimatePresence mode="wait" initial={false}>
       {qcMode ? (
+        <m.div key="qc" {...stepSwap} className="w-full flex justify-center">
         <AuthPanel
           eyebrow={<Trans>Sign in with a code</Trans>}
           title={<Trans>Quick connect</Trans>}
@@ -229,7 +246,9 @@ export function LoginPage() {
             </div>
           ) : null}
         </AuthPanel>
+        </m.div>
       ) : (
+        <m.div key="password" {...stepSwap} className="w-full flex justify-center">
         <AuthPanel title={<Trans>Welcome back</Trans>} subtitle={<Trans>Sign in to your library</Trans>}>
           <form onSubmit={handleSubmit} className="space-y-4">
             <AuthField label={<Trans>Username or email</Trans>}>
@@ -257,7 +276,7 @@ export function LoginPage() {
               />
             </AuthField>
 
-            {error && <AuthError>{error}</AuthError>}
+            <Unfold open={!!error} gap={16}><AuthError>{shownError}</AuthError></Unfold>
 
             <div className="pt-2">
               <Pill type="submit" variant="primary" size="lg" disabled={loading} className="w-full">
@@ -279,7 +298,9 @@ export function LoginPage() {
             </Pill>
           </div>
         </AuthPanel>
+        </m.div>
       )}
+      </AnimatePresence>
 
       <p className="text-center text-[13px] text-muted-foreground mt-6">
         <Trans>Tome · Your personal library</Trans>

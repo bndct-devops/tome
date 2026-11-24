@@ -9,7 +9,10 @@ import { Trans } from '@lingui/react/macro'
 import { t, msg } from '@lingui/core/macro'
 import { i18n } from '@lingui/core'
 import type { MessageDescriptor } from '@lingui/core'
-import { Input, Pill, Select } from '@/components/page'
+import { Input, Pill, Select, Swap } from '@/components/page'
+import { AnimatePresence, m } from 'motion/react'
+import { listItem, Unfold } from '@/components/motion'
+import { Note, SameWidth } from '@/components/FormMotion'
 
 interface Channel {
   id: number
@@ -86,15 +89,16 @@ export function NotificationChannels() {
         removed; tokens are stored server-side and never shown again.</Trans>
       </p>
 
-      {channels.length > 0 && (
+      <Unfold open={channels.length > 0}>
         <ul className="mb-5 flex flex-col border-y border-border/70 divide-y divide-border/70">
+          <AnimatePresence initial={false}>
           {channels.map(c => {
             const testResult = testState[c.id]
             return (
-              <li key={c.id} className="flex items-center gap-2 py-2.5">
+              <m.li key={c.id} {...listItem} className="flex items-center gap-2 py-2.5">
                 <span className="w-16 shrink-0 text-[14px] font-semibold text-foreground">{KIND_LABEL[c.kind]}</span>
                 <div className="min-w-0 flex-1">
-                  <span className={cn('block truncate text-[13px]', c.enabled ? 'text-muted-foreground' : 'text-muted-foreground/50 line-through')}>
+                  <span className={cn('block truncate text-[13px] transition-colors duration-150', c.enabled ? 'text-muted-foreground' : 'text-muted-foreground/50 line-through')}>
                     {c.url}
                   </span>
                   {c.blocked && (
@@ -104,10 +108,13 @@ export function NotificationChannels() {
                     </span>
                   )}
                 </div>
-                {testResult === 'ok' && <CheckCircle className="h-3.5 w-3.5 shrink-0 text-success" />}
-                {testResult && testResult !== 'ok' && testResult !== 'testing' && (
-                  <span title={testResult}><XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" /></span>
-                )}
+                {/* The result's slot is always there, so the row does not shift when it arrives. */}
+                <Swap id={testResult === 'ok' ? 'ok' : testResult && testResult !== 'testing' ? 'failed' : 'none'} className="flex w-3.5 shrink-0">
+                  {testResult === 'ok' && <CheckCircle className="h-3.5 w-3.5 shrink-0 text-success" />}
+                  {testResult && testResult !== 'ok' && testResult !== 'testing' && (
+                    <span title={testResult}><XCircle className="h-3.5 w-3.5 shrink-0 text-destructive" /></span>
+                  )}
+                </Swap>
                 <Pill
                   icon
                   variant="quiet"
@@ -122,7 +129,7 @@ export function NotificationChannels() {
                   onClick={() => api.post(`/notification-channels/${c.id}/toggle`).then(load)}
                   variant="secondary"
                 >
-                  {c.enabled ? t`Pause` : t`Resume`}
+                  <SameWidth active={c.enabled ? 0 : 1}>{[t`Pause`, t`Resume`]}</SameWidth>
                 </Pill>
                 <Pill
                   icon
@@ -133,11 +140,12 @@ export function NotificationChannels() {
                 >
                   <Trash2 className="h-4 w-4" />
                 </Pill>
-              </li>
+              </m.li>
             )
           })}
+          </AnimatePresence>
         </ul>
-      )}
+      </Unfold>
 
       <div className="flex flex-wrap items-center gap-2">
         <Select
@@ -165,7 +173,7 @@ export function NotificationChannels() {
             onChange={e => setToken(e.target.value)}
             placeholder={i18n._(TOKEN_HINT[kind])}
             aria-label={t`Token`}
-            className="w-auto min-w-[180px] flex-1 sm:flex-none"
+            className="w-auto min-w-[180px] flex-1 sm:flex-none animate-in fade-in-40 duration-150 motion-reduce:animate-none"
           />
         )}
         <Pill
@@ -177,12 +185,12 @@ export function NotificationChannels() {
           <Trans>Add channel</Trans>
         </Pill>
       </div>
-      {addError && (
-        <p role="alert" className="mt-2 flex items-center gap-1.5 text-[13px] text-destructive">
+      <Note value={addError}>{e => (
+        <p role="alert" className="pt-2 flex items-center gap-1.5 text-[13px] text-destructive">
           <XCircle className="h-3.5 w-3.5 shrink-0" />
-          {addError}
+          {e}
         </p>
-      )}
+      )}</Note>
     </div>
   )
 }

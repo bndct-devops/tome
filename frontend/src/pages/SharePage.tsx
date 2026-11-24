@@ -8,6 +8,7 @@ import { useParams } from 'react-router-dom'
 import { BookOpen, Quote, Star, StickyNote, X } from 'lucide-react'
 import { TomeMark } from '@/components/TomeMark'
 import { CoverImage } from '@/components/CoverImage'
+import { CoverLift } from '@/components/motion'
 import { ModalShell } from '@/components/ModalShell'
 import { PageBody, PageHeader, Pill, SectionTitle } from '@/components/page'
 import { Wordmark } from '@/components/auth/AuthPanel'
@@ -252,12 +253,14 @@ function BookTile({ b, onOpen }: { b: SharedBook; onOpen: () => void }) {
   return (
     <li>
       <button type="button" onClick={onOpen} className="group block w-full text-left">
-        <div
-          className="relative aspect-[2/3] overflow-hidden rounded-[8px] bg-muted transition-transform group-hover:-translate-y-0.5"
-          style={{ boxShadow: 'var(--cover-bloom-fan)' }}
-        >
-          <CoverImage src={coverSrc(b.id, { w: 400 })} alt="" iconClassName="w-6 h-6" />
-        </div>
+        <CoverLift>
+          <div
+            className="relative aspect-[2/3] overflow-hidden rounded-[8px] bg-muted"
+            style={{ boxShadow: 'var(--cover-bloom-fan)' }}
+          >
+            <CoverImage src={coverSrc(b.id, { w: 400 })} alt="" iconClassName="w-6 h-6" />
+          </div>
+        </CoverLift>
         <div className="mt-2.5 text-[14px] font-medium leading-snug text-foreground line-clamp-2 group-hover:text-primary">{b.title}</div>
         {b.series && <div className="mt-0.5 text-[13px] text-primary truncate">{seriesLabel(b)}</div>}
         {b.author && <div className="mt-0.5 text-[13px] text-muted-foreground truncate">{b.author}</div>}
@@ -345,7 +348,8 @@ export function SharePage() {
     return (
       <div className="min-h-screen bg-background">
         <TopBar />
-        <p className="animate-pulse py-24 text-center text-[15px] text-muted-foreground"><Trans>Loading…</Trans></p>
+        {/* Shows only on a slow answer, so a fast one goes straight to the page. */}
+        <div className="appear-late"><p className="animate-pulse py-24 text-center text-[15px] text-muted-foreground"><Trans>Loading…</Trans></p></div>
       </div>
     )
   }

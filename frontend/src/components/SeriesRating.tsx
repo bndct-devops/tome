@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import { api } from '@/lib/api'
+import { peekSeriesPart } from '@/components/motion/nav'
 import { useToast } from '@/contexts/ToastContext'
 import { StarRating } from '@/components/StarRating'
 import { t } from '@lingui/core/macro'
@@ -20,18 +21,29 @@ interface SeriesRatingData {
  */
 export function SeriesRating({ seriesName, isUnserialized }: { seriesName: string; isUnserialized?: boolean }) {
   const { toast } = useToast()
-  const [data, setData] = useState<SeriesRatingData | null>(null)
+  // A link that asked for the series ahead has the answer already: no late row.
+  const [data, setData] = useState<SeriesRatingData | null>(() => (peekSeriesPart(seriesName, 'rating') as SeriesRatingData | undefined) ?? null)
+  const [failed, setFailed] = useState(false)
 
   useEffect(() => {
     if (isUnserialized || !seriesName) return
     let cancelled = false
     api.get<SeriesRatingData>(`/series/${encodeURIComponent(seriesName)}/rating`)
       .then(d => { if (!cancelled) setData(d) })
-      .catch(() => {})
+      .catch(() => { if (!cancelled) setFailed(true) })
     return () => { cancelled = true }
   }, [seriesName, isUnserialized])
 
-  if (isUnserialized || !data) return null
+  if (isUnserialized || (!data && failed)) return null
+  // While it loads, the row holds its place (the hero below it stays put).
+  if (!data) {
+    return (
+      <div className="mt-2 flex items-center gap-2.5 invisible" aria-hidden="true" inert>
+        <StarRating value={null} />
+        <span className="text-[13px]">{'\u00a0'}</span>
+      </div>
+    )
+  }
 
   const rating = data.rating
   async function save(next: number | null) {

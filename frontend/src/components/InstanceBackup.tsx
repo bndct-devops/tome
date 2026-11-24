@@ -7,6 +7,8 @@ import { api } from '@/lib/api'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { Input, Pill } from '@/components/page'
+import { Unfold } from '@/components/motion'
+import { Note, SameWidth } from '@/components/FormMotion'
 import { PanelSection } from '@/components/SectionNav'
 
 
@@ -89,8 +91,9 @@ export function InstanceBackup() {
           disabled={downloading}
           variant="secondary"
         >
-          {downloading ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Download className="h-3.5 w-3.5" />}
-          {downloading ? t`Preparing…` : t`Download backup`}
+          <SameWidth active={downloading ? 1 : 0}>
+            {[<><Download className="h-3.5 w-3.5" />{t`Download backup`}</>, <><Loader2 className="h-3.5 w-3.5 animate-spin" />{t`Preparing…`}</>]}
+          </SameWidth>
         </Pill>
 
         {!status?.staged && (
@@ -113,7 +116,7 @@ export function InstanceBackup() {
         )}
       </div>
 
-      {pendingFile && !status?.staged && (
+      <Unfold open={!!pendingFile && !status?.staged}>
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-destructive/10 px-4 py-3">
           <p className="w-full text-[13px] text-muted-foreground">
             <Trans>This replaces <span className="font-semibold text-foreground">the entire database</span> at
@@ -142,9 +145,9 @@ export function InstanceBackup() {
             <Trans>Cancel</Trans>
           </Pill>
         </div>
-      )}
+      </Unfold>
 
-      {status?.staged && (
+      <Note value={status?.staged ? status : null}>{status => (
         <div className="mt-4 flex flex-wrap items-center gap-2 rounded-lg bg-warning/10 px-4 py-3">
           <p className="min-w-0 flex-1 text-[13px] text-foreground">
             <Trans>Restore staged</Trans>
@@ -160,9 +163,9 @@ export function InstanceBackup() {
             <X className="h-3 w-3" /> <Trans>Cancel restore</Trans>
           </Pill>
         </div>
-      )}
+      )}</Note>
 
-      {error && <p className="mt-2 text-[13px] text-destructive">{error}</p>}
+      <Note value={error}>{e => <p className="pt-2 text-[13px] text-destructive">{e}</p>}</Note>
     </PanelSection>
   )
 }

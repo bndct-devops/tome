@@ -1,5 +1,6 @@
 // Phase 4 word-count stats widgets - words read, true WPM, book length.
 // All all-time (range-independent), powered by Book.word_count + reconciled read-time.
+import { BookLink } from '@/components/motion'
 import {
   ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip,
 } from 'recharts'
@@ -24,7 +25,7 @@ function compact(n: number): string {
 
 function Cover({ id, has, alt }: { id: number | null; has: boolean; alt: string }) {
   return (
-    <div className="flex h-12 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
+    <div data-cover-id={id && has ? id : undefined} className="flex h-12 w-8 shrink-0 items-center justify-center overflow-hidden rounded bg-muted">
       {id && has ? (
         <img src={coverSrc(id, { w: 160 })} alt={alt} className="h-full w-full object-cover" loading="lazy"
           onError={(e) => { (e.target as HTMLImageElement).style.display = 'none' }} />
@@ -75,7 +76,7 @@ function WpmRow({ b }: { b: StatsResponse['wpm']['books'][number] }) {
     <div className="flex items-center gap-2.5">
       <Cover id={b.book_id} has={b.has_cover} alt="" />
       <div className="min-w-0 flex-1">
-        <a href={`/books/${b.book_id}`} className="line-clamp-1 text-sm font-medium text-foreground transition-colors hover:text-primary">{b.title}</a>
+        <BookLink book={{ id: b.book_id, title: b.title }} className="line-clamp-1 text-sm font-medium text-foreground transition-colors hover:text-primary">{b.title}</BookLink>
         {b.author && <p className="truncate text-[13px] text-muted-foreground">{b.author}</p>}
       </div>
       <span className="shrink-0 text-sm font-bold text-foreground">{num(Math.round(b.wpm))}<span className="ml-0.5 text-[12px] font-normal text-muted-foreground">wpm</span></span>
@@ -122,7 +123,7 @@ export function ReReads({ data }: { data: StatsResponse['rereads'] }) {
         <div key={b.book_id} className="flex items-center gap-2.5">
           <Cover id={b.book_id} has={b.has_cover} alt="" />
           <div className="min-w-0 flex-1">
-            <a href={`/books/${b.book_id}`} className="line-clamp-1 text-sm font-medium text-foreground transition-colors hover:text-primary">{b.title}</a>
+            <BookLink book={{ id: b.book_id, title: b.title }} className="line-clamp-1 text-sm font-medium text-foreground transition-colors hover:text-primary">{b.title}</BookLink>
             {b.author && <p className="truncate text-[13px] text-muted-foreground">{b.author}</p>}
           </div>
           <span className="shrink-0 text-right text-sm font-bold text-foreground">

@@ -5,19 +5,19 @@
 // range-bound sections play again for a new range, the rest once a session),
 // figures count up (CountUp), chart marks and rows have tips (kit/tip.ts).
 import { useCallback, useEffect, useMemo, useState, type CSSProperties, type ReactNode } from 'react'
-import { Link } from 'react-router-dom'
+import { BookLink } from '@/components/motion'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { cn, formatDuration } from '@/lib/utils'
 import type { HabitsResponse, StatsResponse } from '@/components/stats/shared'
 import type { DesignedPageProps } from '@/components/stats/kit/page'
-import { fmtDay as fmtShortDay } from '@/components/stats/range'
+import { fmtDay as fmtShortDay, RANGES } from '@/components/stats/range'
 import { Cover, Heading, Pending, Ph } from '@/components/stats/kit/Kit'
 import { CountUp } from '@/components/stats/kit/CountUp'
 import { K, ONCE, rangeSig, stagger, useEntry, type Entry } from '@/components/stats/kit/motion'
 import { tipAttrs, useTips } from '@/components/stats/kit/tip'
 import { DESKTOP_MIN, DIM, HAIR, LEVELS, UNDIM, big, dec1, fmtDay, num, useWidth } from '@/components/stats/kit/tokens'
-import { rangeQuery, useStatsGet } from '@/components/stats/kit/useStatsGet'
+import { habitsPath, statsCacheGet, statsPrefetch, useStatsGet } from '@/components/stats/kit/useStatsGet'
 import { hourModel, readingDayOf } from '@/components/stats/overview/model'
 import { ChartEmpty, Lengths, Months, Pace, Rhythm, Timeline } from './charts'
 import { bucketCounts, byWeekday, formatShares, monthsHeight, paceChange, paceModel, paceTicks, rhythmHeight, timelineHeight, timelineRows, type FormatShare } from './model'
@@ -48,8 +48,22 @@ const PH = {
 export function HabitsPage({ stats, pending, days, custom, requested }: DesignedPageProps) {
   const [ref, width] = useWidth<HTMLDivElement>()
   const desktop = width >= DESKTOP_MIN
-  const habitsQ = useStatsGet<HabitsResponse>('/stats/habits?' + rangeQuery(requested.days, requested.custom))
+  // Asked for the requested range (it starts together with /stats), drawn for the range on
+  // screen: StatsPage moves `days`/`custom` on only once both answers are in, so every
+  // section changes in the same frame and until then all keep the old range, dimmed.
+  const asked = useStatsGet<HabitsResponse>(habitsPath(requested.days, requested.custom))
+  const onScreen = statsCacheGet<HabitsResponse>(habitsPath(days, custom))
+  const habitsQ = onScreen !== undefined ? { data: onScreen, pending: false } : asked
   const habits = habitsQ.data
+  // The other preset ranges' answers, quietly, once this one is in (StatsPage does the same for /stats).
+  const habitsIn = !!asked.data && !asked.pending
+  useEffect(() => {
+    if (!habitsIn) return
+    const ctl = new AbortController()
+    const others = RANGES.filter((r) => requested.custom || r.days !== requested.days)
+    statsPrefetch(others.map((r) => ({ url: habitsPath(r.days, null) })), ctl.signal)
+    return () => ctl.abort()
+  }, [habitsIn, requested.days, requested.custom])
   const left = Math.floor(((width - 11 * GAP) / 12) * 7 + 6 * GAP)
   const right = width - left - GAP
   const statsDim = pending ? DIM : UNDIM
@@ -132,7 +146,7 @@ function useSection(scope: string, sig: string | null): [Entry, (el: Element | n
 // ── When you read ─────────────────────────────────────────────────────────────
 
 function WhenYouRead({ stats, width, phone, dim, sig }: { stats: StatsResponse | null; width: number; phone: boolean; dim: string; sig: string | null }) {
-  const [, enter] = useSection('habits/when', sig)
+  const [e, enter] = useSection('habits/when', sig)
   const loading = !stats
   const m = useMemo(() => hourModel(stats?.hour_dow_heatmap ?? [], phone), [stats, phone])
   const dow = useMemo(() => byWeekday(stats?.hour_dow_heatmap ?? []), [stats])
@@ -151,7 +165,7 @@ function WhenYouRead({ stats, width, phone, dim, sig }: { stats: StatsResponse |
       <Heading note={phone ? t`two-hour columns` : undefined}><Trans>When you read</Trans></Heading>
       <p className={cn('mb-3.5 text-[15px] leading-[1.45] text-foreground', phone ? 'line-clamp-2 min-h-[44px] [text-wrap:balance]' : 'truncate')}>{sentence}</p>
       <div data-box="when-chart" style={{ height: rhythmHeight(width, phone) }}>
-        <Rhythm W={width} grid={m.grid} byCol={m.byCol} colN={m.colN} byDow={dow} phone={phone} loading={loading} />
+        <Rhythm entry={e} W={width} grid={m.grid} byCol={m.byCol} colN={m.colN} byDow={dow} phone={phone} loading={loading} />
       </div>
     </section>
   )
@@ -219,7 +233,7 @@ function Sessions({ stats, habits, desktop, allTime, dim, sig }: { stats: StatsR
         <>
           <span className="block truncate">
             {ls.book_id != null ? (
-              <Link to={`/books/${ls.book_id}`} {...(ls.title ? tipAttrs({ title: ls.title }) : {})} className="underline-offset-4 transition-colors hover:text-primary hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ls.title}</Link>
+              <BookLink book={{ id: ls.book_id, title: ls.title ?? '' }} cover={null} {...(ls.title ? tipAttrs({ title: ls.title }) : {})} className="underline-offset-4 transition-colors hover:text-primary hover:underline focus-visible:rounded-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring">{ls.title}</BookLink>
             ) : ls.title ?? ' '}
           </span>
           <span className="block">{lsDate}</span>
@@ -271,7 +285,7 @@ function Sessions({ stats, habits, desktop, allTime, dim, sig }: { stats: StatsR
 // ── Session length ────────────────────────────────────────────────────────────
 
 function SessionLength({ habits, width, desktop, dim, sig }: { habits: HabitsResponse | null; width: number; desktop: boolean; dim: string; sig: string | null }) {
-  const [, enter] = useSection('habits/lengths', sig)
+  const [e, enter] = useSection('habits/lengths', sig)
   const counts = bucketCounts(habits)
   const H = desktop ? HIST_H : HIST_H_PHONE
   const note = habits ? plural(habits.sessions, { one: '# sitting', other: '# sittings' }) : <Ph on>{PH.sittings}</Ph>
@@ -282,7 +296,7 @@ function SessionLength({ habits, width, desktop, dim, sig }: { habits: HabitsRes
         {habits && habits.sessions === 0 ? (
           <ChartEmpty H={H}>{t`No sittings in this range.`}</ChartEmpty>
         ) : (
-          <Lengths W={width} H={H} counts={counts} loading={!habits} />
+          <Lengths entry={e} W={width} H={H} counts={counts} loading={!habits} />
         )}
       </div>
     </section>
@@ -364,7 +378,7 @@ function FormatLine({ stats, desktop }: { stats: StatsResponse | null; desktop: 
 }
 
 function PaceSection({ stats, width, desktop, rangeWords, dim, sig }: { stats: StatsResponse | null; width: number; desktop: boolean; rangeWords: string; dim: string; sig: string | null }) {
-  const [, enter] = useSection('habits/pace', sig)
+  const [e, enter] = useSection('habits/pace', sig)
   const p = useMemo(() => (stats ? paceModel(stats.daily) : null), [stats])
   const ticks = useMemo(() => paceTicks(stats?.daily ?? []), [stats])
   const H = desktop ? PACE_H : PACE_H_PHONE
@@ -409,7 +423,7 @@ function PaceSection({ stats, width, desktop, rangeWords, dim, sig }: { stats: S
         {p && p.dots.length === 0 ? (
           <ChartEmpty H={H}>{t`Pace appears once reading days with page turns arrive.`}</ChartEmpty>
         ) : (
-          <Pace W={width} H={H} dots={p?.dots ?? []} days={p?.days ?? []} nDays={p?.nDays ?? 1} ticks={ticks} loading={!p} />
+          <Pace entry={e} W={width} H={H} dots={p?.dots ?? []} days={p?.days ?? []} nDays={p?.nDays ?? 1} ticks={ticks} loading={!p} />
         )}
       </div>
       <FormatLine stats={stats} desktop={desktop} />
@@ -439,18 +453,18 @@ function WpmRow({ b, first, style }: { b: WpmBook | null; first: boolean; style?
   const dur = formatDuration(b.seconds)
   // A row is one link to its book; the title takes the accent on hover, as Home's rows do.
   return (
-    <Link
-      to={`/books/${b.book_id}`}
+    <BookLink
+      book={{ id: b.book_id, title: b.title }}
       {...tipAttrs({ title: b.title, value: t`${wpm} words a minute`, note: t`${words} words in ${dur}` })}
       className={cn(row, 'group focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring', K.rise)}
       style={{ height: WPM_ROW_H, ...style }}
     >
-      <Cover id={b.has_cover ? b.book_id : null} h={52} className="rounded-[6px] transition-transform duration-200 group-hover:-translate-y-0.5" />
+      <Cover id={b.has_cover ? b.book_id : null} book={b.book_id} h={52} className="rounded-[6px]" lift />
       <div className="min-w-0 flex-1">
         <div className="line-clamp-2 text-[14px] font-semibold leading-[1.25] text-foreground transition-colors group-hover:text-primary">{b.title}</div>
         <div className="mt-[3px] text-[13px] tabular-nums text-muted-foreground">{t`${wpm} wpm`}</div>
       </div>
-    </Link>
+    </BookLink>
   )
 }
 

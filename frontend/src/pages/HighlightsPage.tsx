@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode, type Ref } from 'react'
+import { AnimatePresence, LayoutGroup, m } from 'motion/react'
 import {
   Search, StickyNote, Loader2,
   CalendarHeart, Copy, X, ChevronDown, Info, ChevronsDownUp, ChevronsUpDown, Trash2, Pencil,
@@ -11,8 +12,9 @@ import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { AppShell } from '@/components/AppShell'
 import { CoverImage } from '@/components/CoverImage'
-import { QuickLook } from '@/components/QuickLook'
+import { QuickLook, type QuickLookPreview } from '@/components/QuickLook'
 import { PageBody, PageHeader, Pill, SectionTitle } from '@/components/page'
+import { CoverLift, EASE, RunningNumber, Unfold, listItem } from '@/components/motion'
 
 interface Highlight {
   id: number | string  // "clipping:<n>" for a CrossInk clipping
@@ -121,7 +123,50 @@ function fullInfo(h: Highlight): string {
 
 const ROW_TOOL = 'opacity-100 sm:opacity-0 sm:group-hover:opacity-100 focus-visible:opacity-100 h-8 w-8'
 
-function HighlightRow({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q: string; showDot: boolean; onDelete: (h: Highlight) => void; onEdited: (h: Highlight, note: string | null) => void }) {
+// Two icons in one slot: the one that shows scales up as the other fades.
+const ICON_SWAP = 'absolute inset-0 w-4 h-4 transition-[opacity,scale] duration-150 ease-(--spring) motion-reduce:transition-none'
+
+// One control giving way to another in the same place (a cross-fade).
+const SWAP = {
+  initial: { opacity: 0 },
+  animate: { opacity: 1 },
+  exit: { opacity: 0 },
+  transition: { duration: 0.12, ease: EASE },
+} as const
+
+// The collapse of a book's highlights, on the app's curve.
+const COLLAPSE = 'grid transition-[grid-template-rows] duration-[240ms] ease-(--spring) motion-reduce:transition-none'
+
+/** Holds the page's shape while the first page of highlights loads. */
+function HighlightsSkeleton() {
+  return (
+    <div aria-busy="true" className="flex flex-col gap-9 animate-pulse motion-reduce:animate-none">
+      {[3, 2, 2].map((rows, i) => (
+        <section key={i}>
+          <div className="flex items-center gap-4">
+            <div className="w-11 h-16 rounded-[8px] bg-muted shrink-0" />
+            <div className="min-w-0 flex-1">
+              <div className="h-5 w-2/3 rounded-md bg-muted" />
+              <div className="mt-2 h-3.5 w-1/3 rounded bg-muted" />
+            </div>
+          </div>
+          <ul className="mt-3">
+            {[...Array(rows)].map((_, j) => (
+              <li key={j} className="border-t border-border/70 py-4">
+                <div className="h-4 w-full rounded bg-muted" />
+                <div className="mt-2 h-4 w-4/5 rounded bg-muted" />
+                <div className="mt-4 h-3 w-28 rounded bg-muted" />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ))}
+    </div>
+  )
+}
+
+// `ref` reaches the row itself, so a parent AnimatePresence can measure it.
+function HighlightRow({ h, q, showDot, onDelete, onEdited, ref }: { h: Highlight; q: string; showDot: boolean; onDelete: (h: Highlight) => void; onEdited: (h: Highlight, note: string | null) => void; ref?: Ref<HTMLLIElement> }) {
   const tint = h.color ? (COLOR_TINT[h.color.toLowerCase()] ?? 'bg-primary/50') : 'bg-primary/40'
   const date = shortDate(h.datetime)
   const [confirming, setConfirming] = useState(false)
@@ -143,14 +188,16 @@ function HighlightRow({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q: 
   }
 
   return (
-    <li className="group border-t border-border/70 py-4">
+    <m.li ref={ref} {...listItem} className="group border-t border-border/70 py-4">
       {h.highlighted_text && (
         <p className="text-[15px] text-foreground leading-relaxed">
           {q ? mark(h.highlighted_text, q) : h.highlighted_text}
         </p>
       )}
-      {editing ? (
-        <div className="mt-3 flex flex-col gap-2">
+      {/* The note and its editor fold into each other, so the row's height
+          changes once, smoothly. */}
+      <Unfold open={editing}>
+        <div className="pt-3 flex flex-col gap-2">
           <textarea
             value={draft}
             onChange={e => setDraft(e.target.value)}
@@ -167,12 +214,13 @@ function HighlightRow({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q: 
             <Pill variant="quiet" onClick={() => setEditing(false)}><Trans>Cancel</Trans></Pill>
           </div>
         </div>
-      ) : h.note ? (
-        <p className="mt-2 flex items-start gap-2 text-[14px] text-muted-foreground">
+      </Unfold>
+      <Unfold open={!editing && !!h.note}>
+        <p className="pt-2 flex items-start gap-2 text-[14px] text-muted-foreground">
           <StickyNote className="w-3.5 h-3.5 mt-[3px] shrink-0" />
-          <span className="leading-relaxed">{q ? mark(h.note, q) : h.note}</span>
+          <span className="leading-relaxed">{h.note && (q ? mark(h.note, q) : h.note)}</span>
         </p>
-      ) : null}
+      </Unfold>
       <div className="mt-2 flex items-center justify-between gap-3 min-h-8">
         <div className="flex items-center gap-1.5 min-w-0 text-[12px] text-muted-foreground">
           {showDot && <span className={cn('w-2 h-2 rounded-full shrink-0', tint)} />}
@@ -190,18 +238,20 @@ function HighlightRow({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q: 
             <Trans>CrossInk clipping</Trans>
           </span>
         ) : (
-        <div className="flex items-center gap-0.5 shrink-0">
+        <div className="relative flex items-center shrink-0">
+          {/* Asking to delete swaps the tools for the confirm pair in place. */}
+          <AnimatePresence mode="popLayout" initial={false}>
           {confirming ? (
-            <>
+            <m.div key="confirm" {...SWAP} className="flex items-center gap-0.5">
               <Pill variant="destructive" className="h-8 px-3 text-[13px] text-destructive" onClick={() => onDelete(h)}>
                 <Trans>Delete</Trans>
               </Pill>
               <Pill variant="quiet" className="h-8 px-3 text-[13px]" onClick={() => setConfirming(false)}>
                 <Trans>Cancel</Trans>
               </Pill>
-            </>
+            </m.div>
           ) : (
-            <>
+            <m.div key="tools" {...SWAP} className="flex items-center gap-0.5">
               <Pill
                 variant="quiet"
                 icon
@@ -222,12 +272,13 @@ function HighlightRow({ h, q, showDot, onDelete, onEdited }: { h: Highlight; q: 
               >
                 <Trash2 className="w-3.5 h-3.5" />
               </Pill>
-            </>
+            </m.div>
           )}
+          </AnimatePresence>
         </div>
         )}
       </div>
-    </li>
+    </m.li>
   )
 }
 
@@ -245,6 +296,8 @@ export function HighlightsPage() {
   const [onlyNotes, setOnlyNotes] = useState(false)
   const [collapsed, setCollapsed] = useState<Set<number>>(new Set())
   const [peek, setPeek] = useState<number | null>(null)
+  // The cover the quick look grows out of (and shrinks back into).
+  const [peekFrom, setPeekFrom] = useState<{ origin?: DOMRect; cover?: string | null; preview?: QuickLookPreview }>({})
   const [loadedOnce, setLoadedOnce] = useState(false)
   const searchRef = useRef<HTMLInputElement>(null)
 
@@ -307,7 +360,8 @@ export function HighlightsPage() {
   function toggleBook(id: number) {
     setCollapsed(prev => {
       const next = new Set(prev)
-      next.has(id) ? next.delete(id) : next.add(id)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
       return next
     })
   }
@@ -446,7 +500,7 @@ export function HighlightsPage() {
             before the first load) so the title never jumps. */}
         <PageHeader
           eyebrow={total > 0
-            ? plural(books, { one: `${total} from # book`, other: `${total} from # books` })
+            ? <RunningNumber value={total} format={n => { const total = Math.round(n); return plural(books, { one: `${total} from # book`, other: `${total} from # books` }) }} />
             : loadedOnce ? t`0 highlights` : '\u00a0'}
           title={<Trans>Highlights</Trans>}
           className="[&>div:last-child]:w-full [&>div:last-child]:shrink"
@@ -462,15 +516,22 @@ export function HighlightsPage() {
                   aria-label={t`Search your highlights`}
                   className="w-full h-9 pl-10 pr-9 rounded-full bg-secondary text-[14px] text-foreground placeholder:text-muted-foreground focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                 />
+                <AnimatePresence initial={false}>
                 {search && (
-                  <button
+                  <m.button
+                    key="clear"
+                    initial={{ opacity: 0.4, scale: 0.6 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.6 }}
+                    transition={{ duration: 0.12, ease: EASE }}
                     onClick={() => setSearch('')}
                     aria-label={t`Clear search`}
-                    className="absolute right-2 top-1/2 -translate-y-1/2 h-6 w-6 grid place-items-center rounded-full text-muted-foreground hover:text-foreground"
+                    className="absolute right-2 top-[calc(50%-12px)] h-6 w-6 grid place-items-center rounded-full text-muted-foreground hover:text-foreground"
                   >
                     <X className="w-3.5 h-3.5" />
-                  </button>
+                  </m.button>
                 )}
+                </AnimatePresence>
               </div>
               <Pill
                 variant={onThisDay ? 'secondary' : 'quiet'}
@@ -491,18 +552,26 @@ export function HighlightsPage() {
                 <StickyNote className="w-4 h-4" />
                 <Trans>Only notes</Trans>
               </Pill>
-              {groups.length > 0 && !searching && (
+              {groups.length > 0 && (
                 // Icon-only from sm up so search, filters, Copy and Export fit
-                // one row; the title and aria-label carry the words.
+                // one row; the title and aria-label carry the words. While
+                // searching it keeps its slot (hidden), so Copy and Export
+                // do not slide sideways.
                 <Pill
                   variant={allCollapsed ? 'secondary' : 'quiet'}
                   onClick={toggleAll}
                   aria-pressed={allCollapsed}
                   aria-label={allCollapsed ? t`Expand all` : t`Collapse all`}
                   title={allCollapsed ? t`Expand all` : t`Collapse all`}
-                  className="sm:w-9 sm:px-0"
+                  disabled={searching}
+                  aria-hidden={searching || undefined}
+                  tabIndex={searching ? -1 : undefined}
+                  className={cn('sm:w-9 sm:px-0', searching && 'invisible')}
                 >
-                  {allCollapsed ? <ChevronsUpDown className="w-4 h-4" /> : <ChevronsDownUp className="w-4 h-4" />}
+                  <span className="relative w-4 h-4 shrink-0">
+                    <ChevronsUpDown className={cn(ICON_SWAP, allCollapsed ? 'opacity-100 scale-100' : 'opacity-0 scale-75')} />
+                    <ChevronsDownUp className={cn(ICON_SWAP, allCollapsed ? 'opacity-0 scale-75' : 'opacity-100 scale-100')} />
+                  </span>
                   <span className="sm:hidden">{allCollapsed ? t`Expand all` : t`Collapse all`}</span>
                 </Pill>
               )}
@@ -523,9 +592,7 @@ export function HighlightsPage() {
         />
 
         {loading && !loadedOnce ? (
-          <div className="flex justify-center py-16">
-            <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
-          </div>
+          <HighlightsSkeleton />
         ) : error ? (
           <p className="text-[15px] text-destructive">{error}</p>
         ) : isEmpty ? (
@@ -549,21 +616,27 @@ export function HighlightsPage() {
             )}
           </div>
         ) : (
-          <div className={cn('flex flex-col gap-9 transition-opacity', loading && 'opacity-50')}>
+          <LayoutGroup>
+          <div className={cn('relative flex flex-col gap-9 transition-opacity', loading && 'opacity-50')}>
+            {/* A search, a filter, a delete or Load more: books that stay
+                glide to their new place, books that go fade, new ones appear. */}
+            <AnimatePresence mode="popLayout" initial={false}>
             {groups.map(g => {
               const isCollapsed = !searching && collapsed.has(g.book_id)
               return (
-                <section key={g.book_id}>
+                <m.section key={g.book_id} {...listItem}>
                   <div className="flex items-center gap-4">
-                    <button
-                      type="button"
-                      onClick={() => setPeek(g.book_id)}
-                      aria-label={(() => { const title = g.title; return t`Quick look at ${title}` })()}
-                      className="relative w-11 h-16 rounded-[8px] overflow-hidden bg-muted shrink-0"
-                      style={{ boxShadow: 'var(--cover-bloom-fan)' }}
-                    >
-                      <CoverImage src={g.cover} alt="" iconClassName="w-4 h-4" />
-                    </button>
+                    <CoverLift>
+                      <button
+                        type="button"
+                        onClick={e => { setPeekFrom({ origin: e.currentTarget.getBoundingClientRect(), cover: g.cover, preview: { title: g.title, author: g.author } }); setPeek(g.book_id) }}
+                        aria-label={(() => { const title = g.title; return t`Quick look at ${title}` })()}
+                        className="relative block w-11 h-16 rounded-[8px] overflow-hidden bg-muted"
+                        style={{ boxShadow: 'var(--cover-bloom-fan)' }}
+                      >
+                        <CoverImage src={g.cover} alt="" iconClassName="w-4 h-4" />
+                      </button>
+                    </CoverLift>
                     <div className="min-w-0 flex-1">
                       <SectionTitle
                         size={20}
@@ -577,8 +650,8 @@ export function HighlightsPage() {
                               title={isCollapsed ? t`Expand` : t`Collapse`}
                               className="px-3 tabular-nums"
                             >
-                              {g.items.length}
-                              <ChevronDown className={cn('w-4 h-4 transition-transform', isCollapsed && '-rotate-90')} />
+                              <RunningNumber value={g.items.length} />
+                              <ChevronDown className={cn('w-4 h-4 transition-transform duration-[240ms] ease-(--spring) motion-reduce:transition-none', isCollapsed && '-rotate-90')} />
                             </Pill>
                             <Pill
                               variant="quiet"
@@ -595,7 +668,7 @@ export function HighlightsPage() {
                         <button
                           type="button"
                           onClick={() => toggleBook(g.book_id)}
-                          className="text-left leading-tight line-clamp-2 hover:text-primary transition-colors"
+                          className="text-left leading-tight line-clamp-2 hover:text-primary transition-colors touch-feedback"
                         >
                           {g.title}
                         </button>
@@ -604,29 +677,35 @@ export function HighlightsPage() {
                     </div>
                   </div>
                   {/* grid-rows 1fr↔0fr gives a smooth height collapse without measuring. */}
-                  <div className={cn('grid transition-[grid-template-rows] duration-300 ease-out', isCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}>
+                  <div className={cn(COLLAPSE, isCollapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]')}>
                     <div className="overflow-hidden">
-                      <ul className="mt-3">
-                        {g.items.map(h => <HighlightRow key={h.id} h={h} q={debounced} showDot={showDots} onDelete={deleteHighlight} onEdited={noteEdited} />)}
+                      <ul className="relative mt-3">
+                        <AnimatePresence initial={false}>
+                          {g.items.map(h => <HighlightRow key={h.id} h={h} q={debounced} showDot={showDots} onDelete={deleteHighlight} onEdited={noteEdited} />)}
+                        </AnimatePresence>
                       </ul>
                     </div>
                   </div>
-                </section>
+                </m.section>
               )
             })}
 
             {hasMore && (
-              <div className="flex justify-center">
+              <m.div key="more" {...listItem} className="flex justify-center">
                 <Pill variant="secondary" onClick={loadMore} disabled={loadingMore}>
                   {loadingMore && <Loader2 className="w-4 h-4 animate-spin" />}
-                  {(() => { const left = total - items.length; return t`Load more (${left} left)` })()}
+                  <RunningNumber value={total - items.length} format={n => { const left = Math.round(n); return t`Load more (${left} left)` }} />
                 </Pill>
-              </div>
+              </m.div>
             )}
+            </AnimatePresence>
           </div>
+          </LayoutGroup>
         )}
       </PageBody>
-      {peek != null && <QuickLook bookId={peek} onClose={() => setPeek(null)} />}
+      <AnimatePresence>
+        {peek != null && <QuickLook key={peek} bookId={peek} origin={peekFrom.origin} cover={peekFrom.cover} preview={peekFrom.preview} onClose={() => setPeek(null)} />}
+      </AnimatePresence>
     </AppShell>
   )
 }

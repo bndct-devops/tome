@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
+import { BookLink, Unfold } from '@/components/motion'
 import { i18n } from '@lingui/core'
 import { t } from '@lingui/core/macro'
 import type { WishCoverageVolume } from '@/lib/wishlist'
@@ -73,7 +73,8 @@ export function SeriesCoverageStrip({ coverage, total, look = 'boxed' }: { cover
         start = 0
       }
     }
-    const gapList = (showAll ? gaps : gaps.slice(0, GAPS_MAX)).join(', ')
+    const gapList = gaps.slice(0, GAPS_MAX).join(', ')
+    const restList = gaps.slice(GAPS_MAX).join(', ')
     const extraCount = extras.length
     const have = presentCount.toLocaleString(i18n.locale)
     const slotCount = maxN.toLocaleString(i18n.locale)
@@ -116,6 +117,10 @@ export function SeriesCoverageStrip({ coverage, total, look = 'boxed' }: { cover
             )}
           </p>
         )}
+        {/* The rest of the missing ranges unfold under the first ones. */}
+        <Unfold open={showAll && gaps.length > GAPS_MAX}>
+          <p className="text-[13px] text-muted-foreground mt-1 proportional-nums break-words">{restList}</p>
+        </Unfold>
         {extraCount > 0 && (
           <p className="text-[13px] text-muted-foreground mt-1">
             {t`${extraCount} more with other numbering`}
@@ -131,9 +136,9 @@ export function SeriesCoverageStrip({ coverage, total, look = 'boxed' }: { cover
         {Array.from({ length: maxN }, (_, i) => i + 1).map(n => {
           const v = byIndex.get(n)
           return v ? (
-            <Link key={n} to={`/books/${v.id}`} title={v.title} className={present}>
+            <BookLink key={n} book={{ id: v.id, title: v.title, series_index: v.series_index }} title={v.title} className={present}>
               #{n}
-            </Link>
+            </BookLink>
           ) : (
             <span key={n} title={t`Volume ${n}, not in the library`} className={missing}>
               #{n}
@@ -141,9 +146,9 @@ export function SeriesCoverageStrip({ coverage, total, look = 'boxed' }: { cover
           )
         })}
         {extras.map(v => (
-          <Link key={v.id} to={`/books/${v.id}`} title={v.title} className={present}>
+          <BookLink key={v.id} book={{ id: v.id, title: v.title, series_index: v.series_index }} title={v.title} className={present}>
             {v.series_index != null ? `#${v.series_index}` : v.title}
-          </Link>
+          </BookLink>
         ))}
       </div>
       {maxN > 0 && (

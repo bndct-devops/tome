@@ -428,7 +428,7 @@ msgstr ""
 #~ msgid "{0, plural, one {# day streak since {from}} other {# day streak since {from}}}"
 #~ msgstr ""
 
-#. placeholder {0}: hover.b.days.length
+#. placeholder {0}: held.b.days.length
 #. placeholder {0}: q.days
 #. placeholder {0}: s.days
 #: src/components/stats/library/Sections.tsx
@@ -456,7 +456,7 @@ msgstr ""
 msgid "{0, plural, one {# file in the database but missing from disk} other {# files in the database but missing from disk}}"
 msgstr ""
 
-#. placeholder {0}: confirmMove?.length ?? 0
+#. placeholder {0}: moveShown?.length ?? 0
 #: src/components/LibraryHealth.tsx
 msgid "{0, plural, one {# file is moved to its expected folder in the library. Empty folders left behind are removed.} other {# files are moved to their expected folders in the library. Empty folders left behind are removed.}}"
 msgstr ""
@@ -532,7 +532,7 @@ msgstr ""
 msgid "{0, plural, one {# not estimated} other {# not estimated}}"
 msgstr ""
 
-#. placeholder {0}: openWishes.length
+#. placeholder {0}: Math.round(n)
 #: src/pages/WishlistPage.tsx
 msgid "{0, plural, one {# open} other {# open}}"
 msgstr ""
@@ -612,7 +612,7 @@ msgstr ""
 msgid "{0, plural, one {# result. Click one to fill the form.} other {# results. Click one to fill the form.}}"
 msgstr ""
 
-#. placeholder {0}: follows.length
+#. placeholder {0}: Math.round(n)
 #: src/pages/WishlistPage.tsx
 msgid "{0, plural, one {# series} other {# series}}"
 msgstr ""
@@ -1686,6 +1686,10 @@ msgstr ""
 
 #: src/components/goals/text.ts
 msgid "{n} of 7 days this week"
+msgstr ""
+
+#: src/pages/ReadingCalendarPage.tsx
+msgid "{n} p/h"
 msgstr ""
 
 #: src/components/goals/figures.ts
@@ -4611,6 +4615,10 @@ msgstr ""
 msgid "Could not save the goal. Try again."
 msgstr ""
 
+#: src/components/Sidebar.tsx
+msgid "Could not save the new order"
+msgstr ""
+
 #: src/pages/SettingsPage.tsx
 msgid "Could not save the week start. Try again."
 msgstr ""
@@ -5234,6 +5242,10 @@ msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Downloads per day"
+msgstr ""
+
+#: src/components/Sidebar.tsx
+msgid "Drag to reorder"
 msgstr ""
 
 #: src/components/UploadModal.tsx
@@ -6005,6 +6017,7 @@ msgid "Finish by a date"
 msgstr ""
 
 #: src/components/goals/FinishByPill.tsx
+#: src/pages/BookDetailPage.tsx
 msgid "Finish by…"
 msgstr ""
 
@@ -7257,8 +7270,8 @@ msgid "Load more ({left} left)"
 msgstr ""
 
 #: src/pages/HardcoverPage.tsx
-msgid "Loading books…"
-msgstr ""
+#~ msgid "Loading books…"
+#~ msgstr ""
 
 #: src/components/Sidebar.tsx
 msgid "Loading icons"
@@ -7283,15 +7296,11 @@ msgstr ""
 
 #: src/components/ConnectPhoneModal.tsx
 #: src/components/HardcoverSync.tsx
-#: src/components/PositionHistoryModal.tsx
-#: src/components/ShareLinksOverview.tsx
 #: src/components/ShareShelfModal.tsx
 #: src/components/stats/BacklogEstimate.tsx
 #: src/components/stats/boards/BoardsView.tsx
 #: src/components/stats/GoalWidget.tsx
 #: src/pages/BinderyPage.tsx
-#: src/pages/HardcoverPage.tsx
-#: src/pages/SettingsPage.tsx
 #: src/pages/SharePage.tsx
 msgid "Loading…"
 msgstr ""

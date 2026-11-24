@@ -2,9 +2,11 @@
 // the end of the page (where appearing moves nothing). The goals themselves are
 // the compact row under the hero (components/goals/CompactRow.tsx) and the Goals tab.
 import { useState } from 'react'
+import { AnimatePresence } from 'motion/react'
 import { Plus } from 'lucide-react'
 import { Trans } from '@lingui/react/macro'
 import { cn } from '@/lib/utils'
+import { PRESS } from '@/components/page'
 import type { Goal } from '@/lib/goals'
 import { GoalDialog } from '@/components/goals/GoalDialog'
 
@@ -18,13 +20,13 @@ export function GoalsStart({ goals, remembered }: { goals: Goal[] | null; rememb
         type="button"
         disabled={!goals}
         onClick={() => setCreating(true)}
-        className="inline-flex items-center gap-1.5 text-[15px] font-medium text-primary underline-offset-4 hover:underline"
+        className={cn('touch-feedback inline-flex items-center gap-1.5 text-[15px] font-medium text-primary underline-offset-4 hover:underline', PRESS)}
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
         <Trans>Set a reading goal</Trans>
       </button>
       <span className="ml-2 text-[14px] text-muted-foreground"><Trans>Progress counts automatically.</Trans></span>
-      {creating && goals && <GoalDialog mode={{ kind: 'create' }} goals={goals} onClose={() => setCreating(false)} />}
+      <AnimatePresence>{creating && goals && <GoalDialog key="goal-dialog" mode={{ kind: 'create' }} goals={goals} onClose={() => setCreating(false)} />}</AnimatePresence>
     </div>
   )
 }

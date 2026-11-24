@@ -408,6 +408,7 @@ async def lifespan(app: FastAPI):
                 "ALTER TABLE user_book_status ADD COLUMN hardcover_created BOOLEAN NOT NULL DEFAULT 0"))
             conn.commit()
         migrate_reader_page_attribution(conn)
+        migrate_book_cover_color(conn)
         migrate_reading_history_index(conn)
         migrate_api_key_kind(conn)
         # Hardcover Want-to-Read pull resolves shelf entries by matched book id
@@ -468,6 +469,12 @@ async def lifespan(app: FastAPI):
     from backend.services.ko_stats_import import repair_fuzzy_matches_startup
     threading.Thread(target=repair_fuzzy_matches_startup, daemon=True,
                      name="ko-stats-repair").start()
+
+    # Placeholder colours for covers that predate cover_color. Only rows with
+    # a cover and no colour, so later startups are no-ops.
+    from backend.services.cover_color import backfill_cover_colors
+    threading.Thread(target=backfill_cover_colors, daemon=True,
+                     name="cover-color-backfill").start()
 
     release_task: asyncio.Task | None = None
     if settings.release_detection:
@@ -758,6 +765,8 @@ async def _run_auto_import() -> None:
                 added_by=added_by_id,
                 is_reviewed=False,
             )
+            from backend.services.cover_color import refresh_cover_color
+            refresh_cover_color(book)
             db.add(book)
             db.flush()
 
@@ -882,6 +891,8 @@ async def _run_auto_import() -> None:
                     cover_data = asyncio.run(fetch_safe_image(best.cover_url))
                     from backend.services.metadata import save_cover
                     book.cover_path = save_cover(cover_data, settings.covers_dir, content_hash)
+                    from backend.services.cover_color import refresh_cover_color
+                    refresh_cover_color(book)
                 except (UnsafeURLError, Exception) as exc:
                     logger.warning(
                         "Auto-import: failed to download cover for %s: %s",
@@ -956,6 +967,18 @@ def _cleanup_empty_dir(start: Path, stop_at: Path) -> None:
         except OSError:
             break
         current = current.parent
+
+
+def migrate_book_cover_color(conn) -> None:
+    """``books.cover_color``, the placeholder tint of a cover that has not
+    loaded yet. Nullable: existing rows stay NULL until the background
+    backfill (services/cover_color.py) reaches them. Idempotent. Commits."""
+    from sqlalchemy import text
+
+    cols = {r[1] for r in conn.execute(text("PRAGMA table_info(books)")).fetchall()}
+    if cols and "cover_color" not in cols:
+        conn.execute(text("ALTER TABLE books ADD COLUMN cover_color VARCHAR(7)"))
+        conn.commit()
 
 
 def migrate_reading_history_index(conn) -> None:

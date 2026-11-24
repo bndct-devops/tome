@@ -1,31 +1,82 @@
 import { useCallback, useRef, type MouseEvent } from 'react'
 
+interface TiltOptions {
+  /** How far the element rises while tilted, in px (default 3). */
+  lift?: number
+  /** Scale while tilted (default 1). */
+  scale?: number
+  /** Sets `--glare-x` / `--glare-y` (percent) on the tilting element, for a
+   *  highlight that follows the pointer. */
+  glare?: boolean
+}
+
+/** The one set of numbers every lifting cover uses (Library cards, Home,
+ *  CoverLift): a few degrees toward the pointer, a 3 px lift. */
+export const COVER_TILT = { degrees: 4, lift: 3, scale: 1 } as const
+
+function stillPointer(): boolean {
+  if (typeof window === 'undefined') return true
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches || !window.matchMedia('(hover: hover) and (pointer: fine)').matches
+}
+
+// The tilt's own transition. Not in the resting style: a grid of covers mounts with no
+// transition on them, and the first pointer move over a cover turns it on (a cover that
+// brings its own `transition` inline keeps it). Pressing (.cover-lift:active,
+// components/motion/motion.css) scales the wrapper with the CSS `scale` property, on
+// its own shorter transition, so the press never waits for the tilt's.
+export const TILT_TRANSITION = 'transform 200ms ease-out'
+const REST = 'rotateY(0deg) rotateX(0deg) translateY(0px) scale(1)'
+
 /**
  * The cover tilt the Library and Series cards have: the card follows the
- * pointer by a few degrees and lifts 3px, and settles back on leave. Put
+ * pointer by a few degrees and lifts a few px, and settles back on leave. Put
  * `perspective` on the wrapper and spread `handlers` on it; give the tilting
- * element `ref` and `tiltStyle`.
+ * element `ref` and `tiltStyle`. Does nothing under reduced motion or on a
+ * touch screen (a tap would leave the cover tilted). Most call sites want
+ * `<CoverLift>` (components/motion) instead.
  */
-export function useTilt(enabled = true, degrees = 6) {
+export function useTilt(enabled = true, degrees: number = COVER_TILT.degrees, { lift = COVER_TILT.lift, scale = COVER_TILT.scale, glare = false }: TiltOptions = {}) {
   const el = useRef<HTMLElement | null>(null)
+  const settle = useRef<ReturnType<typeof setTimeout>>(undefined)
+  const tilted = useRef(false)
   const setEl = useCallback((node: HTMLElement | null) => { el.current = node }, [])
   const onMouseMove = useCallback((e: MouseEvent<HTMLElement>) => {
     const node = el.current
-    if (!enabled || !node) return
+    if (!enabled || !node || stillPointer()) return
     const rect = e.currentTarget.getBoundingClientRect()
-    const x = ((e.clientX - rect.left) / rect.width) * 2 - 1
-    const y = ((e.clientY - rect.top) / rect.height) * 2 - 1
-    node.style.transform = `rotateY(${x * degrees}deg) rotateX(${y * -degrees}deg) translateY(-4px) scale(1.02)`
-  }, [enabled, degrees])
+    const fx = (e.clientX - rect.left) / rect.width
+    const fy = (e.clientY - rect.top) / rect.height
+    const x = fx * 2 - 1
+    const y = fy * 2 - 1
+    // A layer only for the cover under the pointer: hundreds of always-on
+    // layers make a big grid slow to paint and to capture.
+    clearTimeout(settle.current)
+    if (!node.style.transition) node.style.transition = TILT_TRANSITION
+    if (node.style.willChange !== 'transform') node.style.willChange = 'transform'
+    tilted.current = true
+    node.style.transform = `rotateY(${x * degrees}deg) rotateX(${y * -degrees}deg) translateY(-${lift}px) scale(${scale})`
+    if (glare) {
+      node.style.setProperty('--glare-x', `${fx * 100}%`)
+      node.style.setProperty('--glare-y', `${fy * 100}%`)
+    }
+  }, [enabled, degrees, lift, scale, glare])
   const onMouseLeave = useCallback(() => {
     const node = el.current
-    if (node) node.style.transform = 'rotateY(0deg) rotateX(0deg) translateY(0px) scale(1)'
-  }, [])
+    if (!node || !tilted.current) return
+    tilted.current = false
+    node.style.transform = REST
+    clearTimeout(settle.current)
+    settle.current = setTimeout(() => { node.style.willChange = '' }, 240)
+    if (glare) {
+      node.style.setProperty('--glare-x', '50%')
+      node.style.setProperty('--glare-y', '50%')
+    }
+  }, [glare])
   return {
     /** Spread on the wrapper: it gives the perspective and listens to the pointer. */
     wrapperProps: { style: { perspective: '600px' } as const, onMouseMove, onMouseLeave },
     /** Spread on the element that tilts. */
-    tiltProps: { ref: setEl, style: { transition: 'transform 200ms ease-out', transformStyle: 'preserve-3d', willChange: 'transform' } as const },
+    tiltProps: { ref: setEl, style: { transform: undefined, transition: undefined, transformStyle: 'preserve-3d' } as { transform?: string; transition?: string; transformStyle: 'preserve-3d' } },
   }
 }
 

@@ -14,7 +14,7 @@ import { Camera, CheckCircle, ImageUp, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
-import { Pill } from '@/components/page'
+import { Pill, Swap } from '@/components/page'
 import { Trans, Plural } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 import { coverSrc } from '@/lib/covers'
@@ -254,6 +254,7 @@ export function ScanSyncCodeModal({ onClose }: { onClose: () => void }) {
         </>
       )}
     >
+      <Swap id={result ? 'result' : 'scan'}>
       {result ? (
         <SyncCodeOverview result={result} />
       ) : (
@@ -266,11 +267,11 @@ export function ScanSyncCodeModal({ onClose }: { onClose: () => void }) {
             <video ref={videoRef} playsInline muted className={cn('h-full w-full object-cover', cameraState !== 'live' && 'hidden')} />
             <canvas ref={canvasRef} className="hidden" />
             {cameraState !== 'live' && (
-              <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-[13px] text-white/80">
+              <Swap id={cameraState} className="absolute inset-0 flex flex-col items-center justify-center gap-2 px-6 text-center text-[13px] text-white/80">
                 {cameraState === 'starting'
                   ? <><Loader2 className="h-5 w-5 animate-spin" /><Trans>Starting the camera…</Trans></>
                   : <><Camera className="h-6 w-6 opacity-70" /><Trans>No camera available here. Browsers allow it only on HTTPS or localhost, and this device needs one. Take a photo of the code and pick it below instead.</Trans></>}
-              </div>
+              </Swap>
             )}
             {cameraState === 'live' && (
               <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -279,7 +280,10 @@ export function ScanSyncCodeModal({ onClose }: { onClose: () => void }) {
             )}
           </div>
 
-          <div className="mt-3 min-h-[2.5rem] text-center text-[14px]">
+          <Swap
+            id={busy ? 'busy' : error ? `error:${error}` : header && collected < total ? 'pages' : status ? `status:${status}` : 'waiting'}
+            className="mt-3 min-h-[2.5rem] text-center text-[14px]"
+          >
             {busy ? (
               <span className="inline-flex items-center gap-2 text-muted-foreground"><Loader2 className="h-4 w-4 animate-spin" /> <Trans>Applying…</Trans></span>
             ) : error ? (
@@ -296,7 +300,7 @@ export function ScanSyncCodeModal({ onClose }: { onClose: () => void }) {
             ) : (
               <span className="text-muted-foreground"><Trans>Waiting for a code…</Trans></span>
             )}
-          </div>
+          </Swap>
 
           <input
             ref={fileRef}
@@ -312,6 +316,7 @@ export function ScanSyncCodeModal({ onClose }: { onClose: () => void }) {
           />
         </div>
       )}
+      </Swap>
     </ModalShell>,
     document.body,
   )

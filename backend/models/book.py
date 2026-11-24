@@ -66,6 +66,8 @@ class Book(Base):
     # so users can AUDIT what their books matched to and re-match wrong ones.
     hardcover_slug: Mapped[Optional[str]] = mapped_column(String(255), nullable=True)
     cover_path: Mapped[Optional[str]] = mapped_column(Text)
+    # "#rrggbb" placeholder tint shown while the cover loads (services/cover_color.py).
+    cover_color: Mapped[Optional[str]] = mapped_column(String(7), nullable=True)
     content_hash: Mapped[Optional[str]] = mapped_column(String(64), index=True)
     book_type_id: Mapped[Optional[int]] = mapped_column(Integer, ForeignKey("book_types.id"), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="active", nullable=False)

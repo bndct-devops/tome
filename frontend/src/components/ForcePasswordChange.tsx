@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { api } from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { Pill } from '@/components/page'
+import { Unfold } from '@/components/motion'
 import { AuthError, AuthField, AuthFrame, AuthInput, AuthPanel, AuthPasswordInput, Spinner } from '@/components/auth/AuthPanel'
 import { Trans } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
@@ -12,6 +13,9 @@ export function ForcePasswordChange() {
   const [next, setNext] = useState('')
   const [confirm, setConfirm] = useState('')
   const [error, setError] = useState('')
+  // The last message stays in the box while it folds away.
+  const [shownError, setShownError] = useState(error)
+  if (error && error !== shownError) setShownError(error)
   const [saving, setSaving] = useState(false)
 
   async function handleSubmit(e: React.FormEvent) {
@@ -52,7 +56,7 @@ export function ForcePasswordChange() {
               <AuthInput type="password" value={confirm} onChange={e => setConfirm(e.target.value)} required autoComplete="new-password" />
             </AuthField>
 
-            {error && <AuthError>{error}</AuthError>}
+            <Unfold open={!!error} gap={16}><AuthError>{shownError}</AuthError></Unfold>
 
             <div className="pt-2">
               <Pill type="submit" variant="primary" size="lg" disabled={saving || !current || !next || !confirm} className="w-full">

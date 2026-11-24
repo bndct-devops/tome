@@ -1,6 +1,7 @@
 /* eslint-disable lingui/no-unlocalized-strings -- class names, not copy */
 import { forwardRef, type ButtonHTMLAttributes } from 'react'
 import { cn } from '@/lib/utils'
+import { PRESS } from '@/components/motion/press'
 
 export type PillVariant = 'primary' | 'secondary' | 'quiet' | 'destructive'
 export type PillSize = 'md' | 'lg'
@@ -35,7 +36,8 @@ export const Pill = forwardRef<HTMLButtonElement, ButtonHTMLAttributes<HTMLButto
       ref={ref}
       type={type}
       className={cn(
-        'inline-flex items-center justify-center rounded-full font-medium transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none touch-feedback',
+        'inline-flex items-center justify-center rounded-full font-medium focus:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-50 disabled:pointer-events-none touch-feedback',
+        PRESS,
         VARIANT[variant],
         SIZE[size],
         variant === 'primary' && 'font-semibold',

@@ -11,6 +11,8 @@ import { UploadModal } from '@/components/UploadModal'
 import { Trans, useLingui } from '@lingui/react/macro'
 import { plural } from '@lingui/core/macro'
 import { coverSrc } from '@/lib/covers'
+import { AnimatePresence, m } from 'motion/react'
+import { Pop, listItem, useBookNav } from '@/components/motion'
 
 /**
  * The shared application shell - the same top navbar (Tome wordmark) + persistent
@@ -37,6 +39,7 @@ export function AppShell({
   sidebar?: ReactNode
 }) {
   const navigate = useNavigate()
+  const openBook = useBookNav()
   const { t } = useLingui()
   const { user } = useAuth()
   const { toast } = useToast()
@@ -65,8 +68,9 @@ export function AppShell({
   useEffect(() => {
     const q = searchInput.trim()
     if (!q) {
-      setSearchPreview([])
-      return
+      // Emptied after the dropdown has folded away, so it leaves with its rows.
+      const t = setTimeout(() => setSearchPreview([]), 150)
+      return () => clearTimeout(t)
     }
     const t = setTimeout(() => {
       api
@@ -128,35 +132,48 @@ export function AppShell({
               onSubmit={submitSearch}
               inputRef={searchInputRef}
             />
-            {searchInput.trim() && searchPreview.length > 0 && (
-              <div className="absolute inset-x-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl bg-card shadow-lg ring-1 ring-panel-ring">
+            <Pop
+              open={!!searchQuery && searchPreview.length > 0}
+              className="absolute inset-x-0 top-full z-50 mt-1.5 overflow-hidden rounded-xl bg-card shadow-lg ring-1 ring-panel-ring"
+            >
+              {/* Rows that stay glide to their new place as the results change. */}
+              <AnimatePresence initial={false}>
                 {searchPreview.map(b => (
-                  <button
+                  <m.button
                     key={b.id}
-                    onClick={() => { setSearchInput(''); navigate(`/books/${b.id}`) }}
-                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-secondary"
+                    {...listItem}
+                    onClick={e => {
+                      const cover = e.currentTarget.querySelector<HTMLElement>('[data-cover-id]')
+                      openBook({ id: b.id, title: b.title, author: b.author }, cover)
+                      setSearchInput('')
+                    }}
+                    className="flex w-full items-center gap-2.5 px-3 py-2 text-left hover:bg-secondary touch-feedback"
                   >
-                    <img
-                      src={coverSrc(b.id, { w: 160 })}
-                      alt=""
-                      className="h-9 w-6 shrink-0 rounded-sm object-cover"
-                    />
+                    <span data-cover-id={b.id} className="block h-9 w-6 shrink-0 overflow-hidden rounded-sm">
+                      <img
+                        src={coverSrc(b.id, { w: 160 })}
+                        alt=""
+                        className="h-full w-full object-cover"
+                      />
+                    </span>
                     <span className="min-w-0">
                       <span className="block truncate text-[14px] text-foreground">{b.title}</span>
                       {b.author && (
                         <span className="block truncate text-[13px] text-muted-foreground">{b.author}</span>
                       )}
                     </span>
-                  </button>
+                  </m.button>
                 ))}
-                <button
-                  onClick={() => navigate(`/?tab=books&q=${encodeURIComponent(searchInput.trim())}`)}
-                  className="w-full border-t border-border/70 px-3 py-2.5 text-left text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground"
-                >
-                  <Trans>See all results for &quot;{searchQuery}&quot;</Trans>
-                </button>
-              </div>
-            )}
+              </AnimatePresence>
+              <m.button
+                layout="position"
+                transition={listItem.transition}
+                onClick={() => navigate(`/?tab=books&q=${encodeURIComponent(searchInput.trim())}`)}
+                className="w-full border-t border-border/70 px-3 py-2.5 text-left text-[13px] text-muted-foreground hover:bg-secondary hover:text-foreground touch-feedback"
+              >
+                <Trans>See all results for &quot;{searchQuery}&quot;</Trans>
+              </m.button>
+            </Pop>
           </div>
         }
         actions={actions}

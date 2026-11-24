@@ -1,3 +1,5 @@
+import { capturedUpdate, transitionRunning } from '@/lib/coverTransition'
+
 export type ThemeId = 'light' | 'dark' | 'black' | 'amber' | 'ember' | `custom-${string}`
 
 export interface ThemeDefinition {
@@ -188,6 +190,18 @@ export function applyTheme(id: ThemeId): void {
   }
 
   localStorage.setItem('tome_theme', id)
+}
+
+/**
+ * A theme switch the user asked for: the whole page cross-fades into the new
+ * colours (one root view transition, 200 ms). Boot and previews call
+ * `applyTheme` directly and stay instant; so does this under reduced motion,
+ * without the API, and while another view transition (a cover or a page
+ * change) is on screen.
+ */
+export function switchTheme(id: ThemeId): void {
+  if (transitionRunning()) { applyTheme(id); return }
+  capturedUpdate('theme', 250, () => applyTheme(id))
 }
 
 export function getStoredTheme(): ThemeId {

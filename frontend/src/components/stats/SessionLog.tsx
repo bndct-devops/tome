@@ -12,8 +12,11 @@ import { Pill } from '@/components/page'
 import type { SessionEntry } from '@/components/stats/shared'
 import { AttributedPagesMark } from '@/components/stats/AttributedPagesMark'
 import { num } from '@/components/stats/kit/tokens'
+import { dropStatsCache } from '@/components/stats/kit/useStatsGet'
 import { sourceLabel, useSessionActions } from '@/components/stats/sessions/actions'
 import { SessionTools, TrimPanel } from '@/components/stats/sessions/SessionTools'
+import { AnimatePresence, m } from 'motion/react'
+import { BookLink, listItem } from '@/components/motion'
 
 // Legend for the session log's labels and actions, rendered as an InfoHint
 // beside whatever heads the list (the "Sessions (N)" header on BookDetailPage,
@@ -55,11 +58,15 @@ export function SessionLogHint() {
 // BookDetailPage (#150); `onChange` lets that host refresh its own aggregates
 // after a trim or delete. `day` (a reading-day string from session_timeline)
 // narrows it to sittings that started that day (the Activity-bar click-through).
-export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: string; onChange?: () => void } = {}) {
+// `expected`: how many rows the host knows there are; the first load holds
+// that many (at most a page) at the rows' height, so the log lands without growing.
+export function SessionLog({ bookId, day, onChange, expected }: { bookId?: number; day?: string; onChange?: () => void; expected?: number } = {}) {
   const [sessions, setSessions] = useState<SessionEntry[]>([])
   const [total, setTotal] = useState(0)
   const [loaded, setLoaded] = useState(0)
-  const [loading, setLoading] = useState(false)
+  // Loading from the first render, so the empty line never shows before the first answer.
+  const [loading, setLoading] = useState(true)
+  const [first, setFirst] = useState(true)
   const [sort, setSort] = useState<'recent' | 'longest'>('recent')
   const load = (offset: number, replace: boolean) => {
     setLoading(true)
@@ -75,7 +82,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
         setLoaded(offset + res.sessions.length)
       })
       .catch(() => {})
-      .finally(() => setLoading(false))
+      .finally(() => { setLoading(false); setFirst(false) })
   }
   useEffect(() => {
     load(0, true)
@@ -91,12 +98,15 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
             : row,
         ),
       )
+      // Every stats total counted this session; the Stats page asks again on the drop.
+      dropStatsCache('/stats')
       onChange?.()
     },
     onDeleted: (s) => {
       setSessions((prev) => prev.filter((row) => row.id !== s.id))
       setTotal((prev) => prev - 1)
       setLoaded((prev) => prev - 1)
+      dropStatsCache('/stats')
       onChange?.()
     },
   })
@@ -104,6 +114,7 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
   if (sessions.length === 0 && !loading) {
     return <p className="py-8 text-center text-[14px] text-muted-foreground"><Trans>No sessions recorded.</Trans></p>
   }
+  const holding = first && sessions.length === 0
   // On a book's own page the book column would repeat one title on every row.
   const showBook = bookId == null
   const cols = showBook
@@ -148,15 +159,24 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
         <span><Trans>Device</Trans></span>
         <span />
       </div>
+      {holding && Array.from({ length: Math.min(Math.max(expected ?? 3, 1), 20) }, (_, i) => (
+        <div key={i} aria-hidden className="flex items-center gap-3 border-b border-border/70 py-2.5">
+          <div className="flex h-[42px] min-w-0 flex-1 flex-col justify-center gap-1.5 sm:h-[37px]">
+            <div className="h-3.5 w-32 rounded bg-muted" />
+            <div className="h-3 w-20 rounded bg-muted/70" />
+          </div>
+        </div>
+      ))}
+      <AnimatePresence initial={false}>
       {sessions.map((s) => (
-        <div key={s.id} className="border-b border-border/70">
+        <m.div key={s.id} {...listItem} className="border-b border-border/70">
           <div className={cn('flex items-start gap-3 py-2.5 sm:grid sm:items-center', cols)}>
             {/* Phones: one block, the date (or book) on top, the rest under it. */}
             <div className="min-w-0 flex-1 sm:contents">
               {showBook && (
                 <div className="truncate text-[15px] font-medium text-foreground">
                   {s.book_id ? (
-                    <a href={`/books/${s.book_id}`} className="transition-colors hover:text-primary">{s.book_title}</a>
+                    <BookLink book={{ id: s.book_id, title: s.book_title ?? '' }} className="transition-colors hover:text-primary">{s.book_title}</BookLink>
                   ) : (
                     <span className="text-muted-foreground">{s.book_title}</span>
                   )}
@@ -193,8 +213,9 @@ export function SessionLog({ bookId, day, onChange }: { bookId?: number; day?: s
             </div>
           </div>
           <TrimPanel s={s} a={actions} />
-        </div>
+        </m.div>
       ))}
+      </AnimatePresence>
       {loaded < total && (
         <div className="flex justify-center pt-3">
           <Pill variant="quiet" onClick={() => load(loaded, false)} disabled={loading}>

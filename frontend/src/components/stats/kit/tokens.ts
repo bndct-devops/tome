@@ -9,8 +9,9 @@ export const DESKTOP_MIN = 896
 /** Hairlines between rows and figures, as Home's (`border-border/70`). */
 export const HAIR = 'border-border/70'
 
-/** A range change in flight: the range-bound sections dim in place. */
-export const DIM = 'opacity-50 transition-opacity duration-150'
+/** A range change in flight: the range-bound sections dim in place, after 150 ms (PENDING_DELAY),
+ *  so an answer that lands sooner never dims anything. Undimming is at once. */
+export const DIM = 'opacity-50 transition-opacity duration-150 delay-150'
 export const UNDIM = 'transition-opacity duration-150'
 
 // The heat scale of the page's charts (hour grids, the year, their legends): one

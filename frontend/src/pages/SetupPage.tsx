@@ -4,6 +4,7 @@ import { BookOpen, UserPlus, AlertCircle, CheckCircle2, Smartphone, BarChart3 } 
 import { useAuth } from '@/contexts/AuthContext'
 import { ThemeToggle } from '@/components/ThemeToggle'
 import { Pill } from '@/components/page'
+import { Unfold } from '@/components/motion'
 import { AuthError, AuthField, AuthFrame, AuthInput, AuthPanel, AuthPasswordInput, Spinner } from '@/components/auth/AuthPanel'
 import { api } from '@/lib/api'
 import { cn } from '@/lib/utils'
@@ -17,6 +18,9 @@ export function SetupPage() {
   const [showPassword, setShowPassword] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
+  // The last message stays in the box while it folds away.
+  const [shownError, setShownError] = useState(error)
+  if (error && error !== shownError) setShownError(error)
 
   if (user) return <Navigate to="/" replace />
 
@@ -84,12 +88,14 @@ export function SetupPage() {
 
           <AuthField
             label={<Trans>Password</Trans>}
-            hint={form.password.length > 0 && (
-              <span className={cn('mt-1.5 text-[13px] flex items-center gap-1', passwordStrong ? 'text-success' : 'text-muted-foreground')}>
-                {passwordStrong ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
-                {passwordStrong ? t`Strong enough` : t`Minimum 8 characters`}
-              </span>
-            )}
+            hint={
+              <Unfold open={form.password.length > 0}>
+                <span className={cn('mt-1.5 text-[13px] flex items-center gap-1', passwordStrong ? 'text-success' : 'text-muted-foreground')}>
+                  {passwordStrong ? <CheckCircle2 className="w-3.5 h-3.5" /> : <AlertCircle className="w-3.5 h-3.5" />}
+                  {passwordStrong ? t`Strong enough` : t`Minimum 8 characters`}
+                </span>
+              </Unfold>
+            }
           >
             <AuthPasswordInput
               value={form.password}
@@ -115,7 +121,7 @@ export function SetupPage() {
             />
           </AuthField>
 
-          {error && <AuthError>{error}</AuthError>}
+          <Unfold open={!!error} gap={16}><AuthError>{shownError}</AuthError></Unfold>
 
           <div className="pt-2">
             <Pill type="submit" variant="primary" size="lg" disabled={loading} className="w-full">

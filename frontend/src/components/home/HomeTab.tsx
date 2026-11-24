@@ -2,7 +2,8 @@
 // progress as a row, four bare numbers, Recently added, a highlight and the
 // latest reading sessions as plain rows.
 import { useEffect, useRef, useState, type ReactNode } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { AnimatePresence, m } from 'motion/react'
+import { useNavigate } from 'react-router-dom'
 import { Trans, useLingui, Plural } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { Eye, Play, RefreshCw, Shuffle } from 'lucide-react'
@@ -14,9 +15,9 @@ import { getFollows, type FollowOut } from '@/lib/follows'
 import { useTelemetry } from '@/lib/useTelemetry'
 import type { Book } from '@/lib/books'
 import { CoverImage } from '@/components/CoverImage'
-import { useTilt } from '@/lib/tilt'
+import { BookLink, CoverLift, EASE, RunningNumber, SeriesLink, listItem, type BookPreview } from '@/components/motion'
 import { HScrollRow } from '@/components/HScrollRow'
-import { QuickLook } from '@/components/QuickLook'
+import { QuickLook, type QuickLookPreview } from '@/components/QuickLook'
 import { TelemetryConsentCard } from '@/components/TelemetryConsentCard'
 import { AttributedPagesMark } from '@/components/stats/AttributedPagesMark'
 import { HomeGoalStart, HomeGoals } from '@/components/goals/HomeGoals'
@@ -32,6 +33,7 @@ interface FocusBook {
   series_index: number | null
   description: string | null
   has_cover: boolean
+  cover_color?: string | null
   /** Known from a reader's sync only: Tome has no file to open. */
   no_file?: boolean
   progress: number
@@ -39,8 +41,8 @@ interface FocusBook {
   synced: boolean
   last_sync: string | null
 }
-interface FocusUpcoming { book_id: number; title: string; series_index: number | null; has_cover: boolean; description: string | null }
-interface FocusReading { book_id: number; title: string; author: string | null; has_cover: boolean; progress: number }
+interface FocusUpcoming { book_id: number; title: string; series_index: number | null; has_cover: boolean; cover_color?: string | null; description: string | null }
+interface FocusReading { book_id: number; title: string; author: string | null; has_cover: boolean; cover_color?: string | null; progress: number }
 interface FocusData {
   ready: boolean
   book: FocusBook | null
@@ -153,21 +155,25 @@ function monthKey(): string {
 
 // ── Pieces ──────────────────────────────────────────────────────────────────
 
-/** 6px bar on the accent track with the percentage in bold beside it. */
+/** 6px bar on the accent track with the percentage in bold beside it. The
+ *  bar and the figure move when the book's progress changes; key it by book
+ *  so another book starts from its own value. */
 function ProgressBar({ pct, className, steady }: { pct: number; className?: string; steady?: boolean }) {
   return (
     <div className={cn('flex items-center gap-3', className)}>
       <div className="h-[6px] flex-1 rounded-full overflow-hidden" style={{ background: 'var(--rail)' }}>
-        <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
+        <div className="h-full rounded-full bg-primary transition-[width] duration-300 ease-(--spring)" style={{ width: `${Math.min(100, Math.max(0, pct))}%` }} />
       </div>
       {/* steady: the number keeps a minimum width, so "2%" and "64%" leave tracks of one length */}
-      <span className={cn('text-[17px] font-bold tabular-nums text-foreground', steady && 'min-w-[3.2ch] text-right')}>{Math.round(pct)}%</span>
+      <span className={cn('text-[17px] font-bold tabular-nums text-foreground', steady && 'min-w-[3.2ch] text-right')}>
+        <RunningNumber value={Math.round(pct)} format={n => `${Math.round(n)}%`} />
+      </span>
     </div>
   )
 }
 
 /** The quick-look button in a cover's corner, shown on hover or keyboard focus. */
-function PeekButton({ onClick }: { onClick: () => void }) {
+function PeekButton({ onClick }: { onClick: (e: React.MouseEvent<HTMLButtonElement>) => void }) {
   const { t } = useLingui()
   return (
     <button
@@ -184,17 +190,17 @@ function PeekButton({ onClick }: { onClick: () => void }) {
 
 /** A shelf book with room to spare: the cover, and beside it, centred on it,
  *  the title (up to two lines) linking to the book and what follows it. */
-function ShelfCard({ cover, bookId, title, children }: { cover: ReactNode; bookId: number; title: string; children: ReactNode }) {
+function ShelfCard({ cover, book, children }: { cover: ReactNode; book: BookPreview; children: ReactNode }) {
   return (
     <div className="flex min-w-0 items-center gap-5">
       <div className="w-[104px] shrink-0">{cover}</div>
       <div className="min-w-0 flex-1">
-        <Link
-          to={`/books/${bookId}`}
+        <BookLink
+          book={book}
           className="font-display text-[18px] lg:text-[20px] leading-[1.15] font-bold text-foreground line-clamp-2 hover:underline decoration-2 underline-offset-4"
         >
-          {title}
-        </Link>
+          {book.title}
+        </BookLink>
         {children}
       </div>
     </div>
@@ -207,7 +213,7 @@ function Eyebrow({ children, className }: { children: ReactNode; className?: str
 
 function SeeAll({ onClick }: { onClick: () => void }) {
   return (
-    <button type="button" onClick={onClick} className="text-primary hover:underline underline-offset-4">
+    <button type="button" onClick={onClick} className="text-primary hover:underline underline-offset-4 touch-feedback">
       <Trans>See all</Trans>
     </button>
   )
@@ -262,7 +268,12 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
   const [spotlight, setSpotlight] = useState<HighlightSpotlight | null>(seed?.spotlight ?? null)
   const [upcoming, setUpcoming] = useState<FollowOut[]>(seed?.upcoming ?? [])
   const [switching, setSwitching] = useState(false)
+  // Another highlight is on its way: the shown one dims until it is in.
+  const [shuffling, setShuffling] = useState(false)
   const [peek, setPeek] = useState<number | null>(null)
+  // The cover the quick look grows out of (and shrinks back into).
+  const [peekFrom, setPeekFrom] = useState<{ origin?: DOMRect; cover?: string | null; preview?: QuickLookPreview }>({})
+  const openPeek = (id: number, from: Element | null | undefined, cover: string | null, preview?: QuickLookPreview) => { setPeekFrom({ origin: from?.getBoundingClientRect(), cover, preview }); setPeek(id) }
 
   // The telemetry question (admins) waits with the rest, or its card lands on
   // top a moment later and pushes the whole page down.
@@ -312,13 +323,24 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
     setFocusId(id)
     setSwitching(true)
     api.get<FocusData>(`/home/focus?book_id=${id}`, ctrl.signal)
-      .then(d => { setFocus(d); setSwitching(false) })
+      // The shelves that change keep their old covers (dimmed) until the new
+      // ones are in, at most 300 ms.
+      .then(async d => {
+        const ids = [...(d.upcoming ?? []).filter(u => u.has_cover), ...d.reading.filter(r => r.has_cover)].map(x => x.book_id)
+        await Promise.race([
+          Promise.all(ids.slice(0, 12).map(bid => { const img = new Image(); img.src = coverSrc(bid, { w: 400 }); return img.decode().catch(() => {}) })),
+          new Promise(r => setTimeout(r, 300)),
+        ])
+        if (!ctrl.signal.aborted) { setFocus(d); setSwitching(false) }
+      })
       .catch(e => { if ((e as Error).name !== 'AbortError') setSwitching(false) })
   }
 
   const shuffleSpotlight = () => {
     const cur = spotlight?.highlight?.id
-    api.get<HighlightSpotlight>(`/annotations/spotlight?include_clippings=1&tz_offset=${new Date().getTimezoneOffset()}${cur ? `&exclude=${encodeURIComponent(cur)}` : ''}`).then(setSpotlight).catch(() => {})
+    setShuffling(true)
+    api.get<HighlightSpotlight>(`/annotations/spotlight?include_clippings=1&tz_offset=${new Date().getTimezoneOffset()}${cur ? `&exclude=${encodeURIComponent(cur)}` : ''}`)
+      .then(setSpotlight).catch(() => {}).finally(() => setShuffling(false))
   }
 
   const dailyStreak = month?.streaks.current_days ?? stats?.current_streak_days ?? 0
@@ -332,11 +354,22 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
     />
   )
 
+  // The skeleton fades away over the page that lands under it.
+  const skeleton = (
+    <AnimatePresence mode="popLayout" initial={false}>
+      {!hydrated && (
+        <m.div key="skeleton" exit={{ opacity: 0 }} transition={{ duration: 0.18 }} className="w-full">
+          <HomeSkeleton />
+        </m.div>
+      )}
+    </AnimatePresence>
+  )
+
   if (!hydrated) {
     return (
       <PageBody width="wide">
-        {header}
-        <HomeSkeleton />
+        <div className="flex flex-col gap-5">{header}</div>
+        <div className="relative flex flex-col gap-7">{skeleton}</div>
       </PageBody>
     )
   }
@@ -378,44 +411,57 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
 
   // The cover of an Also reading book: a click puts it in the hero, the corner
   // button opens the quick look. Dimmed until hovered among the covers only.
+  // It shares its layoutId with the hero's cover: the two swap places.
   const readingCover = (r: FocusReading, dim: boolean) => {
     const title = r.title
     return (
-      <TiltCover className="relative group/cover">
+      <m.div layoutId={`home-cover-${r.book_id}`} transition={{ layout: { duration: 0.3, ease: EASE } }}>
+      <CoverLift className="relative group/cover">
         <button
           type="button"
           onClick={() => switchTo(r.book_id)}
           aria-label={t`Show ${title} here`}
           title={t`Show ${title} here`}
+          data-cover-id={r.book_id}
           className={cn('relative block w-full aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition-opacity focus:outline-none focus-visible:ring-2 focus-visible:ring-ring', dim && 'opacity-80 hover:opacity-100')}
         >
-          <CoverImage src={r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
+          <CoverImage src={r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null} alt="" color={r.cover_color} iconClassName="w-5 h-5" />
         </button>
-        <PeekButton onClick={() => setPeek(r.book_id)} />
-      </TiltCover>
+        <PeekButton onClick={e => openPeek(r.book_id, e.currentTarget.previousElementSibling, r.has_cover ? coverSrc(r.book_id, { w: 400 }) : null, { title: r.title, author: r.author })} />
+      </CoverLift>
+      </m.div>
     )
   }
 
-  // The cover of an Up next volume opens its quick look.
+  // The cover of an Up next volume opens its quick look. It lifts like every
+  // other cover, in the card and in the packed row alike.
   const upCover = (u: FocusUpcoming, dim: boolean) => {
     const title = u.title
     return (
+      <CoverLift>
       <button
         type="button"
-        onClick={() => setPeek(u.book_id)}
+        onClick={e => openPeek(u.book_id, e.currentTarget.firstElementChild, u.has_cover ? coverSrc(u.book_id, { w: 400 }) : null, { title: u.title, author: b?.author, series: b?.series, series_index: u.series_index })}
         className="block w-full text-left group focus:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-[8px]"
         aria-label={t`Quick look: ${title}`}
         title={t`Quick look`}
       >
-        <div className={cn('relative aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition-opacity', dim && 'opacity-80 group-hover:opacity-100')}>
-          <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 400 }) : null} alt="" iconClassName="w-5 h-5" />
+        <div data-cover-id={u.book_id} className={cn('relative aspect-[2/3] rounded-[8px] overflow-hidden bg-muted transition-opacity', dim && 'opacity-80 group-hover:opacity-100')}>
+          <CoverImage src={u.has_cover ? coverSrc(u.book_id, { w: 400 }) : null} alt="" color={u.cover_color} iconClassName="w-5 h-5" />
         </div>
       </button>
+      </CoverLift>
     )
   }
 
+  // What a link to a shelf book hands the book page, so its hero paints at once.
+  const readingPreview = (r: FocusReading): BookPreview => ({ id: r.book_id, title: r.title, author: r.author, coverColor: r.cover_color })
+  const upPreview = (u: FocusUpcoming): BookPreview => ({
+    id: u.book_id, title: u.title, author: b?.author ?? null, series: b?.series ?? null, series_index: u.series_index, coverColor: u.cover_color,
+  })
+
   const readingCard = (r: FocusReading) => (
-    <ShelfCard key={r.book_id} cover={readingCover(r, false)} bookId={r.book_id} title={r.title}>
+    <ShelfCard key={r.book_id} cover={readingCover(r, false)} book={readingPreview(r)}>
       {r.author && <div className="mt-1 truncate text-[15px] leading-[1.4] text-muted-foreground">{r.author}</div>}
       <ProgressBar pct={r.progress} className="mt-3 h-5" steady />
     </ShelfCard>
@@ -429,11 +475,16 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
       : (v != null ? <Trans>Volume {v} · {series}</Trans> : series)
     const blurb = u.description ? plainText(u.description) : ''
     return (
-      <ShelfCard key={u.book_id} cover={<TiltCover>{upCover(u, false)}</TiltCover>} bookId={u.book_id} title={u.title}>
+      <ShelfCard key={u.book_id} cover={upCover(u, false)} book={upPreview(u)}>
         <div className="mt-1 truncate text-[15px] leading-[1.4] text-muted-foreground">{where}</div>
         {blurb && <p className="mt-3 hidden text-[14px] leading-5 text-muted-foreground lg:line-clamp-2">{blurb}</p>}
       </ShelfCard>
     )
+  }
+
+  const heroPreview: BookPreview | null = b && {
+    id: b.book_id, title: b.title, author: b.author, series: b.series, series_index: b.series_index,
+    cover: b.has_cover ? coverSrc(b.book_id, { w: 400 }) : null, coverColor: b.cover_color,
   }
 
   return (
@@ -443,8 +494,11 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
         <TelemetryConsentCard telemetry={telemetry} />
       </div>
 
+      <div className="relative flex flex-col gap-7">
+      {skeleton}
+
       {/* ── Continue reading ─────────────────────────────────────────────── */}
-      {!b ? (
+      {!b || !heroPreview ? (
         <section className="py-6">
           <div className="text-[17px] font-semibold text-foreground"><Trans>Nothing in progress</Trans></div>
           <div className="text-[15px] text-muted-foreground mt-1"><Trans>Start a book and it shows up here</Trans></div>
@@ -452,39 +506,42 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
         </section>
       ) : (
         <section className={cn('flex flex-col sm:flex-row gap-7 sm:items-start transition-opacity', switching && 'opacity-60')}>
-          <TiltCover className="shrink-0 w-[180px] mx-auto sm:mx-0" degrees={4}>
-            <Link
-              to={`/books/${b.book_id}`}
+          <m.div key={b.book_id} layoutId={`home-cover-${b.book_id}`} transition={{ layout: { duration: 0.3, ease: EASE } }} className="shrink-0 w-[180px] mx-auto sm:mx-0">
+          <CoverLift>
+            <BookLink
+              book={heroPreview}
+              data-cover-id={b.book_id}
               className="block rounded-[12px] overflow-hidden bg-muted"
               style={{ boxShadow: 'var(--cover-bloom-hero)' }}
               aria-label={b.title}
             >
               <div className="relative aspect-[2/3]">
-                <CoverImage src={b.has_cover ? coverSrc(b.book_id, { w: 400 }) : null} alt="" loading="eager" iconClassName="w-10 h-10" />
+                <CoverImage src={b.has_cover ? coverSrc(b.book_id, { w: 400 }) : null} alt="" loading="eager" color={b.cover_color} iconClassName="w-10 h-10" />
               </div>
-            </Link>
-          </TiltCover>
+            </BookLink>
+          </CoverLift>
+          </m.div>
           <div className="min-w-0 flex-1 max-w-[640px]">
             {/* The eyebrow names the series when there is one, with the volume;
                 a standalone book keeps "Continue reading". */}
             {b.series ? (
-              <Link
-                to={`/?tab=series&series_detail=${encodeURIComponent(b.series)}`}
+              <SeriesLink
+                name={b.series}
                 className="inline-block text-[12px] font-bold uppercase tracking-[0.1em] text-primary hover:underline underline-offset-4"
               >
                 {b.series}{b.series_index != null && (() => { const v = fmtIndex(b.series_index); return <> · <Trans>Volume {v}</Trans></> })()}
-              </Link>
+              </SeriesLink>
             ) : (
               <Eyebrow className="text-primary"><Trans>Continue reading</Trans></Eyebrow>
             )}
             <h2 className="font-display text-[32px] leading-[1.05] font-bold text-foreground mt-2">
-              <Link to={`/books/${b.book_id}`} className="hover:underline decoration-2 underline-offset-4">{b.title}</Link>
+              <BookLink book={heroPreview} className="hover:underline decoration-2 underline-offset-4">{b.title}</BookLink>
             </h2>
             {b.author && <div className="mt-1.5 text-[16px] text-muted-foreground">{b.author}</div>}
             {b.description && (
               <p className="mt-2.5 text-[15px] leading-relaxed text-foreground/80 line-clamp-2 max-w-[64ch]">{plainText(b.description)}</p>
             )}
-            <ProgressBar pct={b.progress} className="mt-4" />
+            <ProgressBar key={b.book_id} pct={b.progress} className="mt-4" />
             <div className="mt-3.5 flex flex-wrap items-center gap-3">
               {b.no_file ? (
                 <span className="inline-flex h-9 items-center rounded-full bg-secondary px-4 text-[14px] font-medium text-foreground">
@@ -543,23 +600,29 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
             <div className="min-w-0">
               <Eyebrow className="mb-2"><Trans>Also reading</Trans></Eyebrow>
               <HScrollRow className="gap-4 px-2 pt-3 pb-2" wrapClassName="-mx-2 -mt-3" controlsTop="top-[84px]">
+                {/* No AnimatePresence: the book going to the hero leaves the row at once, so
+                    the hero's old cover lands in a free slot. A leaving row held for its fade
+                    kept its slot (its cover is a shared layout element, which held it 300 ms)
+                    and made the row one cover too wide; popLayout cost a 100 ms frame in Safari. */}
+                <>
                 {others.map(r => (
-                  <div key={r.book_id} className="shrink-0 w-[104px]">
+                  <m.div key={r.book_id} {...listItem} className="shrink-0 w-[104px]">
                     {readingCover(r, true)}
                     <div className="mt-2 h-[3px] rounded-full overflow-hidden" style={{ background: 'var(--rail)' }}>
-                      <div className="h-full bg-primary" style={{ width: `${Math.min(100, r.progress)}%` }} />
+                      <div className="h-full bg-primary transition-[width] duration-300 ease-(--spring)" style={{ width: `${Math.min(100, r.progress)}%` }} />
                     </div>
-                    <Link to={`/books/${r.book_id}`} className="mt-1.5 block text-[13px] truncate text-muted-foreground hover:text-primary transition-colors">{r.title}</Link>
-                  </div>
+                    <BookLink book={readingPreview(r)} className="mt-1.5 block text-[13px] truncate text-muted-foreground hover:text-primary transition-colors">{r.title}</BookLink>
+                  </m.div>
                 ))}
                 {more > 0 && (
-                  <button type="button" onClick={() => navigate('/?tab=books&reading_status=reading')} className="shrink-0 w-[104px] text-left group">
+                  <m.button key="more" layout="position" transition={listItem.transition} type="button" onClick={() => navigate('/?tab=books&reading_status=reading')} className="shrink-0 w-[104px] text-left group touch-feedback">
                     <div className="aspect-[2/3] rounded-[8px] bg-secondary grid place-items-center text-[15px] font-semibold text-muted-foreground group-hover:text-foreground transition-colors">
                       +{more}
                     </div>
                     <div className="mt-[17px] text-[13px] text-muted-foreground"><Trans>See all</Trans></div>
-                  </button>
+                  </m.button>
                 )}
+                </>
               </HScrollRow>
             </div>
           )}
@@ -567,14 +630,16 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
             <div className={cn('shrink-0', others.length > 0 && 'lg:border-l lg:border-border/70 lg:pl-8')}>
               <Eyebrow className="mb-2">{upLabel}</Eyebrow>
               <div className="flex gap-4 pb-2">
+                <>
                 {ups.map(u => (
-                  <div key={u.book_id} className="shrink-0 w-[104px]">
+                  <m.div key={u.book_id} {...listItem} className="shrink-0 w-[104px]">
                     {upCover(u, true)}
-                    <Link to={`/books/${u.book_id}`} className="mt-[17px] block text-[13px] text-muted-foreground truncate hover:text-primary transition-colors">
+                    <BookLink book={upPreview(u)} className="mt-[17px] block text-[13px] text-muted-foreground truncate hover:text-primary transition-colors">
                       {u.series_index != null ? (() => { const v = fmtIndex(u.series_index); return <Trans>Volume {v}</Trans> })() : u.title}
-                    </Link>
-                  </div>
+                    </BookLink>
+                  </m.div>
                 ))}
+                </>
               </div>
             </div>
           )}
@@ -601,9 +666,11 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
               foot={month ? (() => { const n = month.streaks.longest_days; return <Trans>Best {n} days</Trans> })() : undefined}
             />
           )}
+          {/* The leading figure runs; hours and minutes keep their own words. */}
           <Stat
             label={<Trans>This month</Trans>}
-            value={hours > 0 ? t`${hours}h` : t`${mins}m`}
+            value={hours > 0 ? hours : mins}
+            format={hours > 0 ? (n => { const hours = Math.round(n); return t`${hours}h` }) : (n => { const mins = Math.round(n); return t`${mins}m` })}
             unit={hours > 0 ? t`${mins}m` : undefined}
             tone="info"
             foot={<Trans>Time reading</Trans>}
@@ -632,23 +699,27 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
         <section data-box="home-recent">
           <SectionTitle action={<SeeAll onClick={onSeeAllRecent} />}><Trans>Recently added</Trans></SectionTitle>
           <HScrollRow className="gap-4 px-2 pt-5 pb-3" wrapClassName="-mx-2 -mt-1" controlsTop="top-[128px]">
-            {recent.map(book => { const title = book.title; return (
+            {recent.map(book => { const title = book.title; const cover = book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null; return (
               <div key={book.id} className="shrink-0 w-[150px]">
-                <TiltCover className="relative">
+                <CoverLift className="relative">
                   <button
                     type="button"
-                    onClick={() => setPeek(book.id)}
+                    onClick={e => openPeek(book.id, e.currentTarget, cover, { title: book.title, author: book.author, series: book.series, series_index: book.series_index })}
+                    data-cover-id={book.id}
                     className="relative block w-full aspect-[2/3] rounded-[12px] overflow-hidden bg-muted focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                     style={{ boxShadow: 'var(--cover-bloom-fan)' }}
                     aria-label={t`Quick look: ${title}`}
                     title={t`Quick look`}
                   >
-                    <CoverImage src={book.cover_path ? coverSrc(book.id, { w: 400, v: book.updated_at }) : null} alt="" />
+                    <CoverImage src={cover} alt="" color={book.cover_color} />
                   </button>
-                </TiltCover>
-                <Link to={`/books/${book.id}`} className="mt-2.5 block text-[15px] text-foreground leading-snug line-clamp-2 hover:text-primary transition-colors">
+                </CoverLift>
+                <BookLink
+                  book={{ id: book.id, title: book.title, author: book.author, series: book.series, series_index: book.series_index, cover, coverColor: book.cover_color }}
+                  className="mt-2.5 block text-[15px] text-foreground leading-snug line-clamp-2 hover:text-primary transition-colors"
+                >
                   {book.title}
-                </Link>
+                </BookLink>
               </div>
             ) })}
           </HScrollRow>
@@ -695,7 +766,10 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
           >
             {spotlight.on_this_day ? <Trans>On this day</Trans> : <Trans>From your highlights</Trans>}
           </SectionTitle>
-          <Link to={`/books/${spotlight.highlight.book_id}`} className="mt-4 block group max-w-[760px]">
+          <BookLink
+            book={{ id: spotlight.highlight.book_id, title: spotlight.highlight.book_title, author: spotlight.highlight.book_author }}
+            className={cn('mt-4 block group max-w-[760px] transition-opacity duration-150', shuffling && 'opacity-50')}
+          >
             <blockquote className="border-l-2 border-primary/50 pl-5 text-[17px] leading-relaxed text-foreground line-clamp-5">
               {spotlight.highlight.highlighted_text}
             </blockquote>
@@ -704,7 +778,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                 ? (() => { const title = spotlight.highlight.book_title; const author = spotlight.highlight.book_author; return <Trans>{title}, {author}</Trans> })()
                 : spotlight.highlight.book_title}
             </div>
-          </Link>
+          </BookLink>
         </section>
       )}
 
@@ -714,12 +788,12 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
           <SectionTitle action={<SeeAll onClick={() => navigate('/stats')} />}><Trans>Recent activity</Trans></SectionTitle>
           <div className="mt-3">
             {rows.map(({ entry, sessions, seconds, pages, attributed }, i) => (
-              <Link
+              <BookLink
                 key={entry.started_at}
-                to={`/books/${entry.book_id}`}
-                className={cn('flex items-center gap-4 py-3 group', i > 0 && 'border-t border-border/70')}
+                book={{ id: entry.book_id, title: entry.book_title, cover: entry.book_cover_path ? coverSrc(entry.book_id, { w: 160 }) : null }}
+                className={cn('flex items-center gap-4 py-3 group touch-feedback', i > 0 && 'border-t border-border/70')}
               >
-                <div className="relative w-11 h-16 rounded-md overflow-hidden bg-muted shrink-0">
+                <div data-cover-id={entry.book_id} className="relative w-11 h-16 rounded-md overflow-hidden bg-muted shrink-0">
                   <CoverImage src={entry.book_cover_path ? coverSrc(entry.book_id, { w: 160 }) : null} alt="" iconClassName="w-4 h-4" />
                 </div>
                 <div className="min-w-0 flex-1">
@@ -731,23 +805,16 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                   </div>
                 </div>
                 <div className="text-[14px] text-muted-foreground shrink-0">{relativeTime(entry.started_at, i18n.locale)}</div>
-              </Link>
+              </BookLink>
             ))}
           </div>
         </section>
       )}
+      </div>
 
-      {peek != null && <QuickLook bookId={peek} onClose={() => setPeek(null)} />}
+      <AnimatePresence>
+        {peek != null && <QuickLook key={peek} bookId={peek} origin={peekFrom.origin} cover={peekFrom.cover} preview={peekFrom.preview} onClose={() => setPeek(null)} />}
+      </AnimatePresence>
     </PageBody>
-  )
-}
-
-/** A cover that tilts toward the pointer, as the Library cards do. */
-function TiltCover({ className, degrees, children }: { className?: string; degrees?: number; children: ReactNode }) {
-  const { wrapperProps, tiltProps } = useTilt(true, degrees)
-  return (
-    <div {...wrapperProps} className="shrink-0">
-      <div {...tiltProps} className={className}>{children}</div>
-    </div>
   )
 }

@@ -68,6 +68,7 @@ def get_focus(
             Book.series_index,
             Book.description,
             Book.cover_path,
+            Book.cover_color,
             Book.status.label("book_status"),
             TomeSyncPosition.percentage.label("sync_pct"),
             TomeSyncPosition.device.label("device"),
@@ -111,7 +112,7 @@ def get_focus(
                 visible,
             )
             .order_by(Book.series_index.asc())
-            .with_entities(Book.id, Book.title, Book.series_index, Book.cover_path, Book.description)
+            .with_entities(Book.id, Book.title, Book.series_index, Book.cover_path, Book.cover_color, Book.description)
             .all()
         )
         # Whole volumes only — exclude side-story / fractional indices (e.g. 13.5)
@@ -124,6 +125,7 @@ def get_focus(
                 "title": v.title,
                 "series_index": v.series_index,
                 "has_cover": bool(v.cover_path),
+                "cover_color": v.cover_color,
                 "description": v.description,
             }
             for v in vol_rows[:5]
@@ -137,6 +139,7 @@ def get_focus(
             "title": r.title,
             "author": r.author,
             "has_cover": bool(r.cover_path),
+            "cover_color": r.cover_color,
             "progress": _norm_pct(r.sync_pct if r.sync_pct is not None else r.progress_pct),
             "no_file": r.book_status == BOOK_NO_FILE,
         }
@@ -156,6 +159,7 @@ def get_focus(
             "series_index": hero.series_index,
             "description": hero.description,
             "has_cover": bool(hero.cover_path),
+            "cover_color": hero.cover_color,
             # Nothing to open in the web reader: the file is on the reader only.
             "no_file": hero.book_status == BOOK_NO_FILE,
             "progress": progress,

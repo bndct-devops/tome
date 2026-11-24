@@ -460,6 +460,8 @@ def bindery_accept(
                 added_by=current_user.id,
                 book_type_id=item.book_type_id,
             )
+            from backend.services.cover_color import refresh_cover_color
+            refresh_cover_color(book)
             db.add(book)
             db.flush()
 

@@ -12,6 +12,7 @@ import type { CSSProperties, ReactNode } from 'react'
 import { Check } from 'lucide-react'
 import { t } from '@lingui/core/macro'
 import { cn } from '@/lib/utils'
+import { Glide, GlideGroup, PRESS } from '@/components/page'
 import type { Goal } from '@/lib/goals'
 import { detail, fitClauses, lead, markKind, stripMarks, tick, type Mark } from '@/lib/goalsModel'
 import { CountUp } from '@/components/stats/kit/CountUp'
@@ -229,6 +230,7 @@ export function GoalGrid({ goals, count, desktop, entry, shapeKey, pick, selecte
   // column has no left padding; the others 24 px either side).
   const lineWidth = (col: number) => (desktop && width > 0 ? Math.floor(width / cols) - (col === 0 ? 24 : 48) : undefined)
   return (
+    <GlideGroup value={selected ?? null}>
     <div ref={gridRef} className={cn('grid', desktop ? 'grid-cols-4' : 'grid-cols-[minmax(0,1fr)_minmax(0,1fr)]')} role="list" aria-label={label}>
       {cells.map((g, i) => {
         const col = i % cols
@@ -257,15 +259,16 @@ export function GoalGrid({ goals, count, desktop, entry, shapeKey, pick, selecte
                 type="button"
                 onClick={() => pick(g)}
                 aria-pressed={selected !== undefined ? sel : undefined}
-                className={cn('group/card w-full rounded-[10px] text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background', SUB)}
+                className={cn('group/card w-full rounded-[10px] text-left touch-feedback focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-4 focus-visible:ring-offset-background', PRESS, SUB)}
               >
                 {cell}
               </button>
             ) : cell}
+            {/* One underline that glides to the picked card (a span, not the card's box). */}
             {sel && (
-              <span
-                className={cn('absolute h-[3px] rounded-full bg-primary', lastRow ? '-bottom-[14px]' : 'bottom-[6px]', desktop && col > 0 ? 'left-6 right-6' : 'left-0 right-6', !desktop && col > 0 && 'left-4 right-0')}
-                aria-hidden="true"
+              <Glide
+                layoutId="goal-selected"
+                className={cn('top-auto h-[3px] bg-primary', lastRow ? '-bottom-[14px]' : 'bottom-[6px]', desktop && col > 0 ? 'left-6 right-6' : 'left-0 right-6', !desktop && col > 0 && 'left-4 right-0')}
               />
             )}
           </div>,
@@ -276,5 +279,6 @@ export function GoalGrid({ goals, count, desktop, entry, shapeKey, pick, selecte
         ]
       })}
     </div>
+    </GlideGroup>
   )
 }

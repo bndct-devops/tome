@@ -27,11 +27,12 @@ export function Head({ children, note, stack }: { children: ReactNode; note?: Re
  * ring; the pointer finds it 8 px above and below the line (a band that adds
  * no height).
  */
-export function Thin({ frac, className, style, tip }: { frac: number; className?: string; style?: CSSProperties; tip?: { 'data-tip': string } }) {
+/** `k` names the fill for useTween() (kit/tween.ts): a new value moves it to its new width. */
+export function Thin({ frac, className, style, tip, k }: { frac: number; className?: string; style?: CSSProperties; tip?: { 'data-tip': string }; k?: string }) {
   return (
     <div className={cn('relative h-[4px] rounded-full', tip && "k-track k-bar before:absolute before:inset-x-0 before:-inset-y-2 before:content-['']", className)} style={style} {...tip}>
       <div className="h-full overflow-hidden rounded-full" style={{ background: 'var(--rail)' }}>
-        <div className={cn('h-full rounded-full bg-primary', K.growX)} style={{ width: `${Math.min(100, Math.max(0, frac * 100))}%` }} />
+        <div className={cn('h-full rounded-full bg-primary', K.growX)} data-k={k} data-kt={k ? 'barx' : undefined} style={{ width: `${Math.min(100, Math.max(0, frac * 100))}%` }} />
       </div>
     </div>
   )

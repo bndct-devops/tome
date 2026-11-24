@@ -67,7 +67,7 @@ def compute_pace(db: Session, user_id: int, tz_offset: int = 0, tz_name: str | N
     covered = rr.covered_book_ids(db, user_id)
 
     # All-time reconciled seconds per book — feeds both wpm and type averages.
-    secs_by_book = rr.book_seconds(db, user_id, tzm, covered, None, None)
+    secs_by_book = rr.book_seconds(db, user_id, tzm, covered, None, None, sessions=False)
     finished = (
         db.query(Book.id, Book.word_count, Book.book_type_id)
         .join(UserBookStatus, UserBookStatus.book_id == Book.id)
@@ -101,7 +101,7 @@ def compute_pace(db: Session, user_id: int, tz_offset: int = 0, tz_name: str | N
     window = PACE_WINDOW_DAYS
     for window in (PACE_WINDOW_DAYS, PACE_FALLBACK_WINDOW_DAYS):
         cutoff = datetime.utcnow() - timedelta(days=window)
-        recent_secs, _, _ = rr.totals(db, user_id, tzm, covered, cutoff, None)
+        recent_secs, _, _ = rr.totals(db, user_id, tzm, covered, cutoff, None, sessions=False)
         if recent_secs / 60 / window >= MIN_MINUTES_PER_DAY:
             minutes_per_day = round(recent_secs / 60 / window, 1)
             break

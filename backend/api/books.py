@@ -31,6 +31,7 @@ from backend.models.user_book_status import UserBookStatus
 from backend.services.audit import audit
 from backend.services.book_filters import apply_word_count_bounds
 from backend.services import cover_thumbs
+from backend.services.cover_color import refresh_cover_color
 from backend.models.library import Library
 from backend.models.user import User
 from pydantic import BaseModel as PydanticBaseModel
@@ -649,7 +650,7 @@ def get_series(
     # within a series, by volume (nulls last, then id), instead of one query
     # per series.
     volume_rows = (
-        db.query(Book.id, Book.series, Book.cover_path, Book.description, Book.author)
+        db.query(Book.id, Book.series, Book.cover_path, Book.cover_color, Book.description, Book.author)
         .filter(Book.status == "active", Book.series.isnot(None), visibility)
         .order_by(
             Book.series,
@@ -686,6 +687,7 @@ def get_series(
             "name": series_name,
             "book_count": len(series_books),
             "cover_book_id": cover_book.id if cover_book else None,
+            "cover_color": cover_book.cover_color if cover_book else None,
             "description": first_book.description,
             "author": first_book.author,
             "read_count": read_count,
@@ -713,6 +715,7 @@ def get_series(
             "name": "__unserialized__",
             "book_count": unserialized_count,
             "cover_book_id": first_unserialized.id if first_unserialized else None,
+            "cover_color": first_unserialized.cover_color if first_unserialized else None,
             "description": None,
             "author": None,
             "read_count": 0,
@@ -767,6 +770,7 @@ def get_series_detail(
             "title": b.title,
             "series_index": b.series_index,
             "cover_path": b.cover_path,
+            "cover_color": b.cover_color,
             "updated_at": b.updated_at.isoformat() if b.updated_at else None,
             "reading_status": st.status if st else "unread",
             "progress_pct": st.progress_pct if st else None,
@@ -1434,7 +1438,7 @@ def get_reader_pacing(
 
     wpm = None
     covered = rr.covered_book_ids(db, current_user.id)
-    secs_by_book = rr.book_seconds(db, current_user.id, DayCtx(0), covered, None, None)
+    secs_by_book = rr.book_seconds(db, current_user.id, DayCtx(0), covered, None, None, sessions=False)
     rows = (
         db.query(Book.id, Book.word_count)
         .join(UserBookStatus, UserBookStatus.book_id == Book.id)
@@ -1972,6 +1976,7 @@ async def bulk_fetch_metadata(
                     cover_path.parent.mkdir(parents=True, exist_ok=True)
                     cover_path.write_bytes(cover_data)
                     book.cover_path = cover_filename
+                    refresh_cover_color(book)
                     changed = True
                 except Exception:
                     pass  # cover fetch failure is non-fatal
@@ -2227,6 +2232,7 @@ async def set_book_cover(
         cover_path.write_bytes(data)
 
     book.cover_path = cover_filename
+    refresh_cover_color(book)
     # The file name is reused on a second upload, so mark the change by hand:
     # cover URLs are versioned by updated_at.
     book.updated_at = datetime.utcnow()
@@ -2780,6 +2786,7 @@ def upload_book(
         added_by=current_user.id,
         book_type_id=book_type_id,
     )
+    refresh_cover_color(book)
     db.add(book)
     db.flush()
 
@@ -3157,6 +3164,7 @@ async def apply_metadata(
 
         cover_path.write_bytes(cover_data)
         book.cover_path = cover_filename
+        refresh_cover_color(book)
         book.updated_at = datetime.utcnow()   # same file name as the last fetch: bump the cover URL version
 
     db.flush()

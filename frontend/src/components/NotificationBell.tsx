@@ -1,9 +1,10 @@
 import { useState, useEffect, useRef, useCallback } from 'react'
-import { AnimatePresence, m } from 'motion/react'
 import { Bell, BellOff, Check, BookOpen, Target, Timer } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import { cn } from '@/lib/utils'
 import { useEscape } from '@/components/ModalShell'
+import { AnimatePresence, m } from 'motion/react'
+import { EASE, Pop, RunningNumber, listItem } from '@/components/motion'
 import {
   listNotifications,
   markRead,
@@ -14,6 +15,9 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
 
 const POLL_INTERVAL_MS = 60_000 // 1 minute
+
+// The unread badge and a row's unread dot grow in and shrink away (160 ms).
+const GROW = { initial: { scale: 0 }, animate: { scale: 1 }, exit: { scale: 0 }, transition: { duration: 0.16, ease: EASE } } as const
 
 // Uses the core t macro (global i18n) - called during render, so a locale
 // switch re-renders it through I18nProvider like everything else.
@@ -125,28 +129,25 @@ export function NotificationBell() {
         title={t`Notifications`}
         aria-label={t`Notifications`}
         className={cn(
-          'relative flex items-center justify-center w-9 h-9 rounded-full transition-colors',
+          'relative flex items-center justify-center w-9 h-9 rounded-full transition-colors touch-feedback',
           open
             ? 'bg-background text-foreground'
             : 'text-muted-foreground hover:text-foreground hover:bg-background/70'
         )}
       >
         <Bell className="w-4 h-4" />
-        {unreadCount > 0 && (
-          <span className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-[16px] rounded-full bg-primary text-primary-foreground text-[10px] font-bold leading-none px-1 tabular-nums">
-            {unreadCount > 99 ? '99+' : unreadCount}
-          </span>
-        )}
+        <AnimatePresence initial={false}>
+          {unreadCount > 0 && (
+            <m.span key="badge" {...GROW} className="absolute top-0.5 right-0.5 flex items-center justify-center min-w-[16px] h-[16px] rounded-full bg-primary text-primary-foreground text-[10px] font-bold leading-none px-1 tabular-nums">
+              {unreadCount > 99 ? '99+' : <RunningNumber value={unreadCount} />}
+            </m.span>
+          )}
+        </AnimatePresence>
       </button>
 
-      <AnimatePresence>
-      {open && (
-        <m.div
-          initial={{ opacity: 0, scale: 0.95, y: -4 }}
-          animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: -4 }}
-          transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
-          style={{ transformOrigin: 'top right' }}
+      <Pop
+          open={open}
+          origin="top-right"
           // Below md the panel anchors to the viewport (a 380px panel hung off
           // a bell near the right edge ran off a 400px screen).
           className="z-50 flex flex-col overflow-hidden bg-card rounded-[var(--radius-panel)] shadow-2xl shadow-black/30 ring-1 ring-panel-ring max-md:fixed max-md:inset-x-3 max-md:top-[calc(3.5rem+env(safe-area-inset-top))] max-md:max-h-[calc(100dvh-5rem)] md:absolute md:right-0 md:top-full md:mt-2 md:w-[380px] md:max-h-[480px]">
@@ -157,7 +158,7 @@ export function NotificationBell() {
               <button
                 onClick={handleMarkAll}
                 disabled={markingAll}
-                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50"
+                className="inline-flex items-center gap-1.5 h-8 px-3 rounded-full text-[13px] text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors disabled:opacity-50 touch-feedback"
               >
                 <Check className="w-3.5 h-3.5" />
                 <Trans>Mark all read</Trans>
@@ -173,9 +174,12 @@ export function NotificationBell() {
               </div>
             ) : (
               <div className="divide-y divide-border/70 border-b border-border/70">
+              {/* New arrivals push the rows down by gliding, not jumping. */}
+              <AnimatePresence initial={false}>
               {notifications.map(n => (
-                <button
+                <m.button
                   key={n.id}
+                  {...listItem}
                   onClick={() => handleClickNotification(n)}
                   className="w-full flex items-start gap-3.5 px-5 py-3.5 text-left transition-colors hover:bg-secondary/50"
                 >
@@ -201,17 +205,19 @@ export function NotificationBell() {
                     )}
                     <p className="text-[12px] text-muted-foreground/70 mt-1.5">{relativeTime(n.created_at)}</p>
                   </div>
-                  {!n.read && (
-                    <span className="mt-2 w-2 h-2 rounded-full bg-primary shrink-0" />
-                  )}
-                </button>
+                  {/* The dot's slot stays, so marking read moves nothing. */}
+                  <span className="mt-2 w-2 h-2 shrink-0">
+                    <AnimatePresence initial={false}>
+                      {!n.read && <m.span key="dot" {...GROW} className="block w-2 h-2 rounded-full bg-primary" />}
+                    </AnimatePresence>
+                  </span>
+                </m.button>
               ))}
+              </AnimatePresence>
               </div>
             )}
           </div>
-        </m.div>
-      )}
-      </AnimatePresence>
+      </Pop>
     </div>
   )
 }

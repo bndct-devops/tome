@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useCallback, useMemo, useRef } from 'react'
 import { Check, AlertCircle, Info, X } from 'lucide-react'
-import { cn } from '@/lib/utils'
+import { AnimatePresence, m } from 'motion/react'
+import { MotionProvider } from '@/lib/motion'
 
 interface ToastAction {
   label: string
@@ -11,7 +12,6 @@ interface Toast {
   id: number
   type: 'success' | 'error' | 'info'
   message: string
-  exiting: boolean
   action?: ToastAction
 }
 
@@ -41,24 +41,29 @@ const MAX_TOASTS = 5
 const AUTO_DISMISS_MS = 4000
 // Toasts with an action (e.g. Undo) linger a little longer so there's time to act.
 const AUTO_DISMISS_ACTION_MS = 7000
-const EXIT_DURATION_MS = 300
+// A toast slides in from the right; one leaving fades and lifts out of the
+// stack at once (popLayout), and the others glide into its place.
+const EASE = [0.2, 0.8, 0.2, 1] as const
+const TOAST_MOTION = {
+  layout: 'position',
+  initial: { opacity: 0, x: 16 },
+  animate: { opacity: 1, x: 0 },
+  exit: { opacity: 0, transition: { duration: 0.15, ease: EASE } },
+  transition: { duration: 0.2, ease: EASE, layout: { duration: 0.24, ease: EASE } },
+} as const
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<Toast[]>([])
   const idRef = useRef(0)
 
   const dismiss = useCallback((id: number) => {
-    // Mark as exiting first, then remove after animation
-    setToasts(prev => prev.map(t => t.id === id ? { ...t, exiting: true } : t))
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id))
-    }, EXIT_DURATION_MS)
+    setToasts(prev => prev.filter(t => t.id !== id))
   }, [])
 
   const addToast = useCallback((type: Toast['type'], message: string, action?: ToastAction) => {
     const id = ++idRef.current
     setToasts(prev => {
-      const next = [...prev, { id, type, message, exiting: false, action }]
+      const next = [...prev, { id, type, message, action }]
       // Cap at MAX_TOASTS - drop oldest
       return next.length > MAX_TOASTS ? next.slice(next.length - MAX_TOASTS) : next
     })
@@ -80,20 +85,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
   return (
     <ToastContext.Provider value={value}>
       {children}
+      {/* Outside the app's MotionProvider (App.tsx), so the stack brings its own. */}
+      <MotionProvider>
       <div
         aria-live="polite"
         aria-atomic="false"
         className="fixed bottom-4 right-4 z-[100] flex flex-col gap-2 pointer-events-none w-80 max-w-[calc(100vw-2rem)]"
       >
+        <AnimatePresence initial={false} mode="popLayout">
         {toasts.map(t => (
-          <div
+          <m.div
             key={t.id}
-            className={cn(
-              'flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg ring-1 ring-panel-ring text-[14px] bg-card pointer-events-auto',
-              t.exiting
-                ? 'animate-out fade-out duration-300'
-                : 'animate-in slide-in-from-right-4 fade-in duration-200',
-            )}
+            {...TOAST_MOTION}
+            className="flex items-start gap-3 px-4 py-3 rounded-xl shadow-lg ring-1 ring-panel-ring text-[14px] bg-card pointer-events-auto"
           >
             <span className="shrink-0 mt-0.5">
               {t.type === 'success' && <Check className="w-4 h-4 text-success" />}
@@ -104,21 +108,23 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
             {t.action && (
               <button
                 onClick={() => { t.action!.onClick(); dismiss(t.id) }}
-                className="shrink-0 mt-0.5 font-semibold text-primary hover:underline transition-colors"
+                className="shrink-0 mt-0.5 font-semibold text-primary hover:underline transition-colors touch-feedback"
               >
                 {t.action.label}
               </button>
             )}
             <button
               onClick={() => dismiss(t.id)}
-              className="shrink-0 mt-0.5 text-muted-foreground hover:text-foreground transition-colors"
+              className="shrink-0 mt-0.5 text-muted-foreground hover:text-foreground transition-colors touch-feedback"
               aria-label="Dismiss"
             >
               <X className="w-3.5 h-3.5" />
             </button>
-          </div>
+          </m.div>
         ))}
+        </AnimatePresence>
       </div>
+      </MotionProvider>
     </ToastContext.Provider>
   )
 }

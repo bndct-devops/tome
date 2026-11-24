@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react'
+import { memo, useEffect, useRef } from 'react'
+import { m } from 'motion/react'
 import { Layers } from 'lucide-react'
 import { Plural } from '@lingui/react/macro'
 import type { Book } from '@/lib/books'
@@ -6,7 +7,10 @@ import type { ViewMode } from '@/components/BookCard'
 import { cn } from '@/lib/utils'
 import { CoverImage } from '@/components/CoverImage'
 import { coverSrc } from '@/lib/covers'
-import { coverRing } from '@/lib/tilt'
+import { COVER_TILT, coverRing, useTilt } from '@/lib/tilt'
+import { isPlainClick } from '@/lib/coverTransition'
+import '@/components/motion/motion.css'
+import { EASE } from '@/components/motion/presets'
 
 interface SeriesStackCardProps {
   book: Book
@@ -15,13 +19,32 @@ interface SeriesStackCardProps {
   focused?: boolean
   index?: number
   onOpen: () => void
+  /** The series page, when opening the card navigates: the card is then a
+   *  link (new tab, middle click), and a plain click calls `onOpen`. */
+  href?: string
+  /** Cover and title travel on the Library grid/list switch (see BookCard). */
+  travel?: boolean
+  travelEpoch?: number | string
 }
 
+const TRAVEL = { duration: 0.32, ease: EASE }
+
 // Stacked card for the "Group by series" library view: the first volume's
-// cover sits on top of the next volumes' real covers, which fan out on hover.
-// Clicking anywhere opens the series detail view.
-export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesStackCardProps) {
-  const cardRef = useRef<HTMLDivElement>(null)
+// cover sits on top of the next volumes' real covers, which fan out on hover,
+// and the pile lifts like every other cover. Clicking anywhere opens the
+// series.
+export const SeriesStackCard = memo(function SeriesStackCard({ book, count, view, focused, onOpen, href, travel = false, travelEpoch }: SeriesStackCardProps) {
+  const cardRef = useRef<HTMLElement | null>(null)
+  const { wrapperProps: tiltHandlers, tiltProps: { ref: setTiltEl, style: { transform: tiltTransform, transition: tiltTransition } } } = useTilt(true, COVER_TILT.degrees, { lift: COVER_TILT.lift, scale: COVER_TILT.scale })
+  const Root = href ? 'a' : 'div'
+  const open = (e: React.MouseEvent) => {
+    if (href && !isPlainClick(e)) return
+    e.preventDefault()
+    onOpen()
+  }
+  const travelProps = (part: 'cover' | 'title') => travel
+    ? { layout: part === 'title' ? 'position' as const : true, layoutDependency: travelEpoch, transition: TRAVEL, 'data-travel': '' }
+    : {}
 
   useEffect(() => {
     if (focused && cardRef.current) {
@@ -37,38 +60,39 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
   // ── List view ────────────────────────────────────────────────────────────
   if (view === 'list') {
     return (
-      <div
-        ref={cardRef}
-        onClick={onOpen}
+      <Root
+        ref={cardRef as React.RefObject<HTMLAnchorElement & HTMLDivElement>}
+        href={href}
+        onClick={open}
         className={cn(
           'group flex items-center gap-3 px-3 py-2.5 rounded-lg cursor-pointer transition-colors duration-150 touch-feedback',
           'hover:bg-secondary',
           focused && 'ring-2 ring-ring ring-offset-1 ring-offset-background',
         )}
       >
-        <div className="relative w-9 h-12 shrink-0">
+        <m.div key="cover" {...travelProps('cover')} className="relative w-9 h-12 shrink-0">
           <div className="absolute inset-0 translate-x-1 -translate-y-0.5 rounded-[6px] overflow-hidden bg-muted ring-1 ring-border/60 transition-transform duration-200 group-hover:translate-x-2 group-hover:-translate-y-1">
             {fanIds[0] && (
               <CoverImage src={coverSrc(fanIds[0], { w: 400 })} alt="" iconClassName="w-3 h-3" />
             )}
           </div>
-          <div className="relative w-full h-full rounded-[6px] overflow-hidden bg-muted">
-            <CoverImage src={coverUrl} alt={seriesName} iconClassName="w-4 h-4" />
+          <div data-series-cover={book.series ?? undefined} className="relative w-full h-full rounded-[6px] overflow-hidden bg-muted">
+            <CoverImage src={coverUrl} alt={seriesName} color={book.cover_color} iconClassName="w-4 h-4" />
           </div>
-        </div>
-        <div className="flex-1 min-w-0">
+        </m.div>
+        <m.div key="title" {...travelProps('title')} className="flex-1 min-w-0">
           <p className="text-[15px] font-medium text-foreground truncate group-hover:text-primary transition-colors">
             {seriesName}
           </p>
           {book.author && (
             <p className="text-[13px] text-muted-foreground truncate">{book.author}</p>
           )}
-        </div>
-        <span className="shrink-0 inline-flex items-center gap-1 h-7 px-3 rounded-full bg-secondary text-[13px] text-muted-foreground">
+        </m.div>
+        <span className="library-extra shrink-0 inline-flex items-center gap-1 h-7 px-3 rounded-full bg-secondary text-[13px] text-muted-foreground">
           <Layers className="w-3.5 h-3.5" />
           <Plural value={count} one="# volume" other="# volumes" />
         </span>
-      </div>
+      </Root>
     )
   }
 
@@ -89,14 +113,22 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
   /* eslint-enable lingui/no-unlocalized-strings */
 
   return (
-    <div
-      ref={cardRef}
-      onClick={onOpen}
-      className="group flex flex-col cursor-pointer touch-feedback"
+    <Root
+      ref={cardRef as React.RefObject<HTMLAnchorElement & HTMLDivElement>}
+      href={href}
+      onClick={open}
+      className="group flex flex-col cursor-pointer rounded-[8px] focus:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
     >
       {/* Reserved bleed area for the stack layers */}
-      <div className={cn('relative', lg ? 'pt-2 pr-2' : 'pt-1 pr-1')}>
-        <div className="relative">
+      <m.div
+        key="cover"
+        {...travelProps('cover')}
+        className={cn('relative cover-lift', lg ? 'pt-2 pr-2' : 'pt-1 pr-1')}
+        style={{ perspective: '600px' }}
+        onMouseMove={tiltHandlers.onMouseMove}
+        onMouseLeave={tiltHandlers.onMouseLeave}
+      >
+        <div ref={setTiltEl} className="relative" style={{ transform: tiltTransform, transition: tiltTransition }}>
           {/* Volumes behind the top cover - real covers when available, fanning out on hover */}
           {fanIds.length > 0 ? (
             <>
@@ -119,15 +151,14 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
             </>
           )}
           <div
-            className={cn(
-              'relative aspect-[2/3] bg-muted overflow-hidden rounded-[8px]',
-              'transition-transform duration-300 ease-out group-hover:-translate-y-0.5',
-            )}
+            data-series-cover={book.series ?? undefined}
+            className="relative aspect-[2/3] bg-muted overflow-hidden rounded-[8px]"
             style={{ boxShadow: coverRing(false, !!focused) }}
           >
             <CoverImage
               src={coverUrl}
               alt={seriesName}
+              color={book.cover_color}
               iconClassName={lg ? 'w-12 h-12' : 'w-8 h-8'}
             />
             {/* Volume count badge - top right */}
@@ -137,9 +168,9 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
             </span>
           </div>
         </div>
-      </div>
+      </m.div>
 
-      <div className="flex flex-col gap-0.5 pt-2.5 px-0.5">
+      <m.div key="title" {...travelProps('title')} className="flex flex-col gap-0.5 pt-2.5 px-0.5">
         <p className="text-[14px] font-medium text-foreground line-clamp-2 leading-snug transition-colors duration-150 group-hover:text-primary">
           {seriesName}
         </p>
@@ -147,7 +178,7 @@ export function SeriesStackCard({ book, count, view, focused, onOpen }: SeriesSt
           <Plural value={count} one="# volume" other="# volumes" />
           {book.author ? ` · ${book.author}` : ''}
         </p>
-      </div>
-    </div>
+      </m.div>
+    </Root>
   )
-}
+})

@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useState, type CSSProperties, type ReactNode } from 'react'
-import { AnimatePresence, m } from 'motion/react'
+import { AnimatePresence, m, useIsPresent } from 'motion/react'
 import { X } from 'lucide-react'
 import { useLingui } from '@lingui/react/macro'
 import { cn } from '@/lib/utils'
 import { Pill } from '@/components/page'
+import { EASE } from '@/components/motion/presets'
 
 // How many dialogs are open right now. Page-level keyboard shortcuts (the book
 // page's Escape = go back, the library's j/k) check this so a key meant for a
@@ -78,6 +79,14 @@ export function useEscape(open: boolean, onClose?: () => void) {
   }, [open, onClose])
 }
 
+/** A closing dialog is out of reach while it plays its exit: no clicks, no
+ *  focus, not in the accessibility tree (a second dialog opened right after
+ *  is the only one there). */
+function Leaving({ children }: { children: ReactNode }) {
+  const present = useIsPresent()
+  return <div className="contents" inert={!present} aria-hidden={present ? undefined : true}>{children}</div>
+}
+
 export type ModalSize = 'sm' | 'md' | 'lg' | 'xl'
 const SIZE: Record<ModalSize, string> = {
   sm: 'max-w-[440px]',
@@ -121,7 +130,11 @@ interface Props {
 /** Shared dialog scaffold: full-viewport veil, panel centred over the content
     panel (not the viewport), pop in and out, Escape and backdrop close.
     Render it unconditionally and drive it via `open` so the exit animation
-    runs. With `title` it draws the refreshed panel: 22px radius, a pinned
+    runs, or mount it conditionally inside an `<AnimatePresence>`
+    (`<AnimatePresence>{x && <Modal open />}</AnimatePresence>`): the exit is
+    passed through. While it closes it keeps showing what it showed when it
+    was last open, so a caller that clears its data on close does not empty
+    the panel mid-exit. With `title` it draws the refreshed panel: 22px radius, a pinned
     header (eyebrow, display title, actions, X), a scrolling body and an
     optional footer. Without `title` it behaves as before and the caller's
     own markup is the card. */
@@ -131,14 +144,22 @@ export function ModalShell({
 }: Props) {
   const { t } = useLingui()
   const inset = useShellInset()
-  useRegisterOverlay(open)
-  useEscape(open, onClose)
+  // Removed by a parent AnimatePresence: closing, the same as open={false}.
+  const present = useIsPresent()
+  const shown = open && present
+  useRegisterOverlay(shown)
+  useEscape(shown, onClose)
   const backdropCloses = closeOnBackdrop ?? !!onClose
+  // What the panel showed while open; the exit plays with it.
+  const live = { children, title, eyebrow, subtitle, headerActions, footer }
+  const [held, setHeld] = useState(live)
+  if (shown && (Object.keys(live) as (keyof typeof live)[]).some(k => live[k] !== held[k])) setHeld(live)
+  ;({ children, title, eyebrow, subtitle, headerActions, footer } = shown ? live : held)
   const refreshed = title !== undefined
 
   return (
-    <AnimatePresence>
-      {open && (
+    <AnimatePresence propagate>
+      {shown && (
         <m.div
           key="modal"
           className="fixed inset-0 z-50"
@@ -146,10 +167,12 @@ export function ModalShell({
           animate="visible"
           exit="hidden"
         >
+          <Leaving>
           <m.div
             variants={{ hidden: { opacity: 0 }, visible: { opacity: 1 } }}
             transition={{ duration: 0.15 }}
-            className="fixed inset-0 bg-black/50 backdrop-blur-sm"
+            // The veil's look (and whether it blurs) is the .dialog-veil class in index.css.
+            className="dialog-veil fixed inset-0"
             onClick={backdropCloses ? onClose : undefined}
           />
           <div
@@ -161,7 +184,7 @@ export function ModalShell({
                 hidden: { opacity: 0, scale: 0.96, y: 8 },
                 visible: { opacity: 1, scale: 1, y: 0 },
               }}
-              transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+              transition={{ duration: 0.16, ease: EASE }}
               role={refreshed ? 'dialog' : undefined}
               aria-modal={refreshed ? true : undefined}
               aria-label={ariaLabel}
@@ -205,6 +228,7 @@ export function ModalShell({
               ) : children}
             </m.div>
           </div>
+          </Leaving>
         </m.div>
       )}
     </AnimatePresence>

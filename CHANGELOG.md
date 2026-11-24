@@ -6,11 +6,54 @@ All notable changes to Tome are documented here. Format loosely follows
 
 ## [Unreleased]
 
+### Added
+- **Libraries and shelves can be reordered in the sidebar.** Drag a row to a
+  new place and the others step aside; on a touch screen, drag by the grip at
+  the end of the row. Libraries can be reordered by anyone who may edit all
+  of the libraries in their list, shelves by their owner.
+
+### Changed
+- **The interface moves with you.** Opening a book or a series grows the
+  cover you clicked into the cover of the page it opens, and Back sends it
+  home (in browsers that support view transitions). Pages, sections and
+  themes change with a short cross-fade. Switching the library between grid
+  and list, sorting and grouping series sends each cover to its new place.
+  Menus, dialogs, tabs, list rows and figures move the same way everywhere,
+  and all of it stays still when the system asks for reduced motion.
+- Covers lift and lean toward the pointer wherever they can be clicked, not
+  only in the library.
+- A book's page shows its cover and title at once when opened from a list,
+  loads while the pointer rests on its cover, and steps to the next or
+  previous volume without reloading.
+- Stats and the calendar answer faster, and changing the range moves bars
+  and figures to their new values instead of restarting the page.
+- Long lists stay quick: a library scrolled far down, the Admin metadata
+  table, select all in the Bindery and a Hardcover page with hundreds of
+  books no longer stall.
+- A cover that is still loading holds its place in its own colour instead of
+  a grey shimmer. Tome works out the colours of existing covers in the
+  background after the update.
+- Dialogs no longer blur the page behind them.
+
 ### Fixed
 - **Highlights page: KOReader highlights on a book without a file.** A
   highlight made in KOReader on a book that Tome only knows from an Xteink
   reader's sync showed on the book's page but was missing from the
   Highlights page and from the "On this day" card on Home. Both now list it.
+- **Back on a Settings or Admin page leaves the page.** It goes to the page
+  you came from instead of stepping back through each section you visited.
+- Clicking a book in a Stats widget opens it inside the app instead of
+  reloading the whole app.
+- The calendar's day card never shows one day's date over another day's
+  numbers while a day loads.
+- On a book page the previous and next volume arrows stay in the same place
+  on every volume of a series.
+- Keyboard focus rings use the theme's own colour in every theme instead of
+  the browser's blue.
+- The Hardcover page scrolls smoothly in Safari.
+- Smaller layout jumps are gone: the series rating row, the Home "Also
+  reading" scroll arrow, the Stats timeline zoom, the sync time in the top
+  bar and the Admin Library health buttons.
 
 ## [3.2.0] - 2026-11-22 - "Chapbook"
 

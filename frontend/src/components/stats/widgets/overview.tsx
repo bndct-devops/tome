@@ -1,5 +1,6 @@
 // Overview-tab stats widgets - chart-only (no card frame, no fixed height), so the
 // same component renders inside a StatsPage ChartCard and inside a resizable Lab tile.
+import { BookLink } from '@/components/motion'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import {
@@ -96,8 +97,8 @@ export function CurrentlyReading({ books: allBooks }: { books: StatsResponse['bo
     <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
       {books.map((b) => (
         <div key={b.book_id} className="flex min-w-0 items-center gap-1">
-        <a href={`/books/${b.book_id}`} className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-0.5 transition-colors hover:bg-accent/30">
-          <div className="h-9 w-6 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center">
+        <BookLink book={{ id: b.book_id, title: b.title }} className="group flex min-w-0 flex-1 items-center gap-2.5 rounded-lg px-2 py-0.5 transition-colors hover:bg-accent/30">
+          <div data-cover-id={b.has_cover ? b.book_id : undefined} className="h-9 w-6 shrink-0 overflow-hidden rounded bg-muted flex items-center justify-center">
             {b.has_cover ? (
               <img src={coverSrc(b.book_id, { w: 160 })} alt="" className="h-full w-full object-cover" />
             ) : (
@@ -119,7 +120,7 @@ export function CurrentlyReading({ books: allBooks }: { books: StatsResponse['bo
               <span className="w-9 shrink-0 text-right text-[12px] proportional-nums text-muted-foreground">{Math.round(b.progress)}%</span>
             </div>
           </div>
-        </a>
+        </BookLink>
         {b.progress >= FINISHED_PCT && (
           <button
             type="button"
@@ -200,9 +201,9 @@ export function TopBooksByTime({ topBooks }: { topBooks: StatsResponse['top_book
         const sessions = plural(b.sessions, { one: '# session', other: '# sessions' })
         const avg = b.sessions > 0 ? formatDuration(Math.round(b.seconds / b.sessions)) : null
         return (
-          <a
+          <BookLink
             key={b.book_id}
-            href={`/books/${b.book_id}`}
+            book={{ id: b.book_id, title: b.title }}
             title={avg ? t`${sessions}, avg ${avg}` : sessions}
             className="group grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1 border-b border-border/70 py-2 last:border-b-0"
           >
@@ -211,7 +212,7 @@ export function TopBooksByTime({ topBooks }: { topBooks: StatsResponse['top_book
             <span className="col-span-2 h-1.5 overflow-hidden rounded-full" style={{ background: `color-mix(in oklch, ${accent} 22%, transparent)` }}>
               <span className="block h-full rounded-full" style={{ width: `${Math.max(2, (b.seconds / max) * 100)}%`, backgroundColor: accent }} />
             </span>
-          </a>
+          </BookLink>
         )
       })}
       {topBooks.length === 1 && (
@@ -480,8 +481,8 @@ export function RecentlyFinished({ booksFinished }: { booksFinished: StatsRespon
   return (
     <div className="flex flex-col gap-1">
       {rows.map((b, i) => (
-        <a key={`${b.book_id}-${i}`} href={`/books/${b.book_id}`} className="group flex items-center gap-3 rounded-lg p-1.5 hover:bg-accent/30 transition-colors">
-          <div className="w-7 h-10 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
+        <BookLink key={`${b.book_id}-${i}`} book={{ id: b.book_id, title: b.title }} className="group flex items-center gap-3 rounded-lg p-1.5 hover:bg-accent/30 transition-colors">
+          <div data-cover-id={b.book_id} className="w-7 h-10 rounded bg-muted flex items-center justify-center shrink-0 overflow-hidden">
             <img
               src={coverSrc(b.book_id, { w: 160 })}
               alt=""
@@ -491,7 +492,7 @@ export function RecentlyFinished({ booksFinished }: { booksFinished: StatsRespon
           </div>
           <span className="flex-1 min-w-0 truncate text-sm font-medium text-foreground group-hover:text-primary transition-colors">{b.title}</span>
           <span className="shrink-0 text-[13px] text-muted-foreground">{formatDate(b.date)}</span>
-        </a>
+        </BookLink>
       ))}
     </div>
   )

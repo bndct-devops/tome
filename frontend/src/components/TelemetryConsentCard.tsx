@@ -10,6 +10,7 @@ import { Trans, useLingui } from '@lingui/react/macro'
 import { BarChart3, X } from 'lucide-react'
 import { useTelemetry } from '@/lib/useTelemetry'
 import { Pill } from '@/components/page'
+import { Unfold } from '@/components/motion'
 import { ModalShell } from '@/components/ModalShell'
 
 export function TelemetryReportModal({ open, report, busy, onClose, onGrant }: {
@@ -51,10 +52,14 @@ export function TelemetryConsentCard({ telemetry }: { telemetry: ReturnType<type
 
   // Only the unanswered state asks. Granted, declined and env-off all stay quiet;
   // Settings shows where things stand.
-  if (!admin || !data || data.consent.state !== 'unset') return null
+  if (!admin || !data) return null
+  // Answered: the card folds away (Home's column has a 20 px gap) and the
+  // report dialog, if it was the way in, plays its exit.
+  const asking = data.consent.state === 'unset'
 
   return (
     <>
+      <Unfold open={asking} gap={20}>
       <div className="flex items-start gap-4 rounded-[var(--radius-panel)] bg-card px-5 py-4">
         <div className="min-w-0 flex-1">
           <p className="text-[15px] font-semibold text-foreground"><Trans>Help count Tome installs?</Trans></p>
@@ -75,7 +80,8 @@ export function TelemetryConsentCard({ telemetry }: { telemetry: ReturnType<type
           <X className="h-4 w-4" />
         </button>
       </div>
-      <TelemetryReportModal open={open} report={data.report} busy={busy} onClose={() => setOpen(false)}
+      </Unfold>
+      <TelemetryReportModal open={open && asking} report={data.report} busy={busy} onClose={() => setOpen(false)}
         onGrant={async () => { if (await decide('granted')) setOpen(false) }} />
     </>
   )
