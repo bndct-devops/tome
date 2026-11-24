@@ -171,7 +171,8 @@ export function LoginPage() {
       setQcMode(false)
     } finally {
       setQcLoading(false)
-      qcStartingRef.current = false
+      // Held past the button's fade-out, where a second click of a double click lands.
+      setTimeout(() => { qcStartingRef.current = false }, 300)
     }
   }
 
