@@ -599,9 +599,10 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
             // scrolls sideways when the row does not fit; Up next keeps its width.
             <div className="min-w-0">
               <Eyebrow className="mb-2"><Trans>Also reading</Trans></Eyebrow>
-              <HScrollRow className="gap-4 px-2 pt-3 pb-2" wrapClassName="-mx-2 -mt-3" controlsTop="top-[84px]">
+              <HScrollRow className="relative gap-4 px-2 pt-3 pb-2" wrapClassName="-mx-2 -mt-3" controlsTop="top-[84px]">
                 {/* popLayout: the book going to the hero gives up its slot at once, so the
-                    hero's old cover lands in it (a held slot made the row one cover too wide). */}
+                    hero's old cover lands in it (a held slot made the row one cover too wide).
+                    The row is `relative` so the popped book keeps its place in a scrolled row. */}
                 <AnimatePresence initial={false} mode="popLayout">
                 {others.map(r => (
                   <m.div key={r.book_id} {...listItem} className="shrink-0 w-[104px]">
