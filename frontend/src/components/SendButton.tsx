@@ -31,19 +31,24 @@ interface SendButtonProps {
  */
 // The last answer, so a later page draws the right button at once instead of
 // switching from the plain one to the split one (and moving its neighbours).
-let lastStatus: SendStatus | null = null
+// Held per login (the token it was asked with), like useKosyncStatus: signing
+// out or impersonating does not reload the page.
+let lastStatus: { token: string | null; status: SendStatus } | null = null
+const currentToken = () => localStorage.getItem('tome_token')
+const remembered = () => (lastStatus && lastStatus.token === currentToken() ? lastStatus.status : null)
 
 export function SendButton({ books, variant = 'rail', disabled, hint }: SendButtonProps) {
   const { toast } = useToast()
-  const [status, setStatus] = useState<SendStatus | null>(lastStatus)
+  const [status, setStatus] = useState<SendStatus | null>(remembered)
   const [modalOpen, setModalOpen] = useState(false)
   const [menuOpen, setMenuOpen] = useState(false)
   const [sending, setSending] = useState(false)
   const wrapRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
+    const token = currentToken()
     api.get<SendStatus>('/smtp-status')
-      .then(st => { lastStatus = st; setStatus(st) })
+      .then(st => { lastStatus = { token, status: st }; setStatus(st) })
       .catch(() => setStatus({ configured: false, koreader: false }))
   }, [])
 

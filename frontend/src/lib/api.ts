@@ -34,6 +34,23 @@ function signedOut() {
   window.location.href = "/login"
 }
 
+// Told after every write that went through, so answers kept ahead (book and
+// series seeds, the dashboard's group lists) never outlive the data they show.
+const writeListeners = new Set<() => void>()
+/** Runs `fn` after every successful write; returns the unsubscribe. */
+export function onWrite(fn: () => void): () => void {
+  writeListeners.add(fn)
+  return () => { writeListeners.delete(fn) }
+}
+// Batch reads sent as POST: they change nothing, and /books/statuses follows
+// every list load (it would drop the group lists it just kept).
+const POST_READS = /^\/(books\/(statuses|check-hashes|bulk-fetch-candidates)|book-types\/layout-preview|bindery\/preview)(\?|$)/
+/** Tells the listeners a write went through. For writes not sent through `api`. */
+export function notifyWrite(method: string | undefined, path: string): void {
+  if (!method || method.toUpperCase() === "GET" || POST_READS.test(path)) return
+  for (const fn of writeListeners) fn()
+}
+
 // `noRedirect`: a 401 is the caller's answer, not an expired session (the
 // login form shows "wrong password" inline instead of reloading /login).
 async function request<T>(path: string, options?: RequestInit, noRedirect = false): Promise<T> {
@@ -53,6 +70,7 @@ async function request<T>(path: string, options?: RequestInit, noRedirect = fals
     const error = await res.json().catch(() => ({ detail: res.statusText }))
     throw Object.assign(new Error(error.detail ?? "Request failed"), { status: res.status })
   }
+  notifyWrite(options?.method, path)
   if (res.status === 204 || res.headers.get("content-length") === "0") {
     return undefined as T
   }
@@ -78,6 +96,7 @@ async function requestWithHeaders<T>(
     const error = await res.json().catch(() => ({ detail: res.statusText }))
     throw new Error(error.detail ?? "Request failed")
   }
+  notifyWrite(options?.method, path)
   const data: T =
     res.status === 204 || res.headers.get("content-length") === "0"
       ? (undefined as T)
@@ -108,6 +127,7 @@ export const api = {
         const error = await res.json().catch(() => ({ detail: res.statusText }))
         throw new Error(error.detail ?? "Upload failed")
       }
+      notifyWrite("POST", path)
       return res.json() as Promise<T>
     })
   },

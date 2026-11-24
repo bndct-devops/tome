@@ -35,7 +35,7 @@ import {
 } from '@/lib/wishlist'
 import { coverSrc } from '@/lib/covers'
 import { AnimatePresence, m } from 'motion/react'
-import { BookLink, LIST, listItem, Unfold } from '@/components/motion'
+import { LIST, listItem, Unfold } from '@/components/motion'
 import { Glide, GlideGroup, PRESS, PRESS_LABEL, Swap } from '@/components/page'
 import { Note, RowsSkeleton, SameWidth } from '@/components/FormMotion'
 
@@ -1734,10 +1734,19 @@ function DuplicatesTab() {
     setConfirmApply(false)
     api.get<DuplicatesResponse>('/admin/duplicates')
       .then(d => {
-        setGroups(d.groups)
+        // The server's group_id is new on every request: key a group by its
+        // books instead, so a set that survives a refresh stays put on screen.
+        const seen = new Map<string, number>()
+        const stable = d.groups.map(g => {
+          const base = `${g.match_reason}:${g.books.map(b => b.id).sort((a, b) => a - b).join(',')}`
+          const n = seen.get(base) ?? 0
+          seen.set(base, n + 1)
+          return { ...g, group_id: n ? `${base}#${n}` : base }
+        })
+        setGroups(stable)
         // Default keep selection: first book in each group
         const defaults: Record<string, number> = {}
-        for (const g of d.groups) {
+        for (const g of stable) {
           if (g.books.length > 0) {
             defaults[g.group_id] = g.books[0].id
           }
@@ -1864,7 +1873,8 @@ function DuplicatesTab() {
       )}</Note>
 
       {groups.length === 0 ? null : (
-        <div className="flex flex-col border-t border-border/70">
+        // A refresh keeps the old groups on screen: dimmed and inert until it lands.
+        <div className="flex flex-col border-t border-border/70" inert={loading}>
           <AnimatePresence initial={false}>
           {groups.map(group => {
             const decision = decisions[group.group_id]
@@ -2322,7 +2332,11 @@ function WishlistTab() {
     const asked = statusFilter
     adminListWishes({ status: asked })
       .then(w => { setWishes(w); setShownFilter(asked) })
-      .catch(e => setError(e instanceof Error ? e.message : t`Failed to load wishlist`))
+      .catch(e => {
+        setError(e instanceof Error ? e.message : t`Failed to load wishlist`)
+        // A failed first load ends the skeleton: the empty list shows under the error.
+        setShownFilter(prev => prev ?? asked)
+      })
       .finally(() => setLoading(false))
   }
 
@@ -2490,14 +2504,14 @@ function WishlistTab() {
                         </>
                       )}
                       {wish.status === 'fulfilled' && wish.fulfilled_book_id && (
-                        // The wish's cover is an outside picture, not the book's: open the book without a cover morph.
-                        <BookLink
-                          book={{ id: wish.fulfilled_book_id, title: wish.title, author: wish.author, series: wish.series, series_index: wish.series_index }}
-                          cover={null}
+                        // A plain link: the wish's title is not the book's, so it is not
+                        // handed to the book page as its preview.
+                        <Link
+                          to={`/books/${wish.fulfilled_book_id}`}
                           className="text-[14px] text-primary hover:underline"
                         >
                           <Trans>View book</Trans>
-                        </BookLink>
+                        </Link>
                       )}
                     </div>
                   </div>

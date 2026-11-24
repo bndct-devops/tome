@@ -2,7 +2,7 @@ import json
 from typing import Optional
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel
-from sqlalchemy import or_
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from backend.core.database import get_db
@@ -80,30 +80,38 @@ def list_libraries(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
-    if _is_admin(current_user):
-        libs = db.query(Library).order_by(Library.sort_order, Library.name).all()
-    else:
-        from backend.models.library import library_users_table
-        # Libraries this user has been individually assigned to (private sharing)
-        assigned_lib_ids = [
-            row[1] for row in db.execute(
-                library_users_table.select().where(
-                    library_users_table.c.user_id == current_user.id
-                )
-            ).fetchall()
-        ]
-        # Visible: own + global + public (shared with everyone) + privately assigned
-        conditions = [
-            Library.owner_id == current_user.id,
-            Library.owner_id.is_(None),
-            Library.is_public == True,  # noqa: E712
-        ]
-        if assigned_lib_ids:
-            conditions.append(Library.id.in_(assigned_lib_ids))
-        libs = db.query(Library).filter(or_(*conditions)).order_by(
-            Library.sort_order, Library.name
-        ).all()
+    libs = _visible_libraries(db, current_user).order_by(Library.sort_order, Library.name).all()
     return [_lib_out(l, current_user) for l in libs]
+
+
+def _visible_libraries(db: Session, current_user: User):
+    """The libraries in this user's list (GET /libraries)."""
+    if _is_admin(current_user):
+        return db.query(Library)
+    from backend.models.library import library_users_table
+    # Libraries this user has been individually assigned to (private sharing)
+    assigned_lib_ids = [
+        row[1] for row in db.execute(
+            library_users_table.select().where(
+                library_users_table.c.user_id == current_user.id
+            )
+        ).fetchall()
+    ]
+    # Visible: own + global + public (shared with everyone) + privately assigned
+    conditions = [
+        Library.owner_id == current_user.id,
+        Library.owner_id.is_(None),
+        Library.is_public == True,  # noqa: E712
+    ]
+    if assigned_lib_ids:
+        conditions.append(Library.id.in_(assigned_lib_ids))
+    return db.query(Library).filter(or_(*conditions))
+
+
+def _next_sort_order(max_order: Optional[int]) -> int:
+    # A list never reordered has every row at 0 and sorts by name: keep that.
+    # Once a reorder has numbered it 0..n-1, a new row goes last.
+    return max_order + 1 if max_order else 0
 
 
 @router.post("/libraries", response_model=LibraryOut, status_code=status.HTTP_201_CREATED)
@@ -113,7 +121,11 @@ def create_library(
     current_user: User = Depends(get_current_user),
 ):
     require_role(current_user, "member")
-    lib = Library(name=body.name.strip(), icon=body.icon, is_public=body.is_public, owner_id=current_user.id)
+    max_order = _visible_libraries(db, current_user).with_entities(func.max(Library.sort_order)).scalar()
+    lib = Library(
+        name=body.name.strip(), icon=body.icon, is_public=body.is_public, owner_id=current_user.id,
+        sort_order=_next_sort_order(max_order),
+    )
     db.add(lib)
     db.commit()
     db.refresh(lib)
@@ -275,11 +287,15 @@ def create_saved_filter(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ):
+    max_order = db.query(func.max(SavedFilter.sort_order)).filter(
+        SavedFilter.owner_id == current_user.id
+    ).scalar()
     sf = SavedFilter(
         name=body.name.strip(),
         icon=body.icon,
         params=json.dumps(body.params),
         owner_id=current_user.id,
+        sort_order=_next_sort_order(max_order),
     )
     db.add(sf)
     db.commit()

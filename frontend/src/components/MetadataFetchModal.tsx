@@ -7,6 +7,7 @@ import { Loader2, BookOpen, ExternalLink, Check, ChevronLeft, Search } from 'luc
 import { ModalShell } from '@/components/ModalShell'
 import { Checkbox, Input, Pill, Swap } from '@/components/page'
 import { cn, stripMarkdown } from '@/lib/utils'
+import { notifyWrite } from '@/lib/api'
 import type { BookDetail, MetadataCandidate } from '@/lib/books'
 
 const API = import.meta.env.VITE_API_URL ?? ''
@@ -165,6 +166,7 @@ export function MetadataFetchModal({ book, open, onClose, onApplied }: Props) {
         body: JSON.stringify(body),
       })
       if (!r.ok) throw new Error(await r.text())
+      notifyWrite('POST', `/books/${book.id}/apply-metadata`)
       const updated: BookDetail = await r.json()
       onApplied(updated)
       onClose()

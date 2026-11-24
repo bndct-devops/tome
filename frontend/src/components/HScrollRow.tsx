@@ -44,10 +44,12 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
     // The right edge comes from the last child's layout box, not scrollWidth:
     // a child that is mid-animation (a transform) widens scrollWidth for a
     // moment, and nothing reports when it settles.
-    const last = el.lastElementChild as HTMLElement | null
-    const end = last
-      ? last.offsetLeft - el.offsetLeft + last.offsetWidth + parseFloat(getComputedStyle(el).paddingRight || '0')
-      : 0
+    // An SVG child has no offset box: its client rect stands in (a bare chart, not animated).
+    const last = el.lastElementChild
+    const box = last instanceof HTMLElement
+      ? last.offsetLeft - el.offsetLeft + last.offsetWidth
+      : last ? last.getBoundingClientRect().right - el.getBoundingClientRect().left - el.clientLeft + el.scrollLeft : 0
+    const end = last ? box + parseFloat(getComputedStyle(el).paddingRight || '0') : 0
     return { left: el.scrollLeft > 4, right: el.scrollLeft + el.clientWidth < end - 4 }
   }, [])
 
@@ -59,10 +61,12 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
     const now = measure()
     if (!now) return
     window.clearTimeout(pending.current)
+    pending.current = 0
     setCanLeft(v => v && now.left)
     setCanRight(v => v && now.right)
     if (now.left || now.right) {
       pending.current = window.setTimeout(() => {
+        pending.current = 0
         const later = measure()
         if (!later) return
         setCanLeft(later.left)
@@ -70,6 +74,15 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
       }, 220)
     }
   }, [measure])
+  // Scrolling moves nothing in or out: the edges follow at once, unless a change
+  // to the row is still being waited out (then update's delayed check decides).
+  const onScroll = useCallback(() => {
+    if (pending.current) return update()
+    const now = measure()
+    if (!now) return
+    setCanLeft(now.left)
+    setCanRight(now.right)
+  }, [measure, update])
 
   useEffect(() => {
     const el = ref.current
@@ -94,7 +107,7 @@ export function HScrollRow({ children, className, wrapClassName, controlsTop }: 
       {/* Edge fades: a mask on the scroller itself, so the covers fade to
           transparent instead of under a painted band that only matched one
           surface (a lighter strip past the edge in light and amber). */}
-      <div ref={ref} onScroll={update} className={cn('flex overflow-x-auto', className)} style={edgeMask(canLeft, canRight)}>
+      <div ref={ref} onScroll={onScroll} className={cn('flex overflow-x-auto', className)} style={edgeMask(canLeft, canRight)}>
         {children}
       </div>
       {/* Chevrons stay visible whenever content is hidden - the gradient alone

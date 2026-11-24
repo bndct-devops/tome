@@ -9,7 +9,7 @@ import {
   Check, ArrowLeft, ArrowRight, SkipForward, RefreshCw,
   ExternalLink, Sparkles, Filter, Wand2, Upload, BookMarked,
 } from 'lucide-react'
-import { api } from '@/lib/api'
+import { api, notifyWrite } from '@/lib/api'
 import type { BookDetail, BookType, Library, MetadataCandidate } from '@/lib/books'
 import { cn } from '@/lib/utils'
 import { BookAnimation } from '@/components/BookAnimation'
@@ -490,6 +490,7 @@ function ReviewFlow({ queue, onBack, onBookUpdated }: ReviewFlowProps) {
             headers: { 'Content-Type': 'application/json', ...authHeader() },
             body: JSON.stringify(body),
           })
+          notifyWrite('POST', `/books/${book.id}/apply-metadata`)
         } else if (Object.keys(draft).length > 0) {
           await api.put(`/books/${book.id}`, draft)
         }

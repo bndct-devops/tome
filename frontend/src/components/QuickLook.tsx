@@ -96,8 +96,14 @@ export function QuickLook({ bookId, onClose, origin, cover, preview }: {
   const panelRef = useRef<HTMLDivElement>(null)
   const coverRef = useRef<HTMLDivElement>(null)
   const onOrigin = (): { x: number; y: number; scale: number } | null => {
-    const p = panelRef.current?.getBoundingClientRect()
+    // Measure the panel's resting place: a close during the grow-in finds it
+    // mid-transform. Restored before the browser paints.
+    const el = panelRef.current
+    const prev = el?.style.transform ?? ''
+    if (el) el.style.transform = 'none'
+    const p = el?.getBoundingClientRect()
     const c = coverRef.current?.getBoundingClientRect()
+    if (el) el.style.transform = prev
     if (!origin || !p || !c || !c.width) return null
     const scale = origin.width / c.width
     const pcx = p.left + p.width / 2, pcy = p.top + p.height / 2
@@ -115,7 +121,8 @@ export function QuickLook({ bookId, onClose, origin, cover, preview }: {
     return () => cancelAnimationFrame(raf)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
-  // On close the panel is at rest (no transform), so this reads its true place.
+  // On close, measured with the panel's transform off, so a close mid grow-in
+  // aims at the same spot as one at rest.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const back = useMemo(() => (present ? null : onOrigin()), [present])
   const grows = !!origin

@@ -26,12 +26,18 @@ export function RunningNumber({ value, format = plain, className }: {
 }) {
   const [shown, setShown] = useState(value)
   const [run, setRun] = useState({ from: value, to: value })
+  // NaN never equals itself, so a non-finite value shows as is and starts no run.
+  const finite = Number.isFinite(value)
+  const moving = Number.isFinite(run.from) && Number.isFinite(run.to) && run.from !== run.to
   // A new value starts a run from what is on screen now.
-  if (run.to !== value) setRun({ from: shown, to: value })
+  if (finite && run.to !== value) {
+    const now = moving ? shown : run.to
+    setRun({ from: Number.isFinite(now) ? now : value, to: value })
+  }
 
   useEffect(() => {
     const { from, to } = run
-    if (from === to) return
+    if (from === to || !Number.isFinite(from) || !Number.isFinite(to)) return
     // eslint-disable-next-line lingui/no-unlocalized-strings -- media query
     const instant = window.matchMedia('(prefers-reduced-motion: reduce)').matches
     // performance.now(), not the rAF timestamp: that can lie before t0.
@@ -48,15 +54,14 @@ export function RunningNumber({ value, format = plain, className }: {
     return () => cancelAnimationFrame(raf)
   }, [run])
 
-  const moving = run.from !== run.to
   // On the way, an integer run shows integers.
   const mid = Number.isInteger(run.from) && Number.isInteger(run.to) ? Math.round(shown) : shown
   return (
     <span
       className={cn('running-number tabular-nums', className)}
-      data-reserve={moving ? `${format(run.from)}\n${format(run.to)}` : undefined}
+      data-reserve={moving && finite ? `${format(run.from)}\n${format(run.to)}` : undefined}
     >
-      {format(moving ? mid : value)}
+      {format(moving && finite ? mid : value)}
     </span>
   )
 }

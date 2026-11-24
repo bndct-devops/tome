@@ -295,6 +295,13 @@ function historyKey(state: unknown): string | null {
   return typeof s?.idx === 'number' ? `idx:${s.idx}` : null
 }
 
+/** The history entry on screen now. A replace deferred into a transition
+ *  compares it with the one it started on: when another navigation came in
+ *  between, the replace is dropped rather than overwrite that entry. */
+export function historyEntry(): string {
+  return `${historyKey(window.history.state)}|${window.location.href}`
+}
+
 interface OpenOptions {
   /** Where the hero lands going back, the first on screen (default: the cover again). */
   back?: string[]

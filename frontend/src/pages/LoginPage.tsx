@@ -75,6 +75,8 @@ export function LoginPage() {
   const [qcLoading, setQcLoading] = useState(false)
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null)
   const timerRef = useRef<ReturnType<typeof setInterval> | null>(null)
+  // The outgoing panel stays clickable while it fades: one start at a time.
+  const qcStartingRef = useRef(false)
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault()
@@ -108,6 +110,8 @@ export function LoginPage() {
   }
 
   async function startQuickConnect() {
+    if (qcStartingRef.current) return
+    qcStartingRef.current = true
     setQcMode(true)
     setQcError(null)
     setQcLoading(true)
@@ -128,6 +132,9 @@ export function LoginPage() {
           setQcError(t`Code expired. Try again.`)
         }
       }
+      // Never orphan an earlier pair of intervals.
+      if (timerRef.current) clearInterval(timerRef.current)
+      if (pollRef.current) clearInterval(pollRef.current)
       updateTimer()
       timerRef.current = setInterval(updateTimer, 1000)
 
@@ -164,6 +171,7 @@ export function LoginPage() {
       setQcMode(false)
     } finally {
       setQcLoading(false)
+      qcStartingRef.current = false
     }
   }
 

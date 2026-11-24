@@ -2013,7 +2013,8 @@ function ApiTokensBlock({ ask }: { ask: Ask }) {
     setApiTokensLoading(true)
     listTokens(apiTokensAllUsers)
       .then(setApiTokens)
-      .catch(() => {})
+      // A failed first load ends the skeleton on the empty list, as before.
+      .catch(() => setApiTokens(prev => prev ?? []))
       .finally(() => setApiTokensLoading(false))
   }, [apiTokensAllUsers])
 

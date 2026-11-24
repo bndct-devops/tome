@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useSearchParams } from 'react-router-dom'
 import { CheckCircle } from 'lucide-react'
 import { Trans, useLingui } from '@lingui/react/macro'
@@ -33,6 +33,8 @@ export function LinkReaderPage() {
   const [attempt, setAttempt] = useState(0)
   // The stored sign-in was refused (expired): treat as signed out.
   const [expired, setExpired] = useState(false)
+  // The outgoing confirm panel stays clickable while it fades: one approve at a time.
+  const confirmingRef = useRef(false)
 
   async function call(path: string, init?: RequestInit): Promise<{ ok: boolean; detail: string }> {
     const token = localStorage.getItem('tome_token')
@@ -65,16 +67,21 @@ export function LinkReaderPage() {
   }, [user?.id, code, attempt])
 
   async function confirm() {
+    if (confirmingRef.current) return
+    confirmingRef.current = true
     setStep('linking')
     setError(null)
     try {
       const r = await call('approve', { method: 'POST', body: JSON.stringify({ code }) })
-      if (r.ok) setStep('linked')
-      else { setError(r.detail); setStep('enter') }
+      // A success stays: the guard is only lifted for another try after a failure.
+      if (r.ok) { setStep('linked'); return }
+      setError(r.detail)
+      setStep('enter')
     } catch {
       setError(t`Something went wrong. Try again.`)
       setStep('enter')
     }
+    confirmingRef.current = false
   }
 
   if (loading) {

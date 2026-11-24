@@ -19,6 +19,8 @@
  *
  * A panel that would run past the left or right edge of the viewport (a menu
  * hung from a pill near a phone's edge) is moved back inside it, 8 px clear.
+ * `fit={false}` leaves that to a caller that places the panel itself (measured
+ * while hidden at 0,0, the fit would shift it for good).
  */
 import { useCallback, type ComponentProps, type CSSProperties, type Ref } from 'react'
 import { AnimatePresence, m } from 'motion/react'
@@ -29,16 +31,17 @@ type DivProps = Omit<ComponentProps<typeof m.div>, 'initial' | 'animate' | 'exit
 
 const EDGE = 8
 
-export function Pop({ open, origin = 'top', className, style, children, ref, ...rest }: DivProps & {
+export function Pop({ open, origin = 'top', fit: fitViewport = true, className, style, children, ref, ...rest }: DivProps & {
   open: boolean
   origin?: string
+  fit?: boolean
   children?: React.ReactNode
 }) {
   // Measured as it mounts, before the first paint: shift it inside the viewport.
   const fit = useCallback((node: HTMLDivElement | null) => {
     if (typeof ref === 'function') ref(node)
     else if (ref) (ref as { current: HTMLDivElement | null }).current = node
-    if (!node) return
+    if (!node || !fitViewport) return
     // The CSS translate property, not transform: motion owns transform.
     // Measured at rest: the entering scale would make it look narrower.
     node.style.translate = ''
@@ -51,7 +54,7 @@ export function Pop({ open, origin = 'top', className, style, children, ref, ...
     const dx = over > 0 ? -Math.min(over, Math.max(0, r.left - EDGE)) : under > 0 ? under : 0
     // eslint-disable-next-line lingui/no-unlocalized-strings -- CSS value
     if (dx) node.style.translate = `${Math.round(dx)}px 0`
-  }, [ref])
+  }, [ref, fitViewport])
   const words = origin.split(/[\s-]+/)
   const cssOrigin = words.join(' ')
   // Starts a few px toward the side it hangs from: down from a top edge, up

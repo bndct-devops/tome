@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { AnimatePresence, LayoutGroup, m } from 'motion/react'
 import {
   Plus, Trash2, ChevronDown,
@@ -17,7 +17,7 @@ import { CoverImage } from '@/components/CoverImage'
 import { PageBody, PageHeader, Pill, SectionTitle } from '@/components/page'
 import { docsLink, DOCS } from '@/lib/docs'
 import { cn } from '@/lib/utils'
-import { BookLink, Pop, RunningNumber, Unfold, listItem } from '@/components/motion'
+import { Pop, RunningNumber, Unfold, listItem } from '@/components/motion'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 
@@ -420,15 +420,14 @@ export function WishlistPage() {
                           </p>
                         </div>
                         {w.fulfilled_book_id && (
-                          // The row shows the wish's own (external) cover, not the
-                          // library's: the book page paints at once, nothing grows.
-                          <BookLink
-                            book={{ id: w.fulfilled_book_id, title: w.title, author: w.author, series: w.series, series_index: w.series_index }}
-                            cover={null}
+                          // A plain link: the wish's title and cover are not the book's,
+                          // so they are not handed to the book page as its preview.
+                          <Link
+                            to={`/books/${w.fulfilled_book_id}`}
                             className="shrink-0 inline-flex items-center h-9 px-4 rounded-full text-[14px] font-medium text-muted-foreground hover:text-foreground hover:bg-secondary transition-colors touch-feedback"
                           >
                             <Trans>View book</Trans>
-                          </BookLink>
+                          </Link>
                         )}
                       </m.div>
                     ))}

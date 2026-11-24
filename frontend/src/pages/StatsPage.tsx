@@ -24,7 +24,7 @@ import { SessionsPage } from '@/components/stats/sessions/SessionsPage'
 import { GoalsTab } from '@/components/goals/GoalsTab'
 import { saveSelection } from '@/components/goals/actions'
 import type { StatsTab } from '@/components/stats/kit/page'
-import { beginStatsVisit, dropStatsCache, habitsPath, statsCacheGet, statsFetch, statsFresh, statsPrefetch, useDelayed } from '@/components/stats/kit/useStatsGet'
+import { beginStatsVisit, dropStatsCache, habitsPath, onStatsDrop, statsCacheGet, statsFetch, statsFresh, statsPrefetch, useDelayed } from '@/components/stats/kit/useStatsGet'
 import { TipLayer } from '@/components/stats/kit/TipLayer'
 import { EASE, finishEntries, reducedMotion } from '@/components/stats/kit/motion'
 import { PAGE_W, loadBoardsFlag, loadLocalDashboard, saveBoardsFlag, saveLocalDashboard, type Persisted } from '@/components/stats/boards/types'
@@ -143,17 +143,31 @@ export function StatsPage() {
   const [failed, setFailed] = useState(false)
   // Bumped to ask again for the same range (an edit on a page, e.g. a book marked read on the Overview).
   const [rev, setRev] = useState(0)
-  const refresh = useCallback(() => {
-    dropStatsCache('/stats')
-    setRev((r) => r + 1)
-  }, [])
+  // Any drop of these answers asks again, also one made by a child that tells nobody
+  // (a session deleted under Library or in a Boards tile). On a tab without them
+  // (Sessions) the tab switch back asks instead.
+  const tabNow = useRef(tab)
+  useEffect(() => { tabNow.current = tab }, [tab])
+  useEffect(() => onStatsDrop((p) => {
+    if (NEEDS_STATS.has(tabNow.current) && (p.startsWith('/stats') || '/stats'.startsWith(p))) setRev((r) => r + 1)
+  }), [])
+  // The drop bumps rev through the listener above.
+  const refresh = useCallback(() => dropStatsCache('/stats'), [])
   // A range asked for during this visit is not asked for again. Coming back to a stats
   // tab asks again only when its answer was dropped meanwhile (an edit on the Sessions tab).
   // A tab's own ranged requests (extraPaths) go out with it, and the answer is taken only
   // once all of them are in, so the whole page moves to the new range in one step.
   useEffect(() => {
     const extras = extraPaths(tab, days, custom)
-    if (!wantStats || (statsCache.fresh(key) && extras.every(statsFresh))) return
+    if (!wantStats) return
+    if (statsCache.fresh(key) && extras.every(statsFresh)) {
+      // Served from the cache: kept as this range's last answer, so after a drop the
+      // page goes on showing this range (not the last one fetched) until the new one lands.
+      const cached = statsCache.get(key) as StatsResponse
+      setStats((s) => (s?.key === key && s.data === cached ? s : { key, data: cached, days, custom }))
+      setFailed(false)
+      return
+    }
     setFailed(false)
     // A slow answer for a range the user has already left must not paint over
     // the current one: only the latest request may set state.
@@ -336,7 +350,8 @@ export function StatsPage() {
   }, [eyebrowText])
 
   let content: ReactNode
-  if (failed && !data) {
+  // Also when an older answer is on a stats tab: the selected range's own request failed.
+  if (failed && (!data || (!hit && NEEDS_STATS.has(shownTab)))) {
     content = <p className="py-32 text-center text-[14px] text-muted-foreground"><Trans>Couldn’t load stats.</Trans></p>
   } else if (shownTab === 'overview') {
     content = <Overview stats={data} estimates={estimates} pending={pending} days={shown?.days ?? days} custom={shown ? shown.custom : custom} requested={{ days, custom }} onAllBooks={() => goto('library', 'stats-all-books')} onRefresh={refresh} onGoals={(id) => { if (id != null) saveSelection({ id, kind: '' }); goto('goals') }} />

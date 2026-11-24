@@ -114,6 +114,8 @@ export function ChoiceMenu({ value, options, groups = [], onPick, label, classNa
         <Pop
           open={open}
           origin={`${pos?.up ? 'bottom' : 'top'}-${align === 'end' ? 'right' : 'left'}`}
+          // Placed inside the viewport by the layout effect above.
+          fit={false}
           ref={menu}
           role="menu"
           aria-label={label}

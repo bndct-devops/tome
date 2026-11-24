@@ -1265,6 +1265,10 @@ function useDragOrder<T extends { id: number }>(items: T[], save: (ids: number[]
   const live = order != null && order.length === ids.length && order.every(id => ids.includes(id)) ? order : null
   const shown = live ? live.map(id => items.find(i => i.id === id)!) : items
   const latest = useRef<number[] | null>(null)
+  // The order last sent, and the props it was sent over. Until new props
+  // arrive, the server holds `ids` from here, not the (stale) props.
+  const told = useRef<{ over: string; ids: number[] } | null>(null)
+  const key = ids.join(',')
   return {
     ids: live ?? ids,
     shown,
@@ -1272,8 +1276,10 @@ function useDragOrder<T extends { id: number }>(items: T[], save: (ids: number[]
     save: () => {
       const next = latest.current
       if (!next || next.length !== ids.length || !next.every(id => ids.includes(id))) return
-      if (next.every((id, i) => id === ids[i])) return
-      save(next).catch(() => { latest.current = null; setOrder(null); onFail() })
+      const server = told.current?.over === key ? told.current.ids : ids
+      if (next.every((id, i) => id === server[i])) return
+      told.current = { over: key, ids: next }
+      save(next).catch(() => { latest.current = null; told.current = null; setOrder(null); onFail() })
     },
   }
 }

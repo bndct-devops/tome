@@ -185,7 +185,7 @@ const OUT_OF_WIN: Win = { from: -1, to: -2, keys: new Set(), version: 0, travel:
 const SKIP_HIDDEN = typeof CSS !== 'undefined' && CSS.supports('overflow-clip-margin', '1px')
 
 /** A list shown again (`staged`) renders in steps from this many cards on. */
-const STAGE_FROM = SKIP_HIDDEN ? 120 : CHUNK
+export const STAGE_FROM = SKIP_HIDDEN ? 120 : CHUNK
 
 /** About how many cards fill the window (errs on the side of more). */
 function screenful(list: boolean, gridSize: number): number {
@@ -731,6 +731,9 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
     // WebKit takes about 1 ms a card to lay out: it starts with a screenful.
     const first = SKIP_HIDDEN ? 2 : Math.max(1, Math.ceil(screenful(view === 'list', gridSize) / CHUNK))
     const stage = !!staged && books.length > STAGE_FROM
+    // A windowed grid never steps the mount: should its list drop below
+    // WINDOW_FROM, every block renders at once.
+    if (windowed) return { from: 0, upTo: Infinity, settled: true }
     return { from, upTo: resume || stage ? from + first - 1 : Infinity, settled: !resume && !stage }
   })
   if (shown.selected !== selected && shown.view === view && shown.selecting === selecting) setShown({ view, selecting, selected })
@@ -760,6 +763,7 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
   if (wasWindowed !== windowed) {
     setWasWindowed(windowed)
     if (windowed) {
+      if (mount.upTo !== Infinity || mount.from > 0) setMount({ from: 0, upTo: Infinity, settled: true })
       const at = lastVisible.current.index
       setVwin({ from: Math.max(0, Math.floor(at / CHUNK) - 1), to: Math.floor((at + screenful(listView, gridSize)) / CHUNK) + 1 })
     }

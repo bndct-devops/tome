@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Trans } from '@lingui/react/macro'
 import { t, plural } from '@lingui/core/macro'
 import { AlertCircle, ArrowRight, Check, ChevronDown, Loader2, Search } from 'lucide-react'
-import { api } from '@/lib/api'
+import { api, notifyWrite } from '@/lib/api'
 import { cn } from '@/lib/utils'
 import { ModalShell } from '@/components/ModalShell'
 import { Checkbox, Pill, PRESS, Swap } from '@/components/page'
@@ -168,6 +168,7 @@ export function BulkMetadataReviewModal({ bookIds, open, onClose, onApplied, onM
           headers: { 'Content-Type': 'application/json', ...authHeader() },
           body: JSON.stringify(body),
         })
+        notifyWrite('POST', `/books/${result.book_id}/apply-metadata`)
       } catch {
         // non-fatal: continue with rest
       }

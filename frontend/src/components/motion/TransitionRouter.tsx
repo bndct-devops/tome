@@ -41,11 +41,19 @@ export function TransitionRouter({ children }: { children: ReactNode }) {
   const [state, setState] = useState<State>(() => ({ action: history.action, location: history.location }))
   // The location last handed to React.
   const shown = useRef<Location | null>(null)
+  // History events heard so far, and whether an applied one has yet to commit:
+  // a fade's update runs late, after newer events may have been applied.
+  const seq = useRef(0)
+  const pending = useRef(false)
 
   useLayoutEffect(() => history.listen(({ action, location }) => {
+    const n = ++seq.current
     const prev = shown.current ?? location
     shown.current = location
-    const apply = () => startTransition(() => setState({ action, location }))
+    const apply = () => {
+      pending.current = true
+      startTransition(() => setState({ action, location }))
+    }
     // Part of a transition already on screen (a cover, a section switch).
     if (insideTransitionUpdate()) { apply(); return }
     const head = location.pathname.split('/')[1]
@@ -56,6 +64,9 @@ export function TransitionRouter({ children }: { children: ReactNode }) {
     if (skip) { apply(); return }
     // Another fade still on screen: crossFade ends it and swaps plainly.
     crossFade(() => {
+      // A newer event was applied before this ran: this location is stale and
+      // must not land after it. Wait for that one's commit instead.
+      if (n !== seq.current) return pending.current ? routeCommitted() : undefined
       const landed = routeCommitted()
       apply()
       return landed
@@ -65,6 +76,7 @@ export function TransitionRouter({ children }: { children: ReactNode }) {
   // The new page has committed: let a waiting transition capture it.
   useLayoutEffect(() => {
     shown.current = state.location
+    pending.current = false
     noteRouteCommit()
   }, [state])
 

@@ -468,7 +468,8 @@ function ReadingNow({ stats, estimates, desktop, loading, sig, onRefresh }: { st
       ) : books.length === 0 ? (
         <p className="flex items-center text-[15px] text-muted-foreground" style={{ height: Math.max(NOW_CARD_H, minH ?? 0) }}>{stats && <Trans>Nothing in progress. Books you start show up here.</Trans>}</p>
       ) : (
-        <div ref={tw} className={desktop ? 'grid grid-cols-12 gap-4' : 'flex flex-col gap-5'} style={{ minHeight: minH }}>
+        // relative: the tween's ghosts of leaving cards are placed against this root.
+        <div ref={tw} className={desktop ? 'relative grid grid-cols-12 gap-4' : 'relative flex flex-col gap-5'} style={{ minHeight: minH }}>
           {books.map((b, i) => {
             const done = !!b && b.progress >= FINISHED_PCT
             const rest = b ? line(b) : ''

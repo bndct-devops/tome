@@ -7,7 +7,7 @@
  */
 import { useCallback, type RefObject } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { api } from '@/lib/api'
+import { api, onWrite } from '@/lib/api'
 import {
   bookHeroSelector, findBookCover, findSeriesCover, openBookWithCover, openSeriesWithCover, previewState,
   seriesPreviewState, type BookPreview,
@@ -87,7 +87,19 @@ const SEED_LIFETIME_MS = 5000
 const SEED_MAX = 4
 const seeds = new Map<number, BookSeed>()
 
+// The seeds belong to one login: after a user switch in the same tab (sign out
+// and in, impersonation) nothing asked for as the previous user is handed out.
+let seedOwner: string | null = null
+function ownSeeds(): void {
+  const token = localStorage.getItem('tome_token')
+  if (token === seedOwner) return
+  seedOwner = token
+  seeds.clear()
+  seriesSeeds.clear()
+}
+
 function freshSeed(id: number): BookSeed | null {
+  ownSeeds()
   const s = seeds.get(id)
   if (s && Date.now() - s.at < SEED_LIFETIME_MS) return s
   if (s) seeds.delete(id)
@@ -210,6 +222,7 @@ const seriesSeeds = new Map<string, SeriesSeed>()
 
 /** Starts a series page's requests, unless a seed younger than `maxAgeMs` exists. */
 export function prefetchSeries(name: string, maxAgeMs = SERIES_SEED_LIFETIME_MS): void {
+  ownSeeds()
   const s = seriesSeeds.get(name)
   if (s && Date.now() - s.at < maxAgeMs) return
   const values: SeriesSeed['values'] = {}
@@ -227,8 +240,13 @@ export function prefetchSeries(name: string, maxAgeMs = SERIES_SEED_LIFETIME_MS)
   while (seriesSeeds.size > SERIES_SEED_MAX) seriesSeeds.delete(seriesSeeds.keys().next().value as string)
 }
 
+// A write may change any of them (a status, a mark all read, an arc): a seed
+// asked for before it is never used. One asked while it ran is dropped too.
+onWrite(() => { seeds.clear(); seriesSeeds.clear() })
+
 /** The asked-ahead answers for a series when complete and fresh. */
 export function peekSeriesSeed(name: string): { detail: unknown; arcs: unknown; meta: unknown } | null {
+  ownSeeds()
   const s = seriesSeeds.get(name)
   if (!s || Date.now() - s.at > SERIES_SEED_LIFETIME_MS) return null
   const { detail, arcs, meta } = s.values
@@ -238,12 +256,14 @@ export function peekSeriesSeed(name: string): { detail: unknown; arcs: unknown; 
 /** One asked-ahead answer of a series page part (`rating`, `stats`), when fresh:
  *  a part can start from it instead of holding an empty slot. */
 export function peekSeriesPart(name: string, part: 'rating' | 'stats'): unknown {
+  ownSeeds()
   const s = seriesSeeds.get(name)
   return s && Date.now() - s.at <= SERIES_SEED_LIFETIME_MS ? s.values[part] : undefined
 }
 
 /** Resolves when the series' seed is in, or after `ms`. */
 function seriesSeedSettled(name: string, ms: number): Promise<void> {
+  ownSeeds()
   const s = seriesSeeds.get(name)
   if (!s) return Promise.resolve()
   return Promise.race([s.all, new Promise<void>(r => setTimeout(r, ms))])

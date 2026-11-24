@@ -161,8 +161,18 @@ export function useStatsGet<T>(path: string | null): { data: T | null; pending: 
   }
 }
 
+// Told of every drop, so a host showing a dropped answer asks again whoever made the edit.
+const dropListeners = new Set<(prefix: string) => void>()
+
+/** Called with the prefix of every dropStatsCache; returns the unsubscribe. */
+export function onStatsDrop(fn: (prefix: string) => void): () => void {
+  dropListeners.add(fn)
+  return () => { dropListeners.delete(fn) }
+}
+
 /** Forget cached answers (after an edit that changes them, e.g. a deleted session). */
 export function dropStatsCache(prefix: string) {
   for (const k of [...cache.keys()]) if (k.startsWith(prefix)) { cache.delete(k); answeredIn.delete(k) }
   for (const k of [...inflight.keys()]) if (k.startsWith(prefix)) { inflight.delete(k); background.delete(k) }
+  for (const fn of [...dropListeners]) fn(prefix)
 }

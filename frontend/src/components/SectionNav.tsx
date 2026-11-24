@@ -10,7 +10,7 @@ import { cn } from '@/lib/utils'
 import { Glide, GlideGroup, PageBody, PageHeader, SectionTitle } from '@/components/page'
 import { m } from 'motion/react'
 import { TomeMark } from '@/components/TomeMark'
-import { crossFade, isPlainClick, routeCommitted } from '@/lib/coverTransition'
+import { crossFade, historyEntry, isPlainClick, routeCommitted } from '@/lib/coverTransition'
 import { leaveAreaDelta } from '@/lib/areaBack'
 
 // Where a sidebar-placed SectionNav puts its desktop list. SectionSidebar
@@ -91,8 +91,11 @@ export function SectionNav({ items, active, onSelect, label, hrefFor, placement 
     e.preventDefault()
     if (id !== active) {
       const to = hrefFor(id)
+      const entry = historyEntry()
       // The fade ends at the router's commit, capped in crossFade.
       crossFade(() => {
+        // Another navigation landed before this ran: replacing it would undo it.
+        if (historyEntry() !== entry) return
         const landed = routeCommitted()
         navigate(to, { replace: true })
         return landed

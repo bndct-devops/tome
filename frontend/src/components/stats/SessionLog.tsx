@@ -12,6 +12,7 @@ import { Pill } from '@/components/page'
 import type { SessionEntry } from '@/components/stats/shared'
 import { AttributedPagesMark } from '@/components/stats/AttributedPagesMark'
 import { num } from '@/components/stats/kit/tokens'
+import { dropStatsCache } from '@/components/stats/kit/useStatsGet'
 import { sourceLabel, useSessionActions } from '@/components/stats/sessions/actions'
 import { SessionTools, TrimPanel } from '@/components/stats/sessions/SessionTools'
 import { AnimatePresence, m } from 'motion/react'
@@ -97,12 +98,15 @@ export function SessionLog({ bookId, day, onChange, expected }: { bookId?: numbe
             : row,
         ),
       )
+      // Every stats total counted this session; the Stats page asks again on the drop.
+      dropStatsCache('/stats')
       onChange?.()
     },
     onDeleted: (s) => {
       setSessions((prev) => prev.filter((row) => row.id !== s.id))
       setTotal((prev) => prev - 1)
       setLoaded((prev) => prev - 1)
+      dropStatsCache('/stats')
       onChange?.()
     },
   })

@@ -384,9 +384,16 @@ const SWAP_CAP_MS = 1200
 // late answers (reading stats, highlights) so they land together.
 const REVEAL_CAP_MS = 900
 
+// Held per login (the token the answer was asked with), like useKosyncStatus:
+// signing out or impersonating does not reload the page, and another account's
+// libraries or pace must never show.
+const currentToken = () => localStorage.getItem('tome_token')
+const mine = <T,>(c: { token: string | null; value: T } | null): T | null =>
+  (c && c.token === currentToken() ? c.value : null)
+
 // Libraries change rarely: the last answer draws the Libraries pill at once on
 // the next book instead of it arriving and moving the actions beside it.
-let lastLibraries: LibraryType[] | null = null
+let lastLibraries: { token: string | null; value: LibraryType[] } | null = null
 
 // Whether this visit has asked for the device lists (see devicesIn).
 let devicesAsked = false
@@ -395,7 +402,7 @@ const DEVICES_CAP_MS = 500
 // The reader's pace from the last estimate (it is the same for every book):
 // a book with a word count shows its estimate from it at once, the way the
 // server works it out (backend/services/backlog_estimate.py), until its own answer lands.
-let lastPace: EstimatePace | null = null
+let lastPace: { token: string | null; value: EstimatePace } | null = null
 function estimateFromPace(words: number, pace: EstimatePace): BookEstimate {
   const seconds = Math.round(words / (pace.wpm || pace.default_wpm) * 60)
   return {
@@ -498,8 +505,8 @@ function BookDetailView({ id, seed, next }: {
   // The sidebar's copy of the libraries (same answer) draws the Libraries pill at
   // once when this page has none yet; it is refreshed below either way.
   const sidebarLibraries = useSidebarLists(user?.id).libraries
-  const [libraries, setLibraries] = useState<LibraryType[]>(() => lastLibraries ?? sidebarLibraries)
-  const [librariesIn, setLibrariesIn] = useState(() => lastLibraries != null || sidebarLibraries.length > 0)
+  const [libraries, setLibraries] = useState<LibraryType[]>(() => mine(lastLibraries) ?? sidebarLibraries)
+  const [librariesIn, setLibrariesIn] = useState(() => mine(lastLibraries) != null || sidebarLibraries.length > 0)
   const [libMenuOpen, setLibMenuOpen] = useState(false)
   const libMenuRef = useRef<HTMLDivElement>(null)
   const [libPending, setLibPending] = useState<Set<number>>(new Set())
@@ -533,7 +540,7 @@ function BookDetailView({ id, seed, next }: {
   const [confirmingHighlight, setConfirmingHighlight] = useState<number | string | null>(null)
   const [highlightsOpen, setHighlightsOpen] = useState(true)
   const [readingStats, setReadingStats] = useState<ReadingStatsResponse | null>(() => seeded<ReadingStatsResponse>('stats') ?? null)
-  const [estimate, setEstimate] = useState<BookEstimate | null>(() => { const e = seeded<BookEstimate>('estimate'); if (e) lastPace = e.pace; return e ?? null })
+  const [estimate, setEstimate] = useState<BookEstimate | null>(() => { const e = seeded<BookEstimate>('estimate'); if (e) lastPace = { token: currentToken(), value: e.pace }; return e ?? null })
   // The late answers: the sections under the hero wait for them (or REVEAL_CAP_MS)
   // and arrive together, so none of them lands later and pushes the others.
   const [settled, setSettled] = useState(() => ({ stats: known('stats'), annotations: known('annotations'), estimate: known('estimate') }))
@@ -642,11 +649,12 @@ function BookDetailView({ id, seed, next }: {
   useLayoutEffect(() => {
     const el = descRef.current
     if (!el) { setDescClamped(false); return }
-    const measure = () => { if (!descExpanded) setDescClamped(el.scrollHeight > el.clientHeight + 1) }
+    // Not while it moves: it is unclamped then; it measures again when the clamp is back.
+    const measure = () => { if (!descExpanded && !descMoving) setDescClamped(el.scrollHeight > el.clientHeight + 1) }
     measure()
     window.addEventListener('resize', measure)
     return () => window.removeEventListener('resize', measure)
-  }, [book?.description, editing, descExpanded, loading, devicesIn, settled, capped])
+  }, [book?.description, editing, descExpanded, descMoving, loading, devicesIn, settled, capped])
 
   const bookIn = book != null
   useEffect(() => {
@@ -679,9 +687,12 @@ function BookDetailView({ id, seed, next }: {
     return () => window.cancelIdleCallback(idle)
   }, [book?.series, seriesHeroId])
 
+  // Waiting to swap to another book: this page is on its way out, so its
+  // shortcuts (r, e, Escape) must not act on the outgoing book.
+  const swapping = next != null
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if (e.defaultPrevented) return
+      if (e.defaultPrevented || swapping) return
       // A dialog (ModalShell, the quick look) owns the keyboard while open.
       if (isModalOpen() || quickLookId != null) return
       const tag = (e.target as HTMLElement).tagName
@@ -717,7 +728,7 @@ function BookDetailView({ id, seed, next }: {
     }
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [navigate, book, editing, canEdit, quickLookId, libMenuOpen, downloadMenuOpen, kosyncPickerOpen, confirmDelete])
+  }, [navigate, book, editing, canEdit, quickLookId, libMenuOpen, downloadMenuOpen, kosyncPickerOpen, confirmDelete, swapping])
 
   useEffect(() => {
     if (!id) return
@@ -733,7 +744,7 @@ function BookDetailView({ id, seed, next }: {
       .catch(() => setError(t`Book not found`))
       .finally(() => setLoading(false))
     // With a copy from the last book the refresh waits until the page is in (one request fewer while it loads).
-    const libs = () => api.get<LibraryType[]>('/libraries').then(l => { lastLibraries = l; setLibraries(l); setLibrariesIn(true) }).catch(() => toast.error(t`Failed to load libraries`))
+    const libs = () => { const token = currentToken(); return api.get<LibraryType[]>('/libraries').then(l => { lastLibraries = { token, value: l }; setLibraries(l); setLibrariesIn(true) }).catch(() => toast.error(t`Failed to load libraries`)) }
     const libsLater = librariesIn ? setTimeout(libs, 1500) : (libs(), undefined)
     load<BookStatus>('status')?.then(s => { setBookStatus(s.status); setStatusKnown(true); setProgressPct(s.progress_pct); setCfi(s.cfi ?? null); setProgressAnimated(false); setRating(s.rating ?? null); setReview(s.review ?? ''); setEditingReview(false) }).catch(() => setStatusKnown(true))
     load<typeof adjacent>('adjacent')?.then(setAdjacent).catch(() => {})
@@ -746,7 +757,8 @@ function BookDetailView({ id, seed, next }: {
       .catch(() => {})  // KOSync is optional - silent fail is fine
     load<Annotation[]>('annotations')?.then(setAnnotations).catch(() => {}).finally(() => settle('annotations'))
     load<ReadingStatsResponse>('stats')?.then(setReadingStats).catch(() => {}).finally(() => settle('stats'))
-    load<BookEstimate>('estimate')?.then(e => { lastPace = e.pace; setEstimate(e) }).catch(() => {}).finally(() => settle('estimate'))
+    const paceToken = currentToken()
+    load<BookEstimate>('estimate')?.then(e => { lastPace = { token: paceToken, value: e.pace }; setEstimate(e) }).catch(() => {}).finally(() => settle('estimate'))
     const cap = setTimeout(() => setCapped(true), REVEAL_CAP_MS)
     return () => { clearTimeout(cap); clearTimeout(libsLater) }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per mount (the page is keyed on the book)
@@ -1092,7 +1104,8 @@ function BookDetailView({ id, seed, next }: {
   const below = (settled.stats && settled.annotations) || capped
   // A book with a word count always gets an estimate: its slot is held (filled
   // at once from the last pace seen), so the rail need not wait for the answer.
-  const shownEstimate = estimate ?? (book.word_count && lastPace ? estimateFromPace(book.word_count, lastPace) : null)
+  const pace = mine(lastPace)
+  const shownEstimate = estimate ?? (book.word_count && pace ? estimateFromPace(book.word_count, pace) : null)
   // Past the cap the sections still arrive in order: one never lands above one
   // already shown (the reading blocks before highlights, both before the series).
   const statsIn = settled.stats

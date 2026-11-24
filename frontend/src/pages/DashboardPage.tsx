@@ -19,7 +19,7 @@ import type { MessageDescriptor } from '@lingui/core'
 import { useToast } from '@/contexts/ToastContext'
 import { useSidebarLists } from '@/lib/sidebarLists'
 import type { ViewMode } from '@/components/BookCard'
-import { LibraryGrid, LibrarySkeleton, type LibraryGridHandle, type ResumePoint, type StatusMap } from '@/components/library/LibraryGrid'
+import { LibraryGrid, LibrarySkeleton, STAGE_FROM, type LibraryGridHandle, type ResumePoint, type StatusMap } from '@/components/library/LibraryGrid'
 import { CountLabel, ToggleFill, ReserveLabel } from '@/components/library/Toolbar'
 import { StarRating } from '@/components/StarRating'
 import { SeriesRating } from '@/components/SeriesRating'
@@ -34,7 +34,7 @@ import { UploadModal } from '@/components/UploadModal'
 import { ManageSeriesModal } from '@/components/ManageSeriesModal'
 import { SendButton } from '@/components/SendButton'
 import { HomeTab } from '@/components/home/HomeTab'
-import { api } from '@/lib/api'
+import { api, onWrite } from '@/lib/api'
 import type { Book, ReadingStatus, Arc, SeriesMeta, SeriesStatus } from '@/lib/books'
 import { formatBytes } from '@/lib/books'
 import { useBookTypes } from '@/lib/bookTypes'
@@ -387,6 +387,7 @@ export function DashboardPage() {
     })
     setExpandedSeries(null)
     setSeriesDetail(null)
+    setJustMarked(false)
     setSeriesLoading(true)
     api.get<SeriesItem[]>('/books/series')
       .then(list => {
@@ -398,6 +399,8 @@ export function DashboardPage() {
   }
 
   function openSeriesDetail(seriesName: string) {
+    // The grow-in was for the volumes just marked, not the next series shown.
+    setJustMarked(false)
     if (expandedSeries === seriesName) {
       setExpandedSeries(null)
       setSeriesDetail(null)
@@ -446,7 +449,7 @@ export function DashboardPage() {
     if (tab !== 'series') return
     const detailName = searchParams.get('series_detail')
     if (!detailName) {
-      if (expandedSeries) { setExpandedSeries(null); setSeriesDetail(null); setSeriesArcs([]) }
+      if (expandedSeries) { setExpandedSeries(null); setSeriesDetail(null); setSeriesArcs([]); setJustMarked(false) }
       return
     }
     if (detailName === expandedSeries) return
@@ -906,7 +909,7 @@ export function DashboardPage() {
   const [seed] = useState(() => (listCache && listCache.key === listKey() ? listCache : null))
   // Back to a long list: it renders around the card that was first on screen.
   const [resume] = useState(() => (
-    seed && seed.resume && navigationType === 'POP' && seed.locationKey === location.key && seed.books.length > 120 && seed.resume.height > 0 ? seed.resume : undefined
+    seed && seed.resume && navigationType === 'POP' && seed.locationKey === location.key && seed.books.length > STAGE_FROM && seed.resume.height > 0 ? seed.resume : undefined
   ))
   const seededRef = useRef(!!seed)
   const loadedKeyRef = useRef(seed?.key ?? '')
@@ -950,9 +953,11 @@ export function DashboardPage() {
   const PAGE_SIZE = 60
   // Group series: the list the toggle switches to, fetched while the pointer
   // is on the toggle (and the list it leaves, kept for the way back), so a
-  // click regroups the cards at once. Keyed by listKey; cleared by any reset.
+  // click regroups the cards at once. Keyed by listKey; an entry goes when it
+  // is used, expires, or any write goes through (it may lack or show a book).
   const groupLists = useRef(new Map<string, GroupList>())
   const groupToggled = useRef(false)
+  useEffect(() => onWrite(() => groupLists.current.clear()), [])
 
   function buildFilterParams(): URLSearchParams {
     const params = new URLSearchParams()

@@ -4,6 +4,7 @@ import type { BookDetail } from '@/lib/books'
 import { ModalShell } from '@/components/ModalShell'
 import { FormLabel, Input, Pill } from '@/components/page'
 import { cn } from '@/lib/utils'
+import { notifyWrite } from '@/lib/api'
 import { CoverLift } from '@/components/motion'
 import { Trans, Plural } from '@lingui/react/macro'
 import { t } from '@lingui/core/macro'
@@ -90,6 +91,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
         body: form,
       })
       if (!r.ok) throw new Error(await r.text())
+      notifyWrite('POST', `/books/${book.id}/cover`)
       const updated: BookDetail = await r.json()
       onApplied(updated)
       handleClose()
@@ -112,6 +114,7 @@ export function CoverPickerModal({ book, open, onClose, onApplied }: Props) {
         body: form,
       })
       if (!r.ok) throw new Error(await r.text())
+      notifyWrite('POST', `/books/${book.id}/cover`)
       const updated: BookDetail = await r.json()
       onApplied(updated)
       handleClose()

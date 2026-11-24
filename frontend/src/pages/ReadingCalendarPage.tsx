@@ -129,11 +129,25 @@ const cacheSubs = new Set<() => void>()
 const subscribeCache = (f: () => void) => { cacheSubs.add(f); return () => { cacheSubs.delete(f) } }
 const readCacheRev = () => cacheRev
 
+// The caches hold one login's answers (the token they were asked with), like
+// useKosyncStatus: signing out or impersonating does not reload the page.
+const currentToken = () => localStorage.getItem('tome_token')
+let cacheToken: string | null = null
+function ownCaches() {
+  const token = currentToken()
+  if (token === cacheToken) return
+  monthCache.clear()
+  dayCache.clear()
+  cacheToken = token
+}
+
 function ask<T>(path: string, store: (r: T) => void): Promise<unknown> {
   if (asked.has(path)) return inflight.get(path) ?? Promise.resolve()
   asked.add(path)
+  const token = currentToken()
   const req = api.get<T>(path)
-    .then(r => { store(r); cacheRev++; cacheSubs.forEach(f => f()) })
+    // An answer for an account that is no longer the caches' owner is dropped.
+    .then(r => { if (token !== cacheToken) return; store(r); cacheRev++; cacheSubs.forEach(f => f()) })
     // A failed answer may be asked again.
     .catch(e => { asked.delete(path); throw e })
     .finally(() => inflight.delete(path))
@@ -189,7 +203,7 @@ const OUTLINE_HELD = { duration: 0 }
 
 export function ReadingCalendarPage() {
   // A visit starts with nothing asked: what is cached paints, then refreshes once.
-  useState(() => { asked = new Set() })
+  useState(() => { asked = new Set(); ownCaches() })
   const [params, setParams] = useSearchParams()
   useSyncExternalStore(subscribeCache, readCacheRev)
   const wide = useSyncExternalStore(subscribeWide, readWide, () => true)
@@ -198,8 +212,11 @@ export function ReadingCalendarPage() {
   const month = /^\d{4}-\d{2}$/.test(params.get('month') ?? '') ? params.get('month')! : nowMonth
   const selected = params.get('day')
 
+  // Only the month on screen may set the error: a slow failure for one stepped past is ignored.
   useEffect(() => {
-    loadMonth(month).then(() => setError(false), () => { if (!monthCache.has(month)) setError(true) })
+    let live = true
+    loadMonth(month).then(() => { if (live) setError(false) }, () => { if (live && !monthCache.has(month)) setError(true) })
+    return () => { live = false }
   }, [month])
 
   // While a month that is not in memory loads, the one on screen stays (dimmed
