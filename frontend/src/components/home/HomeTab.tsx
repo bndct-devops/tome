@@ -599,11 +599,12 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
             // scrolls sideways when the row does not fit; Up next keeps its width.
             <div className="min-w-0">
               <Eyebrow className="mb-2"><Trans>Also reading</Trans></Eyebrow>
-              <HScrollRow className="relative gap-4 px-2 pt-3 pb-2" wrapClassName="-mx-2 -mt-3" controlsTop="top-[84px]">
-                {/* popLayout: the book going to the hero gives up its slot at once, so the
-                    hero's old cover lands in it (a held slot made the row one cover too wide).
-                    The row is `relative` so the popped book keeps its place in a scrolled row. */}
-                <AnimatePresence initial={false} mode="popLayout">
+              <HScrollRow className="gap-4 px-2 pt-3 pb-2" wrapClassName="-mx-2 -mt-3" controlsTop="top-[84px]">
+                {/* No AnimatePresence: the book going to the hero leaves the row at once, so
+                    the hero's old cover lands in a free slot. A leaving row held for its fade
+                    kept its slot (its cover is a shared layout element, which held it 300 ms)
+                    and made the row one cover too wide; popLayout cost a 100 ms frame in Safari. */}
+                <>
                 {others.map(r => (
                   <m.div key={r.book_id} {...listItem} className="shrink-0 w-[104px]">
                     {readingCover(r, true)}
@@ -621,15 +622,15 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                     <div className="mt-[17px] text-[13px] text-muted-foreground"><Trans>See all</Trans></div>
                   </m.button>
                 )}
-                </AnimatePresence>
+                </>
               </HScrollRow>
             </div>
           )}
           {ups.length > 0 && (
             <div className={cn('shrink-0', others.length > 0 && 'lg:border-l lg:border-border/70 lg:pl-8')}>
               <Eyebrow className="mb-2">{upLabel}</Eyebrow>
-              <div className="relative flex gap-4 pb-2">
-                <AnimatePresence initial={false} mode="popLayout">
+              <div className="flex gap-4 pb-2">
+                <>
                 {ups.map(u => (
                   <m.div key={u.book_id} {...listItem} className="shrink-0 w-[104px]">
                     {upCover(u, true)}
@@ -638,7 +639,7 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
                     </BookLink>
                   </m.div>
                 ))}
-                </AnimatePresence>
+                </>
               </div>
             </div>
           )}
