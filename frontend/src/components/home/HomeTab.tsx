@@ -600,7 +600,9 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
             <div className="min-w-0">
               <Eyebrow className="mb-2"><Trans>Also reading</Trans></Eyebrow>
               <HScrollRow className="gap-4 px-2 pt-3 pb-2" wrapClassName="-mx-2 -mt-3" controlsTop="top-[84px]">
-                <AnimatePresence initial={false}>
+                {/* popLayout: the book going to the hero gives up its slot at once, so the
+                    hero's old cover lands in it (a held slot made the row one cover too wide). */}
+                <AnimatePresence initial={false} mode="popLayout">
                 {others.map(r => (
                   <m.div key={r.book_id} {...listItem} className="shrink-0 w-[104px]">
                     {readingCover(r, true)}
@@ -625,8 +627,8 @@ export function HomeTab({ onBrowse, onSeeAllRecent }: { onBrowse: () => void; on
           {ups.length > 0 && (
             <div className={cn('shrink-0', others.length > 0 && 'lg:border-l lg:border-border/70 lg:pl-8')}>
               <Eyebrow className="mb-2">{upLabel}</Eyebrow>
-              <div className="flex gap-4 pb-2">
-                <AnimatePresence initial={false}>
+              <div className="relative flex gap-4 pb-2">
+                <AnimatePresence initial={false} mode="popLayout">
                 {ups.map(u => (
                   <m.div key={u.book_id} {...listItem} className="shrink-0 w-[104px]">
                     {upCover(u, true)}
