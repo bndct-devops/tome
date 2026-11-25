@@ -355,6 +355,13 @@ class TestIsbnExtraction:
         ('<dc:identifier id="uid" opf:scheme="uuid">324d8c1a</dc:identifier>'
          '<dc:identifier opf:scheme="ISBN">9780575048003</dc:identifier>', "9780575048003"),
         ('<dc:identifier id="uid">urn:isbn:9780593135204</dc:identifier>', "9780593135204"),
+        # numeric calibre ids listed before the ISBN
+        ('<dc:identifier id="uid" opf:scheme="uuid">324d8c1a</dc:identifier>'
+         '<dc:identifier opf:scheme="GOODREADS">1234567890</dc:identifier>'
+         '<dc:identifier opf:scheme="AMAZON">0575048006</dc:identifier>'
+         '<dc:identifier opf:scheme="ISBN">9780575048003</dc:identifier>', "9780575048003"),
+        ('<dc:identifier id="uid">urn:uuid:324d8c1a</dc:identifier>'
+         '<dc:identifier>9780575048003</dc:identifier>', "9780575048003"),
     ])
     def test_isbn_found_among_identifiers(self, tmp_path, identifiers, isbn):
         opf = f'''<?xml version="1.0" encoding="utf-8"?>
