@@ -362,6 +362,16 @@ class TestIsbnExtraction:
          '<dc:identifier opf:scheme="ISBN">9780575048003</dc:identifier>', "9780575048003"),
         ('<dc:identifier id="uid">urn:uuid:324d8c1a</dc:identifier>'
          '<dc:identifier>9780575048003</dc:identifier>', "9780575048003"),
+        # a Tome download with a corrected ISBN: the scheme one wins over the unique urn:isbn:
+        ('<dc:identifier id="uid">urn:isbn:9780575048003</dc:identifier>'
+         '<dc:identifier opf:scheme="ISBN">9780060853983</dc:identifier>', "9780060853983"),
+        # urn:isbn: still wins over a bare number listed first
+        ('<dc:identifier id="uid">1234567890123</dc:identifier>'
+         '<dc:identifier>urn:isbn:9780593135204</dc:identifier>', "9780593135204"),
+        # ISBN-10 with an X check digit
+        ('<dc:identifier id="uid" opf:scheme="uuid">324d8c1a</dc:identifier>'
+         '<dc:identifier opf:scheme="ISBN">080442957X</dc:identifier>', "080442957X"),
+        ('<dc:identifier id="uid">urn:isbn:0-8044-2957-X</dc:identifier>', "0-8044-2957-X"),
     ])
     def test_isbn_found_among_identifiers(self, tmp_path, identifiers, isbn):
         opf = f'''<?xml version="1.0" encoding="utf-8"?>
