@@ -71,3 +71,39 @@ class TestComicInfoGenreWrite:
         book = _book(tags=[])
         root = ET.fromstring(_build_comic_info(book))
         assert root.find("Genre") is None
+
+
+CALIBRE_OPF = (
+    '<?xml version="1.0" encoding="utf-8"?>'
+    '<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="uuid_id">'
+    '<metadata xmlns:dc="http://purl.org/dc/elements/1.1/" '
+    'xmlns:opf="http://www.idpf.org/2007/opf">'
+    '<dc:title>Old</dc:title>'
+    '<dc:identifier id="uuid_id" opf:scheme="uuid">324d8c1a</dc:identifier>'
+    '<dc:identifier opf:scheme="ISBN">9780575048003</dc:identifier>'
+    '</metadata>'
+    '<manifest><item id="t" href="t.xhtml" media-type="application/xhtml+xml"/></manifest>'
+    '<spine><itemref idref="t"/></spine></package>'
+).encode()
+
+
+def _identifiers(opf: bytes) -> list[tuple]:
+    return [(el.get("id"), el.text) for el in ET.fromstring(opf).iter(f"{{{DC_NS}}}identifier")]
+
+
+class TestEpubIdentifierWrite:
+    def test_isbn_keeps_unique_identifier(self):
+        out, _ = _rewrite_opf(CALIBRE_OPF, _book(isbn="9780060853983"), "content.opf", [], have_cover=False)
+        assert _identifiers(out) == [("uuid_id", "324d8c1a"), (None, "9780060853983")]
+
+    def test_isbn_unique_identifier_is_updated_in_place(self):
+        opf = CALIBRE_OPF.replace(b'unique-identifier="uuid_id"', b'unique-identifier="BookId"').replace(
+            b'<dc:identifier opf:scheme="ISBN">', b'<dc:identifier id="BookId" opf:scheme="ISBN">'
+        )
+        out, _ = _rewrite_opf(opf, _book(isbn="9780060853983"), "content.opf", [], have_cover=False)
+        assert _identifiers(out) == [("uuid_id", "324d8c1a"), ("BookId", "9780060853983")]
+
+    def test_bare_isbn_is_replaced(self):
+        opf = CALIBRE_OPF.replace(b'<dc:identifier opf:scheme="ISBN">', b"<dc:identifier>")
+        out, _ = _rewrite_opf(opf, _book(isbn="9780060853983"), "content.opf", [], have_cover=False)
+        assert _identifiers(out) == [("uuid_id", "324d8c1a"), (None, "9780060853983")]
