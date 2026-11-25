@@ -36,6 +36,10 @@ All notable changes to Tome are documented here. Format loosely follows
 - Dialogs no longer blur the page behind them.
 
 ### Fixed
+- **Downloaded EPUBs stay valid when the book has an ISBN.** Writing the ISBN
+  into the file removed every identifier, including the book's unique one.
+  Now only other ISBN identifiers are replaced, and the unique identifier is
+  left exactly as it was.
 - **Highlights page: KOReader highlights on a book without a file.** A
   highlight made in KOReader on a book that Tome only knows from an Xteink
   reader's sync showed on the book's page but was missing from the

@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import io
 import logging
+import re
 import shutil
 import zipfile
 from pathlib import Path
@@ -178,6 +179,20 @@ def _find_opf_path(container_xml: bytes) -> Optional[str]:
     return rootfile.get("full-path")
 
 
+def _is_isbn_identifier(el: ET.Element) -> bool:
+    text = (el.text or "").strip().lower()
+    scheme = el.get(f"{{{OPF_NS}}}scheme")
+    if (scheme or "").upper() == "ISBN" or text.startswith(("urn:isbn:", "isbn:")):
+        return True
+    # A bare ISBN, as extract_epub reads it, only without a scheme (calibre's AMAZON id is one too)
+    return scheme is None and re.fullmatch(r"\d{9,12}[\dx]", text.replace("-", "")) is not None
+
+
+def _isbn_digits(text: str) -> str:
+    text = text.strip().lower().removeprefix("urn:isbn:").removeprefix("isbn:")
+    return text.replace("-", "").replace(" ", "")
+
+
 def _rewrite_opf(
     opf_xml: bytes, book: Book, opf_path: str, zip_names: list[str], have_cover: bool
 ) -> tuple[Optional[bytes], Optional[str]]:
@@ -212,10 +227,21 @@ def _rewrite_opf(
     if book.year:
         _set("date", f"{book.year:04d}-01-01")
     if book.isbn:
-        _clear("identifier")
-        el = ET.SubElement(meta, f"{{{DC_NS}}}identifier")
-        el.set(f"{{{OPF_NS}}}scheme", "ISBN")
-        el.text = book.isbn
+        # Replace only ISBN identifiers. The one package@unique-identifier names stays as it
+        # is: font obfuscation keys are derived from it.
+        unique_id = root.get("unique-identifier")
+        has_isbn = False
+        for el in list(meta.findall(f"{{{DC_NS}}}identifier")):
+            if not _is_isbn_identifier(el):
+                continue
+            if el.get("id") == unique_id:
+                has_isbn = _isbn_digits(el.text or "") == _isbn_digits(book.isbn)
+            else:
+                meta.remove(el)
+        if not has_isbn:
+            el = ET.SubElement(meta, f"{{{DC_NS}}}identifier")
+            el.set(f"{{{OPF_NS}}}scheme", "ISBN")
+            el.text = book.isbn
 
     # Calibre series conventions (KOReader + Calibre honour these)
     for el in list(meta.findall(f"{{{OPF_NS}}}meta")):
