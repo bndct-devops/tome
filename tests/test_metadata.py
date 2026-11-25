@@ -347,3 +347,25 @@ class TestSeriesSanitization:
         # A dash without surrounding spaces should NOT be stripped
         # (e.g. "Jean-Christophe" — the regex requires \s+ before the dash)
         assert _sanitize_series("Jean-Christophe") == "Jean-Christophe"
+
+
+class TestIsbnExtraction:
+    @pytest.mark.parametrize("identifiers, isbn", [
+        # calibre: uuid first, ISBN second
+        ('<dc:identifier id="uid" opf:scheme="uuid">324d8c1a</dc:identifier>'
+         '<dc:identifier opf:scheme="ISBN">9780575048003</dc:identifier>', "9780575048003"),
+        ('<dc:identifier id="uid">urn:isbn:9780593135204</dc:identifier>', "9780593135204"),
+    ])
+    def test_isbn_found_among_identifiers(self, tmp_path, identifiers, isbn):
+        opf = f'''<?xml version="1.0" encoding="utf-8"?>
+<package xmlns="http://www.idpf.org/2007/opf" version="2.0" unique-identifier="uid">
+  <metadata xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:opf="http://www.idpf.org/2007/opf">
+    <dc:title>A Book</dc:title>
+    {identifiers}
+  </metadata>
+  <manifest><item id="t" href="t.xhtml" media-type="application/xhtml+xml"/></manifest>
+  <spine><itemref idref="t"/></spine>
+</package>'''
+        epub = tmp_path / "isbn.epub"
+        _write_epub(epub, opf)
+        assert extract_metadata(epub, tmp_path / "covers").get("isbn") == isbn

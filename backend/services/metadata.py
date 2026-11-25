@@ -476,11 +476,12 @@ def extract_epub(path: Path, covers_dir: Path) -> dict:
             # Strip HTML tags from description
             meta["description"] = re.sub(r"<[^>]+>", "", description[0]).strip()
 
-        identifier = _first(book.get_metadata("DC", "identifier"))
-        if identifier and identifier[0]:
-            val = identifier[0]
+        # calibre writes its uuid identifier first; retail EPUBs use urn:isbn:
+        for identifier in book.get_metadata("DC", "identifier"):
+            val = re.sub(r"^(urn:)?isbn:", "", (identifier[0] or "").strip(), flags=re.IGNORECASE)
             if re.match(r"^\d{9,13}$", val.replace("-", "")):
                 meta["isbn"] = val
+                break
 
         date = _first(book.get_metadata("DC", "date"))
         if date and date[0]:
