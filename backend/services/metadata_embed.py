@@ -181,10 +181,16 @@ def _find_opf_path(container_xml: bytes) -> Optional[str]:
 
 def _is_isbn_identifier(el: ET.Element) -> bool:
     text = (el.text or "").strip().lower()
-    if (el.get(f"{{{OPF_NS}}}scheme") or "").upper() == "ISBN" or text.startswith(("urn:isbn:", "isbn:")):
+    scheme = el.get(f"{{{OPF_NS}}}scheme")
+    if (scheme or "").upper() == "ISBN" or text.startswith(("urn:isbn:", "isbn:")):
         return True
-    # A bare ISBN, as extract_epub reads it
-    return re.fullmatch(r"\d{9,12}[\dx]", text.replace("-", "")) is not None
+    # A bare ISBN, as extract_epub reads it, only without a scheme (calibre's AMAZON id is one too)
+    return scheme is None and re.fullmatch(r"\d{9,12}[\dx]", text.replace("-", "")) is not None
+
+
+def _isbn_digits(text: str) -> str:
+    text = text.strip().lower().removeprefix("urn:isbn:").removeprefix("isbn:")
+    return text.replace("-", "").replace(" ", "")
 
 
 def _rewrite_opf(
@@ -221,20 +227,18 @@ def _rewrite_opf(
     if book.year:
         _set("date", f"{book.year:04d}-01-01")
     if book.isbn:
-        # Replace only ISBN identifiers; the one package@unique-identifier names must stay,
-        # so an ISBN there gets the new value in place.
+        # Replace only ISBN identifiers. The one package@unique-identifier names stays as it
+        # is: font obfuscation keys are derived from it.
         unique_id = root.get("unique-identifier")
-        unique_isbn = None
+        has_isbn = False
         for el in list(meta.findall(f"{{{DC_NS}}}identifier")):
             if not _is_isbn_identifier(el):
                 continue
             if el.get("id") == unique_id:
-                unique_isbn = el
+                has_isbn = _isbn_digits(el.text or "") == _isbn_digits(book.isbn)
             else:
                 meta.remove(el)
-        if unique_isbn is not None:
-            unique_isbn.text = book.isbn
-        else:
+        if not has_isbn:
             el = ET.SubElement(meta, f"{{{DC_NS}}}identifier")
             el.set(f"{{{OPF_NS}}}scheme", "ISBN")
             el.text = book.isbn

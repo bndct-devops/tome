@@ -96,12 +96,31 @@ class TestEpubIdentifierWrite:
         out, _ = _rewrite_opf(CALIBRE_OPF, _book(isbn="9780060853983"), "content.opf", [], have_cover=False)
         assert _identifiers(out) == [("uuid_id", "324d8c1a"), (None, "9780060853983")]
 
-    def test_isbn_unique_identifier_is_updated_in_place(self):
+    def test_isbn_unique_identifier_is_left_as_is(self):
+        # font obfuscation keys are derived from the unique identifier's exact text
         opf = CALIBRE_OPF.replace(b'unique-identifier="uuid_id"', b'unique-identifier="BookId"').replace(
-            b'<dc:identifier opf:scheme="ISBN">', b'<dc:identifier id="BookId" opf:scheme="ISBN">'
+            b'<dc:identifier opf:scheme="ISBN">9780575048003', b'<dc:identifier id="BookId">urn:isbn:9780575048003'
         )
         out, _ = _rewrite_opf(opf, _book(isbn="9780060853983"), "content.opf", [], have_cover=False)
-        assert _identifiers(out) == [("uuid_id", "324d8c1a"), ("BookId", "9780060853983")]
+        assert _identifiers(out) == [
+            ("uuid_id", "324d8c1a"),
+            ("BookId", "urn:isbn:9780575048003"),
+            (None, "9780060853983"),
+        ]
+
+    def test_isbn_already_in_unique_identifier_is_not_added_again(self):
+        opf = CALIBRE_OPF.replace(b'unique-identifier="uuid_id"', b'unique-identifier="BookId"').replace(
+            b'<dc:identifier opf:scheme="ISBN">9780575048003', b'<dc:identifier id="BookId">urn:isbn:978-0-06-085398-3'
+        )
+        out, _ = _rewrite_opf(opf, _book(isbn="9780060853983"), "content.opf", [], have_cover=False)
+        assert _identifiers(out) == [("uuid_id", "324d8c1a"), ("BookId", "urn:isbn:978-0-06-085398-3")]
+
+    def test_number_with_another_scheme_is_kept(self):
+        opf = CALIBRE_OPF.replace(
+            b"</metadata>", b'<dc:identifier opf:scheme="AMAZON">0575048006</dc:identifier></metadata>'
+        )
+        out, _ = _rewrite_opf(opf, _book(isbn="9780060853983"), "content.opf", [], have_cover=False)
+        assert _identifiers(out) == [("uuid_id", "324d8c1a"), (None, "0575048006"), (None, "9780060853983")]
 
     def test_bare_isbn_is_replaced(self):
         opf = CALIBRE_OPF.replace(b'<dc:identifier opf:scheme="ISBN">', b"<dc:identifier>")
