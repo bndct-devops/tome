@@ -477,22 +477,26 @@ def extract_epub(path: Path, covers_dir: Path) -> dict:
             meta["description"] = re.sub(r"<[^>]+>", "", description[0]).strip()
 
         # calibre writes its uuid identifier first; retail EPUBs use urn:isbn:. Prefer an
-        # identifier marked as an ISBN, then a bare number without a scheme (calibre's
-        # AMAZON or GOODREADS ids are numbers too).
-        marked, bare = None, None
+        # identifier with the ISBN scheme (what Tome writes on download, so a corrected
+        # ISBN reads back), then a urn:isbn: value, then a bare number without a scheme
+        # (calibre's AMAZON or GOODREADS ids are numbers too).
+        by_scheme, by_prefix, bare = None, None, None
         for text, attrs in book.get_metadata("DC", "identifier"):
             text = (text or "").strip()
             scheme = next((v for k, v in (attrs or {}).items() if k.endswith("scheme")), None)
             val = re.sub(r"^(urn:)?isbn:", "", text, flags=re.IGNORECASE)
-            if not re.match(r"^\d{9,13}$", val.replace("-", "")):
+            if not re.match(r"^(\d{9,13}|\d{9}[Xx])$", val.replace("-", "")):
                 continue
-            if (scheme or "").upper() == "ISBN" or val != text:
-                marked = val
+            if (scheme or "").upper() == "ISBN":
+                by_scheme = val
                 break
-            if scheme is None and bare is None:
+            if val != text:
+                by_prefix = by_prefix or val
+            elif scheme is None and bare is None:
                 bare = val
-        if marked or bare:
-            meta["isbn"] = marked or bare
+        isbn = by_scheme or by_prefix or bare
+        if isbn:
+            meta["isbn"] = isbn
 
         date = _first(book.get_metadata("DC", "date"))
         if date and date[0]:

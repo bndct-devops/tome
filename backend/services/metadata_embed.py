@@ -234,10 +234,15 @@ def _rewrite_opf(
         for el in list(meta.findall(f"{{{DC_NS}}}identifier")):
             if not _is_isbn_identifier(el):
                 continue
-            if el.get("id") == unique_id:
+            if unique_id is not None and el.get("id") == unique_id:
                 has_isbn = _isbn_digits(el.text or "") == _isbn_digits(book.isbn)
-            else:
-                meta.remove(el)
+                continue
+            meta.remove(el)
+            # EPUB 3: metas that refine the removed identifier would point at nothing
+            if el.get("id"):
+                for ref in list(meta.findall(f"{{{OPF_NS}}}meta")):
+                    if ref.get("refines") == f"#{el.get('id')}":
+                        meta.remove(ref)
         if not has_isbn:
             el = ET.SubElement(meta, f"{{{DC_NS}}}identifier")
             el.set(f"{{{OPF_NS}}}scheme", "ISBN")

@@ -39,7 +39,7 @@ All notable changes to Tome are documented here. Format loosely follows
 - **Downloaded EPUBs stay valid when the book has an ISBN.** Writing the ISBN
   into the file removed every identifier, including the book's unique one.
   Now only other ISBN identifiers are replaced, and the unique identifier is
-  left exactly as it was.
+  left exactly as it was. Contributed by @jayhemnani9910 (#334).
 - **Highlights page: KOReader highlights on a book without a file.** A
   highlight made in KOReader on a book that Tome only knows from an Xteink
   reader's sync showed on the book's page but was missing from the
@@ -61,7 +61,8 @@ All notable changes to Tome are documented here. Format loosely follows
 - **ISBNs are read from calibre and retail EPUBs.** Only the first identifier
   was checked, which in calibre files is its own id, so no ISBN was found.
   An identifier marked as an ISBN is now preferred, then a plain number
-  without a scheme.
+  without a scheme, and an ISBN-10 that ends in X is read too. Contributed
+  by @jayhemnani9910 (#335).
 
 ## [3.2.0] - 2026-11-22 - "Chapbook"
 

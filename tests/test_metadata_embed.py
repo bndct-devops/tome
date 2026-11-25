@@ -126,3 +126,20 @@ class TestEpubIdentifierWrite:
         opf = CALIBRE_OPF.replace(b'<dc:identifier opf:scheme="ISBN">', b"<dc:identifier>")
         out, _ = _rewrite_opf(opf, _book(isbn="9780060853983"), "content.opf", [], have_cover=False)
         assert _identifiers(out) == [("uuid_id", "324d8c1a"), (None, "9780060853983")]
+
+    def test_isbn_replaced_when_package_names_no_unique_identifier(self):
+        opf = CALIBRE_OPF.replace(b' unique-identifier="uuid_id"', b"")
+        out, _ = _rewrite_opf(opf, _book(isbn="9780060853983"), "content.opf", [], have_cover=False)
+        assert _identifiers(out) == [("uuid_id", "324d8c1a"), (None, "9780060853983")]
+
+    def test_refines_of_a_removed_isbn_go_with_it(self):
+        opf = CALIBRE_OPF.replace(
+            b'<dc:identifier opf:scheme="ISBN">9780575048003</dc:identifier>',
+            b'<dc:identifier id="isbn">urn:isbn:9780575048003</dc:identifier>'
+            b'<meta refines="#isbn" property="identifier-type" scheme="onix:codelist5">15</meta>'
+            b'<meta refines="#uuid_id" property="identifier-type">uuid</meta>',
+        )
+        out, _ = _rewrite_opf(opf, _book(isbn="9780060853983"), "content.opf", [], have_cover=False)
+        assert _identifiers(out) == [("uuid_id", "324d8c1a"), (None, "9780060853983")]
+        refines = [el.get("refines") for el in ET.fromstring(out).iter() if el.get("refines")]
+        assert refines == ["#uuid_id"]
