@@ -54,6 +54,10 @@ All notable changes to Tome are documented here. Format loosely follows
 - Smaller layout jumps are gone: the series rating row, the Home "Also
   reading" scroll arrow, the Stats timeline zoom, the sync time in the top
   bar and the Admin Library health buttons.
+- **ISBNs are read from calibre and retail EPUBs.** Only the first identifier
+  was checked, which in calibre files is its own id, so no ISBN was found.
+  An identifier marked as an ISBN is now preferred, then a plain number
+  without a scheme.
 
 ## [3.2.0] - 2026-11-22 - "Chapbook"
 
