@@ -72,11 +72,13 @@ const codeMenu = `do
 end`
 ---
 <BaseLayout
+  article={{ published: '2026-05-25' }}
   title="Building a KOReader plugin from scratch — Tome"
   description="Why I built my own .koplugin instead of using KOSync, how KOReader plugins actually work, the gotchas that cost me days, and what it unlocked for Tome."
 >
   <SiteHeader />
 
+  <main>
   <article class="blog-article">
     <header class="relative max-w-3xl mx-auto px-6 pt-32 pb-12 text-center">
       <div class="accent-glow"></div>
@@ -85,7 +87,7 @@ end`
         Building a KOReader plugin from scratch
       </h1>
       <div class="blog-meta">
-        <time class="blog-date">2026-05-25</time>
+        <time class="blog-date" datetime="2026-05-25">2026-05-25</time>
         <span class="blog-date">&middot;</span>
         <span class="blog-date">10 min read</span>
       </div>
@@ -454,6 +456,7 @@ end`
       </div>
     </div>
   </article>
+  </main>
 </BaseLayout>
 
 <style>

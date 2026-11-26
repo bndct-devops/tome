@@ -2,10 +2,19 @@
 import BaseLayout from '../layouts/BaseLayout.astro'
 import SiteHeader from '../components/SiteHeader.astro'
 import { RevealOnScroll } from '../components/RevealOnScroll'
+import { lastUpdated, formatDate } from '../lib/lastUpdated.mjs'
+
+const updatedDate = lastUpdated('src/pages/why.astro')
+
+// When the facts about other projects (stars, versions, features) were last
+// checked. Set by hand on purpose: the "Updated" date above moves on any edit,
+// this one only when someone has actually re-checked the comparisons.
+const FACTS_AS_OF = 'November 2026'
 ---
-<BaseLayout title="Why Tome — How it compares to every self-hosted ebook server" description="An honest, opinionated comparison of Tome against Calibre-Web, Kavita, Komga, and every other self-hosted ebook tool.">
+<BaseLayout title="Why Tome — How it compares to every self-hosted ebook server" description="An honest, opinionated comparison of Tome against Calibre-Web, Kavita, Komga, Grimmory (BookLore), BookOrbit and other self-hosted ebook servers.">
   <SiteHeader />
 
+  <main>
   <article class="why-article">
     <!-- Hero -->
     <header class="relative max-w-3xl mx-auto px-6 pt-32 pb-16 text-center">
@@ -20,7 +29,14 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
         There are several good self-hosted ebook servers. This page explains what Tome does
         differently, how every alternative compares, and where each one is the better choice.
       </p>
-      <p class="reveal mt-4 text-sm text-[var(--muted)] opacity-60">10 min read</p>
+      <p class="reveal mt-4 text-sm text-[var(--muted)] opacity-60">
+        12 min read{updatedDate && <> · Updated <time datetime={updatedDate.toISOString().slice(0, 10)}>{formatDate(updatedDate)}</time></>}
+      </p>
+      <p class="reveal mt-6 text-sm text-[var(--muted)] leading-relaxed max-w-xl mx-auto">
+        Star counts, versions and features of other projects are as of {FACTS_AS_OF}. They change;
+        each project's own docs have the current state. If something here is wrong,
+        please <a href="https://github.com/bndct-devops/tome/issues" class="underline hover:text-[var(--fg)]">open an issue</a>.
+      </p>
     </header>
 
     <!-- The problem -->
@@ -45,10 +61,10 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
 
       <h3>TomeSync — a real KOReader plugin, not just a protocol</h3>
       <p>
-        Every other self-hosted library that supports KOReader does it the same way: they implement
+        Most self-hosted libraries that support KOReader do it the same way: they implement
         the KOSync protocol on the server side, and you point KOReader's built-in sync plugin at it.
         That gets you progress sync — where you left off — and nothing else. CWA ships a plugin, but
-        it's a lightly modified clone of the stock KOSync plugin with different auth. Kavita, Komga,
+        it's a fork of the stock KOSync plugin with its own sign-in. Kavita, Komga,
         and Stump all just expose KOSync-compatible endpoints.
       </p>
       <p>
@@ -56,7 +72,7 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
         well beyond progress sync:
       </p>
       <ul>
-        <li><strong>Reading-session recording</strong> — every time you close the lid or close a book, TomeSync records a session: start time, end time, duration, pages turned, device. This is what powers Tome's stats (streaks, heatmaps, pace, completion estimates). No other tool captures this data from KOReader.</li>
+        <li><strong>Reading-session recording</strong> — every time you close the lid or close a book, TomeSync records a session: start time, end time, duration, pages turned, device. This is what powers Tome's stats (streaks, heatmaps, pace, completion estimates).</li>
         <li><strong>Series browser</strong> — browse your entire library's series from inside KOReader. Tap a series to bulk-download every volume, organized into folders by book type and series name (<code>manga/One Piece/Vol. 1 — One Piece.epub</code>). Or download just the rest of a series from your current volume forward.</li>
         <li><strong>Bidirectional position sync</strong> — read on your Kobo, pick up on the web reader, come back to KOReader the next night. Position follows you both directions automatically.</li>
         <li><strong>Stable book IDs</strong> — TomeSync matches books by Tome's internal IDs, not MD5 file hashes. Rename a file, re-download it, reorganize your library — the link doesn't break.</li>
@@ -106,15 +122,13 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
       </p>
       <ul>
         <li><strong>Calibre integration</strong> — Tome has its own database. It won't read an existing Calibre library.</li>
-        <li><strong>Kobo device sync</strong> — Tome syncs via the TomeSync KOReader plugin, not the Kobo store API.</li>
-        <li><strong>Send-to-Kindle / email delivery</strong> — no email integration.</li>
+        <li><strong>Kobo device sync</strong> — in the works. Today Tome syncs via the TomeSync KOReader plugin, not the Kobo store API.</li>
         <li><strong>Format conversion</strong> — Tome serves what you upload.</li>
-        <li><strong>LDAP / OIDC / SSO</strong> — JWT auth with three roles (admin, member, guest) and Quick Connect codes.</li>
-        <li><strong>Annotations and highlights</strong> — the web reader doesn't persist highlights.</li>
+        <li><strong>LDAP</strong> — sign-in is local accounts or OIDC single sign-on, with three roles (admin, member, guest).</li>
         <li><strong>Reading lists</strong> — Tome has libraries and shelves (saved filters), not ordered cross-series playlists.</li>
-        <li><strong>Scrobbling</strong> — no sync to AniList or other tracking services.</li>
+        <li><strong>AniList / MAL scrobbling</strong> — Tome pushes ratings and progress to Hardcover, and nowhere else.</li>
         <li><strong>Age rating restrictions</strong> — visibility is library-based, not rating-based.</li>
-        <li><strong>Localisation</strong> — the UI is English only.</li>
+        <li><strong>Audiobooks</strong> — ebooks, comics and manga only.</li>
       </ul>
       <p>
         Some of these will land eventually. Some won't — they're outside the scope of what Tome is
@@ -127,7 +141,7 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
     <section class="why-section reveal">
       <h2 id="calibre-web">Calibre-Web</h2>
       <div class="why-meta">
-        <span>17k+ stars</span>
+        <span>18.6k stars</span>
         <span>Python / Flask / Bootstrap 3</span>
         <span>GPL-3.0</span>
       </div>
@@ -143,8 +157,9 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
         Calibre's <code>metadata.db</code> and presents it in a browser. The UI is Bootstrap 3
         (released 2013) with Jinja2 server-rendered templates. There are no reading sessions, no
         time tracking, no streaks, no stats beyond "how many books and authors do I have." The
-        web EPUB reader stores your position in browser localStorage — not on the server. Switch
-        browsers and you lose your place.
+        web EPUB reader keeps your automatic position in browser localStorage, not on the server
+        (signed-in users can save one manual bookmark per book). Switch browsers and the automatic
+        position is gone.
       </p>
       <p>
         There's no native KOReader support. KOSync doesn't exist in stock Calibre-Web. It does
@@ -153,7 +168,7 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
 
       <h3 id="calibre-web-automated">The CWA fork</h3>
       <p>
-        <a href="https://github.com/crocodilestick/Calibre-Web-Automated">Calibre-Web Automated</a> (5.7k stars) is a more ambitious fork that adds a lot of what stock Calibre-Web lacks:
+        <a href="https://github.com/crocodilestick/Calibre-Web-Automated">Calibre-Web Automated</a> (6.7k stars) is a more ambitious fork that adds a lot of what stock Calibre-Web lacks:
         KOSync support with a downloadable KOReader plugin, automatic file ingest with format
         conversion, metadata enforcement that writes changes back into actual ebook files, smart
         duplicate detection, magic shelves with dynamic rules, and a multi-tab stats center with
@@ -162,8 +177,8 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
       <p>
         But it's still built on the same Flask/Bootstrap 3 foundation. The roadmap lists a
         Svelte-based frontend rewrite as a high priority, which tells you where the current UI
-        stands. And the core requirement remains: you need a Calibre <code>metadata.db</code> to
-        start. Tome has its own database schema and doesn't depend on any external binary.
+        stands. It also still runs on a Calibre <code>metadata.db</code>, though it now creates an
+        empty one for you when none is found. Tome has its own database schema and doesn't depend on any external binary.
       </p>
 
       <div class="why-verdict">
@@ -177,7 +192,7 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
     <section class="why-section reveal">
       <h2 id="kavita">Kavita</h2>
       <div class="why-meta">
-        <span>10.7k stars</span>
+        <span>12.2k stars</span>
         <span>C# / .NET / Angular / SQLite</span>
         <span>GPL-3.0</span>
       </div>
@@ -191,34 +206,36 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
       </p>
       <p>
         Since v0.8.9 (January 2026), Kavita also tracks reading sessions — time spent, pages read,
-        words read (EPUB only), daily activity graphs, and reading pace. It's the only other
-        self-hosted tool that takes session tracking seriously.
+        words read, daily activity graphs, and reading pace. It's one of the few other
+        self-hosted tools that take session tracking seriously.
       </p>
       <p>
-        KOReader sync landed in v0.8.7 (July 2025) via the standard KOSync protocol — there's no
-        custom plugin, just server-side endpoints that KOReader's built-in sync connects to. It
-        supports EPUBs, CBZ/CBR, and PDF. Worth noting: Kavita's own wiki includes the warning <em>"The automatic sync can potentially undo reading progress. We strongly advise against
-        using it."</em> The protocol relies on MD5 file hashes for book matching — rename or
-        re-download a file and the link breaks. No session recording, no series browsing from
-        the device.
+        KOReader sync landed in v0.8.7 (July 2025) for EPUBs, with comics and PDF following in
+        v0.8.9. It uses the standard KOSync protocol: server-side endpoints that KOReader's
+        built-in sync connects to, with no first-party plugin. Worth noting: Kavita's own wiki includes the warning <em>"The automatic sync can potentially undo reading progress. We strongly advise against
+        using it."</em> Books are matched by a hash of the file's content, so a
+        re-downloaded or modified file loses the link. Progress pushed from KOReader does feed
+        Kavita's reading sessions, but they are derived on the server from progress updates, not
+        recorded on the device. Browsing from the device goes through OPDS. Kobo sync is in the
+        nightly builds for v0.9.2.
       </p>
       <p>
         The biggest caveat is metadata. Kavita's free tier only reads embedded metadata from your
         files (ComicInfo.xml, OPF). External metadata fetching — looking up covers, descriptions,
-        and tags from AniList, MAL, or Hardcover — requires <strong>Kavita+</strong>, a paid
-        subscription. Scrobbling to AniList is also behind the paywall. Tome fetches metadata from
-        Google Books and OpenLibrary for free, no subscription needed.
+        and tags from MangaBaka, Hardcover and ComicBookRoundup (the sources since v0.9.1) — requires
+        <strong>Kavita+</strong>, a paid subscription. Scrobbling to AniList, MAL, Hardcover and
+        MangaBaka is part of Kavita+ too. Tome fetches metadata from
+        Hardcover, Google Books and OpenLibrary for free, no subscription needed.
       </p>
       <p>
         Kavita is a .NET/Angular application. If you're comfortable with that stack and want the
-        widest feature set, it's an excellent choice. It does things Tome doesn't — annotations,
-        reading lists, OIDC, age restrictions, scrobbling — and probably always will, because
-        those aren't on Tome's roadmap.
+        widest feature set, it's an excellent choice. It does things Tome doesn't: reading
+        lists, age rating restrictions, AniList scrobbling and a community theme browser.
       </p>
 
       <div class="why-verdict">
         <strong>Pick Kavita if</strong> you want the most features in a single package, need
-        annotations or reading lists, want OIDC/SSO, or manage a library with age-restricted
+        reading lists or AniList scrobbling, or manage a library with age-restricted
         content. Be aware that external metadata and scrobbling require a paid subscription.
       </div>
     </section>
@@ -227,8 +244,8 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
     <section class="why-section reveal">
       <h2 id="komga">Komga</h2>
       <div class="why-meta">
-        <span>6.3k stars</span>
-        <span>Kotlin / Spring Boot / Vue 2 / SQLite</span>
+        <span>6.9k stars</span>
+        <span>Kotlin / Spring Boot / Vue / SQLite</span>
         <span>MIT</span>
       </div>
       <p>
@@ -237,26 +254,28 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
         supports left-to-right, right-to-left, vertical scroll, and webtoon modes with spread
         layouts. It has Collections (group related series) and Read Lists (ordered book playlists
         across series). It handles one-shots as a first-class concept, detects duplicate pages
-        within archives, and offers both OPDS v1.2 and v2 with page streaming extensions.
+        within archives, and offers OPDS v1.2 with page streaming plus OPDS v2.
       </p>
       <p>
         KOReader sync is supported via the standard KOSync protocol (no custom plugin) with a
         significant limitation: EPUB progress syncs at <em>chapter boundaries only</em>, not
-        mid-chapter. For comics and PDFs, page-level accuracy works fine. No session recording,
+        mid-chapter. Comics and other pre-paginated books sync per page. No session recording,
         no series downloading from the device. Kobo sync is also built in (EPUB only).
       </p>
       <p>
         What Komga doesn't have: stats. No reading sessions, no time tracking, no heatmaps, no
         reading pace, no streak counter. The only insight it offers is read/unread/in-progress
         badges. It also has no external metadata fetching — no Google Books, no OpenLibrary, no
-        AniList lookups. Metadata comes entirely from embedded sources (ComicInfo.xml, EPUB OPF,
-        Mylar series.json).
+        AniList lookups. Metadata comes entirely from embedded and local sources (ComicInfo.xml, EPUB
+        OPF, Mylar series.json, ISBN barcodes).
       </p>
       <p>
-        The frontend is Vue 2 with Vuetify 2 — Vue 2 reached end-of-life in December 2023. The
-        EPUB reader uses a Readium 2 fork and is functional but minimal compared to dedicated EPUB
-        tools (two themes only: white and black). Development is steady with a single dedicated
-        maintainer and only 18 open issues, which speaks to code quality.
+        The classic frontend is Vue 2 with Vuetify 2 (Vue 2 reached end-of-life in December 2023).
+        A new Vue 3 interface has been in beta since v1.26 (August 2026) and can be made the
+        default, though it has no reader of its own yet. The EPUB reader uses a Readium 2 fork and
+        is functional but minimal compared to dedicated EPUB tools (three themes: day, sepia and
+        night). Development is steady with a single dedicated maintainer and only 5 open issues,
+        which speaks to code quality.
       </p>
 
       <div class="why-verdict">
@@ -266,19 +285,107 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
       </div>
     </section>
 
+    <!-- Grimmory (BookLore) -->
+    <section class="why-section reveal">
+      <h2 id="grimmory">Grimmory (BookLore)</h2>
+      <div class="why-meta">
+        <span>4.8k stars</span>
+        <span>Java / TypeScript / MariaDB</span>
+        <span>AGPL-3.0</span>
+      </div>
+      <p>
+        <a href="https://github.com/grimmory-tools/grimmory">Grimmory</a> is the community-run
+        continuation of the BookLore codebase. The original BookLore repository went offline
+        without notice in March 2026, and former contributors forked the code as Grimmory a few
+        days later. They have kept it moving since, with regular releases (v3.5.1 in November
+        2026). The BookLore repository has since returned, but has seen no feature work since
+        September 2026. If you ran BookLore and want the same application with ongoing releases,
+        Grimmory is the closest thing to what you had.
+      </p>
+      <p>
+        It is a broad all-in-one library. Its README lists rule-based smart shelves with full-text
+        search, metadata from Google Books, Open Library and Amazon, a browser reader for EPUB,
+        PDF and comics with annotations and highlights, Kobo device sync, OPDS, KOReader progress
+        sync, OIDC sign-in, a BookDrop folder for imports, and send-to-Kindle or email. It reads
+        formats Tome does not (AZW3, FB2, CB7) and handles audiobooks (M4B, MP3, OPUS). It
+        has reading statistics too: 19 charts built from reading sessions, among them a session
+        heatmap with streaks, a timeline and peak reading hours.
+      </p>
+      <p>
+        The first difference is the shape of the install. Grimmory is a Java application with a
+        MariaDB server next to it: two containers and a set of database credentials in the compose
+        file. Tome is one container with SQLite inside, and a backup is a copy of one folder.
+      </p>
+      <p>
+        The second is the e-reader. Grimmory syncs reading progress with KOReader, and has its own
+        KOReader plugin that reads books from the server, syncs shelves and tracks progress; its
+        README labels it alpha. Tome's plugin records every sitting on the device (start, end,
+        pages turned) and keeps them when the server is out of reach, lets you browse and download
+        whole series from the reader, and brings your highlights back to the library. Tome's stats
+        are built from those device sessions.
+      </p>
+      <div class="why-verdict">
+        <strong>Pick Grimmory if</strong> you own a Kobo and want native Kobo sync, keep audiobooks
+        or AZW3 files in the same library, or are coming from BookLore and want
+        everything to stay where it was. Pick Tome if you read in KOReader and want one small
+        container.
+      </div>
+
+      <h3 id="coming-from-booklore">Coming from BookLore</h3>
+      <p>
+        Tome does not import a BookLore or Grimmory database. What carries over is the files:
+        mount your existing book folder and run a scan, and Tome reads the metadata embedded in
+        each file and can fetch the rest. Reading history, shelves and user accounts do not carry
+        over. The <a href="/docs/installation">installation guide</a> and
+        the <a href="/docs/first-run">first-run setup</a> page cover it in a few minutes.
+      </p>
+    </section>
+
+    <!-- BookOrbit -->
+    <section class="why-section reveal">
+      <h2 id="bookorbit">BookOrbit</h2>
+      <div class="why-meta">
+        <span>6.8k stars</span>
+        <span>TypeScript / Vue / PostgreSQL</span>
+        <span>AGPL-3.0</span>
+      </div>
+      <p>
+        <a href="https://github.com/bookorbit/bookorbit">BookOrbit</a> is a self-hosted library for
+        ebooks, PDFs, comics and audiobooks. It is made by BookLore's original developer and
+        presented as BookLore's successor. The repository has been public since May 2026.
+      </p>
+      <p>
+        It covers ebooks and audiobooks, Kobo sync, a KOReader plugin, an iPhone and Apple Watch
+        app, reading statistics, and sync to Hardcover, Readwise and StoryGraph.
+      </p>
+      <p>
+        It runs as an app container plus a PostgreSQL server. Its README states that NAS and
+        network storage are not supported for any writable path, the book library included. Some
+        features are exclusive to its official iOS and Android apps: the server routes behind them
+        answer only to a verified copy of the official app. Its open API and third-party clients
+        are otherwise unaffected.
+      </p>
+      <p>
+        Tome is one container with SQLite inside and reads your library from wherever it is
+        mounted, a network share included; only its own data folder should sit on local disk. Its
+        iPhone app goes through the same public API any other client can use. It has no
+        audiobooks, no Kobo sync and no download automation.
+      </p>
+    </section>
+
     <!-- Other tools -->
     <section class="why-section reveal">
       <h2 id="others">Other tools worth knowing about</h2>
       <p>
-        The three above are the main alternatives for a general-purpose self-hosted ebook library.
+        The five above are the main alternatives for a general-purpose self-hosted ebook library.
         These are more specialised:
       </p>
 
       <h3 id="audiobookshelf">Audiobookshelf</h3>
       <p>
-        <a href="https://github.com/advplyr/audiobookshelf">Audiobookshelf</a> (12.9k stars) is
+        <a href="https://github.com/advplyr/audiobookshelf">Audiobookshelf</a> (15.1k stars) is
         the dominant self-hosted audiobook server, and it handles ebooks too — EPUB, PDF, and
-        CBZ/CBR. But ebook support is explicitly described as "basic." There's no OPDS, no
+        CBZ/CBR. But its own README calls it "Basic ebook support and ereader." There's no OPDS, no
         KOReader sync, and the stats system is built around listening time, not reading. If your
         library is primarily audiobooks with some ebooks on the side, it's a great choice. For an
         ebook-first library, look elsewhere.
@@ -286,17 +393,17 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
 
       <h3 id="stump">Stump</h3>
       <p>
-        <a href="https://github.com/stumpapp/stump">Stump</a> (2.4k stars) is the most
-        interesting newcomer. It's written in Rust with a React frontend, has KOReader sync, OPDS
-        v1.2 and experimental v2, reading session tracking, and a clean architecture. The README
-        is honest: <em>"under active development and is an ongoing WIP. DO NOT expect a fully
-        featured or bug-free experience."</em> At v0.1.3 it's not production-ready, but it's one
-        to watch.
+        <a href="https://github.com/stumpapp/stump">Stump</a> (2.8k stars) is the most
+        interesting newcomer. It's written in Rust with a React frontend, has KOReader and Kobo
+        sync, OPDS v1.2 and experimental v2, reading session tracking, and a clean architecture.
+        The README is honest: Stump <em>"should be treated as beta software until it reaches a
+        stable 1.0 release."</em> At v0.1.14 (November 2026) it is still early, but it's one to
+        watch.
       </p>
 
       <h3 id="lanraragi">LANraragi</h3>
       <p>
-        <a href="https://github.com/Difegue/LANraragi">LANraragi</a> (3k stars) has been around
+        <a href="https://github.com/Difegue/LANraragi">LANraragi</a> (3.2k stars) has been around
         for 12 years and is excellent at one thing: managing manga and doujinshi archives. It has
         a plugin system for metadata scraping, tag namespaces, Prometheus metrics export, and OPDS
         with page streaming. The limitation is single-user only — one admin password for the whole
@@ -306,9 +413,10 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
       <h3 id="ubooquity">Ubooquity</h3>
       <p>
         <a href="https://vaemendis.net/ubooquity/">Ubooquity</a> is a closed-source Java
-        application that was popular years ago. It still runs — the LinuxServer.io Docker image
-        is maintained — but development appears stagnant, the documentation site is mostly broken,
-        and there's no public source code. Not recommended for new setups.
+        application that was popular years ago. It is still alive: 3.1.0, the first stable v3,
+        came out in August 2025, the LinuxServer.io Docker image is maintained and the docs now
+        live on GitHub Pages. Releases are rare, though, and there's no public source code. Hard
+        to recommend for a new setup over the open-source options.
       </p>
     </section>
 
@@ -324,6 +432,7 @@ import { RevealOnScroll } from '../components/RevealOnScroll'
       </div>
     </section>
   </article>
+  </main>
 
   <RevealOnScroll client:load />
 </BaseLayout>

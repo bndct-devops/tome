@@ -6,6 +6,7 @@ import { withBase } from '../lib/path'
 ---
 <BaseLayout title="Tome in numbers" description="How many Tome instances report in, how much gets read through them, and which features are actually used. Built from the opt-in monthly report.">
   <SiteHeader />
+  <main>
   <article class="pulse-page">
     <header class="relative max-w-3xl mx-auto px-6 pt-32 pb-12 text-center">
       <p class="inline-block mb-5 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">
@@ -24,6 +25,7 @@ import { withBase } from '../lib/path'
       <PulseStats client:load />
     </section>
   </article>
+  </main>
 </BaseLayout>
 
 <style is:global>

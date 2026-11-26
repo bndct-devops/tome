@@ -25,6 +25,10 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Full history: page "Updated" dates and sitemap lastmod are read
+          # from git log at build time (website/src/lib/lastUpdated.mjs).
+          fetch-depth: 0
 
       - name: Install, build, and upload the Astro site
         uses: withastro/action@v3

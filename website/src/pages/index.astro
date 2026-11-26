@@ -17,29 +17,6 @@ const shipCommand = `docker run -d \\
   -v ./bindery:/bindery \\
   ghcr.io/bndct-devops/tome:latest`
 
-// Comparison data — cells are one of: 'yes' | 'no' | 'partial' | string (custom text)
-// Fact-checked against current docs: Kavita 2-way KOReader sync (v0.8.7+),
-// Komga has KOREADER_SYNC role, vanilla Calibre-Web lacks KOSync but the
-// Calibre-Web Automated (CWA) fork adds it.
-const compareFeatures = [
-  'Reading-session tracking (time, pages, streaks)',
-  'Zero-config KOReader plugin install',
-  'Bidirectional KOReader position sync',
-  'Built-in EPUB + comic reader',
-  'OPDS catalog',
-  'Stats & reading insights',
-  'Modern, theme-aware UI',
-]
-const competitors = [
-  { name: 'Tome',         tagline: 'E-reader-first',         primary: true,  badge: 'KOReader users',
-    cells: ['yes', 'yes', 'yes', 'yes', 'yes', 'rich', 'yes'] },
-  { name: 'Calibre-Web',  tagline: 'Largest ecosystem',
-    cells: ['no', 'no', 'via CWA fork', 'yes', 'yes', 'basic shelves', 'dated'] },
-  { name: 'Komga',        tagline: 'Comics powerhouse',
-    cells: ['no', 'no', 'yes', 'comics-first', 'yes', 'session logs', 'functional'] },
-  { name: 'Kavita',       tagline: 'Featureful all-rounder',
-    cells: ['no', 'no', 'yes (v0.8.7+)', 'yes', 'yes', 'progress only', 'polished'] },
-]
 // Footer version: read from the repo at build time so it never goes stale.
 import { readFileSync } from 'node:fs'
 const releaseLabel = (() => {
@@ -56,6 +33,7 @@ const releaseLabel = (() => {
   <SiteHeader />
 
 
+  <main>
   <!-- Hero -->
   <section class="relative max-w-6xl mx-auto px-6 pt-32 pb-24 text-center">
     <div class="accent-glow"></div>
@@ -285,55 +263,16 @@ const releaseLabel = (() => {
     </div>
   </section>
 
-  <!-- Comparison -->
-  <section class="max-w-5xl mx-auto px-6 py-24">
-    <div class="text-center mb-12 reveal">
-      <h2 class="text-3xl md:text-5xl font-bold tracking-tight mb-4">How Tome is different.</h2>
-      <p class="text-lg md:text-xl text-[var(--muted)] max-w-2xl mx-auto leading-relaxed">
-        Several self-hosted ebook tools exist — here's where Tome sits.
-      </p>
-    </div>
-    <div class="reveal comparison-scroll-wrapper">
-      <div class="comparison-layout">
-        <!-- Labels column -->
-        <div class="cmp-labels">
-          <div class="cmp-header-spacer"></div>
-          {compareFeatures.map((f) => (
-            <div class="cmp-row-label">{f}</div>
-          ))}
-        </div>
-
-        <!-- One card per competitor -->
-        {competitors.map((c) => (
-          <div class={`cmp-card ${c.primary ? 'primary' : ''}`}>
-            <div class="cmp-card-header">
-              {c.primary && c.badge && <span class="cmp-badge">For {c.badge}</span>}
-              <div class="cmp-name">{c.name}</div>
-              <div class="cmp-tagline">{c.tagline}</div>
-            </div>
-            {c.cells.map((cell) => (
-              <div class="cmp-cell">
-                {cell === 'yes' ? (
-                  <svg class="cmp-icon cmp-icon-yes" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round" aria-label="yes"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                ) : cell === 'no' ? (
-                  <svg class="cmp-icon cmp-icon-no" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-label="no"><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                ) : cell === 'partial' ? (
-                  <svg class="cmp-icon cmp-icon-part" viewBox="0 0 24 24" aria-label="partial">
-                    <circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2"/>
-                    <path d="M12 3 A9 9 0 0 1 12 21 Z" fill="currentColor"/>
-                  </svg>
-                ) : (
-                  <span class="cmp-cell-text">{cell}</span>
-                )}
-              </div>
-            ))}
-          </div>
-        ))}
-      </div>
-    </div>
-    <p class="reveal mt-6 text-center text-sm text-[var(--muted)] max-w-2xl mx-auto">
-      Pick <strong>Calibre-Web</strong> for the largest ecosystem. <strong>Komga</strong> if you're comics-only. <strong>Kavita</strong> for a featureful all-rounder. <strong>Tome</strong> if reading-session tracking and
-      KOReader integration are what you actually want.
+  <!-- Who it is for -->
+  <section class="max-w-3xl mx-auto px-6 py-24 text-center">
+    <h2 class="reveal text-3xl md:text-5xl font-bold tracking-tight mb-6">Who Tome is for.</h2>
+    <p class="reveal text-lg md:text-xl text-[var(--muted)] leading-relaxed mb-5">
+      People who read on an e-reader with KOReader and want their library to keep track of it:
+      every sitting, every position, every highlight. It is one small container with SQLite, and
+      your books can stay on the NAS where they already are.
+    </p>
+    <p class="reveal text-base text-[var(--muted)] leading-relaxed">
+      See <a href="/why" class="text-[var(--accent)] hover:underline">how Tome compares with Calibre-Web, Kavita, Komga, Grimmory and BookOrbit</a>.
     </p>
   </section>
 
@@ -349,12 +288,14 @@ const releaseLabel = (() => {
     </div>
   </section>
 
+  </main>
+
   <!-- Footer -->
   <footer class="border-t border-[var(--border)]">
     <div class="max-w-6xl mx-auto px-6 py-10">
       <div class="grid grid-cols-2 md:grid-cols-4 gap-8 mb-8">
         <div>
-          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Product</h4>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Product</h3>
           <ul class="space-y-2 text-sm text-[var(--muted)]">
             <li><a href="/why" class="hover:text-[var(--fg)] transition-colors">Why Tome?</a></li>
             <li><a href="/docs" class="hover:text-[var(--fg)] transition-colors">Docs</a></li>
@@ -363,7 +304,7 @@ const releaseLabel = (() => {
           </ul>
         </div>
         <div>
-          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Features</h4>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Features</h3>
           <ul class="space-y-2 text-sm text-[var(--muted)]">
             <li><a href="/docs/koreader" class="hover:text-[var(--fg)] transition-colors">KOReader / TomeSync</a></li>
             <li><a href="/docs/opds" class="hover:text-[var(--fg)] transition-colors">OPDS</a></li>
@@ -372,7 +313,7 @@ const releaseLabel = (() => {
           </ul>
         </div>
         <div>
-          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Admin</h4>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Admin</h3>
           <ul class="space-y-2 text-sm text-[var(--muted)]">
             <li><a href="/docs/users-and-roles" class="hover:text-[var(--fg)] transition-colors">Users &amp; roles</a></li>
             <li><a href="/docs/bindery" class="hover:text-[var(--fg)] transition-colors">Bindery</a></li>
@@ -381,7 +322,7 @@ const releaseLabel = (() => {
           </ul>
         </div>
         <div>
-          <h4 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Community</h4>
+          <h3 class="text-xs font-semibold uppercase tracking-wider text-[var(--fg)] mb-3">Community</h3>
           <ul class="space-y-2 text-sm text-[var(--muted)]">
             <li><a href="https://github.com/bndct-devops/tome" class="hover:text-[var(--fg)] transition-colors">GitHub</a></li>
             <li><a href="https://github.com/bndct-devops/tome/issues" class="hover:text-[var(--fg)] transition-colors">Issues</a></li>
@@ -397,14 +338,4 @@ const releaseLabel = (() => {
   </footer>
 
   <RevealOnScroll client:load />
-
-  <script>
-    const wrapper = document.querySelector('.comparison-scroll-wrapper')
-    if (wrapper) {
-      wrapper.addEventListener('scroll', () => {
-        const atEnd = wrapper.scrollLeft + wrapper.clientWidth >= wrapper.scrollWidth - 10
-        wrapper.classList.toggle('scrolled-end', atEnd)
-      })
-    }
-  </script>
 </BaseLayout>

@@ -5,14 +5,49 @@ import { withBase } from '../lib/path'
 interface Props {
   title: string
   description?: string
+  /** Internal pages: keep them out of search engines. */
+  noindex?: boolean
+  /** Blog posts: adds article structured data. Dates as YYYY-MM-DD. */
+  article?: { published: string; modified?: string }
 }
 
-const { title, description = 'A self-hosted ebook library that knows how you read.' } = Astro.props
+// What Tome is, in one sentence. Used wherever a page has no description of its
+// own, and as the product description in the structured data on every page.
+const PRODUCT_DESCRIPTION = 'Self-hosted ebook and manga library with a built-in reader, a KOReader plugin that records every reading session, reading stats and OPDS. One Docker image.'
+
+const { title, description = PRODUCT_DESCRIPTION, noindex = false, article } = Astro.props
 // Canonical URL for the current page; falls back to the site root if Astro.site
 // isn't set (e.g. during certain build modes).
 const siteUrl = Astro.site?.toString().replace(/\/$/, '') ?? 'https://tome.bndct.sh'
 const canonicalUrl = new URL(Astro.url.pathname, siteUrl).toString()
 const ogImage = `${siteUrl}${withBase('/og.png')}`
+
+const author = { '@type': 'Person', name: 'bndct-devops', url: 'https://github.com/bndct-devops' }
+const softwareLd = {
+  '@context': 'https://schema.org',
+  '@type': 'SoftwareApplication',
+  name: 'Tome',
+  applicationCategory: 'UtilitiesApplication',
+  operatingSystem: 'Linux, Docker',
+  description: PRODUCT_DESCRIPTION,
+  url: siteUrl,
+  license: 'https://www.gnu.org/licenses/agpl-3.0.html',
+  offers: { '@type': 'Offer', price: '0', priceCurrency: 'USD' },
+  author,
+  screenshot: `${siteUrl}/shots/light/home.png`,
+}
+const articleLd = article && {
+  '@context': 'https://schema.org',
+  '@type': 'BlogPosting',
+  headline: title.replace(/ — Tome$/, ''),
+  description,
+  datePublished: article.published,
+  dateModified: article.modified ?? article.published,
+  author,
+  image: ogImage,
+  url: canonicalUrl,
+  mainEntityOfPage: canonicalUrl,
+}
 ---
 <!doctype html>
 <html lang="en">
@@ -29,9 +64,11 @@ const ogImage = `${siteUrl}${withBase('/og.png')}`
     <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonicalUrl} />
+    {noindex && <meta name="robots" content="noindex" />}
 
     <!-- Open Graph (Slack, Discord, iMessage, LinkedIn, Facebook, …) -->
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={article ? 'article' : 'website'} />
+    {article && <meta property="article:published_time" content={article.published} />}
     <meta property="og:site_name" content="Tome" />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
@@ -48,19 +85,8 @@ const ogImage = `${siteUrl}${withBase('/og.png')}`
     <meta name="twitter:image" content={ogImage} />
 
     <!-- Structured data -->
-    <script type="application/ld+json" set:html={JSON.stringify({
-      "@context": "https://schema.org",
-      "@type": "SoftwareApplication",
-      "name": "Tome",
-      "applicationCategory": "UtilitiesApplication",
-      "operatingSystem": "Linux, Docker",
-      "description": description,
-      "url": siteUrl,
-      "license": "https://www.gnu.org/licenses/agpl-3.0.html",
-      "offers": { "@type": "Offer", "price": "0", "priceCurrency": "USD" },
-      "author": { "@type": "Person", "name": "bndct-devops", "url": "https://github.com/bndct-devops" },
-      "screenshot": `${siteUrl}/shots/light/home.png`,
-    })} />
+    <script type="application/ld+json" set:html={JSON.stringify(softwareLd)} />
+    {articleLd && <script type="application/ld+json" set:html={JSON.stringify(articleLd)} />}
     <!-- No-flash theme init: ?theme=… query param wins (passed from the Tome
          app so we continue in the same theme), then localStorage, then
          system pref. After applying, strip the query param for a clean URL. -->

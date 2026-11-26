@@ -7,11 +7,13 @@ const badge = '/blog/2026-10-ios-testflight/testflight-badge.png'
 const testflight = 'https://testflight.apple.com/join/JrHyntNU'
 ---
 <BaseLayout
+  article={{ published: '2026-11-22' }}
   title="Tome Reader 0.3.0: iPad and offline reading — Tome"
   description="Tome Reader 0.3.0 is on TestFlight with a real iPad layout and a library that works without a connection."
 >
   <SiteHeader />
 
+  <main>
   <article class="blog-article">
     <header class="relative max-w-3xl mx-auto px-6 pt-32 pb-12 text-center">
       <div class="accent-glow"></div>
@@ -20,7 +22,7 @@ const testflight = 'https://testflight.apple.com/join/JrHyntNU'
         Tome Reader 0.3.0: iPad and offline reading
       </h1>
       <div class="blog-meta">
-        <time class="blog-date">2026-11-22</time>
+        <time class="blog-date" datetime="2026-11-22">2026-11-22</time>
         <span class="blog-date">&middot;</span>
         <span class="blog-date">2 min read</span>
       </div>
@@ -174,6 +176,7 @@ const testflight = 'https://testflight.apple.com/join/JrHyntNU'
       </div>
     </div>
   </article>
+  </main>
 </BaseLayout>
 
 <style>

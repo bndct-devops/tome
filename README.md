@@ -35,21 +35,13 @@ Built with FastAPI, React, and SQLite. Ships as a single Docker image.
 
 Plus: series browsing with story arcs and publication status, bulk operations, libraries with icons, shelves (saved filters), Quick Connect (6-char code sign-in), OPDS PINs (e-ink-friendly passwords), role-based access control, per-user book visibility, user-level API tokens, audit logging, and a bulk import script. [Full feature list](docs/features.md)
 
-## How is Tome different?
+## Who is Tome for?
 
-There are several self-hosted ebook tools — here's where Tome sits.
+Tome is for people who read on an e-reader with KOReader and want their library to keep track of it: every sitting, every position, every highlight. It runs as one small container with SQLite, and your books can stay on the NAS where they already are.
 
-| | Tome | Calibre-Web | Komga | Kavita |
-|---|---|---|---|---|
-| **Reading session tracking** (time, pace, streaks from your e-reader) | ✅ via TomeSync plugin | ❌ | ❌ | ❌ |
-| **Bidirectional position sync** with KOReader | ✅ | partial (KOSync) | ❌ | partial |
-| **Built-in EPUB + manga reader** | ✅ | ✅ | manga only | ✅ |
-| **Stats / reading insights** | ✅ rich | minimal | minimal | minimal |
-| **Single-binary deploy** | ✅ Docker, FastAPI + SQLite | requires Calibre install | ✅ | ✅ |
-| **Comics & novels in one place** | ✅ | EPUB-focused | comics-focused | ✅ |
-| **Maturity** | v1.0 | mature, dated UI | mature | mature |
+**Not for you if** you need audiobooks, Kobo sync (in the works), or want to keep using a Calibre database.
 
-Pick **Calibre-Web** if you want the largest ecosystem and don't mind the dated UI. **Komga** if you're comics/manga-only. **Kavita** if you want a featureful all-rounder. **Tome** if reading-session tracking and KOReader integration are what you actually want — that's what it's built around.
+[How Tome compares](https://tome.bndct.sh/why) with Calibre-Web, Kavita, Komga, Grimmory (the BookLore continuation) and BookOrbit.
 
 ![Home](docs/screenshots/home.png)
 *Home is built around the book you are reading: progress, Resume, the other books in progress, what comes next in the series, and four bare numbers.*
@@ -154,7 +146,7 @@ Did click? **Don't run it on your laptop long-term.** Move `~/Tome` to an always
 | Variable | Required | Default | Description |
 |----------|----------|---------|-------------|
 | `PUID` / `PGID` | No | `1000` / `1000` | Host UID/GID the container runs as. Set to the owner of your mounts (Synology/QNAP/TrueNAS: your docker user; Unraid: `99`/`100`) |
-| `TOME_SECRET_KEY` | Yes | -- | JWT signing secret |
+| `TOME_SECRET_KEY` | No | generated on first start | JWT signing secret. Left unset, Tome creates one and keeps it in `/data/secret.key` |
 | `TOME_DATA_DIR` | No | `/data` | DB and cover cache |
 | `TOME_LIBRARY_DIR` | No | `/books` | Library root |
 | `TOME_INCOMING_DIR` | No | `/bindery` | Bindery folder |
