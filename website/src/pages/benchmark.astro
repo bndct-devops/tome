@@ -130,6 +130,7 @@ const panels = reports.map(buildPanel)
 
 <BaseLayout title="Performance benchmark — Tome" description="How Tome ingests large ebook libraries, measured against the r/selfhosted book-server benchmark.">
   <SiteHeader />
+  <main>
   <article class="mx-auto max-w-4xl px-6 pt-28 pb-24">
     <header class="mb-8">
       <p class="mb-3 text-xs font-semibold uppercase tracking-[0.18em] text-[var(--accent)]">Performance</p>
@@ -209,6 +210,7 @@ const panels = reports.map(buildPanel)
       </ul>
     </section>
   </article>
+  </main>
 
   <style>
     .chart-wrap { width: 100%; border: 1px solid var(--border); border-radius: 12px; background: var(--card); padding: 12px; }

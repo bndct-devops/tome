@@ -6,11 +6,13 @@ const img = (name: string) => `/blog/2026-10-ios-testflight/${name}.png`
 const testflight = 'https://testflight.apple.com/join/JrHyntNU'
 ---
 <BaseLayout
+  article={{ published: '2026-10-25' }}
   title="The Tome iPhone app is on TestFlight — Tome"
   description="Tome now has a native iPhone app that pairs with your own Tome server, in open beta on TestFlight."
 >
   <SiteHeader />
 
+  <main>
   <article class="blog-article">
     <header class="relative max-w-3xl mx-auto px-6 pt-32 pb-12 text-center">
       <div class="accent-glow"></div>
@@ -19,7 +21,7 @@ const testflight = 'https://testflight.apple.com/join/JrHyntNU'
         The Tome iPhone app is on TestFlight
       </h1>
       <div class="blog-meta">
-        <time class="blog-date">2026-10-25</time>
+        <time class="blog-date" datetime="2026-10-25">2026-10-25</time>
         <span class="blog-date">&middot;</span>
         <span class="blog-date">4 min read</span>
       </div>
@@ -194,6 +196,7 @@ const testflight = 'https://testflight.apple.com/join/JrHyntNU'
       </div>
     </div>
   </article>
+  </main>
 </BaseLayout>
 
 <style>

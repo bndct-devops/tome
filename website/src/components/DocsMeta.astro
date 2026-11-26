@@ -2,25 +2,19 @@
 // Page metadata strip — last updated + reading time.
 // Reading time is derived from the rendered article DOM at build time via a
 // small inline script so any markup-heavy page is approximated correctly.
-import fs from 'node:fs'
-import path from 'node:path'
+// The date comes from git history (see lib/lastUpdated.mjs); with no usable
+// history it is left out.
+import { lastUpdated, sourcesFor, formatDate } from '../lib/lastUpdated.mjs'
 
 interface Props { sourcePath?: string }
 const { sourcePath } = Astro.props as Props
 
-let updated: string | null = null
-try {
-  const filePath = sourcePath
-    ? path.resolve(process.cwd(), sourcePath)
-    : path.resolve(process.cwd(), 'src/pages', `${Astro.url.pathname.replace(/^\//, '')}.astro`)
-  if (fs.existsSync(filePath)) {
-    const mtime = fs.statSync(filePath).mtime
-    updated = mtime.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
-  }
-} catch { /* ignore */ }
+const date = sourcePath ? lastUpdated(sourcePath) : lastUpdated(...sourcesFor(Astro.url.pathname))
+const updated = date ? formatDate(date) : null
+const updatedIso = date ? date.toISOString().slice(0, 10) : undefined
 ---
 <div class="docs-meta">
-  {updated && <span><span class="docs-meta-label">Updated</span> {updated}</span>}
+  {updated && <span><span class="docs-meta-label">Updated</span> <time datetime={updatedIso}>{updated}</time></span>}
   <span id="docs-reading-time" class="docs-meta-hidden">
     <span class="docs-meta-label">Reading time</span> <span class="docs-meta-value">—</span>
   </span>
