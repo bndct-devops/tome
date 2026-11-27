@@ -12,8 +12,8 @@ All notable changes to Tome are documented here. Format loosely follows
   the end of the row. Libraries can be reordered by anyone who may edit all
   of the libraries in their list, shelves by their owner.
 - **Bulk edit can change whether books are volumes or chapters.** Select the
-  books in the library, choose Edit metadata and set Content to Volume or
-  Chapter, instead of opening each book's edit form. (#338)
+  books in the library, choose Edit metadata and set Content type to
+  Volume or Chapter, instead of opening each book's edit form. (#338)
 
 ### Changed
 - **The interface moves with you.** Opening a book or a series grows the

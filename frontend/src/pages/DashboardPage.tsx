@@ -2651,7 +2651,7 @@ export function DashboardPage() {
             </Select>
           </div>
           <div>
-            <FormLabel><Trans>Content</Trans></FormLabel>
+            <FormLabel><Trans>Content type</Trans></FormLabel>
             <Select
               value={bulkMetaContentType}
               onChange={e => setBulkMetaContentType(e.target.value as '' | 'volume' | 'chapter')}
