@@ -53,8 +53,10 @@ const EASE = [0.2, 0.8, 0.2, 1] as const
 /** What the caller already knows about the book: the header shows it until the book loads. */
 export type QuickLookPreview = Pick<BookPreview, 'title' | 'author' | 'series' | 'series_index'>
 
-export function QuickLook({ bookId, onClose, origin, cover, preview }: {
+export function QuickLook({ bookId, onClose, origin, cover, preview, fromNoSeries }: {
   bookId: number
+  /** Opened from the library filtered to "No series": the book page gets a crumb back to it. */
+  fromNoSeries?: boolean
   onClose: () => void
   /** What the caller already knows (title, author, series): shown at once
    *  instead of popping in when the book loads. */
@@ -206,6 +208,7 @@ export function QuickLook({ bookId, onClose, origin, cover, preview }: {
                 id: bookId, title: book.title, author: book.author, series: book.series,
                 series_index: book.series_index, cover: coverSrc(bookId, { w: 400, v: book.updated_at }),
                 coverColor: book.cover_color,
+                ...(fromNoSeries && { fromNoSeries: true }),
               }) : undefined
               openBookWithCover(coverRef.current, bookId, () => { onClose(); navigate(`/books/${bookId}`, { state }) })
             }}>

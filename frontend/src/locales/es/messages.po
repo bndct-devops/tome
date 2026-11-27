@@ -3623,6 +3623,7 @@ msgstr "URL del canal"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Chapter"
 msgstr "Capítulo"
 
@@ -3913,6 +3914,7 @@ msgid "Content"
 msgstr "Contenido"
 
 #: src/pages/BinderyPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Content type"
 msgstr "Tipo de contenido"
 
@@ -7527,6 +7529,7 @@ msgstr "No hay resultados. Prueba con otra búsqueda."
 msgid "No run yet"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "No series"
 msgstr "Sin serie"
@@ -11826,6 +11829,7 @@ msgstr "vol. {volIdx}"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Volume"
 msgstr "Volumen"
 

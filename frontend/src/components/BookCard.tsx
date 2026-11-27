@@ -56,6 +56,8 @@ interface BookCardProps {
   /** Changes when the cover and title should measure for that hand-over (the
    *  view switch); between switches they skip measuring. */
   travelEpoch?: number | string
+  /** Shown in the library filtered to "No series": the book page gets a crumb back to it. */
+  fromNoSeries?: boolean
 }
 
 // The hand-over of cover and title between the grid card and the list row.
@@ -87,7 +89,7 @@ export const BookCard = memo(function BookCard({
   book, view, selected, focused, onSelect,
   onTagClick: _onTagClick, onSeriesClick, onAuthorClick,
   readingStatus, progressPct, rating, showFormatBadge = true, onQuickLook,
-  travel = false, travelEpoch,
+  travel = false, travelEpoch, fromNoSeries,
 }: BookCardProps) {
   const { t } = useLingui()
   const navigate = useNavigate()
@@ -150,6 +152,7 @@ export const BookCard = memo(function BookCard({
     const state = previewState({
       id: book.id, title: book.title, author: book.author, series: book.series,
       series_index: book.series_index, cover: coverUrl, coverColor: book.cover_color,
+      ...(fromNoSeries && { fromNoSeries: true }),
     })
     openBookWithCover(coverRef.current, book.id, () => navigate(`/books/${book.id}`, { state }))
   }
