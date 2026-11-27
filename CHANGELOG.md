@@ -63,10 +63,11 @@ All notable changes to Tome are documented here. Format loosely follows
   Accept on another series while one was still being imported ran both at
   once, and the list refreshed when one of them finished. The other series
   then showed its remaining volumes as if nothing was happening, and
-  accepting those again made the running import report them as failed. Further Accept clicks now wait in line: the entry shows
-  Queued and starts when the one ahead of it is done, and the server never
-  lets two accepts work on the same file. The queue lives in the open page,
-  so keep the tab open until it is done (#338).
+  accepting those again made the running import report them as failed.
+  Further Accept clicks now wait in line: the entry shows Queued and starts
+  when the one ahead of it is done, and the server never lets two accepts
+  work on the same file. The queue lives in the open page, so keep the tab
+  open until it is done (#338).
 - **A volume named with the chapters it holds is detected as a volume.** A
   file such as "Series Vol 1 Ch 1-7.cbz" was taken for chapter 1 of a series
   called "Series Vol 1". A chapter range after a volume number now counts as
