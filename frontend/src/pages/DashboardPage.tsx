@@ -722,6 +722,7 @@ export function DashboardPage() {
   const [bulkMetaTagsAdd, setBulkMetaTagsAdd] = useState<string[]>([])
   const [bulkMetaTagInput, setBulkMetaTagInput] = useState('')
   const [bulkMetaTypeId, setBulkMetaTypeId] = useState<number | ''>('')
+  const [bulkMetaContentType, setBulkMetaContentType] = useState<'' | 'volume' | 'chapter'>('')
   const [bulkMetaSaving, setBulkMetaSaving] = useState(false)
   const bookTypes = useBookTypes()
   useEscape(bulkLibMenu, useCallback(() => setBulkLibMenu(false), []))
@@ -865,6 +866,7 @@ export function DashboardPage() {
       if (bulkMetaSeries) body.series = bulkMetaSeries
       if (bulkMetaTagsAdd.length) body.tags_add = bulkMetaTagsAdd
       if (bulkMetaTypeId) body.book_type_id = bulkMetaTypeId
+      if (bulkMetaContentType) body.content_type = bulkMetaContentType
       const res = await api.put<{ updated: number; skipped: number }>('/books/bulk-metadata', body)
       if (res.updated === 0) {
         toastError(t`Nothing was changed. You can only edit books you uploaded.`)
@@ -874,7 +876,7 @@ export function DashboardPage() {
       const skippedText = plural(res.skipped, { one: '# book was left as it is because you did not upload it', other: '# books were left as they are because you did not upload them' })
       toastSuccess(res.skipped > 0 ? t`${updatedText}. ${skippedText}.` : updatedText)
       setBulkMetaOpen(false)
-      setBulkMetaAuthor(''); setBulkMetaSeries(''); setBulkMetaTagsAdd([]); setBulkMetaTypeId('')
+      setBulkMetaAuthor(''); setBulkMetaSeries(''); setBulkMetaTagsAdd([]); setBulkMetaTypeId(''); setBulkMetaContentType('')
       clearSelection()
       loadBooks(); loadFacets()
     } catch (e) {
@@ -2567,7 +2569,7 @@ export function DashboardPage() {
             <Pill
               variant="primary"
               onClick={bulkSaveMetadata}
-              disabled={bulkMetaSaving || (!bulkMetaAuthor && !bulkMetaSeries && !bulkMetaTagsAdd.length && !bulkMetaTypeId)}
+              disabled={bulkMetaSaving || (!bulkMetaAuthor && !bulkMetaSeries && !bulkMetaTagsAdd.length && !bulkMetaTypeId && !bulkMetaContentType)}
             >
               {bulkMetaSaving && <Loader2 className="w-4 h-4 animate-spin" />}
               <Trans>Save changes</Trans>
@@ -2646,6 +2648,17 @@ export function DashboardPage() {
               {bookTypes.map(t => (
                 <option key={t.id} value={t.id}>{t.label}</option>
               ))}
+            </Select>
+          </div>
+          <div>
+            <FormLabel><Trans>Content type</Trans></FormLabel>
+            <Select
+              value={bulkMetaContentType}
+              onChange={e => setBulkMetaContentType(e.target.value as '' | 'volume' | 'chapter')}
+            >
+              <option value="">{t`Keep existing`}</option>
+              <option value="volume">{t`Volume`}</option>
+              <option value="chapter">{t`Chapter`}</option>
             </Select>
           </div>
         </div>

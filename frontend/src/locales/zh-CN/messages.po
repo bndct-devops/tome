@@ -4151,6 +4151,7 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Chapter"
 msgstr ""
 
@@ -4472,6 +4473,7 @@ msgid "Content"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Content type"
 msgstr ""
 
@@ -13556,6 +13558,7 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Volume"
 msgstr ""
 

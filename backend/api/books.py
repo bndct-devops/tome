@@ -2008,6 +2008,7 @@ class BulkMetadataUpdate(PydanticBaseModel):
     tags: Optional[list[str]] = None       # if set, REPLACE tags on all selected books
     tags_add: Optional[list[str]] = None   # if set, ADD these tags without removing existing
     book_type_id: Optional[int] = None
+    content_type: Optional[str] = None     # "volume" | "chapter"
 
 
 @router.put("/bulk-metadata")
@@ -2024,6 +2025,8 @@ def bulk_update_metadata(
         bt = db.get(BookType, body.book_type_id)
         if not bt:
             raise HTTPException(status_code=400, detail="Invalid book_type_id")
+    if body.content_type is not None and body.content_type not in ("volume", "chapter"):
+        raise HTTPException(status_code=400, detail="Invalid content_type")
 
     # Same rule as the single-book edit: members change only their own uploads.
     books, skipped_ids = editable_books(db, current_user, body.book_ids)
@@ -2043,6 +2046,8 @@ def bulk_update_metadata(
                     book.tags.append(BookTag(book_id=book.id, tag=t.strip(), source="user"))
         if bt is not None:
             book.book_type_id = bt.id
+        if body.content_type is not None:
+            book.content_type = body.content_type
     db.flush()
     from backend.services.fts import index_book
     for book in books:

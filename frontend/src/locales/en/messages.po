@@ -4151,6 +4151,7 @@ msgstr "Channel URL"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Chapter"
 msgstr "Chapter"
 
@@ -4472,6 +4473,7 @@ msgid "Content"
 msgstr "Content"
 
 #: src/pages/BinderyPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Content type"
 msgstr "Content type"
 
@@ -13556,6 +13558,7 @@ msgstr "Vol. {volIdx}"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Volume"
 msgstr "Volume"
 
