@@ -4145,6 +4145,7 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Chapter"
 msgstr "Chapitre"
 
@@ -4462,6 +4463,7 @@ msgid "Connecting lets that reader send its reading sessions to your account, {n
 msgstr ""
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Content"
 msgstr "Contenu"
 
@@ -13516,6 +13518,7 @@ msgstr "Tome {volIdx}"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Volume"
 msgstr "Tome"
 

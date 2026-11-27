@@ -4151,6 +4151,7 @@ msgstr "Channel URL"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Chapter"
 msgstr "Chapter"
 
@@ -4468,6 +4469,7 @@ msgid "Connecting lets that reader send its reading sessions to your account, {n
 msgstr "Connecting lets that reader send its reading sessions to your account, {name}."
 
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Content"
 msgstr "Content"
 
@@ -13556,6 +13558,7 @@ msgstr "Vol. {volIdx}"
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Volume"
 msgstr "Volume"
 
