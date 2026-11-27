@@ -66,6 +66,13 @@ _RE_CHAPTER_KEYWORD = re.compile(
     re.IGNORECASE,
 )
 
+# A chapter range: "Ch 1-7", "Ch.1 - 10", "Chapter 1~7". After a volume marker
+# it says which chapters the volume holds, so the file is the volume.
+_RE_CHAPTER_RANGE = re.compile(
+    r"\b(?:chapter|ch)\.?\s*\d+(?:\.\d+)?\s*[-–~]\s*\d+(?:\.\d+)?\b",
+    re.IGNORECASE,
+)
+
 # Volume indicators: v01, v001, v18, Vol.01, Vol 01, Volume 01, Volume.01
 _RE_VOLUME = re.compile(
     r"\bv(?:ol(?:ume)?\.?\s*)?(\d+(?:\.\d+)?)\b",
@@ -163,6 +170,13 @@ def parse_filename(filename: str, in_chapters_dir: bool = False) -> ParsedFilena
 
     # 5. Chapter detection (must come BEFORE volume)
     chapter_match = _RE_CHAPTER_KEYWORD.search(work)
+    if chapter_match:
+        # "Series Vol 1 Ch 1-7": a volume named with the chapters it holds.
+        range_match = _RE_CHAPTER_RANGE.match(work, chapter_match.start())
+        volume_before = _RE_VOLUME.search(work[: chapter_match.start()])
+        if range_match and volume_before:
+            work = (work[: range_match.start()] + " " + work[range_match.end():]).strip()
+            chapter_match = None
     if chapter_match:
         num = _normalise_number(chapter_match.group(1))
         detected = _clean_series(work[: chapter_match.start()])

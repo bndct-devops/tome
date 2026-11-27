@@ -144,6 +144,29 @@ def test_admin_bulk_metadata_still_changes_every_book(w):
     assert r.json()["skipped"] == 0
 
 
+def test_bulk_metadata_changes_chapters_to_volumes(w):
+    # Issue #338: a batch imported as chapters can be turned into volumes.
+    for b in (w.shared, w.mine):
+        b.content_type = "chapter"
+    w.db.commit()
+    r = w.client.put("/api/books/bulk-metadata", headers=w.admin_h, json={
+        "book_ids": [w.shared.id, w.mine.id], "content_type": "volume",
+    })
+    assert r.status_code == 200
+    assert r.json()["updated"] == 2
+    w.db.expire_all()
+    assert w.db.get(Book, w.shared.id).content_type == "volume"
+    assert w.db.get(Book, w.mine.id).content_type == "volume"
+    assert w.db.get(Book, w.shared.id).author == "Shared Author"
+
+
+def test_bulk_metadata_refuses_an_unknown_content_type(w):
+    r = w.client.put("/api/books/bulk-metadata", headers=w.admin_h, json={
+        "book_ids": [w.mine.id], "content_type": "episode",
+    })
+    assert r.status_code == 400
+
+
 def test_member_cannot_apply_metadata_to_someone_elses_book(w):
     r = w.client.post(f"/api/books/{w.shared.id}/apply-metadata",
                       json={"title": "Taken Over"}, headers=w.member_h)

@@ -49,6 +49,23 @@ class TestChapterKeyword:
         assert r.series == "Moby Dick"
         assert r.series_index == 1179.0
 
+    def test_volume_with_the_chapters_it_holds_is_a_volume(self) -> None:
+        # Issue #338: a chapter range after the volume number is not a chapter.
+        for name in ("Moby Dick Vol 1 Ch 1-7.cbz", "Moby Dick Vol.1 Ch.1 - 7.cbz",
+                     "Moby Dick v01 Chapter 1~7 (Digital).cbz"):
+            r = _parse(name)
+            assert r.content_type == "volume", name
+            assert r.series == "Moby Dick", name
+            assert r.series_index == 1.0, name
+
+    def test_single_chapter_with_its_volume_stays_a_chapter(self) -> None:
+        r = _parse("Moby Dick Vol 1 Ch 3.cbz")
+        assert r.content_type == "chapter"
+        assert r.series_index == 3.0
+
+    def test_chapter_range_without_a_volume_stays_a_chapter(self) -> None:
+        assert _parse("Moby Dick Ch 1-7.cbz").content_type == "chapter"
+
     def test_chainsaw_man_chapter_with_noise(self) -> None:
         r = _parse("Paradise Lost Chapter 230 v230 (Digital).cbz")
         assert r.content_type == "chapter"
