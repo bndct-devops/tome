@@ -4169,6 +4169,7 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Chapter"
 msgstr ""
 
@@ -4491,6 +4492,7 @@ msgid "Content"
 msgstr ""
 
 #: src/pages/BinderyPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Content type"
 msgstr ""
 
@@ -8546,6 +8548,7 @@ msgstr ""
 msgid "No run yet"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "No series"
 msgstr ""
@@ -13575,6 +13578,7 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 #: src/pages/BookDetailPage.tsx
+#: src/pages/DashboardPage.tsx
 msgid "Volume"
 msgstr ""
 

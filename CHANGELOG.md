@@ -11,6 +11,9 @@ All notable changes to Tome are documented here. Format loosely follows
   new place and the others step aside; on a touch screen, drag by the grip at
   the end of the row. Libraries can be reordered by anyone who may edit all
   of the libraries in their list, shelves by their owner.
+- **Bulk edit can change whether books are volumes or chapters.** Select the
+  books in the library, choose Edit metadata and set Content type to
+  Volume or Chapter, instead of opening each book's edit form. (#338)
 
 ### Changed
 - **The interface moves with you.** Opening a book or a series grows the
@@ -36,6 +39,12 @@ All notable changes to Tome are documented here. Format loosely follows
 - Dialogs no longer blur the page behind them.
 
 ### Fixed
+- **A book opened from "No series" leads back to it.** The trail above the
+  book's title now has a "No series" step when the book was opened from the
+  library filtered to books without a series, so after editing one book the
+  next is one click away. It stays through editing and when stepping to the
+  previous or next book, and goes away once the book is given a series.
+  (#338)
 - **Downloaded EPUBs stay valid when the book has an ISBN.** Writing the ISBN
   into the file removed every identifier, including the book's unique one.
   Now only other ISBN identifiers are replaced, and the unique identifier is
@@ -50,6 +59,10 @@ All notable changes to Tome are documented here. Format loosely follows
   Series review now has a Volumes / Chapters choice that applies to all of
   its files, and a Reject button that deletes them after the usual
   confirmation (#338).
+- **A volume named with the chapters it holds is detected as a volume.** A
+  file such as "Series Vol 1 Ch 1-7.cbz" was taken for chapter 1 of a series
+  called "Series Vol 1". A chapter range after a volume number now counts as
+  what the volume contains, so the file comes in as volume 1 of "Series".
 - **Back on a Settings or Admin page leaves the page.** It goes to the page
   you came from instead of stepping back through each section you visited.
 - Clicking a book in a Stats widget opens it inside the app instead of

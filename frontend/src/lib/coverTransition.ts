@@ -46,6 +46,9 @@ export interface BookPreview {
   cover?: string | null
   /** The cover's stored colour, held by the hero until an image paints. */
   coverColor?: string | null
+  /** Opened from the library filtered to books without a series: the book
+   *  page offers a crumb back to that list while the book has no series. */
+  fromNoSeries?: boolean
 }
 
 export function previewState(preview: BookPreview) {
