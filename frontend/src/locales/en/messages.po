@@ -8529,6 +8529,7 @@ msgstr "No results. Try a different query."
 msgid "No run yet"
 msgstr "No run yet"
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "No series"
 msgstr "No series"

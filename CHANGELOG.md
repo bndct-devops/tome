@@ -39,6 +39,12 @@ All notable changes to Tome are documented here. Format loosely follows
 - Dialogs no longer blur the page behind them.
 
 ### Fixed
+- **A book opened from "No series" leads back to it.** The trail above the
+  book's title now has a "No series" step when the book was opened from the
+  library filtered to books without a series, so after editing one book the
+  next is one click away. It stays through editing and when stepping to the
+  previous or next book, and goes away once the book is given a series.
+  (#338)
 - **Downloaded EPUBs stay valid when the book has an ISBN.** Writing the ISBN
   into the file removed every identifier, including the book's unique one.
   Now only other ISBN identifiers are replaced, and the unique identifier is

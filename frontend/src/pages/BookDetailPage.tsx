@@ -993,6 +993,12 @@ function BookDetailView({ id, seed, next }: {
         <div className={cn(HEADER_CLS, 'content-start')} style={heldHeader ? { minHeight: heldHeader } : undefined}>
           <nav className={CRUMBS_CLS} aria-label={t`Breadcrumb`}>
             <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>All books</Trans></Link>
+            {preview?.fromNoSeries && !preview.series && (
+              <>
+                <span aria-hidden>/</span>
+                <Link to="/?tab=books&no_series=true" className="shrink-0 hover:text-foreground transition-colors"><Trans>No series</Trans></Link>
+              </>
+            )}
           </nav>
         </div>
         <div className={GRID_CLS} aria-busy>
@@ -1152,6 +1158,8 @@ function BookDetailView({ id, seed, next }: {
       series_index: sameSeries ? (n.series_index ?? v?.series_index ?? null) : undefined,
       cover: v ? (v.cover_path ? coverSrc(v.id, { w: 160, v: v.updated_at }) : null) : undefined,
       coverColor: v?.cover_color ?? null,
+      // Stepping on from a book opened from the "No series" list keeps the way back to it.
+      ...(preview?.fromNoSeries && { fromNoSeries: true }),
     }
   }
 
@@ -1183,6 +1191,12 @@ function BookDetailView({ id, seed, next }: {
   const crumbs = (
     <nav className={CRUMBS_CLS} aria-label={t`Breadcrumb`}>
       <Link to="/?tab=books" className="shrink-0 hover:text-foreground transition-colors"><Trans>All books</Trans></Link>
+      {preview?.fromNoSeries && !book.series && (
+        <>
+          <span aria-hidden>/</span>
+          <Link to="/?tab=books&no_series=true" className="shrink-0 hover:text-foreground transition-colors"><Trans>No series</Trans></Link>
+        </>
+      )}
       {book.series && seriesHref ? (
         <>
           <span aria-hidden>/</span>

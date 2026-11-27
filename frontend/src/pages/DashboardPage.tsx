@@ -1248,6 +1248,11 @@ export function DashboardPage() {
   // Mirror the shown list's grouping into a ref so the keydown handler (bound once) sees it
   const listGroupedRef = useRef(false)
   useEffect(() => { listGroupedRef.current = listGrouped }, [listGrouped])
+  // The library filtered to books without a series: a book opened from it
+  // gets a "No series" crumb back to it (#338).
+  const listNoSeries = tab === 'books' && filterNoSeries
+  const listNoSeriesRef = useRef(false)
+  useEffect(() => { listNoSeriesRef.current = listNoSeries }, [listNoSeries])
 
 
   // The focused card lives in a ref too, so the key handler reads and writes
@@ -1298,6 +1303,7 @@ export function DashboardPage() {
             openBook({
               id: b.id, title: b.title, author: b.author, series: b.series, series_index: b.series_index,
               coverColor: b.cover_color,
+              ...(listNoSeriesRef.current && { fromNoSeries: true }),
             })
           }
         }
@@ -2518,6 +2524,7 @@ export function DashboardPage() {
               onAuthor={onAuthorCard}
               onQuickLook={openQuickLook}
               onOpenSeries={openSeries}
+              fromNoSeries={listNoSeries}
             />
           )}
           {/* Infinite scroll sentinel */}
@@ -2551,7 +2558,7 @@ export function DashboardPage() {
 
       {/* ── Quick look (Library grid, series volumes) ───────────────────────── */}
       <AnimatePresence>
-        {quickLookId != null && <QuickLook key={quickLookId} bookId={quickLookId} origin={quickLookFrom.origin} cover={quickLookFrom.cover} preview={quickLookPreview(quickLookId)} onClose={closeQuickLook} />}
+        {quickLookId != null && <QuickLook key={quickLookId} bookId={quickLookId} origin={quickLookFrom.origin} cover={quickLookFrom.cover} preview={quickLookPreview(quickLookId)} fromNoSeries={listNoSeries} onClose={closeQuickLook} />}
       </AnimatePresence>
 
       {/* ── Bulk metadata modal ─────────────────────────────────────────────── */}
