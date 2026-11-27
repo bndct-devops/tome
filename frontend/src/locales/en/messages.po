@@ -9959,6 +9959,10 @@ msgstr "Queue: keep the selected book and delete the others. Their files are rem
 msgid "Queue: not a duplicate, never show this group again"
 msgstr "Queue: not a duplicate, never show this group again"
 
+#: src/pages/BinderyPage.tsx
+msgid "Queued"
+msgstr "Queued"
+
 #: src/components/SendButton.tsx
 #~ msgid "Queued {n} to KOReader — arrives next time KOReader syncs"
 #~ msgstr "Queued {n} to KOReader — arrives next time KOReader syncs"
@@ -13638,6 +13642,10 @@ msgstr "Waiting for authorization…"
 #: src/pages/BinderyPage.tsx
 msgid "Waiting for review"
 msgstr "Waiting for review"
+
+#: src/pages/BinderyPage.tsx
+msgid "Waits for the series ahead of it"
+msgstr "Waits for the series ahead of it"
 
 #: src/pages/AdminPage.tsx
 msgid "Walk the library directory and add any new book files found."

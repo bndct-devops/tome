@@ -505,6 +505,56 @@ class TestBinderyAccept:
         assert not (bindery_path / "Faust v01.cbz").exists()
         assert not (bindery_path / "Beowulf" / "Beowulf v18.cbz").exists()
 
+    def test_overlapping_accept_skips_files_already_being_accepted(
+        self, client: TestClient, bindery_dir, db: Session, monkeypatch
+    ):
+        """#338: a second accept that starts while the first still works on
+        the same files (a second click on a half-imported series) must not
+        take them over. Before the fix the second request moved both files
+        and the first reported them as failed halfway through."""
+        bindery_path, library_path = bindery_dir
+        monkeypatch.setattr(
+            "backend.api.bindery.extract_metadata", lambda *a, **kw: {})
+
+        files = [
+            {"path": "Faust v01.cbz", "title": "Faust"},
+            {"path": "Beowulf/Beowulf v18.cbz", "title": "Beowulf"},
+        ]
+        inner: list[dict] = []
+
+        def hash_and_overlap(path):
+            # While the first request hashes its first file, a second
+            # request arrives for the same files, in the other order.
+            if not inner:
+                inner.append({})
+                inner[0] = client.post(
+                    "/api/bindery/accept", json={"files": files[::-1]}).json()
+            return f"hash-{Path(path).name}"
+
+        monkeypatch.setattr("backend.api.bindery.sha256_file", hash_and_overlap)
+
+        outer = client.post("/api/bindery/accept", json={"files": files}).json()
+
+        assert [a["title"] for a in outer["accepted"]] == ["Faust", "Beowulf"]
+        assert outer["errors"] == []
+        assert inner[0]["accepted"] == []
+        assert sorted(e["path"] for e in inner[0]["errors"]) == sorted(f["path"] for f in files)
+        assert all(e["error"] == "Already being accepted" for e in inner[0]["errors"])
+
+        # Every file that reached the library has exactly one Book row.
+        from backend.models.book import BookFile
+        on_disk = sorted(str(p.resolve()) for p in library_path.rglob("*.cbz"))
+        rows = sorted(bf.file_path for bf in db.query(BookFile).all()
+                      if bf.file_path.startswith(str(library_path.resolve())))
+        assert len(on_disk) == 2
+        assert on_disk == rows
+
+        # The claims are released: the next accept of a file works again.
+        (bindery_path / "Faust v01.cbz").write_bytes(b"PK\x03\x04fake2")
+        monkeypatch.setattr("backend.api.bindery.sha256_file", lambda *a: "hash-again")
+        again = client.post("/api/bindery/accept", json={"files": files[:1]}).json()
+        assert len(again["accepted"]) == 1 and again["errors"] == []
+
 
 # ---------------------------------------------------------------------------
 # TestBinderyReject

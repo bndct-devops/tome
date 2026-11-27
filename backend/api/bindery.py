@@ -14,6 +14,7 @@ Endpoints:
 """
 import logging
 import os
+import threading
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -384,6 +385,37 @@ async def bindery_preview(
     }
 
 
+# Files an accept request is working on, by resolved path. Two overlapping
+# accepts of the same file (a second click on a series whose first accept is
+# still running, #338) would both hash and move it: the loser reports the file
+# as failed, and across separate mounts it leaves a copy in the library that
+# no Book row points at. A request claims its files up front and the other
+# request skips them. In memory: one uvicorn worker, like the bake job.
+_accept_claims: set[str] = set()
+_accept_claims_lock = threading.Lock()
+ALREADY_ACCEPTING = "Already being accepted"
+
+
+def _claim_for_accept(paths: list[str]) -> set[str]:
+    """Claim the files not claimed yet; return the resolved paths claimed."""
+    claimed: set[str] = set()
+    with _accept_claims_lock:
+        for p in paths:
+            try:
+                key = str(_safe_resolve(p))
+            except HTTPException:
+                continue  # reported by the accept loop itself
+            if key not in _accept_claims:
+                _accept_claims.add(key)
+                claimed.add(key)
+    return claimed
+
+
+def _release_claims(keys: set[str]) -> None:
+    with _accept_claims_lock:
+        _accept_claims.difference_update(keys)
+
+
 @router.post("/accept")
 def bindery_accept(
     body: BinderyAcceptRequest,
@@ -396,9 +428,29 @@ def bindery_accept(
     accepted: list[dict] = []
     errors: list[dict] = []
 
+    claimed = _claim_for_accept([item.path for item in body.files])
+    try:
+        _accept_files(body, current_user, db, claimed, accepted, errors)
+    finally:
+        _release_claims(claimed)
+
+    return {"accepted": accepted, "errors": errors}
+
+
+def _accept_files(
+    body: BinderyAcceptRequest,
+    current_user: User,
+    db: Session,
+    claimed: set[str],
+    accepted: list[dict],
+    errors: list[dict],
+) -> None:
     for item in body.files:
         try:
             full_path = _safe_resolve(item.path)
+            if str(full_path) not in claimed:
+                errors.append({"path": item.path, "error": ALREADY_ACCEPTING})
+                continue
             if not full_path.exists():
                 errors.append({"path": item.path, "error": "File not found"})
                 continue
@@ -547,8 +599,6 @@ def bindery_accept(
             logger.exception("Failed to accept bindery file %s", item.path)
             db.rollback()
             errors.append({"path": item.path, "error": str(exc)})
-
-    return {"accepted": accepted, "errors": errors}
 
 
 @router.post("/reject")

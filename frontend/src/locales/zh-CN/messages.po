@@ -9959,6 +9959,10 @@ msgstr ""
 msgid "Queue: not a duplicate, never show this group again"
 msgstr ""
 
+#: src/pages/BinderyPage.tsx
+msgid "Queued"
+msgstr ""
+
 #: src/components/SendButton.tsx
 #~ msgid "Queued {n} to KOReader — arrives next time KOReader syncs"
 #~ msgstr ""
@@ -13637,6 +13641,10 @@ msgstr ""
 
 #: src/pages/BinderyPage.tsx
 msgid "Waiting for review"
+msgstr ""
+
+#: src/pages/BinderyPage.tsx
+msgid "Waits for the series ahead of it"
 msgstr ""
 
 #: src/pages/AdminPage.tsx

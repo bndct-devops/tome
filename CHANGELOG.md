@@ -50,6 +50,14 @@ All notable changes to Tome are documented here. Format loosely follows
   Series review now has a Volumes / Chapters choice that applies to all of
   its files, and a Reject button that deletes them after the usual
   confirmation (#338).
+- **Bindery: accepting a second series no longer breaks the first.** Clicking
+  Accept on another series while one was still being imported ran both at
+  once, and the list refreshed when one of them finished. The other series
+  then showed its remaining volumes as if nothing was happening, and
+  accepting those again made the running import report them as failed. Further Accept clicks now wait in line: the entry shows
+  Queued and starts when the one ahead of it is done, and the server never
+  lets two accepts work on the same file. The queue lives in the open page,
+  so keep the tab open until it is done (#338).
 - **Back on a Settings or Admin page leaves the page.** It goes to the page
   you came from instead of stepping back through each section you visited.
 - Clicking a book in a Stats widget opens it inside the app instead of
