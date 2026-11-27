@@ -716,6 +716,16 @@ msgstr ""
 
 #. placeholder {0}: group.files.length
 #: src/pages/BinderyPage.tsx
+msgid "{0, plural, one {Accept # chapter} other {Accept # chapters}}"
+msgstr ""
+
+#. placeholder {0}: group.files.length
+#: src/pages/BinderyPage.tsx
+msgid "{0, plural, one {Accept # file} other {Accept # files}}"
+msgstr ""
+
+#. placeholder {0}: group.files.length
+#: src/pages/BinderyPage.tsx
 msgid "{0, plural, one {Accept # volume} other {Accept # volumes}}"
 msgstr "{0, plural, one {Accepter # tome} other {Accepter # tomes}}"
 
@@ -3316,6 +3326,10 @@ msgstr ""
 msgid "Are you getting faster?"
 msgstr "Lisez-vous plus vite ?"
 
+#: src/pages/BinderyPage.tsx
+msgid "As detected"
+msgstr ""
+
 #: src/components/library/SortMenu.tsx
 msgid "Ascending"
 msgstr ""
@@ -4098,6 +4112,10 @@ msgstr "Répartition par catégorie"
 msgid "Category mix over the year"
 msgstr "Répartition des catégories sur l’année"
 
+#: src/pages/BinderyPage.tsx
+msgid "Ch {idx}"
+msgstr ""
+
 #: src/pages/BookDetailPage.tsx
 msgid "ch. {n}"
 msgstr "chap. {n}"
@@ -4148,6 +4166,7 @@ msgstr ""
 msgid "Chapter"
 msgstr "Chapitre"
 
+#: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Chapters"
 msgstr "Chapitres"
@@ -13555,6 +13574,7 @@ msgid "Volume number, as 01 or 10.5"
 msgstr "Numéro de tome, sous la forme 01 ou 10.5"
 
 #: src/components/goals/Detail.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
 msgstr "Tomes"

@@ -630,12 +630,15 @@ interface ConfirmDialogProps {
   onCancel: () => void
 }
 
-function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onReviewFile }: {
+function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onReject, onReviewFile }: {
   group: SeriesGroup
   bookTypes: BookType[]
   libraries: LibraryOption[]
   busy: boolean
-  onAccept: (form: { series: string; author: string; book_type_id: string; library_ids: number[] }) => void
+  /** content_type '' keeps each file's detected type. */
+  onAccept: (form: { series: string; author: string; book_type_id: string; library_ids: number[]; content_type: string }) => void
+  /** Reject every file of the group (through the page's confirm dialog). */
+  onReject: () => void
   /** Open one volume in the file review (edit, accept or reject it alone). */
   onReviewFile: (path: string) => void
 }) {
@@ -644,13 +647,22 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onRevi
   const [author, setAuthor] = useState(group.author ?? '')
   const [typeId, setTypeId] = useState(group.book_type_id != null ? String(group.book_type_id) : '')
   const [libraryIds, setLibraryIds] = useState<number[]>(group.library_ids)
+  // One content type for the group; a mixed group starts on "As detected" ('').
+  const detectedTypes = new Set(group.files.map(f => f.content_type))
+  const mixed = detectedTypes.size > 1
+  const [contentType, setContentType] = useState(mixed ? '' : (group.files[0]?.content_type ?? 'volume'))
+  const typeOf = (f: SeriesGroup['files'][number]) => contentType || f.content_type
+  const allChapters = group.files.length > 0 && group.files.every(f => typeOf(f) === 'chapter')
+  const allVolumes = group.files.every(f => typeOf(f) !== 'chapter')
   const destFolder = group.files[0]?.dest_preview.split('/').slice(0, -1).join('/')
   const hasLibraries = libraries.some(l => l.can_edit)
 
   return (
     <div className="py-5 flex flex-col gap-3.5">
       <div className="flex items-start justify-between gap-4 flex-wrap">
-        <div className="min-w-0 flex-1">
+        {/* 16rem basis: on a narrow screen the buttons wrap under the title
+            instead of squeezing it. */}
+        <div className="min-w-0 flex-[1_1_16rem]">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-[17px] font-semibold text-foreground truncate">
               {series || t`Ungrouped files`}
@@ -666,7 +678,7 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onRevi
               </span>
             )}
             {!group.library_match && group.series && (
-              <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-secondary text-[12px] font-medium text-muted-foreground">
+              <span className="inline-flex items-center h-6 px-2.5 rounded-full bg-secondary text-[12px] font-medium text-muted-foreground whitespace-nowrap">
                 <Trans>New series</Trans>
               </span>
             )}
@@ -677,19 +689,27 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onRevi
             </p>
           )}
         </div>
-        <Pill
-          variant="secondary"
-          onClick={() => onAccept({ series, author, book_type_id: typeId, library_ids: libraryIds })}
-          disabled={busy}
-          className="shrink-0"
-        >
-          {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-          <Plural value={group.files.length} one="Accept # volume" other="Accept # volumes" />
-        </Pill>
+        <div className="flex items-center gap-2 shrink-0">
+          <Pill
+            variant="secondary"
+            onClick={() => onAccept({ series, author, book_type_id: typeId, library_ids: libraryIds, content_type: contentType })}
+            disabled={busy}
+          >
+            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
+            {allChapters
+              ? <Plural value={group.files.length} one="Accept # chapter" other="Accept # chapters" />
+              : allVolumes
+                ? <Plural value={group.files.length} one="Accept # volume" other="Accept # volumes" />
+                : <Plural value={group.files.length} one="Accept # file" other="Accept # files" />}
+          </Pill>
+          <Pill variant="destructive" onClick={onReject} disabled={busy}>
+            <Trash2 className="h-4 w-4" /> <Trans>Reject</Trans>
+          </Pill>
+        </div>
       </div>
 
       {/* One identity decision for the whole group */}
-      <div className={cn('grid grid-cols-1 sm:grid-cols-2 gap-2', hasLibraries ? 'lg:grid-cols-4' : 'lg:grid-cols-3')}>
+      <div className={cn('grid grid-cols-1 sm:grid-cols-2 gap-2', hasLibraries ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
         <input
           value={series}
           onChange={e => setSeries(e.target.value)}
@@ -713,10 +733,22 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onRevi
           <option value="">{t`No type`}</option>
           {bookTypes.map(bt => <option key={bt.id} value={String(bt.id)}>{bt.label}</option>)}
         </Select>
+        <Select
+          value={contentType}
+          onChange={e => setContentType(e.target.value)}
+          aria-label={t`Content type`}
+          className="cursor-pointer"
+        >
+          {mixed && <option value="">{t`As detected`}</option>}
+          <option value="volume">{t`Volumes`}</option>
+          <option value="chapter">{t`Chapters`}</option>
+        </Select>
+        {/* Fifth control: full width on the two-column sm grid, one cell at lg. */}
         <LibrariesSelect
           value={libraryIds}
           onChange={setLibraryIds}
           libraries={libraries}
+          className="sm:col-span-2 lg:col-span-1"
         />
       </div>
 
@@ -732,7 +764,11 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onRevi
             title={`${f.filename} → ${f.dest_preview}`}
             className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-surface-hover transition-colors touch-feedback"
           >
-            {(() => { const idx = f.series_index; return idx != null ? t`Vol ${idx}` : (f.title || f.filename) })()}
+            {(() => {
+              const idx = f.series_index
+              if (idx == null) return f.title || f.filename
+              return typeOf(f) === 'chapter' ? t`Ch ${idx}` : t`Vol ${idx}`
+            })()}
             <span className="text-muted-foreground uppercase text-[12px] font-semibold tracking-wide">{f.format}</span>
           </button>
         ))}
@@ -910,7 +946,7 @@ export function BinderyPage() {
 
   async function acceptGroup(
     group: SeriesGroup,
-    form: { series: string; author: string; book_type_id: string; library_ids: number[] },
+    form: { series: string; author: string; book_type_id: string; library_ids: number[]; content_type: string },
   ) {
     setAcceptingGroup(group.key)
     try {
@@ -920,7 +956,7 @@ export function BinderyPage() {
         author: form.author || null,
         series: form.series || null,
         series_index: f.series_index,
-        content_type: f.content_type,
+        content_type: form.content_type || f.content_type,
         book_type_id: form.book_type_id ? parseInt(form.book_type_id, 10) : null,
         language: group.language,
         library_ids: form.library_ids,
@@ -1443,6 +1479,10 @@ export function BinderyPage() {
       if (result.rejected > 0) {
         toast.success(plural(result.rejected, { one: 'Rejected # file', other: 'Rejected # files' }))
         setItems(prev => prev.filter(i => !paths.includes(i.path)))
+        // Series review lists its files from groups, not items: drop them there too.
+        setGroups(prev => prev
+          .map(g => ({ ...g, files: g.files.filter(f => !paths.includes(f.path)) }))
+          .filter(g => g.files.length > 0))
         setSelected(prev => {
           const next = new Set(prev)
           paths.forEach(p => next.delete(p))
@@ -1720,6 +1760,7 @@ export function BinderyPage() {
                     libraries={libraries}
                     busy={acceptingGroup === g.key}
                     onAccept={form => acceptGroup(g, form)}
+                    onReject={() => setConfirmReject(g.files.map(f => f.path))}
                     onReviewFile={path => enterReview([path])}
                   />
                 </m.div>
