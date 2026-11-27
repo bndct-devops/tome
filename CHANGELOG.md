@@ -53,6 +53,12 @@ All notable changes to Tome are documented here. Format loosely follows
   highlight made in KOReader on a book that Tome only knows from an Xteink
   reader's sync showed on the book's page but was missing from the
   Highlights page and from the "On this day" card on Home. Both now list it.
+- **Bindery: a series can be accepted as volumes or chapters, or rejected
+  whole.** Files named like "Name 01.cbz" are read as chapters, and the only
+  way to change that was to open every file on its own. Each entry under
+  Series review now has a Volumes / Chapters choice that applies to all of
+  its files, and a Reject button that deletes them after the usual
+  confirmation (#338).
 - **A volume named with the chapters it holds is detected as a volume.** A
   file such as "Series Vol 1 Ch 1-7.cbz" was taken for chapter 1 of a series
   called "Series Vol 1". A chapter range after a volume number now counts as

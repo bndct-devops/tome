@@ -719,6 +719,16 @@ msgstr "{0, plural, one {about # day around the clock} other {about # days aroun
 
 #. placeholder {0}: group.files.length
 #: src/pages/BinderyPage.tsx
+msgid "{0, plural, one {Accept # chapter} other {Accept # chapters}}"
+msgstr "{0, plural, one {Accept # chapter} other {Accept # chapters}}"
+
+#. placeholder {0}: group.files.length
+#: src/pages/BinderyPage.tsx
+msgid "{0, plural, one {Accept # file} other {Accept # files}}"
+msgstr "{0, plural, one {Accept # file} other {Accept # files}}"
+
+#. placeholder {0}: group.files.length
+#: src/pages/BinderyPage.tsx
 msgid "{0, plural, one {Accept # volume} other {Accept # volumes}}"
 msgstr "{0, plural, one {Accept # volume} other {Accept # volumes}}"
 
@@ -3320,6 +3330,10 @@ msgstr "are shorter passwords for e-readers."
 msgid "Are you getting faster?"
 msgstr "Are you getting faster?"
 
+#: src/pages/BinderyPage.tsx
+msgid "As detected"
+msgstr "As detected"
+
 #: src/components/library/SortMenu.tsx
 msgid "Ascending"
 msgstr "Ascending"
@@ -4104,6 +4118,10 @@ msgstr "Category breakdown"
 msgid "Category mix over the year"
 msgstr "Category mix over the year"
 
+#: src/pages/BinderyPage.tsx
+msgid "Ch {idx}"
+msgstr "Ch {idx}"
+
 #: src/pages/BookDetailPage.tsx
 msgid "ch. {n}"
 msgstr "ch. {n}"
@@ -4155,6 +4173,7 @@ msgstr "Channel URL"
 msgid "Chapter"
 msgstr "Chapter"
 
+#: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Chapters"
 msgstr "Chapters"
@@ -13599,6 +13618,7 @@ msgid "Volume number, as 01 or 10.5"
 msgstr "Volume number, as 01 or 10.5"
 
 #: src/components/goals/Detail.tsx
+#: src/pages/BinderyPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "Volumes"
 msgstr "Volumes"
