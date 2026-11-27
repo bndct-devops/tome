@@ -8748,6 +8748,10 @@ msgstr "Poner en cola: conservar el libro seleccionado y eliminar los demás. Su
 msgid "Queue: not a duplicate, never show this group again"
 msgstr "Poner en cola: no es un duplicado, no volver a mostrar este grupo"
 
+#: src/pages/BinderyPage.tsx
+msgid "Queued"
+msgstr ""
+
 #: src/components/SendButton.tsx
 msgid "Queued {n} to KOReader, arrives next time KOReader syncs"
 msgstr "Se han puesto {n} en cola para KOReader; llegarán en la próxima sincronización de KOReader"
@@ -11881,6 +11885,10 @@ msgstr "Esperando autorización…"
 #: src/pages/BinderyPage.tsx
 msgid "Waiting for review"
 msgstr "Pendientes de revisión"
+
+#: src/pages/BinderyPage.tsx
+msgid "Waits for the series ahead of it"
+msgstr ""
 
 #: src/pages/AdminPage.tsx
 msgid "Walk the library directory and add any new book files found."

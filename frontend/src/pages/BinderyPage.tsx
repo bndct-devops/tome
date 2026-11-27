@@ -3,7 +3,7 @@ import { AnimatePresence, LayoutGroup, m } from 'motion/react'
 import {
   RefreshCw, Loader2, BookOpen, Check, X, Trash2, Search,
   ChevronRight, ChevronDown, ArrowLeft, FolderOpen,
-  Zap, Eye, HelpCircle, Library as LibraryIcon,
+  Zap, Eye, HelpCircle, Clock, Library as LibraryIcon,
 } from 'lucide-react'
 import { AppShell } from '@/components/AppShell'
 import { Checkbox, PageBody, PageHeader, SectionTitle, Pill, Select } from '@/components/page'
@@ -630,11 +630,13 @@ interface ConfirmDialogProps {
   onCancel: () => void
 }
 
-function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onReject, onReviewFile }: {
+function SeriesReviewEntry({ group, bookTypes, libraries, state, onAccept, onReject, onReviewFile }: {
   group: SeriesGroup
   bookTypes: BookType[]
   libraries: LibraryOption[]
-  busy: boolean
+  /** 'queued': waits for the entry ahead of it; 'running': being accepted now.
+   *  Either way the entry is frozen: the queued request carries these values. */
+  state: 'idle' | 'queued' | 'running'
   /** content_type '' keeps each file's detected type. */
   onAccept: (form: { series: string; author: string; book_type_id: string; library_ids: number[]; content_type: string }) => void
   /** Reject every file of the group (through the page's confirm dialog). */
@@ -656,6 +658,7 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onReje
   const allVolumes = group.files.every(f => typeOf(f) !== 'chapter')
   const destFolder = group.files[0]?.dest_preview.split('/').slice(0, -1).join('/')
   const hasLibraries = libraries.some(l => l.can_edit)
+  const busy = state !== 'idle'
 
   return (
     <div className="py-5 flex flex-col gap-3.5">
@@ -694,9 +697,10 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onReje
             variant="secondary"
             onClick={() => onAccept({ series, author, book_type_id: typeId, library_ids: libraryIds, content_type: contentType })}
             disabled={busy}
+            title={state === 'queued' ? t`Waits for the series ahead of it` : undefined}
           >
-            {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}
-            {allChapters
+            {state === 'running' ? <Loader2 className="h-4 w-4 animate-spin" /> : state === 'queued' ? <Clock className="h-4 w-4" /> : <Check className="h-4 w-4" />}
+            {state === 'queued' ? <Trans>Queued</Trans> : allChapters
               ? <Plural value={group.files.length} one="Accept # chapter" other="Accept # chapters" />
               : allVolumes
                 ? <Plural value={group.files.length} one="Accept # volume" other="Accept # volumes" />
@@ -709,7 +713,10 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onReje
       </div>
 
       {/* One identity decision for the whole group */}
-      <div className={cn('grid grid-cols-1 sm:grid-cols-2 gap-2', hasLibraries ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}>
+      <fieldset
+        disabled={busy}
+        className={cn('min-w-0 grid grid-cols-1 sm:grid-cols-2 gap-2 disabled:opacity-60', hasLibraries ? 'lg:grid-cols-5' : 'lg:grid-cols-4')}
+      >
         <input
           value={series}
           onChange={e => setSeries(e.target.value)}
@@ -750,7 +757,7 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onReje
           libraries={libraries}
           className="sm:col-span-2 lg:col-span-1"
         />
-      </div>
+      </fieldset>
 
       {/* Per-volume confirmation strip */}
       <div className="flex flex-wrap gap-1.5">
@@ -761,8 +768,9 @@ function SeriesReviewEntry({ group, bookTypes, libraries, busy, onAccept, onReje
             type="button"
             key={f.path}
             onClick={() => onReviewFile(f.path)}
+            disabled={busy}
             title={`${f.filename} → ${f.dest_preview}`}
-            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-surface-hover transition-colors touch-feedback"
+            className="inline-flex items-center gap-1.5 h-7 px-3 rounded-full bg-secondary text-[13px] text-foreground hover:bg-surface-hover disabled:hover:bg-secondary disabled:opacity-60 transition-colors touch-feedback"
           >
             {(() => {
               const idx = f.series_index
@@ -942,13 +950,39 @@ export function BinderyPage() {
   // Series-group accept - one identity decision covers every volume in a group
   // ---------------------------------------------------------------------------
 
+  // Series entries accept one at a time (#338). A click while another entry
+  // runs queues the entry instead of starting a second request: the server
+  // works through one series, the list refreshes between them, and no refresh
+  // lands while a series is half moved (which used to show its untouched half
+  // as a fresh entry that invited a second click on the same files).
+  type GroupForm = { series: string; author: string; book_type_id: string; library_ids: number[]; content_type: string }
   const [acceptingGroup, setAcceptingGroup] = useState<string | null>(null)
+  const [queuedGroups, setQueuedGroups] = useState<string[]>([])
+  const groupQueue = useRef<{ group: SeriesGroup; form: GroupForm }[]>([])
+  const groupQueueRunning = useRef<string | null>(null)
 
-  async function acceptGroup(
-    group: SeriesGroup,
-    form: { series: string; author: string; book_type_id: string; library_ids: number[]; content_type: string },
-  ) {
-    setAcceptingGroup(group.key)
+  function queueGroupAccept(group: SeriesGroup, form: GroupForm) {
+    if (groupQueueRunning.current === group.key || groupQueue.current.some(j => j.group.key === group.key)) return
+    groupQueue.current.push({ group, form })
+    setQueuedGroups(groupQueue.current.map(j => j.group.key))
+    if (groupQueueRunning.current === null) void runGroupQueue()
+  }
+
+  async function runGroupQueue() {
+    let job = groupQueue.current.shift()
+    while (job) {
+      groupQueueRunning.current = job.group.key
+      setAcceptingGroup(job.group.key)
+      setQueuedGroups(groupQueue.current.map(j => j.group.key))
+      await acceptGroup(job.group, job.form)
+      job = groupQueue.current.shift()
+    }
+    groupQueueRunning.current = null
+    setAcceptingGroup(null)
+    setQueuedGroups([])
+  }
+
+  async function acceptGroup(group: SeriesGroup, form: GroupForm) {
     try {
       const files: BinderyAcceptFile[] = group.files.map(f => ({
         path: f.path,
@@ -976,8 +1010,6 @@ export function BinderyPage() {
       await fetchAll()
     } catch (err) {
       toast.error(err instanceof Error ? err.message : t`Accept failed`)
-    } finally {
-      setAcceptingGroup(null)
     }
   }
 
@@ -1758,8 +1790,8 @@ export function BinderyPage() {
                     group={g}
                     bookTypes={bookTypes}
                     libraries={libraries}
-                    busy={acceptingGroup === g.key}
-                    onAccept={form => acceptGroup(g, form)}
+                    state={acceptingGroup === g.key ? 'running' : queuedGroups.includes(g.key) ? 'queued' : 'idle'}
+                    onAccept={form => queueGroupAccept(g, form)}
                     onReject={() => setConfirmReject(g.files.map(f => f.path))}
                     onReviewFile={path => enterReview([path])}
                   />
