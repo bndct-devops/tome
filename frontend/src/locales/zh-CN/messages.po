@@ -8527,6 +8527,7 @@ msgstr ""
 msgid "No run yet"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "No series"
 msgstr ""

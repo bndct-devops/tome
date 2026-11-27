@@ -7508,6 +7508,7 @@ msgstr "No hay resultados. Prueba con otra búsqueda."
 msgid "No run yet"
 msgstr ""
 
+#: src/pages/BookDetailPage.tsx
 #: src/pages/DashboardPage.tsx
 msgid "No series"
 msgstr "Sin serie"

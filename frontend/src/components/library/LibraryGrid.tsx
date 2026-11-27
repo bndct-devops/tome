@@ -98,6 +98,8 @@ interface Props {
   onAuthor: (author: string) => void
   onQuickLook: (id: number, origin: DOMRect | undefined, cover: string | null) => void
   onOpenSeries: (name: string) => void
+  /** The list is the library filtered to "No series": opened books get a crumb back to it. */
+  fromNoSeries?: boolean
 }
 
 const isStack = (grouped: boolean, b: Book) => grouped && !!b.series && b.status !== 'no_file'
@@ -241,12 +243,13 @@ interface ItemProps {
   onAuthor: Props['onAuthor']
   onQuickLook: Props['onQuickLook']
   onOpenSeries: Props['onOpenSeries']
+  fromNoSeries?: boolean
 }
 
 const LibraryItem = memo(function LibraryItem({
   ref: presenceRef, book, itemKey, index, stack, view, focused, selected, selecting, status, progress, rating,
   dep, travelDep, switching, variants,
-  onToggle, onTag, onSeries, onAuthor, onQuickLook, onOpenSeries,
+  onToggle, onTag, onSeries, onAuthor, onQuickLook, onOpenSeries, fromNoSeries,
 }: ItemProps) {
   const ref = useRef<HTMLDivElement | null>(null)
   const setRef = useCallback((node: HTMLDivElement | null) => {
@@ -312,6 +315,7 @@ const LibraryItem = memo(function LibraryItem({
           readingStatus={status}
           progressPct={progress}
           rating={rating}
+          fromNoSeries={fromNoSeries}
         />
       )}
     </m.div>
@@ -1134,6 +1138,7 @@ export const LibraryGrid = forwardRef<LibraryGridHandle, Props>(function Library
               onAuthor={props.onAuthor}
               onQuickLook={props.onQuickLook}
               onOpenSeries={props.onOpenSeries}
+              fromNoSeries={props.fromNoSeries}
             />
           )
         })}
