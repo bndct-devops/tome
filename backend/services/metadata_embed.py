@@ -1,12 +1,16 @@
 """Embed Tome's canonical metadata into a book file at download time.
 
-The output is cached at ``{data_dir}/baked/{book_id}_{updated_at_ts}.{ext}``.
-Cache is invalidated automatically when ``Book.updated_at`` advances, because
-the timestamp is part of the filename. Stale entries for a given book are
-purged on write.
+The output is cached at
+``{data_dir}/baked/{book_id}_{updated_at_ts}_e{version}.{ext}``. Cache is
+invalidated automatically when ``Book.updated_at`` advances, because the
+timestamp is part of the filename, and when ``_EMBED_VERSION`` is bumped.
+Stale entries for a given book are purged on write.
 
-EPUB and CBZ get full metadata + cover embed. PDF gets metadata dict only
-(cover embedding in PDF is fragile and the library has almost none).
+EPUB and CBZ get full metadata. Their cover is touched only when the cover
+Tome shows is a different picture from the one the file already carries
+(``_cover_changed``): a file whose cover in Tome is its own, or another scan
+of the same artwork, keeps its own image and its own pages. PDF gets metadata
+dict only (cover embedding in PDF is fragile and the library has almost none).
 """
 from __future__ import annotations
 
@@ -18,6 +22,8 @@ import zipfile
 from pathlib import Path
 from typing import Optional
 from xml.etree import ElementTree as ET
+
+from PIL import Image
 
 from backend.core.config import settings
 from backend.models.book import Book, BookFile
@@ -46,9 +52,14 @@ def _baked_dir() -> Path:
     return d
 
 
+# Bump when the embed writes different bytes for the same book, so copies
+# cached by an older version are not served again. 2: covers (#344).
+_EMBED_VERSION = 2
+
+
 def _cache_key(book: Book) -> str:
     ts = int(book.updated_at.timestamp())
-    return f"{book.id}_{ts}"
+    return f"{book.id}_{ts}_e{_EMBED_VERSION}"
 
 
 def _purge_stale(book_id: int, keep: Optional[str] = None) -> None:
@@ -144,7 +155,11 @@ def _embed_epub(book: Book, src: Path, cover_bytes: Optional[bytes]) -> Optional
             return None
         opf_xml = zf.read(opf_path)
 
-        new_opf, cover_href = _rewrite_opf(opf_xml, book, opf_path, names, cover_bytes is not None)
+        plan = _plan_epub_cover(zf, opf_xml, opf_path, names, cover_bytes)
+        new_opf, _ = _rewrite_opf(
+            opf_xml, book, opf_path, names, False,
+            add_cover=(plan.href, plan.media_type) if plan and plan.add else None,
+        )
         if new_opf is None:
             return None
 
@@ -161,10 +176,12 @@ def _embed_epub(book: Book, src: Path, cover_bytes: Optional[bytes]) -> Optional
                 if n == opf_path:
                     zout.writestr(n, new_opf)
                     continue
-                if cover_bytes is not None and cover_href and _same_href(n, opf_path, cover_href):
-                    zout.writestr(n, cover_bytes)
+                if plan and not plan.add and n == plan.zip_name:
+                    zout.writestr(n, plan.data)
                     continue
                 zout.writestr(n, zf.read(n))
+            if plan and plan.add:
+                zout.writestr(plan.zip_name, plan.data)
         return buf.getvalue()
 
 
@@ -194,8 +211,11 @@ def _isbn_digits(text: str) -> str:
 
 
 def _rewrite_opf(
-    opf_xml: bytes, book: Book, opf_path: str, zip_names: list[str], have_cover: bool
+    opf_xml: bytes, book: Book, opf_path: str, zip_names: list[str], have_cover: bool,
+    add_cover: Optional[tuple[str, str]] = None,
 ) -> tuple[Optional[bytes], Optional[str]]:
+    """``add_cover`` = (href, media type) of a cover image the caller adds to
+    the archive: it is declared in the manifest and named as the cover."""
     try:
         tree = ET.ElementTree(ET.fromstring(opf_xml))
     except ET.ParseError:
@@ -274,13 +294,44 @@ def _rewrite_opf(
     if have_cover:
         cover_href = _find_cover_href(root)
 
+    if add_cover is not None:
+        _declare_cover(root, meta, *add_cover)
+
     out = io.BytesIO()
     with namespaces(_NS_REGISTRATIONS):
         tree.write(out, encoding="utf-8", xml_declaration=True)
     return out.getvalue(), cover_href
 
 
+def _declare_cover(root: ET.Element, meta: ET.Element, href: str, media_type: str) -> None:
+    manifest = root.find(f"{{{OPF_NS}}}manifest")
+    if manifest is None:
+        return
+    ids = {item.get("id") for item in manifest.findall(f"{{{OPF_NS}}}item")}
+    item_id = "tome-cover"
+    n = 1
+    while item_id in ids:
+        n += 1
+        item_id = f"tome-cover-{n}"
+    attrs = {"id": item_id, "href": href, "media-type": media_type}
+    if (root.get("version") or "").startswith("3"):
+        attrs["properties"] = "cover-image"
+    ET.SubElement(manifest, f"{{{OPF_NS}}}item", attrs)
+    for el in list(meta.findall(f"{{{OPF_NS}}}meta")):
+        if el.get("name") == "cover":
+            meta.remove(el)
+    ET.SubElement(meta, f"{{{OPF_NS}}}meta", {"name": "cover", "content": item_id})
+
+
 def _find_cover_href(root: ET.Element) -> Optional[str]:
+    item = _declared_cover_item(root)
+    if item is None:
+        item = _fallback_cover_item(root)
+    return item.get("href") if item is not None else None
+
+
+def _declared_cover_item(root: ET.Element) -> Optional[ET.Element]:
+    """The manifest item the package itself names as its cover image."""
     manifest = root.find(f"{{{OPF_NS}}}manifest")
     if manifest is None:
         return None
@@ -288,7 +339,7 @@ def _find_cover_href(root: ET.Element) -> Optional[str]:
     for item in manifest.findall(f"{{{OPF_NS}}}item"):
         props = item.get("properties", "")
         if "cover-image" in props.split():
-            return item.get("href")
+            return item
     # EPUB 2: <meta name="cover" content="<item-id>"/>
     meta = root.find(f"{{{OPF_NS}}}metadata")
     cover_id = None
@@ -300,16 +351,30 @@ def _find_cover_href(root: ET.Element) -> Optional[str]:
     if cover_id:
         for item in manifest.findall(f"{{{OPF_NS}}}item"):
             if item.get("id") == cover_id:
-                return item.get("href")
-    # Fallback: first image item in manifest
-    for item in manifest.findall(f"{{{OPF_NS}}}item"):
-        mt = item.get("media-type", "")
-        if mt.startswith("image/"):
-            return item.get("href")
+                return item
     return None
 
 
-def _same_href(zip_name: str, opf_path: str, href: str) -> bool:
+def _fallback_cover_item(root: ET.Element) -> Optional[ET.Element]:
+    """The image Tome's own extraction (``metadata.extract_epub``) falls back
+    to when the package names no cover: one whose name says cover, else the
+    first image."""
+    manifest = root.find(f"{{{OPF_NS}}}manifest")
+    if manifest is None:
+        return None
+    images = [
+        item for item in manifest.findall(f"{{{OPF_NS}}}item")
+        if item.get("media-type", "").startswith("image/")
+    ]
+    for item in images:
+        name = (item.get("href") or "").lower()
+        if any(kw in name for kw in ("cover", "front", "thumb")):
+            return item
+    return images[0] if images else None
+
+
+def _resolve_href(opf_path: str, href: str) -> str:
+    """The in-zip name an OPF-relative href points at."""
     opf_dir = opf_path.rsplit("/", 1)[0] if "/" in opf_path else ""
     resolved = f"{opf_dir}/{href}" if opf_dir else href
     # Normalise "./a" vs "a" and "a/../b" segments
@@ -322,7 +387,161 @@ def _same_href(zip_name: str, opf_path: str, href: str) -> bool:
                 parts.pop()
             continue
         parts.append(seg)
-    return "/".join(parts) == zip_name
+    return "/".join(parts)
+
+
+def _same_href(zip_name: str, opf_path: str, href: str) -> bool:
+    return _resolve_href(opf_path, href) == zip_name
+
+
+# ── Cover ─────────────────────────────────────────────────────────────────────
+
+# Image types a cover can be written as, by manifest media type.
+_PIL_FORMATS = {
+    "image/jpeg": "JPEG",
+    "image/jpg": "JPEG",
+    "image/png": "PNG",
+    "image/gif": "GIF",
+    "image/webp": "WEBP",
+}
+
+_THUMB = 16
+# Mean difference between two 16x16 thumbnails, each brought to zero mean and
+# unit spread first so a brighter, darker or more saturated scan of the same
+# artwork still matches. Above this two covers count as different pictures.
+# Measured on a real library of 268 covers: Tome's stored copy of the file's
+# own cover and fetched scans of the same artwork stay under 0.18, another
+# edition of the same cover is at 0.31, and of 35,778 pairs of different
+# books the closest is at 0.28.
+_SAME_COVER_MAX_DIFF = 0.22
+_SAME_COVER_MAX_ASPECT_DIFF = 0.05
+# A cover of the same picture replaces the file's own only when it is at
+# least this much wider.
+_UPGRADE_MIN_WIDTH_RATIO = 1.2
+
+
+def _thumbprint(data: bytes) -> Optional[tuple[tuple[int, int], list[float]]]:
+    try:
+        img = Image.open(io.BytesIO(data))
+        size = img.size
+        if not size[0] or not size[1]:
+            return None
+        raw = img.convert("RGB").resize((_THUMB, _THUMB), Image.BOX).tobytes()
+    except Exception:
+        return None
+    mean = sum(raw) / len(raw)
+    spread = (sum((v - mean) ** 2 for v in raw) / len(raw)) ** 0.5 or 1.0
+    return size, [(v - mean) / spread for v in raw]
+
+
+def _cover_changed(own: Optional[bytes], tome: bytes, allow_upgrade: bool = False) -> bool:
+    """True when the cover Tome shows should go into the file.
+
+    Tome's stored cover is usually the file's own cover scaled down and saved
+    as JPEG (``metadata.save_cover``), or a fetched scan of the same artwork.
+    Writing either back only makes the file worse, so the embed asks this
+    first. The answer is yes when Tome shows a different picture, and, with
+    ``allow_upgrade``, when it shows the same picture clearly larger. A Tome
+    cover that cannot be read is never written; a file with no readable cover
+    of its own always takes Tome's.
+    """
+    mine = _thumbprint(tome)
+    if mine is None:
+        return False
+    if own is None:
+        return True
+    theirs = _thumbprint(own)
+    if theirs is None:
+        return True
+    (mw, mh), (tw, th) = mine[0], theirs[0]
+    if abs(mw / mh - tw / th) / (tw / th) > _SAME_COVER_MAX_ASPECT_DIFF:
+        return True
+    diff = sum(abs(a - b) for a, b in zip(mine[1], theirs[1])) / len(mine[1])
+    if diff > _SAME_COVER_MAX_DIFF:
+        return True
+    return allow_upgrade and mw >= tw * _UPGRADE_MIN_WIDTH_RATIO
+
+
+def _cover_as(data: bytes, fmt: str) -> Optional[bytes]:
+    """``data`` as an image of PIL format ``fmt``, untouched when it already
+    is one. None when it cannot be read or written."""
+    try:
+        img = Image.open(io.BytesIO(data))
+        if img.format == fmt:
+            return data
+        if fmt == "JPEG" or img.mode not in ("RGB", "RGBA", "L", "P"):
+            img = img.convert("RGB")
+        out = io.BytesIO()
+        if fmt == "JPEG":
+            img.save(out, "JPEG", quality=90, optimize=True)
+        else:
+            img.save(out, fmt)
+        return out.getvalue()
+    except Exception as e:
+        log.warning("cover could not be written as %s: %s", fmt, e)
+        return None
+
+
+class _CoverPlan:
+    """What the EPUB embed does with the cover: overwrite the image the
+    package names (``add`` False) or add a new one and declare it."""
+
+    def __init__(self, zip_name: str, data: bytes, add: bool = False,
+                 href: str = "", media_type: str = "") -> None:
+        self.zip_name = zip_name
+        self.data = data
+        self.add = add
+        self.href = href
+        self.media_type = media_type
+
+
+def _plan_epub_cover(
+    zf: zipfile.ZipFile, opf_xml: bytes, opf_path: str, names: list[str],
+    cover_bytes: Optional[bytes],
+) -> Optional[_CoverPlan]:
+    """None = leave the file's cover alone."""
+    if cover_bytes is None:
+        return None
+    try:
+        root = ET.fromstring(opf_xml)
+    except ET.ParseError:
+        return None
+
+    declared = _declared_cover_item(root)
+    if declared is not None:
+        zip_name = _resolve_href(opf_path, declared.get("href") or "")
+        if zip_name not in names:
+            return None
+        if not _cover_changed(zf.read(zip_name), cover_bytes, allow_upgrade=True):
+            return None
+        # Keep the image's name and type: cover pages inside the book point at
+        # this file, so the new cover is written in the format it already has.
+        fmt = _PIL_FORMATS.get((declared.get("media-type") or "").lower())
+        if fmt is None:
+            return None
+        data = _cover_as(cover_bytes, fmt)
+        return _CoverPlan(zip_name, data) if data is not None else None
+
+    # No cover named by the package. Tome's own cover then came from a
+    # fallback image, which may be an illustration: never overwrite it.
+    fallback = _fallback_cover_item(root)
+    own: Optional[bytes] = None
+    if fallback is not None:
+        zip_name = _resolve_href(opf_path, fallback.get("href") or "")
+        if zip_name in names:
+            own = zf.read(zip_name)
+    if not _cover_changed(own, cover_bytes):
+        return None
+    data = _cover_as(cover_bytes, "JPEG")
+    if data is None:
+        return None
+    href = "tome-cover.jpg"
+    n = 1
+    while _resolve_href(opf_path, href) in names:
+        n += 1
+        href = f"tome-cover-{n}.jpg"
+    return _CoverPlan(_resolve_href(opf_path, href), data, add=True,
+                      href=href, media_type="image/jpeg")
 
 
 # ── CBZ ───────────────────────────────────────────────────────────────────────
@@ -336,6 +555,7 @@ def _embed_cbz(book: Book, src: Path, cover_bytes: Optional[bytes]) -> Optional[
 
     with zipfile.ZipFile(src, "r") as zf:
         names = zf.namelist()
+        cover_bytes = _cbz_cover_page(zf, names, cover_bytes)
         buf = io.BytesIO()
         with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zout:
             if cover_bytes is not None:
@@ -350,6 +570,29 @@ def _embed_cbz(book: Book, src: Path, cover_bytes: Optional[bytes]) -> Optional[
                 zout.writestr(n, zf.read(n))
             zout.writestr(COMIC_INFO_NAME, comic_info)
         return buf.getvalue()
+
+
+def _cbz_cover_page(
+    zf: zipfile.ZipFile, names: list[str], cover_bytes: Optional[bytes]
+) -> Optional[bytes]:
+    """The cover page to put in front of the comic, or None for no page.
+
+    A reader shows the first page as the cover, so a page is added only when
+    Tome's cover is a different picture from that page (someone picked
+    another cover). Otherwise it would be the first page twice.
+    """
+    if cover_bytes is None:
+        return None
+    # Same choice of first page as metadata.extract_cbz
+    images = sorted(
+        n for n in names
+        if n.lower().endswith((".jpg", ".jpeg", ".png", ".webp"))
+        and not n.startswith("__MACOSX")
+    )
+    own = zf.read(images[0]) if images else None
+    if not _cover_changed(own, cover_bytes):
+        return None
+    return _cover_as(cover_bytes, "JPEG")
 
 
 def _build_comic_info(book: Book) -> bytes:
