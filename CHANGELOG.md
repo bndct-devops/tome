@@ -39,6 +39,15 @@ All notable changes to Tome are documented here. Format loosely follows
 - Dialogs no longer blur the page behind them.
 
 ### Fixed
+- **Downloads keep the file's own cover and pages.** Every download wrote
+  Tome's stored cover, a 600 px copy, into the file: an EPUB lost its
+  full-size cover, and a comic got its first page a second time as a small
+  cover page. The cover is now written only when Tome shows a different
+  picture than the file carries (or, for an EPUB, the same one clearly
+  larger). A replaced EPUB cover keeps the image type the book declares, a
+  comic's cover page is always a JPEG, and an EPUB that names no cover gets
+  one added instead of having its first image overwritten. This applies to
+  downloads from the web, OPDS, the KOReader plugin and send-to-device. (#344)
 - **A book opened from "No series" leads back to it.** The trail above the
   book's title now has a "No series" step when the book was opened from the
   library filtered to books without a series, so after editing one book the
