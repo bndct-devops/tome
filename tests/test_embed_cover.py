@@ -114,6 +114,19 @@ class TestCoverChanged:
         assert _cover_changed(own, _picture(1, (1200, 1800)), allow_upgrade=True) is True
         assert _cover_changed(own, _picture(1, (440, 660)), allow_upgrade=True) is False
 
+    def test_brighter_or_duller_scan_of_the_same_picture_is_not_a_change(self):
+        from PIL import ImageEnhance
+        own = _picture(1)
+        img = Image.open(io.BytesIO(own))
+        for scan in (
+            ImageEnhance.Brightness(img).enhance(1.12),
+            ImageEnhance.Color(ImageEnhance.Brightness(img).enhance(0.9)).enhance(1.25),
+            ImageEnhance.Contrast(img).enhance(1.15),
+        ):
+            out = io.BytesIO()
+            scan.resize((400, 600)).save(out, "JPEG", quality=70)
+            assert _cover_changed(own, out.getvalue()) is False
+
     def test_identical_bytes_are_not_a_change(self):
         own = _picture(1, (1200, 1800))
         assert _cover_changed(own, own, allow_upgrade=True) is False
@@ -328,3 +341,84 @@ class TestCache:
         assert served != old and served.parent == old.parent
         assert not old.exists()
         assert "ComicInfo.xml" in _read(served.read_bytes())
+
+
+# ── Through the download routes ──────────────────────────────────────────────
+
+class TestDownloadRoutes:
+    """The files from issue #344, uploaded and downloaded over HTTP."""
+
+    def _dirs(self, tmp_path, monkeypatch):
+        for name in ("library", "bindery", "data"):
+            (tmp_path / name).mkdir()
+        monkeypatch.setattr("backend.core.config.settings.library_dir", tmp_path / "library")
+        monkeypatch.setattr("backend.core.config.settings.incoming_dir", tmp_path / "bindery")
+        monkeypatch.setattr("backend.core.config.settings.data_dir", tmp_path / "data")
+
+    def _upload(self, client, db, name: str, data: bytes):
+        from backend.models.book import BookFile
+        r = client.post("/api/books/upload", files={"file": (name, data, "application/octet-stream")})
+        assert r.status_code == 201, r.text
+        book_id = r.json()["id"]
+        assert r.json()["cover_path"], "the upload should have extracted a cover"
+        return book_id, db.query(BookFile).filter(BookFile.book_id == book_id).one().id
+
+    def _comic(self, tmp_path) -> tuple[bytes, dict[str, bytes]]:
+        pages = {f"00{i}.jpg": _picture(i) for i in (1, 2, 3)}
+        return _zip(tmp_path / "Comic v01.cbz", pages).read_bytes(), pages
+
+    def _book_file(self, tmp_path) -> tuple[bytes, bytes]:
+        cover = _picture(4, (1600, 2400), "PNG")
+        src = _epub(tmp_path, _opf(PNG_COVER), {"OEBPS/images/cover.png": cover})
+        return src.read_bytes(), cover
+
+    def test_comic_downloads_with_its_own_pages_only(self, client, db, tmp_path, monkeypatch):
+        self._dirs(tmp_path, monkeypatch)
+        data, pages = self._comic(tmp_path)
+        book_id, file_id = self._upload(client, db, "Comic v01.cbz", data)
+
+        web = client.get(f"/api/books/{book_id}/download/{file_id}")
+        opds = client.get(f"/opds/download/{book_id}/{file_id}", auth=("testadmin", "adminpass123"))
+        bulk = client.post("/api/downloads", json={"book_ids": [book_id]})
+        assert (web.status_code, opds.status_code, bulk.status_code) == (200, 200, 200)
+
+        inner = _read(bulk.content)
+        assert len(inner) == 1
+        for body in (web.content, opds.content, next(iter(inner.values()))):
+            out = _read(body)
+            assert sorted(out) == ["001.jpg", "002.jpg", "003.jpg", "ComicInfo.xml"]
+            for name, page in pages.items():
+                assert out[name] == page
+
+    def test_epub_downloads_with_its_own_cover(self, client, db, tmp_path, monkeypatch):
+        self._dirs(tmp_path, monkeypatch)
+        data, cover = self._book_file(tmp_path)
+        book_id, file_id = self._upload(client, db, "A Book.epub", data)
+
+        web = client.get(f"/api/books/{book_id}/download/{file_id}")
+        opds = client.get(f"/opds/download/{book_id}/{file_id}", auth=("testadmin", "adminpass123"))
+        assert (web.status_code, opds.status_code) == (200, 200)
+        for body in (web.content, opds.content):
+            assert _read(body)["OEBPS/images/cover.png"] == cover
+
+    def test_cover_picked_in_tome_reaches_both_downloads(self, client, db, tmp_path, monkeypatch):
+        self._dirs(tmp_path, monkeypatch)
+        comic, pages = self._comic(tmp_path)
+        epub, _ = self._book_file(tmp_path)
+        comic_id, comic_file = self._upload(client, db, "Comic v01.cbz", comic)
+        epub_id, epub_file = self._upload(client, db, "A Book.epub", epub)
+        picked = _picture(9, (800, 1200))
+        for book_id in (comic_id, epub_id):
+            r = client.post(f"/api/books/{book_id}/cover", files={"file": ("c.jpg", picked, "image/jpeg")})
+            assert r.status_code == 200, r.text
+
+        out = client.get(f"/api/books/{comic_id}/download/{comic_file}").content
+        with zipfile.ZipFile(io.BytesIO(out)) as zf:
+            assert zf.namelist()[0] == COVER_NAME
+            assert zf.read(COVER_NAME) == picked
+            assert zf.read("001.jpg") == pages["001.jpg"]
+
+        out = _read(client.get(f"/api/books/{epub_id}/download/{epub_file}").content)
+        new = out["OEBPS/images/cover.png"]
+        assert _format(new) == "PNG"
+        assert _cover_changed(picked, new) is False

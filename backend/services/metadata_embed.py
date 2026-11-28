@@ -406,28 +406,32 @@ _PIL_FORMATS = {
 }
 
 _THUMB = 16
-# Mean per-channel difference (0-255) between two 16x16 thumbnails above which
-# two covers count as different pictures. Measured on a real library: Tome's
-# stored copy of the file's own cover stays under 3, a fetched scan of the
-# same artwork under 9, another edition's cover starts at 16 and an unrelated
-# cover is above 30.
-_SAME_COVER_MAX_DIFF = 12.0
+# Mean difference between two 16x16 thumbnails, each brought to zero mean and
+# unit spread first so a brighter, darker or more saturated scan of the same
+# artwork still matches. Above this two covers count as different pictures.
+# Measured on a real library of 268 covers: Tome's stored copy of the file's
+# own cover and fetched scans of the same artwork stay under 0.18, another
+# edition of the same cover is at 0.31, and of 35,778 pairs of different
+# books the closest is at 0.28.
+_SAME_COVER_MAX_DIFF = 0.22
 _SAME_COVER_MAX_ASPECT_DIFF = 0.05
 # A cover of the same picture replaces the file's own only when it is at
 # least this much wider.
 _UPGRADE_MIN_WIDTH_RATIO = 1.2
 
 
-def _thumbprint(data: bytes) -> Optional[tuple[tuple[int, int], bytes]]:
+def _thumbprint(data: bytes) -> Optional[tuple[tuple[int, int], list[float]]]:
     try:
         img = Image.open(io.BytesIO(data))
         size = img.size
         if not size[0] or not size[1]:
             return None
-        small = img.convert("RGB").resize((_THUMB, _THUMB), Image.BOX)
-        return size, small.tobytes()
+        raw = img.convert("RGB").resize((_THUMB, _THUMB), Image.BOX).tobytes()
     except Exception:
         return None
+    mean = sum(raw) / len(raw)
+    spread = (sum((v - mean) ** 2 for v in raw) / len(raw)) ** 0.5 or 1.0
+    return size, [(v - mean) / spread for v in raw]
 
 
 def _cover_changed(own: Optional[bytes], tome: bytes, allow_upgrade: bool = False) -> bool:
